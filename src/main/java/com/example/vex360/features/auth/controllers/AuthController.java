@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.vex360.features.auth.dtos.*;
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
@@ -16,7 +15,7 @@ import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.services.AuthService;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
-import com.example.vex360.shared.config.security.CustomUserDetails;
+import com.example.vex360.shared.entities.User;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -64,9 +63,9 @@ public class AuthController {
 
     @PostMapping("/change-password")
     public ResponseEntity<String> changePassword(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @AuthenticationPrincipal User userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(userDetails.getUser(), request);
+        authService.changePassword(userDetails, request);
         return ResponseEntity.ok("Yêu cầu thay đổi mật khẩu đã được gửi đến email của bạn!");
     }
 

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.example.vex360.features.auth.dtos.*;
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
@@ -33,9 +33,9 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.UserService;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.UserRequestDTO;
-import com.example.vex360.shared.config.security.JwtProvider;
-import com.example.vex360.shared.entities.Role;
+import com.example.vex360.shared.config.security.JwtUtils;
 import com.example.vex360.shared.entities.User;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -52,7 +52,7 @@ public class AuthServiceImplUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private JwtProvider jwtProvider;
+    private JwtUtils jwtProvider;
 
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
@@ -72,20 +72,18 @@ public class AuthServiceImplUnitTest {
     public void setup() {
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
         sampleUser = User.builder()
-                .id(1)
+                .id(UUID.randomUUID())
                 .email("test@example.com")
                 .password("encodedPassword")
                 .fullName("John Doe")
-                .role(Role.ROLE_USER)
-                .isActive(true)
+                .role(Role.VISITOR)
                 .build();
     }
 
     @Test
     public void testRegister_Success() {
         RegisterRequest request = new RegisterRequest(
-            "test@example.com", "Password123!", "John Doe", "123456", "ROLE_USER", null
-        );
+                "test@example.com", "Password123!", "John Doe", "123456", "ROLE_USER", null);
         UserRequestDTO mappedDto = new UserRequestDTO();
         mappedDto.setEmail(request.getEmail());
 
@@ -102,7 +100,8 @@ public class AuthServiceImplUnitTest {
 
         when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
         when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(true);
-        when(jwtProvider.generateToken(sampleUser.getEmail(), sampleUser.getRole().name())).thenReturn("mockedAccessToken");
+        when(jwtProvider.generateToken(sampleUser))
+                .thenReturn("mockedAccessToken");
 
         TokenResponse response = authService.login(request);
 
@@ -134,7 +133,8 @@ public class AuthServiceImplUnitTest {
                 .build();
 
         when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(existingToken));
-        when(jwtProvider.generateToken(sampleUser.getEmail(), sampleUser.getRole().name())).thenReturn("newAccessToken");
+        when(jwtProvider.generateToken(sampleUser))
+                .thenReturn("newAccessToken");
 
         TokenResponse response = authService.refreshToken(tokenStr);
 
