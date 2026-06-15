@@ -8,7 +8,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.auth.dtos.*;
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
@@ -24,7 +23,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.UserService;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.UserRequestDTO;
-import com.example.vex360.shared.config.security.JwtProvider;
+import com.example.vex360.shared.config.security.JwtUtils;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -40,7 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserService userService;
     private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;
-    private final JwtProvider jwtProvider;
+    private final JwtUtils jwtProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final MailService mailService;
@@ -64,12 +63,12 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        if (!user.getIsActive()) {
+        if (!user.isEnabled()) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         // Generate Access Token
-        String accessToken = jwtProvider.generateToken(user.getEmail(), user.getRole().name());
+        String accessToken = jwtProvider.generateToken(user);
 
         // Generate and Save Refresh Token
         String tokenStr = UUID.randomUUID().toString();
@@ -78,7 +77,7 @@ public class AuthServiceImpl implements AuthService {
                 .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
                 .user(user)
                 .build();
-        
+
         // Remove existing refresh tokens for clean state
         refreshTokenRepository.deleteByUser(user);
         refreshTokenRepository.save(refreshToken);
@@ -101,7 +100,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = refreshToken.getUser();
-        String newAccessToken = jwtProvider.generateToken(user.getEmail(), user.getRole().name());
+        String newAccessToken = jwtProvider.generateToken(user);
 
         // Rotate Refresh Token
         String newRefreshTokenStr = UUID.randomUUID().toString();

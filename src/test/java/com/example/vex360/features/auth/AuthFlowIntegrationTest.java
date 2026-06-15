@@ -18,7 +18,6 @@ import org.springframework.web.context.WebApplicationContext;
 import jakarta.servlet.Filter;
 
 import com.example.vex360.TestcontainersConfiguration;
-import com.example.vex360.features.auth.dtos.*;
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
@@ -26,8 +25,9 @@ import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
-import com.example.vex360.features.user.UserRepository;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
+import com.example.vex360.features.user.repositories.UserRepository;
+
 import org.junit.jupiter.api.condition.EnabledIf;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

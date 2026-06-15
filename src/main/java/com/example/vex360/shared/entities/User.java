@@ -1,5 +1,17 @@
 package com.example.vex360.shared.entities;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.example.vex360.shared.enums.AuthProvider;
+import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.enums.UserStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,15 +34,15 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class User {
+public class User implements UserDetails {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "email", nullable = false, unique = true)
     String email;
 
-    @Column(nullable = false)
+    @Column(name = "password", nullable = true)
     String password;
 
     @Column(name = "full_name")
@@ -40,12 +52,48 @@ public class User {
     String phoneNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "role", nullable = false)
     Role role;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    AuthProvider provider = AuthProvider.LOCAL;
 
     @Column(name = "avatar_url")
     String avatarUrl;
 
-    @Column(name = "is_active", nullable = false)
-    Boolean isActive;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_status", nullable = false)
+    @Builder.Default
+    UserStatus status = UserStatus.ACTIVE;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority(role.name()));
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return status.equals(UserStatus.ACTIVE);
+    }
 }
