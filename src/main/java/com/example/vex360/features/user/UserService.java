@@ -1,8 +1,5 @@
 package com.example.vex360.features.user;
 
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class UserService implements UserDetailsService {
+public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -46,7 +43,7 @@ public class UserService implements UserDetailsService {
                 .phoneNumber(request.getPhoneNumber())
                 .role(userRole)
                 .avatarUrl(request.getAvatarUrl())
-                .status(UserStatus.PENDING)
+                .status(UserStatus.ACTIVE)
                 .build();
 
         return userRepository.save(user);
@@ -60,11 +57,5 @@ public class UserService implements UserDetailsService {
     public void updatePassword(User user, String newPassword) {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-    }
-
-    @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'loadUserByUsername'");
     }
 }

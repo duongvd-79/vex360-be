@@ -23,8 +23,10 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.UserService;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.UserRequestDTO;
+import com.example.vex360.shared.config.security.CustomUserDetails;
 import com.example.vex360.shared.config.security.JwtUtils;
 import com.example.vex360.shared.entities.User;
+import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -63,12 +65,12 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        if (!user.isEnabled()) {
+        if (!user.getStatus().equals(UserStatus.ACTIVE)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         // Generate Access Token
-        String accessToken = jwtProvider.generateToken(user);
+        String accessToken = jwtProvider.generateToken(new CustomUserDetails(user));
 
         // Generate and Save Refresh Token
         String tokenStr = UUID.randomUUID().toString();
@@ -100,7 +102,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = refreshToken.getUser();
-        String newAccessToken = jwtProvider.generateToken(user);
+        String newAccessToken = jwtProvider.generateToken(new CustomUserDetails(user));
 
         // Rotate Refresh Token
         String newRefreshTokenStr = UUID.randomUUID().toString();

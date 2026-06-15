@@ -14,6 +14,7 @@ import com.example.vex360.features.auth.dtos.request.RegisterRequest;
 import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.services.AuthService;
+import com.example.vex360.shared.config.security.CustomUserDetails;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
 import com.example.vex360.shared.entities.User;
 
@@ -63,9 +64,9 @@ public class AuthController {
 
     @PostMapping("/change-password")
     public ResponseEntity<String> changePassword(
-            @AuthenticationPrincipal User userDetails,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(userDetails, request);
+        authService.changePassword(userDetails.getUser(), request);
         return ResponseEntity.ok("Yêu cầu thay đổi mật khẩu đã được gửi đến email của bạn!");
     }
 

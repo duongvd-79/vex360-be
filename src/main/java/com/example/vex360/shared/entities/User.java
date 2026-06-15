@@ -1,12 +1,6 @@
 package com.example.vex360.shared.entities;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
-
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
@@ -34,7 +28,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class User implements UserDetails {
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
@@ -66,34 +60,4 @@ public class User implements UserDetails {
     @Column(name = "user_status", nullable = false)
     @Builder.Default
     UserStatus status = UserStatus.ACTIVE;
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
-    }
-
-    @Override
-    public String getUsername() {
-        return email;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return status.equals(UserStatus.ACTIVE);
-    }
 }

@@ -28,7 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtProvider;
     private final UserDetailsService userDetailsService;
     
-    @Value("${app.security.whitelist:}")
+    @Value("${app.security.whitelist}")
     private String[] whitelist;
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();

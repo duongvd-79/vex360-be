@@ -14,5 +14,4 @@ public class UserRequestDTO {
     private String phoneNumber;
     private String role;
     private String avatarUrl;
-    private Boolean isActive;
 }

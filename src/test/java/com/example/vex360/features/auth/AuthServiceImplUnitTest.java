@@ -33,6 +33,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.UserService;
 import com.example.vex360.features.user.dtos.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.UserRequestDTO;
+import com.example.vex360.shared.config.security.CustomUserDetails;
 import com.example.vex360.shared.config.security.JwtUtils;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
@@ -100,7 +101,7 @@ public class AuthServiceImplUnitTest {
 
         when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
         when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(true);
-        when(jwtProvider.generateToken(sampleUser))
+        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
                 .thenReturn("mockedAccessToken");
 
         TokenResponse response = authService.login(request);
@@ -133,7 +134,7 @@ public class AuthServiceImplUnitTest {
                 .build();
 
         when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(existingToken));
-        when(jwtProvider.generateToken(sampleUser))
+        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
                 .thenReturn("newAccessToken");
 
         TokenResponse response = authService.refreshToken(tokenStr);

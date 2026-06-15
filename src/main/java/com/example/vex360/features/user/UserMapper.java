@@ -14,6 +14,8 @@ import com.example.vex360.shared.entities.User;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface UserMapper {
     User toUser(UserRequestDTO userRequestDTO);
+
     UserResponseDTO toUserResponseDTO(User user);
+
     List<UserResponseDTO> toUserResponseDTOs(List<User> users);
 }

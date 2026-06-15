@@ -1,9 +1,5 @@
 package com.example.vex360.shared.config.security;
 
-import com.example.vex360.features.user.repositories.UserRepository;
-import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,8 +17,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.example.vex360.features.user.UserService;
-
 import lombok.RequiredArgsConstructor;
 
 @Configuration
@@ -32,9 +26,7 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
     private final PasswordEncoder passwordEncoder;
-
-    private final UserRepository userRepository;
-
+    private final UserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Value("${app.security.whitelist}")
@@ -58,14 +50,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsService userDetailsService() {
-        return email -> userRepository.findByEmail(email)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-    }
-
-    @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService());
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
         return authProvider;
     }
