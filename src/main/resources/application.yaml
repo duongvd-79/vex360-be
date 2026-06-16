@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: vex360
+  config:
+    import: optional:file:.env[.properties]
+
+  # Database Configuration
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # JPA Config
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Flyway Configuration
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+
+  # Mail Server Configuration
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Custom Application Settings
+app:
+  # JWT Settings
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
+
+  # Security Whitelist
+  security:
+    whitelist: /api/v1/auth/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
