@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +29,6 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.entities.User;
-import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -42,6 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtProvider;
+    private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final MailService mailService;
@@ -59,18 +62,14 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse login(LoginRequest request) {
-        User user = userService.getUserByEmail(request.getEmail());
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.BAD_CREDENTIALS);
-        }
-
-        if (!user.getStatus().equals(UserStatus.ACTIVE)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
 
         // Generate Access Token
-        String accessToken = jwtProvider.generateToken(new CustomUserDetails(user));
+        String accessToken = jwtProvider.generateToken(userDetails);
 
         // Generate and Save Refresh Token
         String tokenStr = UUID.randomUUID().toString();

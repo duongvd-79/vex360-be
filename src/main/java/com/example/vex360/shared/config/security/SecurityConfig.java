@@ -21,11 +21,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.example.vex360.shared.config.jwt.JwtAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityConfig {
 
     private final PasswordEncoder passwordEncoder;
@@ -51,7 +53,6 @@ public class SecurityConfig {
                             auth.requestMatchers(pattern.trim()).permitAll();
                         }
                     }
-                    auth.requestMatchers("/api/v1/auth/**").permitAll();
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
