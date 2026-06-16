@@ -28,6 +28,7 @@ public class SecurityConfig {
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SecurityExceptionHandler securityExceptionHandler;
 
     @Value("${app.security.whitelist}")
     private String[] whitelist;
@@ -37,6 +38,9 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(securityExceptionHandler)
+                        .accessDeniedHandler(securityExceptionHandler))
                 .authorizeHttpRequests(auth -> {
                     if (whitelist != null) {
                         for (String pattern : whitelist) {

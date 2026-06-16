@@ -1,4 +1,4 @@
-package com.example.vex360.features.user.dtos;
+package com.example.vex360.features.user.dtos.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
