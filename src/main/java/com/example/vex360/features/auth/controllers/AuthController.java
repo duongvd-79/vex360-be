@@ -15,8 +15,7 @@ import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.services.AuthService;
 import com.example.vex360.shared.config.security.CustomUserDetails;
-import com.example.vex360.features.user.dtos.ChangePasswordRequest;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

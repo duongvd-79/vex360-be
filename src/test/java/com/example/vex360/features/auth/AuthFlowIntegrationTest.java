@@ -25,7 +25,7 @@ import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
-import com.example.vex360.features.user.dtos.ChangePasswordRequest;
+import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.repositories.UserRepository;
 
 import org.junit.jupiter.api.condition.EnabledIf;

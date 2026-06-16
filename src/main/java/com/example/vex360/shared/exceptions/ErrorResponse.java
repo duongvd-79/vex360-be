@@ -5,11 +5,21 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
+@JsonPropertyOrder({
+        "timestamp",
+        "status",
+        "error",
+        "code",
+        "message",
+        "path",
+        "validationErrors"
+})
 @JsonInclude(JsonInclude.Include.NON_NULL) // Trường nào null thì không gửi về Client
 public class ErrorResponse {
     private LocalDateTime timestamp;
