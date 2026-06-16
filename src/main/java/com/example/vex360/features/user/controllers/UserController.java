@@ -43,7 +43,7 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponseDTO>> createUser(@Valid @RequestBody CreateUserRequest request) {
         UserResponseDTO user = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Create user successfully", user));
+                .body(ApiResponse.success(HttpStatus.CREATED.value(), user, "Create user successfully"));
     }
 
     @GetMapping
@@ -51,14 +51,14 @@ public class UserController {
     public ResponseEntity<ApiResponse<PageResponse<UserResponseDTO>>> getUsers(
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "email") Pageable pageable) {
         PageResponse<UserResponseDTO> users = userService.getUsers(pageable);
-        return ResponseEntity.ok(ApiResponse.success("Get users successfully", users));
+        return ResponseEntity.ok(ApiResponse.success(users, "Get users successfully"));
     }
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponseDTO>> getCurrentUser(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         UserResponseDTO user = userService.getCurrentUser(userDetails.getUser());
-        return ResponseEntity.ok(ApiResponse.success("Get current user successfully", user));
+        return ResponseEntity.ok(ApiResponse.success(user, "Get current user successfully"));
     }
 
     @PatchMapping("/me")
@@ -66,7 +66,7 @@ public class UserController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody UpdateProfileRequest request) {
         UserResponseDTO user = userService.updateCurrentUserProfile(userDetails.getUser(), request);
-        return ResponseEntity.ok(ApiResponse.success("Update profile successfully", user));
+        return ResponseEntity.ok(ApiResponse.success(user, "Update profile successfully"));
     }
 
     @PatchMapping("/me/password")
@@ -74,14 +74,18 @@ public class UserController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changeCurrentUserPassword(userDetails.getUser(), request);
-        return ResponseEntity.ok(ApiResponse.success("Change password successfully"));
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .status(HttpStatus.OK.value())
+                .code("SUCCESS")
+                .message("Change password successfully")
+                .build());
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(@PathVariable UUID id) {
         UserResponseDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(ApiResponse.success("Get user successfully", user));
+        return ResponseEntity.ok(ApiResponse.success(user, "Get user successfully"));
     }
 
     @PatchMapping("/{id}/role")
@@ -90,7 +94,7 @@ public class UserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request) {
         UserResponseDTO user = userService.updateRole(id, request.getRole());
-        return ResponseEntity.ok(ApiResponse.success("Update role successfully", user));
+        return ResponseEntity.ok(ApiResponse.success(user, "Update role successfully"));
     }
 
     @PatchMapping("/{id}/status")
@@ -99,6 +103,6 @@ public class UserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStatusRequest request) {
         UserResponseDTO user = userService.updateStatus(id, request.getStatus());
-        return ResponseEntity.ok(ApiResponse.success("Update status successfully", user));
+        return ResponseEntity.ok(ApiResponse.success(user, "Update status successfully"));
     }
 }
