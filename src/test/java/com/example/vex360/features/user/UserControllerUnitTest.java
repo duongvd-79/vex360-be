@@ -32,7 +32,7 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.shared.config.security.CustomUserDetails;
+import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
@@ -80,8 +80,7 @@ class UserControllerUnitTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.email").value("user@example.com"));
     }
 
@@ -133,7 +132,7 @@ class UserControllerUnitTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     private void authenticate(User user) {

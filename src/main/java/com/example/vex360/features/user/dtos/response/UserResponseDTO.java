@@ -19,4 +19,5 @@ public class UserResponseDTO {
     String phoneNumber;
     String role;
     String avatarUrl;
+    String status;
 }

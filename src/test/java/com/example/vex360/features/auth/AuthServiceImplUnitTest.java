@@ -31,7 +31,7 @@ import com.example.vex360.features.auth.repositories.PasswordResetTokenRepositor
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
 import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
 import com.example.vex360.features.mail.MailService;
-import com.example.vex360.features.user.UserService;
+import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;

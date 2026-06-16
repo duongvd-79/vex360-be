@@ -51,7 +51,7 @@ public class SecurityConfig {
                             auth.requestMatchers(pattern.trim()).permitAll();
                         }
                     }
-                    auth.requestMatchers("/api/v1/auth/token/**").permitAll();
+                    auth.requestMatchers("/api/v1/auth/**").permitAll();
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

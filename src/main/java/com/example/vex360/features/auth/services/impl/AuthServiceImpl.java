@@ -62,7 +62,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userService.getUserByEmail(request.getEmail());
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+            throw new AppException(ErrorCode.BAD_CREDENTIALS);
         }
 
         if (!user.getStatus().equals(UserStatus.ACTIVE)) {

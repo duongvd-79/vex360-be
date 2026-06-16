@@ -14,6 +14,12 @@ public enum ErrorCode {
     // AUTH ERRORS
     UNAUTHENTICATED("AUTH-001", "Unauthenticated or token expired", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED("AUTH-002", "Unauthorized", HttpStatus.FORBIDDEN),
+    BAD_CREDENTIALS("AUTH-003", "Invalid email or password", HttpStatus.BAD_REQUEST),
+    ACCOUNT_LOCKED("AUTH-004", "Account is locked", HttpStatus.FORBIDDEN),
+    ACCOUNT_INACTIVE("AUTH-005", "Account is inactive", HttpStatus.FORBIDDEN),
+    ACCOUNT_EXPIRED("AUTH-006", "Account is expired", HttpStatus.FORBIDDEN),
+    ACCOUNT_DISABLED("AUTH-007", "Account is disabled", HttpStatus.FORBIDDEN),
+    ACCOUNT_NOT_VERIFIED("AUTH-008", "Account is not verified", HttpStatus.FORBIDDEN),
 
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "User not found", HttpStatus.NOT_FOUND),

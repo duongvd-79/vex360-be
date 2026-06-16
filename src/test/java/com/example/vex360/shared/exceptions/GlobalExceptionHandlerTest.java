@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
+
+import com.example.vex360.shared.dtos.ApiResponse;
 
 class GlobalExceptionHandlerTest {
 
@@ -13,18 +14,12 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void handleAccessDeniedExceptionReturnsUnauthorizedErrorResponse() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/users");
-
-        ResponseEntity<ErrorResponse> response = handler.handleAccessDeniedException(
-                new AccessDeniedException("Forbidden"),
-                request);
+        ResponseEntity<ApiResponse<Object>> response = handler.handleAccessDeniedException(
+                new AccessDeniedException("Forbidden"));
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(403);
-        assertThat(response.getBody().getError()).isEqualTo("FORBIDDEN");
-        assertThat(response.getBody().getCode()).isEqualTo("AUTH-002");
-        assertThat(response.getBody().getMessage()).isEqualTo("Unauthorized");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/v1/users");
+        assertThat(response.getBody().code()).isEqualTo(403);
+        assertThat(response.getBody().message()).isEqualTo("Unauthorized");
     }
 }

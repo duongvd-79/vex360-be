@@ -1,7 +1,7 @@
 package com.example.vex360.shared.exceptions;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -9,92 +9,51 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import jakarta.servlet.http.HttpServletRequest;
+import com.example.vex360.shared.dtos.ApiResponse;
+
 import lombok.extern.slf4j.Slf4j;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    // 1. Bắt lỗi nghiệp vụ do chính Dev tự throw (AppException)
-    @ExceptionHandler(AppException.class)
-    public ResponseEntity<ErrorResponse> handleAppException(AppException ex, HttpServletRequest request) {
-        ErrorCode errorCode = ex.getErrorCode();
+        // 1. Bắt lỗi nghiệp vụ do chính Dev tự throw (AppException)
+        @ExceptionHandler(AppException.class)
+        public ResponseEntity<ApiResponse<Object>> handleAppException(AppException ex) {
+                ErrorCode errorCode = ex.getErrorCode();
+                ApiResponse<Object> apiResponse = ApiResponse.error(errorCode.getHttpStatus().value(), errorCode.getMessage());
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(apiResponse);
+        }
 
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(errorCode.getHttpStatus().value())
-                .error(errorCode.getHttpStatus().name())
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .path(request.getRequestURI())
-                .build();
+        // 2. Bắt lỗi Validation (Khi @Valid ở Controller kích hoạt thất bại)
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ApiResponse<Map<String, String>> handleValidationException(MethodArgumentNotValidException ex) {
+                Map<String, String> errors = new HashMap<>();
+                ex.getBindingResult().getFieldErrors().forEach(e -> errors.put(e.getField(), e.getDefaultMessage()));
+                return ApiResponse.errorListDataMessages(400, "Validation Failed", errors);
+        }
 
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
-    }
+        @ExceptionHandler(RuntimeException.class)
+        public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
+                ApiResponse<Object> apiResponse = ApiResponse.error(400, ex.getMessage());
+                return ResponseEntity.badRequest().body(apiResponse);
+        }
 
-    // 2. Bắt lỗi Validation (Khi @Valid ở Controller kích hoạt thất bại)
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex,
-            HttpServletRequest request) {
-        ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
+        // 3. Bắt các lỗi hệ thống còn lại (Lỗi DB, Lỗi Access Denied, Lỗi NullPointer...)
+        @ExceptionHandler(AccessDeniedException.class)
+        public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+                ErrorCode errorCode = ErrorCode.UNAUTHORIZED;
+                ApiResponse<Object> apiResponse = ApiResponse.error(errorCode.getHttpStatus().value(), errorCode.getMessage());
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(apiResponse);
+        }
 
-        // Gom toàn bộ các trường bị lỗi Validation lại
-        List<ErrorResponse.ValidationError> errors = ex.getBindingResult().getFieldErrors().stream()
-                .map(fieldError -> ErrorResponse.ValidationError.builder()
-                        .field(fieldError.getField())
-                        .message(fieldError.getDefaultMessage())
-                        .build())
-                .toList();
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
+                // Ghi Log lỗi chi tiết ở Server để Dev xem cứu hộ (Không trả log này về Client)
+                log.error("Hệ thống gặp lỗi nghiêm trọng: ", ex);
 
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(errorCode.getHttpStatus().value())
-                .error(errorCode.getHttpStatus().name())
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .path(request.getRequestURI())
-                .validationErrors(errors)
-                .build();
-
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
-    }
-
-    // 3. Bắt các lỗi hệ thống còn lại (Lỗi DB, Lỗi NullPointer, Truỳ cập mảng vượt
-    // giới hạn...)
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex,
-            HttpServletRequest request) {
-        ErrorCode errorCode = ErrorCode.UNAUTHORIZED;
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(errorCode.getHttpStatus().value())
-                .error(errorCode.getHttpStatus().name())
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .path(request.getRequestURI())
-                .build();
-
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
-        // Ghi Log lỗi chi tiết ở Server để Dev xem cứu hộ (Không trả log này về Client)
-        log.error("Hệ thống gặp lỗi nghiêm trọng: ", ex);
-
-        ErrorCode errorCode = ErrorCode.UNCATCHED_EXCEPTION;
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(errorCode.getHttpStatus().value())
-                .error(errorCode.getHttpStatus().name())
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage()) // Trả ra câu thông báo chung chung bảo mật
-                .path(request.getRequestURI())
-                .build();
-
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
-    }
+                ErrorCode errorCode = ErrorCode.UNCATCHED_EXCEPTION;
+                ApiResponse<Object> apiResponse = ApiResponse.error(errorCode.getHttpStatus().value(), errorCode.getMessage());
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(apiResponse);
+        }
 }

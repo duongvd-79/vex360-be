@@ -7,6 +7,10 @@ public abstract class BaseController {
         return ApiResponse.success(data);
     }
 
+    protected <T> ApiResponse<T> createSuccessResponse(T data, String message) {
+        return ApiResponse.success(data, message);
+    }
+
     protected <T> ApiResponse<T> createErrorResponse(int code, String message) {
         return ApiResponse.error(code, message);
     }
