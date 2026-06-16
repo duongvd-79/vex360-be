@@ -23,6 +23,7 @@ import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
 import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
+import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.auth.entities.PasswordResetToken;
 import com.example.vex360.features.auth.entities.RefreshToken;
 import com.example.vex360.features.auth.mapper.AuthMapper;
@@ -30,11 +31,10 @@ import com.example.vex360.features.auth.repositories.PasswordResetTokenRepositor
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
 import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
 import com.example.vex360.features.mail.MailService;
-import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.features.user.UserService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
-import com.example.vex360.shared.config.security.CustomUserDetails;
-import com.example.vex360.shared.config.security.JwtUtils;
+import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
@@ -53,7 +53,7 @@ public class AuthServiceImplUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private JwtUtils jwtProvider;
+    private JwtService jwtProvider;
 
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
@@ -84,7 +84,7 @@ public class AuthServiceImplUnitTest {
     @Test
     public void testRegister_Success() {
         RegisterRequest request = new RegisterRequest(
-                "test@example.com", "Password123!", "John Doe", "123456", "ROLE_USER", null);
+                "test@example.com", "Password123!", "John Doe", "123456");
         UserRequestDTO mappedDto = new UserRequestDTO();
         mappedDto.setEmail(request.getEmail());
 

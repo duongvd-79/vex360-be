@@ -23,6 +23,4 @@ public class RegisterRequest {
     private String fullName;
 
     private String phoneNumber;
-    private String role;
-    private String avatarUrl;
 }
