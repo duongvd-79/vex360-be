@@ -5,7 +5,7 @@ import org.mapstruct.MappingConstants;
 import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
-import com.example.vex360.features.user.dtos.UserRequestDTO;
+import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 
 @Component
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)

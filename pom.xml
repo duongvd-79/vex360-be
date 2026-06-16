@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
 		<!-- Core & Database -->
@@ -108,7 +109,7 @@
 		<dependency>
 			<groupId>org.mapstruct</groupId>
 			<artifactId>mapstruct</artifactId>
-			<version>1.6.3</version>
+			<version>${mapstruct.version}</version>
 		</dependency>
 		
 		<!-- Tests -->
@@ -200,6 +201,11 @@
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
 								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
+								</path>
 							</annotationProcessorPaths>
 						</configuration>
 					</execution>
@@ -214,6 +220,11 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>
