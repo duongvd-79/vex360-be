@@ -13,6 +13,7 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
+import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -59,9 +60,23 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public PageResponse<UserResponseDTO> getUsers(Pageable pageable) {
-        Page<UserResponseDTO> users = userRepository.findAll(pageable)
+        return getUsers(null, null, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<UserResponseDTO> getUsers(String keyword, Role role, UserStatus status, Pageable pageable) {
+        Page<UserResponseDTO> users = userRepository.searchUsers(normalizeKeyword(keyword), role, status, pageable)
                 .map(userMapper::toUserResponseDTO);
         return PageResponse.from(users);
+    }
+
+    @Transactional(readOnly = true)
+    public UserSummaryResponseDTO getUserSummary() {
+        return new UserSummaryResponseDTO(
+                userRepository.count(),
+                userRepository.countByStatus(UserStatus.ACTIVE),
+                userRepository.countByRole(Role.ADMIN),
+                userRepository.countByStatus(UserStatus.PENDING));
     }
 
     @Transactional(readOnly = true)
@@ -85,9 +100,8 @@ public class UserService {
     public void changeCurrentUserPassword(User currentUser, ChangePasswordRequest request) {
         User user = getUserEntityById(currentUser.getId());
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.OLDPASSWORD_FAILED);
         }
-
         updatePassword(user, request.getNewPassword());
     }
 
@@ -155,5 +169,12 @@ public class UserService {
         } catch (IllegalArgumentException e) {
             throw new AppException(ErrorCode.ROLE_NOT_FOUND);
         }
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim();
     }
 }

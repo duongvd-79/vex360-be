@@ -1,6 +1,7 @@
 package com.example.vex360.features.user;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -31,6 +32,7 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
+import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -72,7 +74,7 @@ class UserControllerUnitTest {
     @Test
     void createUserReturnsApiResponse() throws Exception {
         CreateUserRequest request = new CreateUserRequest(
-                "user@example.com", "Password123!", "User Name", "123", Role.VISITOR, "avatar.png");
+                "user@example.com", "Password123!", "User Name", "0912345678", Role.VISITOR, "avatar.png");
 
         when(userService.createUser(any(CreateUserRequest.class))).thenReturn(response);
 
@@ -96,15 +98,30 @@ class UserControllerUnitTest {
                 .last(true)
                 .build();
 
-        when(userService.getUsers(any(Pageable.class))).thenReturn(pageResponse);
+        when(userService.getUsers(eq("user"), eq(Role.ADMIN), eq(UserStatus.ACTIVE), any(Pageable.class)))
+                .thenReturn(pageResponse);
 
-        mockMvc.perform(get("/api/v1/users?page=0&size=10"))
+        mockMvc.perform(get("/api/v1/users?page=0&size=10&keyword=user&role=ADMIN&status=ACTIVE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].email").value("user@example.com"))
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(10))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.totalPages").value(1));
+    }
+
+    @Test
+    void getUserSummaryReturnsApiResponse() throws Exception {
+        UserSummaryResponseDTO summary = new UserSummaryResponseDTO(1284L, 1102L, 12L, 45L);
+
+        when(userService.getUserSummary()).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/users/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalUsers").value(1284))
+                .andExpect(jsonPath("$.data.activeUsers").value(1102))
+                .andExpect(jsonPath("$.data.adminUsers").value(12))
+                .andExpect(jsonPath("$.data.pendingUsers").value(45));
     }
 
     @Test

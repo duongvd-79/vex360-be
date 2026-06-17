@@ -2,9 +2,7 @@ package com.example.vex360.features.user.dtos.request;
 
 import com.example.vex360.shared.enums.Role;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,7 +22,10 @@ public class CreateUserRequest {
     @NotBlank(message = "Họ và tên không được để trống")
     private String fullName;
 
+    @Pattern(regexp = "0\\d{9}", message = "Số điện thoại không hợp lệ")
     private String phoneNumber;
+
+    @NotNull(message = "Role không được để trống")
     private Role role;
     private String avatarUrl;
 }

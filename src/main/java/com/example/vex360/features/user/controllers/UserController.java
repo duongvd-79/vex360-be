@@ -15,18 +15,22 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.request.UpdateRoleRequest;
 import com.example.vex360.features.user.dtos.request.UpdateStatusRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
+import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.enums.UserStatus;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,9 +53,19 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<PageResponse<UserResponseDTO>>> getUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) UserStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "email") Pageable pageable) {
-        PageResponse<UserResponseDTO> users = userService.getUsers(pageable);
+        PageResponse<UserResponseDTO> users = userService.getUsers(keyword, role, status, pageable);
         return ResponseEntity.ok(ApiResponse.success(users));
+    }
+
+    @GetMapping("/summary")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<UserSummaryResponseDTO>> getUserSummary() {
+        UserSummaryResponseDTO summary = userService.getUserSummary();
+        return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
     @GetMapping("/me")

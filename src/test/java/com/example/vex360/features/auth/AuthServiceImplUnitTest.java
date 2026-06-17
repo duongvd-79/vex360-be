@@ -121,7 +121,7 @@ public class AuthServiceImplUnitTest {
         when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(false);
 
         AppException exception = assertThrows(AppException.class, () -> authService.login(request));
-        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        assertEquals(ErrorCode.BAD_CREDENTIALS, exception.getErrorCode());
     }
 
     @Test

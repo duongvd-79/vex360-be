@@ -24,7 +24,9 @@ public enum ErrorCode {
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "User not found", HttpStatus.NOT_FOUND),
     EMAIL_ALREADY_EXISTS("USER-002", "The email already exists", HttpStatus.BAD_REQUEST),
-    ROLE_NOT_FOUND("USER-003", "Role not found", HttpStatus.NOT_FOUND);
+    ROLE_NOT_FOUND("USER-003", "Role not found", HttpStatus.NOT_FOUND),
+    INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
+    OLDPASSWORD_FAILED("USER-005","Old Password is failed",HttpStatus.BAD_REQUEST);
 
     private final String code;
     private final String message;
