@@ -3,6 +3,7 @@ package com.example.vex360.features.mail;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ public class MailServiceImpl implements MailService {
         this.mailSender = mailSenderProvider.getIfAvailable();
     }
 
+    @Async
     @Override
     public void sendForgotPasswordEmail(String toEmail, String resetToken) {
         String subject = "Reset Password Request";
@@ -24,6 +26,7 @@ public class MailServiceImpl implements MailService {
         sendMail(toEmail, subject, content);
     }
 
+    @Async
     @Override
     public void sendPasswordChangeVerificationEmail(String toEmail, String changeToken) {
         String subject = "Change Password Verification";

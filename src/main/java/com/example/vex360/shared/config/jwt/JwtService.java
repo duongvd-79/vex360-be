@@ -5,12 +5,17 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+
+import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.entities.User;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -42,6 +47,16 @@ public class JwtService {
 
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        if (userDetails instanceof CustomUserDetails customUser) {
+            User user = customUser.getUser();
+            claims.put("userId", user.getId().toString());
+            claims.put("role", user.getRole().name());
+            claims.put("status", user.getStatus().name());
+        } else {
+            claims.put("role", userDetails.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.joining(","))); // Join authorities as comma-separated
+        }
         return createToken(claims, userDetails.getUsername());
     }
 
@@ -59,6 +74,18 @@ public class JwtService {
         return extractClaims(token, Claims::getSubject);
     }
 
+    public String extractUserId(String token) {
+        return extractClaims(token, claims -> claims.get("userId", String.class));
+    }
+
+    public String extractRole(String token) {
+        return extractClaims(token, claims -> claims.get("role", String.class));
+    }
+
+    public String extractStatus(String token) {
+        return extractClaims(token, claims -> claims.get("status", String.class));
+    }
+
     public <T> T extractClaims(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
@@ -72,9 +99,14 @@ public class JwtService {
                 .getPayload();
     }
 
+    @Deprecated
     public boolean validateToken(String token, UserDetails userDetails) {
         final String email = extractEmailFromToken(token);
         return (email.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    }
+
+    public boolean validateToken(String token) {
+        return !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {
