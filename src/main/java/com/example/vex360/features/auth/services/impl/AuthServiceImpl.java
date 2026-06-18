@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,13 +34,15 @@ import com.example.vex360.shared.config.jwt.TokenBlacklistService;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Service implementation for handling authentication, token lifecycle, and password management.
+ * Service implementation for handling authentication, token lifecycle, and
+ * password management.
  * Designed with OWASP secure coding principles in mind:
  * - Proper password hashing matching via PasswordEncoder (BCrypt/Argon2)
  * - Anti-Session-Replay via Refresh Token Rotation (RTR)
@@ -63,12 +66,16 @@ public class AuthServiceImpl implements AuthService {
     private final TokenBlacklistService tokenBlacklistService;
     private final jakarta.servlet.http.HttpServletRequest httpServletRequest;
 
-    @Value("${app.jwt.refresh-expiration-ms:604800000}")
+    @Value("${app.jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
+
+    @Value("${app.backend.base-url}")
+    private String backendBaseUrl;
 
     /**
      * Registers a new user in the system.
-     * Delegated to UserService which performs validation (e.g. duplicate email checks).
+     * Delegated to UserService which performs validation (e.g. duplicate email
+     * checks).
      *
      * @param request the registration details
      */
@@ -80,8 +87,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Authenticates a user and generates a stateful session key (Refresh Token) and a stateless token (Access Token).
-     * Secures session initialization by removing any pre-existing sessions for the user to enforce single-device limits.
+     * Authenticates a user and generates a stateful session key (Refresh Token) and
+     * a stateless token (Access Token).
+     * Secures session initialization by removing any pre-existing sessions for the
+     * user to enforce single-device limits.
      *
      * @param request the user credentials (email and password)
      * @return the authentication token pair
@@ -89,41 +98,50 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse login(LoginRequest request) {
-        // Authenticates the user principal via Spring Security AuthenticationManager
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        try {
+            // Authenticates the user principal via Spring Security AuthenticationManager
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = userDetails.getUser();
+            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            User user = userDetails.getUser();
 
-        // 1. Generate Stateless Access Token (Contains claims for stateless authorization checks)
-        String accessToken = jwtProvider.generateToken(userDetails);
+            // 1. Generate Stateless Access Token (Contains claims for stateless
+            // authorization checks)
+            String accessToken = jwtProvider.generateToken(userDetails);
 
-        // 2. Generate and Save Refresh Token (High-entropy UUID session key)
-        String tokenStr = UUID.randomUUID().toString();
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(tokenStr)
-                .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
-                .user(user)
-                .used(false)
-                .build();
+            // 2. Generate and Save Refresh Token (High-entropy UUID session key)
+            String tokenStr = UUID.randomUUID().toString();
+            RefreshToken refreshToken = RefreshToken.builder()
+                    .token(tokenStr)
+                    .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
+                    .user(user)
+                    .used(false)
+                    .build();
 
-        // Security Control: Remove existing sessions for this user before storing the new session
-        refreshTokenRepository.deleteByUser(user);
-        refreshTokenRepository.save(refreshToken);
+            // Security Control: Remove existing sessions for this user before storing the
+            // new session
+            refreshTokenRepository.deleteByUser(user);
+            refreshTokenRepository.save(refreshToken);
 
-        return TokenResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(tokenStr)
-                .build();
+            return TokenResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(tokenStr)
+                    .build();
+        } catch (AuthenticationException e) {
+            throw new AppException(ErrorCode.BAD_CREDENTIALS);
+        }
     }
 
     /**
-     * Exchange an active, unused Refresh Token for a new Access and Refresh Token pair (Rotation).
+     * Exchange an active, unused Refresh Token for a new Access and Refresh Token
+     * pair (Rotation).
      * Implements OWASP Token Lifecycle controls:
-     * - Refresh Token Rotation (RTR): Each rotation invalidates the old token and issues a new one.
-     * - Replay/Theft Detection: If an already-used Refresh Token is presented, the system detects a compromise,
-     *   revokes all sessions for the associated user, and denies access.
+     * - Refresh Token Rotation (RTR): Each rotation invalidates the old token and
+     * issues a new one.
+     * - Replay/Theft Detection: If an already-used Refresh Token is presented, the
+     * system detects a compromise,
+     * revokes all sessions for the associated user, and denies access.
      *
      * @param tokenStr the refresh token presented by the client
      * @return the new token pair
@@ -137,10 +155,13 @@ public class AuthServiceImpl implements AuthService {
 
         User user = refreshToken.getUser();
 
-        // 1. Theft Detection: If the token has already been marked as used, it signifies a replay attack
+        // 1. Theft Detection: If the token has already been marked as used, it
+        // signifies a replay attack
         if (refreshToken.isUsed()) {
-            log.error("SECURITY ALERT: Compromised Refresh Token Reuse Detected! Revoking all sessions for user: {}", user.getEmail());
-            // Defensive Action: Evict all active sessions for this user to protect the account
+            log.error("SECURITY ALERT: Compromised Refresh Token Reuse Detected! Revoking all sessions for user: {}",
+                    user.getEmail());
+            // Defensive Action: Evict all active sessions for this user to protect the
+            // account
             refreshTokenRepository.deleteByUser(user);
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -154,7 +175,8 @@ public class AuthServiceImpl implements AuthService {
         // 3. Generate a new stateless Access Token
         String newAccessToken = jwtProvider.generateToken(new CustomUserDetails(user));
 
-        // 4. Mark the current refresh token as used to implement rotation and theft detection
+        // 4. Mark the current refresh token as used to implement rotation and theft
+        // detection
         refreshToken.setUsed(true);
         refreshTokenRepository.save(refreshToken);
 
@@ -190,7 +212,8 @@ public class AuthServiceImpl implements AuthService {
     /**
      * Initiates the forgot password flow.
      * Implements Anti-Email-Enumeration (OWASP A01 & A05):
-     * - If the email does not exist, the API logs the event but returns silently without throwing an error to the client.
+     * - If the email does not exist, the API logs the event but returns silently
+     * without throwing an error to the client.
      * - This prevents attackers from mapping out active email registrations.
      *
      * @param request the password reset request details
@@ -214,12 +237,17 @@ public class AuthServiceImpl implements AuthService {
 
             passwordResetTokenRepository.save(resetToken);
 
+            // Encrypt token for the link to keep it secure and compact
+            String encryptedToken = TokenEncryptionUtils.encrypt(token);
+            String resetUrl = backendBaseUrl + "/api/v1/auth/reset-password/validate?token=" + encryptedToken;
+
             // Send reset mail containing the link
-            mailService.sendForgotPasswordEmail(user.getEmail(), token);
+            mailService.sendForgotPasswordEmail(user.getEmail(), resetUrl);
         } catch (AppException e) {
             // Anti-Email-Enumeration: return success silently even if user is not found
             if (e.getErrorCode() == ErrorCode.USER_NOT_FOUND) {
-                log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}", request.getEmail());
+                log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}",
+                        request.getEmail());
             } else {
                 throw e;
             }
@@ -227,15 +255,34 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
+     * Validates if the given encrypted reset token is valid and not expired.
+     *
+     * @param encryptedToken the encrypted reset token from the URL
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public void validateResetToken(String encryptedToken) {
+        String rawToken = TokenEncryptionUtils.decrypt(encryptedToken);
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(rawToken)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        if (resetToken.getExpiryDate().isBefore(Instant.now())) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+    }
+
+    /**
      * Resets a user's password using a valid, unexpired reset token.
-     * Revokes all active refresh tokens and blacklists the current access token to terminate active attacker sessions.
+     * Revokes all active refresh tokens and blacklists the current access token to
+     * terminate active attacker sessions.
      *
      * @param request the password reset details (token and new password)
      */
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken())
+        String rawToken = TokenEncryptionUtils.decrypt(request.getToken());
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(rawToken)
                 .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
         // Check token expiration
@@ -255,10 +302,11 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * Initiates a password change request for the current authenticated user.
-     * Verifies the old password against the database record before generating a verification token sent via email.
+     * Verifies the old password against the database record before generating a
+     * verification token sent via email.
      *
      * @param currentUser the authenticated user principal
-     * @param request the password change request details
+     * @param request     the password change request details
      */
     @Override
     @Transactional
@@ -288,7 +336,7 @@ public class AuthServiceImpl implements AuthService {
      * Confirms the password change using a valid confirmation token.
      * Revokes all active refresh tokens and blacklists the current access token.
      *
-     * @param tokenStr the confirmation token
+     * @param tokenStr    the confirmation token
      * @param newPassword the new password
      */
     @Override
@@ -325,7 +373,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Blacklists the active JWT access token to prevent its reuse after logout/password change.
+     * Blacklists the active JWT access token to prevent its reuse after
+     * logout/password change.
      */
     private void blacklistCurrentToken() {
         try {
