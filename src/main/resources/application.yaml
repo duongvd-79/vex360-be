@@ -49,3 +49,11 @@ app:
   # Security Whitelist
   security:
     whitelist: /api/v1/auth/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
+    strict-mode: ${SECURITY_STRICT_MODE:true}
+
+  # Reset Password Configuration
+  backend:
+    base-url: ${BACKEND_BASE_URL:http://localhost:8080}
+  reset-password:
+    frontend-url: ${RESET_PASSWORD_FRONTEND_URL:http://localhost:5173/reset-password}
+

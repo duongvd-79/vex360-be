@@ -31,6 +31,7 @@ import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.entities.User;
@@ -48,6 +49,9 @@ class UserServiceUnitTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
+
     private UserService userService;
     private UUID userId;
     private User sampleUser;
@@ -55,7 +59,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setup() {
         UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-        userService = new UserService(userRepository, passwordEncoder, userMapper);
+        userService = new UserService(userRepository, passwordEncoder, userMapper, refreshTokenRepository);
         userId = UUID.randomUUID();
         sampleUser = User.builder()
                 .id(userId)

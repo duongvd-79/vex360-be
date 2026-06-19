@@ -34,6 +34,10 @@ public class RefreshToken {
     @Column(nullable = false, name = "expiry_date")
     private Instant expiryDate;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean used = false;
+
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

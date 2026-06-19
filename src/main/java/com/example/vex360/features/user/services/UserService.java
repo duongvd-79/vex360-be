@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
@@ -24,14 +25,17 @@ import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
     public UserResponseDTO createUser(CreateUserRequest request) {
@@ -116,6 +120,11 @@ public class UserService {
     public UserResponseDTO updateStatus(UUID id, UserStatus status) {
         User user = getUserEntityById(id);
         user.setStatus(status);
+        // refreshTokenRepository.findAllByUser(user).forEach(refreshToken -> {
+        //     log.info("Found refresh token: {}", refreshToken.getToken());
+        //     refreshTokenRepository.delete(refreshToken);
+        // });
+        refreshTokenRepository.deleteByUser(user);
         return userMapper.toUserResponseDTO(userRepository.save(user));
     }
 

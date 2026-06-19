@@ -16,6 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
@@ -39,6 +42,7 @@ import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 @ExtendWith(MockitoExtension.class)
 public class AuthServiceImplUnitTest {
@@ -64,6 +68,9 @@ public class AuthServiceImplUnitTest {
     @Mock
     private MailService mailService;
 
+    @Mock
+    private AuthenticationManager authenticationManager;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -72,6 +79,7 @@ public class AuthServiceImplUnitTest {
     @BeforeEach
     public void setup() {
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "backendBaseUrl", "http://localhost:8080");
         sampleUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("test@example.com")
@@ -98,9 +106,12 @@ public class AuthServiceImplUnitTest {
     @Test
     public void testLogin_Success() {
         LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        Authentication authentication = mock(Authentication.class);
+        CustomUserDetails userDetails = new CustomUserDetails(sampleUser);
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(true);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(jwtProvider.generateToken(any(CustomUserDetails.class)))
                 .thenReturn("mockedAccessToken");
 
@@ -117,8 +128,8 @@ public class AuthServiceImplUnitTest {
     public void testLogin_InvalidPassword_ThrowsUnauthenticated() {
         LoginRequest request = new LoginRequest("test@example.com", "WrongPassword");
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(false);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new org.springframework.security.authentication.BadCredentialsException("Bad credentials"));
 
         AppException exception = assertThrows(AppException.class, () -> authService.login(request));
         assertEquals(ErrorCode.BAD_CREDENTIALS, exception.getErrorCode());
@@ -198,20 +209,64 @@ public class AuthServiceImplUnitTest {
 
     @Test
     public void testResetPassword_Success() {
-        ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "NewPassword123!");
+        String rawToken = "reset-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        ResetPasswordRequest request = new ResetPasswordRequest(encryptedToken, "NewPassword123!");
         PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token("reset-token")
+                .token(rawToken)
                 .expiryDate(Instant.now().plusSeconds(3600))
                 .user(sampleUser)
                 .build();
 
-        when(passwordResetTokenRepository.findByToken(request.getToken())).thenReturn(Optional.of(resetToken));
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
 
         authService.resetPassword(request);
 
         verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
         verify(passwordResetTokenRepository, times(1)).delete(resetToken);
         verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+    }
+
+    @Test
+    public void testValidateResetToken_Success() {
+        String rawToken = "valid-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(3600))
+                .user(sampleUser)
+                .build();
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+
+        assertDoesNotThrow(() -> authService.validateResetToken(encryptedToken));
+    }
+
+    @Test
+    public void testValidateResetToken_Expired() {
+        String rawToken = "expired-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().minusSeconds(10))
+                .user(sampleUser)
+                .build();
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+
+        AppException ex = assertThrows(AppException.class, () -> authService.validateResetToken(encryptedToken));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
+    }
+
+    @Test
+    public void testValidateResetToken_NotFound() {
+        String rawToken = "missing-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class, () -> authService.validateResetToken(encryptedToken));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
     }
 
     @Test
