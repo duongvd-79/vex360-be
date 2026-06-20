@@ -26,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
+import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
@@ -101,6 +102,40 @@ class UserServiceUnitTest {
 
         assertSame(ErrorCode.EMAIL_ALREADY_EXISTS, exception.getErrorCode());
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void createUserWithUserRequestDTOSuccess_DefaultsActive() {
+        UserRequestDTO dto = new UserRequestDTO(
+                "request@example.com", "Password123!", "Dto User", "12345", "VISITOR", "avatar.png");
+
+        when(userRepository.existsByEmail("request@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = userService.createUser(dto);
+
+        assertEquals("request@example.com", createdUser.getEmail());
+        assertEquals(UserStatus.ACTIVE, createdUser.getStatus());
+        assertEquals(Role.VISITOR, createdUser.getRole());
+        verify(userRepository).save(createdUser);
+    }
+
+    @Test
+    void createUserWithUserRequestDTOAndStatusSuccess() {
+        UserRequestDTO dto = new UserRequestDTO(
+                "request@example.com", "Password123!", "Dto User", "12345", "VISITOR", "avatar.png");
+
+        when(userRepository.existsByEmail("request@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = userService.createUser(dto, UserStatus.PENDING);
+
+        assertEquals("request@example.com", createdUser.getEmail());
+        assertEquals(UserStatus.PENDING, createdUser.getStatus());
+        assertEquals(Role.VISITOR, createdUser.getRole());
+        verify(userRepository).save(createdUser);
     }
 
     @Test

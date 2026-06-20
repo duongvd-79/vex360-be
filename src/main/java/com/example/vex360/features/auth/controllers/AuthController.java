@@ -46,6 +46,9 @@ public class AuthController extends BaseController {
     @Value("${app.reset-password.frontend-url}")
     private String resetPasswordFrontendUrl;
 
+    @Value("${app.registration.frontend-url}")
+    private String registrationFrontendUrl;
+
     /**
      * Endpoint for user registration.
      * Enforces input validations defined in RegisterRequest.
@@ -56,6 +59,22 @@ public class AuthController extends BaseController {
     @Operation(summary = "Đăng ký tài khoản", description = "Tạo một tài khoản người dùng mới trong hệ thống.")
     public void register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
+    }
+
+    /**
+     * Endpoint to verify user registration using registration token.
+     *
+     * @param token the encrypted verification token
+     * @return redirection ResponseEntity to the frontend login form
+     */
+    @GetMapping("/register/verify")
+    @Operation(summary = "Xác thực tài khoản đăng ký mới", description = "Giải mã và kiểm tra token xác thực đăng ký. Nếu hợp lệ, kích hoạt tài khoản thành ACTIVE và chuyển hướng người dùng về trang đăng nhập ở frontend.")
+    public ResponseEntity<Void> verifyRegistration(@RequestParam("token") String token) {
+        authService.verifyRegistration(token);
+        String redirectUrl = registrationFrontendUrl + "?verified=true";
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .build();
     }
 
     /**
@@ -140,35 +159,19 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * Endpoint to request password change.
-     * Sends verification link to user mail after verifying old credentials.
+     * Endpoint to change password.
+     * Changes password directly and sends notification email.
      *
      * @param userDetails the current authenticated principal
      * @param request containing old and new passwords
-     * @return unified API response confirming initiation
+     * @return unified API response confirming success
      */
     @PostMapping("/change-password")
-    @Operation(summary = "Yêu cầu đổi mật khẩu", description = "Yêu cầu đổi mật khẩu mới cho người dùng hiện đang đăng nhập (yêu cầu gửi mail xác thực trước khi cập nhật).")
+    @Operation(summary = "Đổi mật khẩu trực tiếp", description = "Thay đổi mật khẩu mới trực tiếp cho người dùng hiện tại đang đăng nhập. Hệ thống sẽ cập nhật mật khẩu, hủy toàn bộ các phiên hoạt động khác và gửi email thông báo.")
     public ApiResponse<Void> changePassword(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(userDetails.getUser(), request);
-        return ApiResponse.success(null, "Yêu cầu thay đổi mật khẩu đã được gửi đến email của bạn!");
-    }
-
-    /**
-     * Endpoint to confirm password change using verification token.
-     *
-     * @param token the confirmation token
-     * @param newPassword the new password
-     * @return unified API response confirming success
-     */
-    @PostMapping("/confirm-change-password")
-    @Operation(summary = "Xác nhận đổi mật khẩu mới", description = "Xác thực mã xác nhận đổi mật khẩu gửi qua email để cập nhật mật khẩu mới và thu hồi toàn bộ các phiên đăng nhập khác.")
-    public ApiResponse<Void> confirmChangePassword(
-            @RequestParam("token") String token,
-            @RequestParam("newPassword") String newPassword) {
-        authService.confirmPasswordChange(token, newPassword);
         return ApiResponse.success(null, "Thay đổi mật khẩu thành công!");
     }
 }

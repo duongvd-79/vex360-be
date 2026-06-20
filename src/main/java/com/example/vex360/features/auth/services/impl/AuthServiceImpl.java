@@ -1,6 +1,7 @@
 package com.example.vex360.features.auth.services.impl;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -22,8 +23,10 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.auth.entities.PasswordResetToken;
 import com.example.vex360.features.auth.entities.RefreshToken;
 import com.example.vex360.features.auth.mapper.AuthMapper;
+import com.example.vex360.features.auth.entities.RegistrationToken;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.auth.repositories.RegistrationTokenRepository;
 import com.example.vex360.features.auth.services.AuthService;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
@@ -32,6 +35,7 @@ import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.config.jwt.TokenBlacklistService;
 import com.example.vex360.shared.entities.User;
+import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
@@ -62,6 +66,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final RegistrationTokenRepository registrationTokenRepository;
     private final MailService mailService;
     private final TokenBlacklistService tokenBlacklistService;
     private final jakarta.servlet.http.HttpServletRequest httpServletRequest;
@@ -83,7 +88,54 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         UserRequestDTO userRequest = authMapper.toUserRequestDTO(request);
-        userService.createUser(userRequest);
+        // Create user with PENDING status
+        User user = userService.createUser(userRequest, UserStatus.PENDING);
+
+        // Clear any existing registration tokens for safety
+        registrationTokenRepository.deleteByUser(user);
+
+        // Generate registration verification token (valid for 24 hours)
+        String token = UUID.randomUUID().toString();
+        RegistrationToken registrationToken = RegistrationToken.builder()
+                .token(token)
+                .expiryDate(Instant.now().plusSeconds(86400)) // 24 hours
+                .user(user)
+                .build();
+        registrationTokenRepository.save(registrationToken);
+
+        // Encrypt the token to keep it secure and compact in the link
+        String encryptedToken = TokenEncryptionUtils.encrypt(token);
+        String verifyUrl = backendBaseUrl + "/api/v1/auth/register/verify?token=" + encryptedToken;
+
+        // Send registration verification HTML email
+        mailService.sendRegistrationVerificationEmail(user.getEmail(), verifyUrl);
+    }
+
+    /**
+     * Verifies the user registration using the encrypted token from email.
+     * Activates the user status if the token is valid and unexpired.
+     *
+     * @param encryptedToken the encrypted registration token
+     */
+    @Override
+    @Transactional
+    public void verifyRegistration(String encryptedToken) {
+        String rawToken = TokenEncryptionUtils.decrypt(encryptedToken);
+        RegistrationToken registrationToken = registrationTokenRepository.findByToken(rawToken)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        // Check if token has expired
+        if (registrationToken.getExpiryDate().isBefore(Instant.now())) {
+            registrationTokenRepository.delete(registrationToken);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User user = registrationToken.getUser();
+        // Activate user
+        userService.updateStatus(user.getId(), UserStatus.ACTIVE);
+
+        // Clean up verification token
+        registrationTokenRepository.delete(registrationToken);
     }
 
     /**
@@ -221,37 +273,33 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
-        try {
-            User user = userService.getUserByEmail(request.getEmail());
-
-            // Clear any existing reset tokens
-            passwordResetTokenRepository.deleteByUser(user);
-
-            // Generate high-entropy reset token with 1-hour expiration
-            String token = UUID.randomUUID().toString();
-            PasswordResetToken resetToken = PasswordResetToken.builder()
-                    .token(token)
-                    .expiryDate(Instant.now().plusSeconds(3600)) // 1 hour
-                    .user(user)
-                    .build();
-
-            passwordResetTokenRepository.save(resetToken);
-
-            // Encrypt token for the link to keep it secure and compact
-            String encryptedToken = TokenEncryptionUtils.encrypt(token);
-            String resetUrl = backendBaseUrl + "/api/v1/auth/reset-password/validate?token=" + encryptedToken;
-
-            // Send reset mail containing the link
-            mailService.sendForgotPasswordEmail(user.getEmail(), resetUrl);
-        } catch (AppException e) {
-            // Anti-Email-Enumeration: return success silently even if user is not found
-            if (e.getErrorCode() == ErrorCode.USER_NOT_FOUND) {
-                log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}",
-                        request.getEmail());
-            } else {
-                throw e;
-            }
+        Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
+        if (userOpt.isEmpty()) {
+            log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}",
+                    request.getEmail());
+            return;
         }
+
+        User user = userOpt.get();
+        // Clear any existing reset tokens
+        passwordResetTokenRepository.deleteByUser(user);
+
+        // Generate high-entropy reset token with 1-hour expiration
+        String token = UUID.randomUUID().toString();
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(token)
+                .expiryDate(Instant.now().plusSeconds(3600)) // 1 hour
+                .user(user)
+                .build();
+
+        passwordResetTokenRepository.save(resetToken);
+
+        // Encrypt token for the link to keep it secure and compact
+        String encryptedToken = TokenEncryptionUtils.encrypt(token);
+        String resetUrl = backendBaseUrl + "/api/v1/auth/reset-password/validate?token=" + encryptedToken;
+
+        // Send reset mail containing the link
+        mailService.sendForgotPasswordEmail(user.getEmail(), resetUrl);
     }
 
     /**
@@ -301,9 +349,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Initiates a password change request for the current authenticated user.
-     * Verifies the old password against the database record before generating a
-     * verification token sent via email.
+     * Changes a user's password directly after validating the old password.
+     * Revokes all active sessions for this user and blacklists the current access
+     * token.
+     * Dispatches a notification email to the user.
      *
      * @param currentUser the authenticated user principal
      * @param request     the password change request details
@@ -311,52 +360,22 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void changePassword(User currentUser, ChangePasswordRequest request) {
-        // Enforce credential verification prior to generating the change token
+        // Enforce credential verification prior to changing password
         if (!passwordEncoder.matches(request.getOldPassword(), currentUser.getPassword())) {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
+        // Update password immediately
+        userService.updatePassword(currentUser, request.getNewPassword());
+
+        // Invalidate reset tokens, revoke refresh tokens, and blacklist current access
+        // token
         passwordResetTokenRepository.deleteByUser(currentUser);
-
-        // Generate 30-minute confirmation token
-        String token = UUID.randomUUID().toString();
-        PasswordResetToken verificationToken = PasswordResetToken.builder()
-                .token(token)
-                .expiryDate(Instant.now().plusSeconds(1800)) // 30 minutes
-                .user(currentUser)
-                .build();
-
-        passwordResetTokenRepository.save(verificationToken);
-
-        // Send confirmation link to user mail
-        mailService.sendPasswordChangeVerificationEmail(currentUser.getEmail(), token);
-    }
-
-    /**
-     * Confirms the password change using a valid confirmation token.
-     * Revokes all active refresh tokens and blacklists the current access token.
-     *
-     * @param tokenStr    the confirmation token
-     * @param newPassword the new password
-     */
-    @Override
-    @Transactional
-    public void confirmPasswordChange(String tokenStr, String newPassword) {
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(tokenStr)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
-
-        if (token.getExpiryDate().isBefore(Instant.now())) {
-            passwordResetTokenRepository.delete(token);
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        User user = token.getUser();
-        userService.updatePassword(user, newPassword);
-
-        // Clean up
-        passwordResetTokenRepository.delete(token);
-        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRepository.deleteByUser(currentUser);
         blacklistCurrentToken();
+
+        // Send notification email
+        mailService.sendPasswordChangeNotificationEmail(currentUser.getEmail());
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.example.vex360.features.user.services;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -44,13 +45,19 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 request.getRole() == null ? Role.VISITOR : request.getRole(),
-                request.getAvatarUrl());
+                request.getAvatarUrl(),
+                UserStatus.ACTIVE);
 
         return userMapper.toUserResponseDTO(user);
     }
 
     @Transactional
     public User createUser(UserRequestDTO request) {
+        return createUser(request, UserStatus.ACTIVE);
+    }
+
+    @Transactional
+    public User createUser(UserRequestDTO request, UserStatus status) {
         Role userRole = parseRoleOrDefault(request.getRole());
         return createAndSaveUser(
                 request.getEmail(),
@@ -58,7 +65,8 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 userRole,
-                request.getAvatarUrl());
+                request.getAvatarUrl(),
+                status);
     }
 
     @Transactional(readOnly = true)
@@ -107,8 +115,8 @@ public class UserService {
         User user = getUserEntityById(id);
         user.setStatus(status);
         // refreshTokenRepository.findAllByUser(user).forEach(refreshToken -> {
-        //     log.info("Found refresh token: {}", refreshToken.getToken());
-        //     refreshTokenRepository.delete(refreshToken);
+        // log.info("Found refresh token: {}", refreshToken.getToken());
+        // refreshTokenRepository.delete(refreshToken);
         // });
         refreshTokenRepository.deleteByUser(user);
         return userMapper.toUserResponseDTO(userRepository.save(user));
@@ -118,6 +126,11 @@ public class UserService {
     public User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<User> findUserByEmail(String email) {
+        return userRepository.findByEmail(email);
     }
 
     @Transactional
@@ -137,7 +150,8 @@ public class UserService {
             String fullName,
             String phoneNumber,
             Role role,
-            String avatarUrl) {
+            String avatarUrl,
+            UserStatus status) {
         if (userRepository.existsByEmail(email)) {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
@@ -149,6 +163,7 @@ public class UserService {
                 .phoneNumber(phoneNumber)
                 .role(role)
                 .avatarUrl(avatarUrl)
+                .status(status)
                 .build();
 
         return userRepository.save(user);

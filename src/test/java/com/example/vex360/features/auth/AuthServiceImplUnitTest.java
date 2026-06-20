@@ -29,9 +29,11 @@ import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.auth.entities.PasswordResetToken;
 import com.example.vex360.features.auth.entities.RefreshToken;
+import com.example.vex360.features.auth.entities.RegistrationToken;
 import com.example.vex360.features.auth.mapper.AuthMapper;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.auth.repositories.RegistrationTokenRepository;
 import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
@@ -40,6 +42,7 @@ import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
@@ -64,6 +67,9 @@ public class AuthServiceImplUnitTest {
 
     @Mock
     private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Mock
+    private RegistrationTokenRepository registrationTokenRepository;
 
     @Mock
     private MailService mailService;
@@ -97,10 +103,14 @@ public class AuthServiceImplUnitTest {
         mappedDto.setEmail(request.getEmail());
 
         when(authMapper.toUserRequestDTO(request)).thenReturn(mappedDto);
+        when(userService.createUser(mappedDto, UserStatus.PENDING)).thenReturn(sampleUser);
 
         authService.register(request);
 
-        verify(userService, times(1)).createUser(mappedDto);
+        verify(userService, times(1)).createUser(mappedDto, UserStatus.PENDING);
+        verify(registrationTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(registrationTokenRepository, times(1)).save(any(RegistrationToken.class));
+        verify(mailService, times(1)).sendRegistrationVerificationEmail(eq("test@example.com"), any(String.class));
     }
 
     @Test
@@ -277,25 +287,63 @@ public class AuthServiceImplUnitTest {
 
         authService.changePassword(sampleUser, request);
 
+        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
         verify(passwordResetTokenRepository, times(1)).deleteByUser(sampleUser);
-        verify(passwordResetTokenRepository, times(1)).save(any(PasswordResetToken.class));
-        verify(mailService, times(1)).sendPasswordChangeVerificationEmail(eq("test@example.com"), any(String.class));
+        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(mailService, times(1)).sendPasswordChangeNotificationEmail("test@example.com");
     }
 
     @Test
-    public void testConfirmPasswordChange_Success() {
-        PasswordResetToken token = PasswordResetToken.builder()
-                .token("change-token")
-                .expiryDate(Instant.now().plusSeconds(1800))
+    public void testVerifyRegistration_Success() {
+        String rawToken = "verify-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        RegistrationToken regToken = RegistrationToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(3600))
                 .user(sampleUser)
                 .build();
 
-        when(passwordResetTokenRepository.findByToken("change-token")).thenReturn(Optional.of(token));
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(regToken));
 
-        authService.confirmPasswordChange("change-token", "NewPassword123!");
+        assertDoesNotThrow(() -> authService.verifyRegistration(encryptedToken));
 
-        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
-        verify(passwordResetTokenRepository, times(1)).delete(token);
-        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(userService, times(1)).updateStatus(sampleUser.getId(), UserStatus.ACTIVE);
+        verify(registrationTokenRepository, times(1)).delete(regToken);
+    }
+
+    @Test
+    public void testVerifyRegistration_Expired() {
+        String rawToken = "expired-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        RegistrationToken regToken = RegistrationToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().minusSeconds(10))
+                .user(sampleUser)
+                .build();
+
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(regToken));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> authService.verifyRegistration(encryptedToken));
+
+        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        verify(registrationTokenRepository, times(1)).delete(regToken);
+        verify(userService, never()).updateStatus(any(UUID.class), any(UserStatus.class));
+    }
+
+    @Test
+    public void testVerifyRegistration_NotFound() {
+        String rawToken = "missing-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> authService.verifyRegistration(encryptedToken));
+
+        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        verify(registrationTokenRepository, never()).delete(any(RegistrationToken.class));
+        verify(userService, never()).updateStatus(any(UUID.class), any(UserStatus.class));
     }
 }
+

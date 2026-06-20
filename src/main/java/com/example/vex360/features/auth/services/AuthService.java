@@ -10,6 +10,7 @@ import com.example.vex360.shared.entities.User;
 
 public interface AuthService {
     void register(RegisterRequest request);
+    void verifyRegistration(String encryptedToken);
     TokenResponse login(LoginRequest request);
     TokenResponse refreshToken(String refreshToken);
     void logout(String refreshToken);
@@ -17,5 +18,4 @@ public interface AuthService {
     void validateResetToken(String encryptedToken);
     void resetPassword(ResetPasswordRequest request);
     void changePassword(User currentUser, ChangePasswordRequest request);
-    void confirmPasswordChange(String token, String newPassword);
 }
