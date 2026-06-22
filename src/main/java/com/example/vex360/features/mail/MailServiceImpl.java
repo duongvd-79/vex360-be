@@ -7,6 +7,8 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.example.vex360.shared.enums.Role;
+
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 
@@ -130,6 +132,123 @@ public class MailServiceImpl implements MailService {
         sendMail(toEmail, subject, content);
     }
 
+    @Async
+    @Override
+    public void sendNewUserCredentialsEmail(String toEmail, String fullName, String password) {
+        String subject = "Thông tin tài khoản Vex360";
+        String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
+        String htmlContent = "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <meta charset=\"utf-8\">\n" +
+                "    <title>Thông tin tài khoản</title>\n" +
+                "    <style>\n" +
+                "        body {\n" +
+                "            font-family: 'Outfit', 'Inter', sans-serif;\n" +
+                "            background-color: #0d0e12;\n" +
+                "            color: #e2e8f0;\n" +
+                "            margin: 0;\n" +
+                "            padding: 40px 20px;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            max-width: 600px;\n" +
+                "            margin: 0 auto;\n" +
+                "            background: #1e2028;\n" +
+                "            border: 1px solid rgba(255, 255, 255, 0.08);\n" +
+                "            border-radius: 16px;\n" +
+                "            padding: 32px;\n" +
+                "            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);\n" +
+                "        }\n" +
+                "        .header {\n" +
+                "            text-align: center;\n" +
+                "            margin-bottom: 32px;\n" +
+                "        }\n" +
+                "        .logo {\n" +
+                "            font-size: 28px;\n" +
+                "            font-weight: 800;\n" +
+                "            letter-spacing: -0.5px;\n" +
+                "            background: linear-gradient(135deg, #a78bfa, #3b82f6);\n" +
+                "            -webkit-background-clip: text;\n" +
+                "            -webkit-text-fill-color: transparent;\n" +
+                "            color: #3b82f6;\n" +
+                "        }\n" +
+                "        h2 {\n" +
+                "            font-size: 22px;\n" +
+                "            font-weight: 600;\n" +
+                "            color: #ffffff;\n" +
+                "            margin-top: 0;\n" +
+                "        }\n" +
+                "        p {\n" +
+                "            font-size: 15px;\n" +
+                "            line-height: 1.6;\n" +
+                "            color: #94a3b8;\n" +
+                "        }\n" +
+                "        .credentials {\n" +
+                "            background: rgba(15, 23, 42, 0.72);\n" +
+                "            border: 1px solid rgba(148, 163, 184, 0.18);\n" +
+                "            border-radius: 12px;\n" +
+                "            padding: 20px;\n" +
+                "            margin: 28px 0;\n" +
+                "        }\n" +
+                "        .label {\n" +
+                "            color: #94a3b8;\n" +
+                "            font-size: 13px;\n" +
+                "            margin-bottom: 6px;\n" +
+                "        }\n" +
+                "        .value {\n" +
+                "            color: #ffffff;\n" +
+                "            font-size: 16px;\n" +
+                "            font-weight: 600;\n" +
+                "            word-break: break-all;\n" +
+                "            margin-bottom: 16px;\n" +
+                "        }\n" +
+                "        .footer {\n" +
+                "            margin-top: 40px;\n" +
+                "            border-top: 1px solid rgba(255, 255, 255, 0.06);\n" +
+                "            padding-top: 20px;\n" +
+                "            font-size: 12px;\n" +
+                "            color: #64748b;\n" +
+                "            text-align: center;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class=\"container\">\n" +
+                "        <div class=\"header\">\n" +
+                "            <span class=\"logo\">VEX360</span>\n" +
+                "        </div>\n" +
+                "        <h2>Thông tin tài khoản của bạn</h2>\n" +
+                "        <p>Xin chào " + escapeHtml(displayName) + ",</p>\n" +
+                "        <p>Tài khoản Vex360 của bạn đã được khởi tạo. Vui lòng sử dụng thông tin bên dưới để đăng nhập vào hệ thống:</p>\n" +
+                "        <div class=\"credentials\">\n" +
+                "            <div class=\"label\">Tài khoản</div>\n" +
+                "            <div class=\"value\">" + escapeHtml(toEmail) + "</div>\n" +
+                "            <div class=\"label\">Mật khẩu tạm thời</div>\n" +
+                "            <div class=\"value\">" + escapeHtml(password) + "</div>\n" +
+                "        </div>\n" +
+                "        <p>Vì lý do bảo mật, vui lòng đổi mật khẩu sau khi đăng nhập thành công.</p>\n" +
+                "        <div class=\"footer\">\n" +
+                "            <p>Đây là email tự động từ hệ thống Vex360. Vui lòng không phản hồi email này.</p>\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+        sendHtmlMail(toEmail, subject, htmlContent);
+    }
+
+    @Async
+    @Override
+    public void sendPartnershipApprovedEmail(String toEmail, String fullName, Role role, String organizationName) {
+        String displayName = fullName == null || fullName.isBlank() ? "ban" : fullName;
+        String subject = "Yeu cau hop tac da duoc duyet - Vex360";
+        String content = "Xin chao " + displayName + ",\n\n"
+                + "Yeu cau hop tac cho " + organizationName + " da duoc duyet. "
+                + "Tai khoan cua ban hien co role " + role.name() + ".\n\n"
+                + "Vui long dang nhap Vex360 de hoan thien ho so cong ty neu can.\n\n"
+                + "Day la email tu dong tu he thong Vex360.";
+        sendMail(toEmail, subject, content);
+    }
+
     private void sendHtmlMail(String toEmail, String subject, String htmlContent) {
         log.info("Sending HTML email - To: {}, Subject: {}", toEmail, subject);
         if (mailSender == null) {
@@ -166,5 +285,17 @@ public class MailServiceImpl implements MailService {
         } catch (Exception e) {
             log.error("Failed to send email via SMTP to {}: {}", toEmail, e.getMessage());
         }
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

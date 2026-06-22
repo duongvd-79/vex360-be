@@ -27,7 +27,8 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.example.vex360.features.user.controllers.UserController;
+import com.example.vex360.features.user.controllers.AdminUserController;
+import com.example.vex360.features.user.controllers.CurrentUserController;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
@@ -55,7 +56,9 @@ class UserControllerUnitTest {
     @BeforeEach
     void setup() {
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(userService))
+                .standaloneSetup(
+                        new AdminUserController(userService),
+                        new CurrentUserController(userService))
                 .setCustomArgumentResolvers(
                         new PageableHandlerMethodArgumentResolver(),
                         new AuthenticationPrincipalArgumentResolver())
@@ -74,7 +77,7 @@ class UserControllerUnitTest {
     @Test
     void createUserReturnsApiResponse() throws Exception {
         CreateUserRequest request = new CreateUserRequest(
-                "user@example.com", "Password123!", "User Name", "0912345678", Role.VISITOR, "avatar.png");
+                "user@example.com", "User Name", "0912345678", Role.VISITOR);
 
         when(userService.createUser(any(CreateUserRequest.class))).thenReturn(response);
 

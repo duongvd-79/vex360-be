@@ -3,6 +3,7 @@ package com.example.vex360.features.user;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,7 @@ import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.entities.User;
@@ -52,6 +54,9 @@ class UserServiceUnitTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private MailService mailService;
+
     private UserService userService;
     private UUID userId;
     private User sampleUser;
@@ -59,7 +64,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setup() {
         UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-        userService = new UserService(userRepository, passwordEncoder, userMapper, refreshTokenRepository);
+        userService = new UserService(userRepository, passwordEncoder, userMapper, refreshTokenRepository, mailService);
         userId = UUID.randomUUID();
         sampleUser = User.builder()
                 .id(userId)
@@ -74,12 +79,12 @@ class UserServiceUnitTest {
     }
 
     @Test
-    void createUserDefaultsRoleToVisitorAndEncodesPassword() {
+    void createUserGeneratesPasswordAndSendsCredentialsEmail() {
         CreateUserRequest request = new CreateUserRequest(
-                "new@example.com", "Password123!", "New User", "456", null, "avatar.png");
+                "new@example.com", "New User", "0912345678", Role.ADMIN);
 
         when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("Password123!")).thenReturn("encodedNewPassword");
+        when(passwordEncoder.encode(any(String.class))).thenReturn("encodedNewPassword");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserResponseDTO response = userService.createUser(request);
@@ -87,15 +92,25 @@ class UserServiceUnitTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         User savedUser = captor.getValue();
-        assertEquals(Role.VISITOR, savedUser.getRole());
+        assertEquals(Role.ADMIN, savedUser.getRole());
         assertEquals("encodedNewPassword", savedUser.getPassword());
         assertEquals("new@example.com", response.getEmail());
+
+        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
+        verify(passwordEncoder).encode(passwordCaptor.capture());
+        String generatedPassword = passwordCaptor.getValue();
+        assertEquals(8, generatedPassword.length());
+        assertTrue(generatedPassword.matches(".*[A-Z].*"));
+        assertTrue(generatedPassword.matches(".*[a-z].*"));
+        assertTrue(generatedPassword.matches(".*\\d.*"));
+        assertTrue(generatedPassword.matches(".*[!@#$%^&*].*"));
+        verify(mailService).sendNewUserCredentialsEmail("new@example.com", "New User", generatedPassword);
     }
 
     @Test
     void createUserThrowsWhenEmailExists() {
         CreateUserRequest request = new CreateUserRequest(
-                "new@example.com", "Password123!", "New User", null, Role.ADMIN, null);
+                "new@example.com", "New User", "0912345678", Role.ADMIN);
 
         when(userRepository.existsByEmail("new@example.com")).thenReturn(true);
 
@@ -103,6 +118,7 @@ class UserServiceUnitTest {
 
         assertSame(ErrorCode.EMAIL_ALREADY_EXISTS, exception.getErrorCode());
         verify(userRepository, never()).save(any(User.class));
+        verify(mailService, never()).sendNewUserCredentialsEmail(any(), any(), any());
     }
 
     @Test

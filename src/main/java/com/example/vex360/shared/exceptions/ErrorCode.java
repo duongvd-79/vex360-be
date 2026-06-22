@@ -26,7 +26,24 @@ public enum ErrorCode {
     EMAIL_ALREADY_EXISTS("USER-002", "The email already exists", HttpStatus.BAD_REQUEST),
     ROLE_NOT_FOUND("USER-003", "Role not found", HttpStatus.NOT_FOUND),
     INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
-    OLDPASSWORD_FAILED("USER-005","Old Password is failed",HttpStatus.BAD_REQUEST);
+    OLDPASSWORD_FAILED("USER-005", "Old Password is failed", HttpStatus.BAD_REQUEST),
+
+    // PARTNERSHIP ERRORS
+    PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001", "Email này đã có tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.", HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUEST_NOT_FOUND("PARTNER-002", "Partnership request not found", HttpStatus.NOT_FOUND),
+    INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER", HttpStatus.BAD_REQUEST),
+    INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action", HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.", HttpStatus.BAD_REQUEST),
+
+    // COMPANY ERRORS
+    COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
+
+    // BOOTH ERRORS
+    BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
+    INVALID_BOOTH_TEMPLATE("BOOTH-002", "Invalid booth template", HttpStatus.BAD_REQUEST),
+    INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
+    PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
+    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final String code;
     private final String message;

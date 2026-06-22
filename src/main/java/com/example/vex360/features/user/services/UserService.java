@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
@@ -23,6 +24,7 @@ import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.RandomPasswordGenerator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,16 +38,20 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final MailService mailService;
 
     @Transactional
     public UserResponseDTO createUser(CreateUserRequest request) {
+        String generatedPassword = RandomPasswordGenerator.generate();
         User user = createAndSaveUser(
                 request.getEmail(),
-                request.getPassword(),
+                generatedPassword,
                 request.getFullName(),
                 request.getPhoneNumber(),
-                request.getRole() == null ? Role.VISITOR : request.getRole(),
-                request.getAvatarUrl());
+                request.getRole(),
+                null);
+
+        mailService.sendNewUserCredentialsEmail(user.getEmail(), user.getFullName(), generatedPassword);
 
         return userMapper.toUserResponseDTO(user);
     }
