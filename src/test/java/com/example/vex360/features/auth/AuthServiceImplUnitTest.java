@@ -197,7 +197,7 @@ public class AuthServiceImplUnitTest {
     public void testForgotPassword_UserExists() {
         ForgotPasswordRequest request = new ForgotPasswordRequest("test@example.com");
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
 
         authService.forgotPassword(request);
 
@@ -210,7 +210,7 @@ public class AuthServiceImplUnitTest {
     public void testForgotPassword_UserDoesNotExist_FailsSilently() {
         ForgotPasswordRequest request = new ForgotPasswordRequest("missing@example.com");
 
-        when(userService.getUserByEmail(request.getEmail())).thenThrow(new AppException(ErrorCode.USER_NOT_FOUND));
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> authService.forgotPassword(request));
         verify(passwordResetTokenRepository, never()).save(any(PasswordResetToken.class));

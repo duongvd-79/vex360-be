@@ -57,8 +57,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản", description = "Tạo một tài khoản người dùng mới trong hệ thống.")
-    public void register(@Valid @RequestBody RegisterRequest request) {
+    public ApiResponse<Void> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
+        return createSuccessResponse(null, "Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
     }
 
     /**
@@ -111,8 +112,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/logout")
     @Operation(summary = "Đăng xuất tài khoản", description = "Thu hồi Refresh Token hiện tại và đưa Access Token đang dùng vào danh sách đen (blacklist).")
-    public void logout(@RequestParam("token") String token) {
+    public ApiResponse<Void> logout(@RequestParam("token") String token) {
         authService.logout(token);
+        return createSuccessResponse(null, "Đăng xuất thành công!");
     }
 
     /**

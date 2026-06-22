@@ -37,9 +37,20 @@ spring:
           auth: true
           starttls:
             enable: true
+            
+  # Asset Upload Configuration
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
 
 # Custom Application Settings
 app:
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    api-key: ${CLOUDINARY_API_KEY}
+    api-secret: ${CLOUDINARY_API_SECRET}
+    
   # JWT Settings
   jwt:
     secret: ${JWT_SECRET}
@@ -48,7 +59,7 @@ app:
 
   # Security Whitelist
   security:
-    whitelist: /api/v1/auth/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
+    whitelist: /api/v1/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
     strict-mode: ${SECURITY_STRICT_MODE:true}
 
   # Reset Password Configuration

@@ -24,7 +24,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getStatus()).isEqualTo(403);
         assertThat(response.getBody().getError()).isEqualTo("FORBIDDEN");
         assertThat(response.getBody().getCode()).isEqualTo("AUTH-002");
-        assertThat(response.getBody().getMessage()).isEqualTo("Unauthorized");
+        assertThat(response.getBody().getMessage()).isEqualTo("Không có quyền truy cập");
         assertThat(response.getBody().getPath()).isEqualTo("/api/v1/test");
     }
 }
