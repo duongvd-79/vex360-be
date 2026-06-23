@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -125,6 +127,36 @@ class CloudinaryServiceTest {
 
         AppException exception = assertThrows(AppException.class, () -> {
             cloudinaryService.upload(validFile);
+        });
+
+        assertEquals(ErrorCode.UPLOAD_FAILED, exception.getErrorCode());
+    }
+
+    @Test
+    void deleteImageUsesImageResourceType() throws Exception {
+        when(cloudinary.uploader()).thenReturn(uploader);
+
+        cloudinaryService.delete("image-public-id", "image");
+
+        verify(uploader).destroy(eq("image-public-id"), anyMap());
+    }
+
+    @Test
+    void deleteVideoUsesVideoResourceType() throws Exception {
+        when(cloudinary.uploader()).thenReturn(uploader);
+
+        cloudinaryService.delete("video-public-id", "video");
+
+        verify(uploader).destroy(eq("video-public-id"), anyMap());
+    }
+
+    @Test
+    void deleteSdkFailureThrowsUploadFailed() throws Exception {
+        when(cloudinary.uploader()).thenReturn(uploader);
+        when(uploader.destroy(eq("public-id"), anyMap())).thenThrow(new IOException("Cloudinary is down"));
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            cloudinaryService.delete("public-id", "image");
         });
 
         assertEquals(ErrorCode.UPLOAD_FAILED, exception.getErrorCode());
