@@ -71,8 +71,7 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 userRole,
-                request.getAvatarUrl(),
-                status);
+                request.getAvatarUrl());
     }
 
     @Transactional(readOnly = true)
