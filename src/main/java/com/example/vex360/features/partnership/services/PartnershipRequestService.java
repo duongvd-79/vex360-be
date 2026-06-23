@@ -14,6 +14,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -39,6 +40,7 @@ public class PartnershipRequestService {
     private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
+    private final PartnershipRequestMapper partnershipRequestMapper;
 
     @Transactional
     public PartnershipRequestResponseDTO submitGuestRequest(SubmitPartnershipRequest request) {
@@ -55,7 +57,7 @@ public class PartnershipRequestService {
         }
 
         PartnershipRequest partnershipRequest = buildRequest(request, null);
-        return toResponse(partnershipRequestRepository.save(partnershipRequest));
+        return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
     }
 
     @Transactional
@@ -63,6 +65,7 @@ public class PartnershipRequestService {
         validateSubmission(request);
         User submittedByUser = getCurrentUser(currentUser);
         String requesterEmail = normalize(request.getRequesterEmail());
+        validateRequesterEmailMatchesAuthenticatedUser(requesterEmail, submittedByUser);
 
         if (partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
                 submittedByUser.getId(),
@@ -76,7 +79,7 @@ public class PartnershipRequestService {
         }
 
         PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
-        return toResponse(partnershipRequestRepository.save(partnershipRequest));
+        return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
     }
 
     @Transactional(readOnly = true)
@@ -90,13 +93,13 @@ public class PartnershipRequestService {
 
         Page<PartnershipRequestResponseDTO> requests = partnershipRequestRepository
                 .searchRequests(status, requestedRole, pageable)
-                .map(this::toResponse);
+                .map(partnershipRequestMapper::toResponse);
         return PageResponse.from(requests);
     }
 
     @Transactional(readOnly = true)
     public PartnershipRequestResponseDTO getRequestById(UUID id) {
-        return toResponse(getRequest(id));
+        return partnershipRequestMapper.toResponse(getRequest(id));
     }
 
     @Transactional
@@ -110,7 +113,7 @@ public class PartnershipRequestService {
         }
         request.setStatus(PartnershipRequestStatus.APPROVED);
         request.setReviewedAt(LocalDateTime.now());
-        return toResponse(partnershipRequestRepository.save(request));
+        return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(request));
     }
 
     @Transactional
@@ -119,7 +122,14 @@ public class PartnershipRequestService {
         request.setStatus(PartnershipRequestStatus.REJECTED);
         request.setReviewNote(rejectRequest.getReviewNote());
         request.setReviewedAt(LocalDateTime.now());
-        return toResponse(partnershipRequestRepository.save(request));
+        PartnershipRequest savedRequest = partnershipRequestRepository.save(request);
+        String notificationEmail = resolveNotificationEmail(savedRequest);
+        mailService.sendPartnershipRejectedEmail(
+                notificationEmail,
+                resolveNotificationName(savedRequest, notificationEmail),
+                savedRequest.getOrganizationName(),
+                savedRequest.getReviewNote());
+        return partnershipRequestMapper.toResponse(savedRequest);
     }
 
     private void approveGuestRequest(PartnershipRequest request) {
@@ -157,8 +167,8 @@ public class PartnershipRequestService {
         }
 
         mailService.sendPartnershipApprovedEmail(
-                savedUser.getEmail(),
-                savedUser.getFullName(),
+                resolveNotificationEmail(request, savedUser),
+                resolveNotificationName(request, savedUser),
                 request.getRequestedRole(),
                 request.getOrganizationName());
     }
@@ -200,6 +210,50 @@ public class PartnershipRequestService {
         }
     }
 
+    private void validateRequesterEmailMatchesAuthenticatedUser(String requesterEmail, User submittedByUser) {
+        if (requesterEmail == null
+                || submittedByUser.getEmail() == null
+                || !requesterEmail.equalsIgnoreCase(submittedByUser.getEmail())) {
+            throw new AppException(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER);
+        }
+    }
+
+    private String resolveNotificationEmail(PartnershipRequest request) {
+        User submittedByUser = request.getSubmittedByUser();
+        if (submittedByUser == null || submittedByUser.getEmail() == null) {
+            return request.getRequesterEmail();
+        }
+        if (request.getRequesterEmail() == null || request.getRequesterEmail().equalsIgnoreCase(submittedByUser.getEmail())) {
+            return submittedByUser.getEmail();
+        }
+        return request.getRequesterEmail();
+    }
+
+    private String resolveNotificationEmail(PartnershipRequest request, User savedUser) {
+        if (request.getRequesterEmail() == null || request.getRequesterEmail().equalsIgnoreCase(savedUser.getEmail())) {
+            return savedUser.getEmail();
+        }
+        return request.getRequesterEmail();
+    }
+
+    private String resolveNotificationName(PartnershipRequest request, String notificationEmail) {
+        User submittedByUser = request.getSubmittedByUser();
+        if (submittedByUser != null
+                && submittedByUser.getEmail() != null
+                && submittedByUser.getEmail().equalsIgnoreCase(notificationEmail)
+                && submittedByUser.getFullName() != null) {
+            return submittedByUser.getFullName();
+        }
+        return request.getRequesterName();
+    }
+
+    private String resolveNotificationName(PartnershipRequest request, User savedUser) {
+        if (request.getRequesterEmail() == null || request.getRequesterEmail().equalsIgnoreCase(savedUser.getEmail())) {
+            return savedUser.getFullName();
+        }
+        return request.getRequesterName();
+    }
+
     private User getCurrentUser(User currentUser) {
         if (currentUser == null || currentUser.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
@@ -230,22 +284,4 @@ public class PartnershipRequestService {
         return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 
-    private PartnershipRequestResponseDTO toResponse(PartnershipRequest request) {
-        User submittedByUser = request.getSubmittedByUser();
-        return new PartnershipRequestResponseDTO(
-                request.getId(),
-                submittedByUser == null ? null : submittedByUser.getId(),
-                submittedByUser == null ? null : submittedByUser.getEmail(),
-                request.getRequesterName(),
-                request.getRequesterEmail(),
-                request.getRequesterPhoneNumber(),
-                request.getOrganizationName(),
-                request.getRequestedRole().name(),
-                request.getMessage(),
-                request.getAcceptedPolicy(),
-                request.getStatus().name(),
-                request.getReviewNote(),
-                request.getCreatedAt(),
-                request.getReviewedAt());
-    }
 }

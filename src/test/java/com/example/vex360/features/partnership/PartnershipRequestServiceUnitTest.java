@@ -18,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,6 +31,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
 import com.example.vex360.features.user.repositories.UserRepository;
@@ -71,7 +73,8 @@ class PartnershipRequestServiceUnitTest {
                 userRepository,
                 companyRepository,
                 passwordEncoder,
-                mailService);
+                mailService,
+                Mappers.getMapper(PartnershipRequestMapper.class));
 
         user = User.builder()
                 .id(UUID.randomUUID())
@@ -136,29 +139,35 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void submitAuthenticatedRequestAllowsSameAndDifferentRequesterEmail() {
-        SubmitPartnershipRequest sameEmailRequest = validRequest("user@example.com", Role.EXHIBITOR);
-        SubmitPartnershipRequest differentEmailRequest = validRequest("company@example.com", Role.ORGANIZER);
+    void submitAuthenticatedRequestCreatesPendingRequestWhenEmailMatchesUserEmail() {
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.EXHIBITOR);
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PartnershipRequestResponseDTO sameEmailResponse = partnershipRequestService.submitAuthenticatedRequest(
-                user,
-                sameEmailRequest);
-        PartnershipRequestResponseDTO differentEmailResponse = partnershipRequestService.submitAuthenticatedRequest(
-                user,
-                differentEmailRequest);
+        PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(user, request);
 
-        assertEquals(user.getId(), sameEmailResponse.getSubmittedByUserId());
-        assertEquals("user@example.com", sameEmailResponse.getRequesterEmail());
-        assertEquals(user.getId(), differentEmailResponse.getSubmittedByUserId());
-        assertEquals("company@example.com", differentEmailResponse.getRequesterEmail());
+        assertEquals(user.getId(), response.getSubmittedByUserId());
+        assertEquals("user@example.com", response.getRequesterEmail());
+        assertEquals("PENDING", response.getStatus());
+    }
+
+    @Test
+    void submitAuthenticatedRequestThrowsWhenRequesterEmailDiffersFromUserEmail() {
+        SubmitPartnershipRequest request = validRequest("company@example.com", Role.ORGANIZER);
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitAuthenticatedRequest(user, request));
+
+        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER, exception.getErrorCode());
+        verify(partnershipRequestRepository, never()).save(any(PartnershipRequest.class));
     }
 
     @Test
     void submitAuthenticatedRequestThrowsWhenUserHasPendingRequest() {
-        SubmitPartnershipRequest request = validRequest("company@example.com", Role.ORGANIZER);
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.ORGANIZER);
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
@@ -174,14 +183,14 @@ class PartnershipRequestServiceUnitTest {
 
     @Test
     void submitAuthenticatedRequestThrowsWhenRequesterEmailHasPendingRequest() {
-        SubmitPartnershipRequest request = validRequest("company@example.com", Role.ORGANIZER);
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.ORGANIZER);
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
                 user.getId(),
                 PartnershipRequestStatus.PENDING)).thenReturn(false);
         when(partnershipRequestRepository.existsByRequesterEmailAndStatus(
-                "company@example.com",
+                "user@example.com",
                 PartnershipRequestStatus.PENDING)).thenReturn(true);
 
         AppException exception = assertThrows(AppException.class,
@@ -232,6 +241,7 @@ class PartnershipRequestServiceUnitTest {
     void approveAuthenticatedRequestUpdatesRoleAndCreatesCompanyWhenMissing() {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = pendingRequest(requestId, user, Role.ORGANIZER);
+        request.setRequesterEmail("user@example.com");
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -256,6 +266,7 @@ class PartnershipRequestServiceUnitTest {
     void approveAuthenticatedRequestDoesNotCreateCompanyWhenAlreadyExists() {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = pendingRequest(requestId, user, Role.ORGANIZER);
+        request.setRequesterEmail("user@example.com");
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -269,9 +280,10 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void rejectRequestSetsStatusNoteAndReviewedAt() {
+    void rejectAuthenticatedRequestSetsStatusNoteReviewedAtAndSendsEmailToUserEmail() {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = pendingRequest(requestId, user, Role.EXHIBITOR);
+        request.setRequesterEmail("user@example.com");
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -283,6 +295,28 @@ class PartnershipRequestServiceUnitTest {
         assertEquals("REJECTED", response.getStatus());
         assertEquals("Not a fit", response.getReviewNote());
         assertNotNull(response.getReviewedAt());
+        verify(mailService).sendPartnershipRejectedEmail(
+                "user@example.com",
+                "User Name",
+                "Vex360 Partner",
+                "Not a fit");
+    }
+
+    @Test
+    void rejectGuestRequestSendsEmailToRequesterEmail() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, null, Role.EXHIBITOR);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        partnershipRequestService.rejectRequest(requestId, new RejectPartnershipRequest("Missing company documents"));
+
+        verify(mailService).sendPartnershipRejectedEmail(
+                "requester@example.com",
+                "Requester Name",
+                "Vex360 Partner",
+                "Missing company documents");
     }
 
     @Test

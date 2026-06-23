@@ -6,6 +6,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
+import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
@@ -35,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ADMIN')")
 @Tag(name = "Admin - Partnership Requests", description = "Admin xem, duyệt và từ chối yêu cầu hợp tác")
-public class AdminPartnershipRequestController {
+public class AdminPartnershipRequestController extends BaseController {
     private final PartnershipRequestService partnershipRequestService;
 
     @GetMapping
@@ -50,7 +52,7 @@ public class AdminPartnershipRequestController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<PartnershipRequestResponseDTO> requests = partnershipRequestService
                 .getRequests(status, requestedRole, pageable);
-        return ResponseEntity.ok(ApiResponse.success(requests));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(requests));
     }
 
     @GetMapping("/{id}")
@@ -58,10 +60,10 @@ public class AdminPartnershipRequestController {
             summary = "Admin xem chi tiết yêu cầu hợp tác",
             description = "Trả về toàn bộ thông tin của một partnership request theo ID.")
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> getRequestById(
-            @Parameter(description = "ID partnership request", example = "84257b4d-e9f3-4a41-a9d9-b0e8d1b4d9e3")
+            @Parameter(description = "ID partnership request")
             @PathVariable UUID id) {
         PartnershipRequestResponseDTO request = partnershipRequestService.getRequestById(id);
-        return ResponseEntity.ok(ApiResponse.success(request));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
     }
 
     @PostMapping("/{id}/approve")
@@ -69,21 +71,21 @@ public class AdminPartnershipRequestController {
             summary = "Admin duyệt yêu cầu hợp tác",
             description = "Chỉ duyệt request PENDING. Guest request sẽ tạo user + company; authenticated request sẽ cập nhật role và tạo company nếu user chưa có.")
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> approveRequest(
-            @Parameter(description = "ID partnership request cần duyệt", example = "84257b4d-e9f3-4a41-a9d9-b0e8d1b4d9e3")
+            @Parameter(description = "ID partnership request cần duyệt")
             @PathVariable UUID id) {
         PartnershipRequestResponseDTO request = partnershipRequestService.approveRequest(id);
-        return ResponseEntity.ok(ApiResponse.success(request));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
     }
 
     @PostMapping("/{id}/reject")
     @Operation(
             summary = "Admin từ chối yêu cầu hợp tác",
-            description = "Chỉ từ chối request PENDING. API lưu reviewNote và thời điểm reviewedAt; không gửi email reject.")
+            description = "Chỉ từ chối request PENDING. API lưu reviewNote, reviewedAt và gửi email thông báo từ chối cho người gửi request.")
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> rejectRequest(
-            @Parameter(description = "ID partnership request cần từ chối", example = "84257b4d-e9f3-4a41-a9d9-b0e8d1b4d9e3")
+            @Parameter(description = "ID partnership request cần từ chối")
             @PathVariable UUID id,
             @Valid @RequestBody RejectPartnershipRequest rejectRequest) {
         PartnershipRequestResponseDTO request = partnershipRequestService.rejectRequest(id, rejectRequest);
-        return ResponseEntity.ok(ApiResponse.success(request));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
     }
 }

@@ -1,7 +1,10 @@
 package com.example.vex360.features.partnership;
 
+import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,6 +32,7 @@ import com.example.vex360.features.partnership.services.PartnershipRequestServic
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.exceptions.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +50,7 @@ class AdminPartnershipRequestControllerUnitTest {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new AdminPartnershipRequestController(partnershipRequestService))
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper();
         requestId = UUID.randomUUID();
@@ -109,6 +114,18 @@ class AdminPartnershipRequestControllerUnitTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REJECTED"))
                 .andExpect(jsonPath("$.data.reviewNote").value("Not a fit"));
+    }
+
+    @Test
+    void rejectRequestRejectsBlankReviewNoteBeforeService() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/partnership-requests/{id}/reject", requestId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RejectPartnershipRequest(" "))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field", hasItems("reviewNote")));
+
+        verify(partnershipRequestService, never()).rejectRequest(any(), any());
     }
 
     private PartnershipRequestResponseDTO response(String status) {

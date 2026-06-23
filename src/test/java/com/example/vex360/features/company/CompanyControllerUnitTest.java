@@ -2,11 +2,14 @@ package com.example.vex360.features.company;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.hasItems;
 
 import java.util.UUID;
 
@@ -31,6 +34,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
+import com.example.vex360.shared.exceptions.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +52,7 @@ class CompanyControllerUnitTest {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new CompanyController(companyService))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper();
         user = User.builder()
@@ -106,6 +111,70 @@ class CompanyControllerUnitTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.industry").value("Technology"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void updateCurrentUserCompanyRejectsInvalidPhoneBeforeService() throws Exception {
+        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
+                "Technology",
+                "Company description",
+                "https://cdn.example.com/logo.png",
+                "https://example.com",
+                "123",
+                "123 Main St");
+        authenticate(user);
+
+        mockMvc.perform(patch("/api/v1/companies/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field", hasItems("phone")));
+
+        verify(companyService, never()).updateCurrentUserCompany(any(), any());
+    }
+
+    @Test
+    void updateCurrentUserCompanyRejectsBlankRequiredFieldsBeforeService() throws Exception {
+        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
+                " ",
+                "",
+                "https://cdn.example.com/logo.png",
+                "https://example.com",
+                "0912345678",
+                " ");
+        authenticate(user);
+
+        mockMvc.perform(patch("/api/v1/companies/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field",
+                        hasItems("industry", "description", "address")));
+
+        verify(companyService, never()).updateCurrentUserCompany(any(), any());
+    }
+
+    @Test
+    void updateCurrentUserCompanyRejectsMissingRequiredFieldsBeforeService() throws Exception {
+        authenticate(user);
+
+        mockMvc.perform(patch("/api/v1/companies/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "logoUrl": "https://cdn.example.com/logo.png",
+                          "website": "https://example.com",
+                          "phone": "0912345678"
+                        }
+                        """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field",
+                        hasItems("industry", "description", "address")));
+
+        verify(companyService, never()).updateCurrentUserCompany(any(), any());
     }
 
     private void authenticate(User authenticatedUser) {

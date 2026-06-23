@@ -49,7 +49,7 @@ public class PartnershipRequestResponseDTO {
     @Schema(
             description = "Trạng thái xét duyệt request",
             example = "PENDING",
-            allowableValues = {"PENDING", "APPROVED", "REJECTED", "CANCELLED"})
+            allowableValues = {"PENDING", "APPROVED", "REJECTED"})
     private String status;
 
     @Schema(description = "Ghi chú xét duyệt của admin, thường dùng khi reject", example = "Thông tin công ty chưa đủ để xét duyệt.")

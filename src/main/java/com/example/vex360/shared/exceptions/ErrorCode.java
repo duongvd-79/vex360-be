@@ -34,6 +34,7 @@ public enum ErrorCode {
     INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER", HttpStatus.BAD_REQUEST),
     INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action", HttpStatus.BAD_REQUEST),
     PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.", HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006", "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.", HttpStatus.BAD_REQUEST),
 
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),

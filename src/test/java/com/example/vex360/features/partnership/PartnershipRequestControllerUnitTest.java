@@ -1,7 +1,10 @@
 package com.example.vex360.features.partnership;
 
+import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,6 +33,7 @@ import com.example.vex360.features.partnership.services.PartnershipRequestServic
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
+import com.example.vex360.shared.exceptions.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +51,7 @@ class PartnershipRequestControllerUnitTest {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new PartnershipRequestController(partnershipRequestService))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper();
         requestId = UUID.randomUUID();
@@ -81,8 +86,8 @@ class PartnershipRequestControllerUnitTest {
 
     @Test
     void submitAuthenticatedRequestReturnsCreatedApiResponse() throws Exception {
-        SubmitPartnershipRequest request = validRequest("company@example.com", Role.ORGANIZER);
-        PartnershipRequestResponseDTO response = response("company@example.com", user.getId(), Role.ORGANIZER);
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.ORGANIZER);
+        PartnershipRequestResponseDTO response = response("user@example.com", user.getId(), Role.ORGANIZER);
         authenticate(user);
 
         when(partnershipRequestService.submitAuthenticatedRequest(eq(user), any(SubmitPartnershipRequest.class)))
@@ -94,6 +99,53 @@ class PartnershipRequestControllerUnitTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.submittedByUserId").value(user.getId().toString()))
                 .andExpect(jsonPath("$.data.requestedRole").value("ORGANIZER"));
+    }
+
+    @Test
+    void submitGuestRequestRejectsInvalidFieldsBeforeService() throws Exception {
+        SubmitPartnershipRequest request = new SubmitPartnershipRequest(
+                "",
+                "invalid-email",
+                "123",
+                "",
+                null,
+                "Optional message",
+                false);
+
+        mockMvc.perform(post("/api/v1/partnership-requests/guest")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field",
+                        hasItems("requesterName", "requesterEmail", "requesterPhoneNumber",
+                                "organizationName", "requestedRole", "acceptedPolicy")));
+
+        verify(partnershipRequestService, never()).submitGuestRequest(any());
+    }
+
+    @Test
+    void submitAuthenticatedRequestRejectsInvalidFieldsBeforeService() throws Exception {
+        SubmitPartnershipRequest request = new SubmitPartnershipRequest(
+                "",
+                "invalid-email",
+                "123",
+                "",
+                null,
+                "Optional message",
+                false);
+        authenticate(user);
+
+        mockMvc.perform(post("/api/v1/partnership-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SYS-003"))
+                .andExpect(jsonPath("$.validationErrors[*].field",
+                        hasItems("requesterName", "requesterEmail", "requesterPhoneNumber",
+                                "organizationName", "requestedRole", "acceptedPolicy")));
+
+        verify(partnershipRequestService, never()).submitAuthenticatedRequest(any(), any());
     }
 
     private void authenticate(User authenticatedUser) {

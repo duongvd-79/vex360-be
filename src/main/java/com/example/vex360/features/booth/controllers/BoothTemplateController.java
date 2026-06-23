@@ -28,6 +28,7 @@ import com.example.vex360.features.booth.dtos.response.BoothTemplateResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothTemplateService;
+import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 
@@ -37,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/booths/templates")
 @RequiredArgsConstructor
-public class BoothTemplateController {
+public class BoothTemplateController extends BaseController {
     private final BoothTemplateService boothTemplateService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -51,8 +52,7 @@ public class BoothTemplateController {
                 request,
                 extractPanoramaFiles(multipartRequest));
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(template));
+        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(template));
     }
 
     @GetMapping
@@ -63,14 +63,14 @@ public class BoothTemplateController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "name") Pageable pageable) {
         PageResponse<BoothTemplateSummaryResponseDTO> templates = boothTemplateService
                 .getBoothTemplates(keyword, status, pageable);
-        return ResponseEntity.ok(ApiResponse.success(templates));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(templates));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<BoothTemplateResponseDTO>> getBoothTemplateById(@PathVariable UUID id) {
         BoothTemplateResponseDTO template = boothTemplateService.getBoothTemplateById(id);
-        return ResponseEntity.ok(ApiResponse.success(template));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(template));
     }
 
     private Map<String, MultipartFile> extractPanoramaFiles(MultipartHttpServletRequest request) {

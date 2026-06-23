@@ -1,5 +1,7 @@
 package com.example.vex360.features.company.controllers;
 
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +14,7 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.company.dtos.request.UpdateCompanyProfileRequest;
 import com.example.vex360.features.company.dtos.response.CompanyResponseDTO;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/companies")
 @RequiredArgsConstructor
 @Tag(name = "Company Profile", description = "Quản lý hồ sơ công ty của user đang đăng nhập")
-public class CompanyController {
+public class CompanyController extends BaseController {
     private final CompanyService companyService;
 
     @GetMapping("/me")
@@ -32,7 +35,7 @@ public class CompanyController {
     public ResponseEntity<ApiResponse<CompanyResponseDTO>> getCurrentUserCompany(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         CompanyResponseDTO company = companyService.getCurrentUserCompany(userDetails.getUser());
-        return ResponseEntity.ok(ApiResponse.success(company));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(company));
     }
 
     @PatchMapping("/me")
@@ -41,8 +44,8 @@ public class CompanyController {
             description = "Cập nhật các trường profile còn thiếu. Khi industry, description, logoUrl, website, phone và address đều có dữ liệu, company sẽ chuyển sang ACTIVE.")
     public ResponseEntity<ApiResponse<CompanyResponseDTO>> updateCurrentUserCompany(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody UpdateCompanyProfileRequest request) {
+            @Valid @RequestBody UpdateCompanyProfileRequest request) {
         CompanyResponseDTO company = companyService.updateCurrentUserCompany(userDetails.getUser(), request);
-        return ResponseEntity.ok(ApiResponse.success(company));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(company));
     }
 }

@@ -23,6 +23,7 @@ import com.example.vex360.features.user.dtos.request.UpdateStatusRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.Role;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ADMIN')")
 @Tag(name = "Admin - Users", description = "Admin quan ly user, role va trang thai tai khoan")
-public class AdminUserController {
+public class AdminUserController extends BaseController {
 
     private final UserService userService;
 
@@ -48,8 +49,7 @@ public class AdminUserController {
             description = "Tao tai khoan moi, sinh mat khau tam thoi, luu mat khau da hash va gui thong tin dang nhap qua email.")
     public ResponseEntity<ApiResponse<UserResponseDTO>> createUser(@Valid @RequestBody CreateUserRequest request) {
         UserResponseDTO user = userService.createUser(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(user));
     }
 
     @GetMapping
@@ -62,7 +62,7 @@ public class AdminUserController {
             @RequestParam(required = false) UserStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "email") Pageable pageable) {
         PageResponse<UserResponseDTO> users = userService.getUsers(keyword, role, status, pageable);
-        return ResponseEntity.ok(ApiResponse.success(users));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(users));
     }
 
     @GetMapping("/summary")
@@ -71,7 +71,7 @@ public class AdminUserController {
             description = "Tra ve tong so user, so tai khoan active, so tai khoan admin va so tai khoan pending.")
     public ResponseEntity<ApiResponse<UserSummaryResponseDTO>> getUserSummary() {
         UserSummaryResponseDTO summary = userService.getUserSummary();
-        return ResponseEntity.ok(ApiResponse.success(summary));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(summary));
     }
 
     @GetMapping("/{id}")
@@ -80,7 +80,7 @@ public class AdminUserController {
             description = "Lay thong tin chi tiet cua mot user theo ID.")
     public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(@PathVariable UUID id) {
         UserResponseDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
     }
 
     @PatchMapping("/{id}/role")
@@ -91,7 +91,7 @@ public class AdminUserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request) {
         UserResponseDTO user = userService.updateRole(id, request.getRole());
-        return ResponseEntity.ok(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
     }
 
     @PatchMapping("/{id}/status")
@@ -102,6 +102,6 @@ public class AdminUserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStatusRequest request) {
         UserResponseDTO user = userService.updateStatus(id, request.getStatus());
-        return ResponseEntity.ok(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
     }
 }

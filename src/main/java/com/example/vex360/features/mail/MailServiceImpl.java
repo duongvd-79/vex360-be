@@ -238,13 +238,37 @@ public class MailServiceImpl implements MailService {
 
     @Async
     @Override
-    public void sendPartnershipApprovedEmail(String toEmail, String fullName, Role role, String organizationName) {
+    public void sendPartnershipApprovedEmail(
+            String toEmail,
+            String fullName,
+            Role role,
+            String organizationName) {
         String displayName = fullName == null || fullName.isBlank() ? "ban" : fullName;
         String subject = "Yeu cau hop tac da duoc duyet - Vex360";
         String content = "Xin chao " + displayName + ",\n\n"
                 + "Yeu cau hop tac cho " + organizationName + " da duoc duyet. "
                 + "Tai khoan cua ban hien co role " + role.name() + ".\n\n"
                 + "Vui long dang nhap Vex360 de hoan thien ho so cong ty neu can.\n\n"
+                + "Day la email tu dong tu he thong Vex360.";
+        sendMail(toEmail, subject, content);
+    }
+
+    @Async
+    @Override
+    public void sendPartnershipRejectedEmail(
+            String toEmail,
+            String fullName,
+            String organizationName,
+            String reviewNote) {
+        String displayName = fullName == null || fullName.isBlank() ? "ban" : fullName;
+        String reason = reviewNote == null || reviewNote.isBlank()
+                ? "Admin chua cung cap ly do cu the."
+                : reviewNote;
+        String subject = "Yeu cau hop tac chua duoc duyet - Vex360";
+        String content = "Xin chao " + displayName + ",\n\n"
+                + "Yeu cau hop tac cho " + organizationName + " chua duoc duyet.\n\n"
+                + "Ly do: " + reason + "\n\n"
+                + "Ban co the dieu chinh thong tin va gui lai yeu cau sau.\n\n"
                 + "Day la email tu dong tu he thong Vex360.";
         sendMail(toEmail, subject, content);
     }
@@ -298,4 +322,5 @@ public class MailServiceImpl implements MailService {
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
     }
+
 }

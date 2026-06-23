@@ -66,7 +66,7 @@ class UserControllerUnitTest {
         objectMapper = new ObjectMapper();
         userId = UUID.randomUUID();
         response = new UserResponseDTO(
-                userId, "user@example.com", "User Name", "123", "VISITOR", "avatar.png", "ACTIVE");
+                userId, "user@example.com", "User Name", "0912345678", "VISITOR", "avatar.png", "ACTIVE");
     }
 
     @AfterEach
@@ -130,7 +130,7 @@ class UserControllerUnitTest {
     @Test
     void updateCurrentUserProfileReturnsApiResponse() throws Exception {
         User user = User.builder().id(userId).email("user@example.com").role(Role.VISITOR).status(UserStatus.ACTIVE).build();
-        UpdateProfileRequest request = new UpdateProfileRequest("User Name", "123", "avatar.png");
+        UpdateProfileRequest request = new UpdateProfileRequest("User Name", "0912345678", "avatar.png");
 
         when(userService.updateCurrentUserProfile(any(User.class), any(UpdateProfileRequest.class))).thenReturn(response);
         authenticate(user);

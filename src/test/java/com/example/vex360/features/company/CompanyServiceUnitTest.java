@@ -13,11 +13,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.company.dtos.request.UpdateCompanyProfileRequest;
 import com.example.vex360.features.company.dtos.response.CompanyResponseDTO;
+import com.example.vex360.features.company.mapper.CompanyMapper;
 import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.entities.Company;
@@ -39,7 +41,8 @@ class CompanyServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        companyService = new CompanyService(companyRepository);
+        CompanyMapper companyMapper = Mappers.getMapper(CompanyMapper.class);
+        companyService = new CompanyService(companyRepository, companyMapper);
         owner = User.builder()
                 .id(UUID.randomUUID())
                 .email("owner@example.com")

@@ -28,7 +28,7 @@ public class SubmitPartnershipRequest {
 
     @Schema(description = "Số điện thoại liên hệ, định dạng 10 số bắt đầu bằng 0", example = "0912345678")
     @NotBlank(message = "Requester phone number must not be blank")
-    @Pattern(regexp = "^0[0-9]{9}$", message = "Requester phone number is invalid")
+    @Pattern(regexp = "^0[0-9]{9}$", message = "Số điện thoại không hợp lệ!")
     private String requesterPhoneNumber;
 
     @Schema(description = "Tên công ty hoặc tổ chức muốn hợp tác", example = "Vex360 Partner")

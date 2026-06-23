@@ -1,7 +1,8 @@
 package com.example.vex360.features.user.controllers;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +14,7 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @Tag(name = "Current User", description = "User dang dang nhap xem va cap nhat ho so ca nhan")
-public class CurrentUserController {
+public class CurrentUserController extends BaseController {
 
     private final UserService userService;
 
@@ -35,7 +37,7 @@ public class CurrentUserController {
     public ResponseEntity<ApiResponse<UserResponseDTO>> getCurrentUser(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         UserResponseDTO user = userService.getCurrentUser(userDetails.getUser());
-        return ResponseEntity.ok(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
     }
 
     @PatchMapping("/me")
@@ -44,9 +46,9 @@ public class CurrentUserController {
             description = "Cap nhat fullName, phoneNumber va avatarUrl cua user dang dang nhap.")
     public ResponseEntity<ApiResponse<UserResponseDTO>> updateCurrentUserProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody UpdateProfileRequest request) {
+            @Valid @RequestBody UpdateProfileRequest request) {
         UserResponseDTO user = userService.updateCurrentUserProfile(userDetails.getUser(), request);
-        return ResponseEntity.ok(ApiResponse.success(user));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
     }
 
     @PatchMapping("/me/password")
@@ -57,6 +59,6 @@ public class CurrentUserController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changeCurrentUserPassword(userDetails.getUser(), request);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(null));
     }
 }
