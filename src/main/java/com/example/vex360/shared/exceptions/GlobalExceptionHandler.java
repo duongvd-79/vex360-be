@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -86,7 +87,27 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 4. Runtime Exceptions (e.g. Database Exception, NullPointer, etc.)
+        // 4. Method Not Allowed
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(
+                        HttpRequestMethodNotSupportedException ex,
+                        HttpServletRequest request) {
+                log.warn("HTTP method not supported for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
+
+                ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;
+                ErrorResponse errorResponse = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(errorCode.getHttpStatus().value())
+                                .error(errorCode.getHttpStatus().name())
+                                .code(errorCode.getCode())
+                                .message(errorCode.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+        }
+
+        // 5. Runtime Exceptions (e.g. Database Exception, NullPointer, etc.)
         // Prevent information disclosure by returning a generic uncaught exception error and logging stack trace
         @ExceptionHandler(RuntimeException.class)
         public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
@@ -105,7 +126,7 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 5. Spring Security AccessDeniedException
+        // 6. Spring Security AccessDeniedException
         @ExceptionHandler(AccessDeniedException.class)
         public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex, HttpServletRequest request) {
                 log.warn("Access denied for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
@@ -123,7 +144,7 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 6. Other Exceptions
+        // 7. Other Exceptions
         // Log full stack trace and return standard uncaught exception response
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {

@@ -11,6 +11,8 @@ public enum ErrorCode {
     INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_ENTITY),
 
+    METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
+
     // AUTH ERRORS
     UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED("AUTH-002", "Không có quyền truy cập", HttpStatus.FORBIDDEN),
@@ -54,7 +56,11 @@ public enum ErrorCode {
     INVALID_BOOTH_TEMPLATE("BOOTH-002", "Invalid booth template", HttpStatus.BAD_REQUEST),
     INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
-    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR);
+    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // PACKAGE TEMPLATE ERRORS
+    PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
+    PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT);
 
     private final String code;
     private final String message;
