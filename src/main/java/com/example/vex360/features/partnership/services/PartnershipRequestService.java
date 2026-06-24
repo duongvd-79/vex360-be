@@ -14,6 +14,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.user.repositories.UserRepository;
@@ -100,6 +101,14 @@ public class PartnershipRequestService {
     @Transactional(readOnly = true)
     public PartnershipRequestResponseDTO getRequestById(UUID id) {
         return partnershipRequestMapper.toResponse(getRequest(id));
+    }
+
+    @Transactional(readOnly = true)
+    public PartnershipRequestSummaryResponseDTO getRequestSummary() {
+        return new PartnershipRequestSummaryResponseDTO(
+                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING),
+                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED),
+                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED));
     }
 
     @Transactional

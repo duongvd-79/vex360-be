@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.example.vex360.features.partnership.controllers.AdminPartnershipRequestController;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
@@ -87,6 +88,19 @@ class AdminPartnershipRequestControllerUnitTest {
         mockMvc.perform(get("/api/v1/admin/partnership-requests/{id}", requestId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(requestId.toString()));
+    }
+
+    @Test
+    void getRequestSummaryReturnsApiResponse() throws Exception {
+        PartnershipRequestSummaryResponseDTO summary = new PartnershipRequestSummaryResponseDTO(5L, 4L, 3L);
+
+        when(partnershipRequestService.getRequestSummary()).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/admin/partnership-requests/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pendingRequests").value(5))
+                .andExpect(jsonPath("$.data.approvedRequests").value(4))
+                .andExpect(jsonPath("$.data.rejectedRequests").value(3));
     }
 
     @Test

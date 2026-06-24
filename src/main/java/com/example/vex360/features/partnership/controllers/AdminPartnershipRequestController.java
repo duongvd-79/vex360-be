@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -53,6 +54,15 @@ public class AdminPartnershipRequestController extends BaseController {
         PageResponse<PartnershipRequestResponseDTO> requests = partnershipRequestService
                 .getRequests(status, requestedRole, pageable);
         return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(requests));
+    }
+
+    @GetMapping("/summary")
+    @Operation(
+            summary = "Admin xem thong ke yeu cau hop tac",
+            description = "Tra ve so luong partnership request dang cho xu ly, da duyet va da tu choi.")
+    public ResponseEntity<ApiResponse<PartnershipRequestSummaryResponseDTO>> getRequestSummary() {
+        PartnershipRequestSummaryResponseDTO summary = partnershipRequestService.getRequestSummary();
+        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(summary));
     }
 
     @GetMapping("/{id}")
