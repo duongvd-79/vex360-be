@@ -31,6 +31,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
+import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
@@ -352,6 +353,19 @@ class PartnershipRequestServiceUnitTest {
 
         assertEquals(1, response.getContent().size());
         assertEquals("ORGANIZER", response.getContent().get(0).getRequestedRole());
+    }
+
+    @Test
+    void getRequestSummaryCountsRequestsByStatus() {
+        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING)).thenReturn(5L);
+        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED)).thenReturn(4L);
+        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED)).thenReturn(3L);
+
+        PartnershipRequestSummaryResponseDTO response = partnershipRequestService.getRequestSummary();
+
+        assertEquals(5L, response.getPendingRequests());
+        assertEquals(4L, response.getApprovedRequests());
+        assertEquals(3L, response.getRejectedRequests());
     }
 
     private SubmitPartnershipRequest validRequest(String email, Role role) {

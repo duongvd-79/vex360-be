@@ -59,7 +59,7 @@ app:
 
   # Security Whitelist
   security:
-    whitelist: /api/v1/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
+    whitelist: /api/v1/auth/**,/api/v1/partnership-requests/guest,/api/v1/package-templates/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html
     strict-mode: ${SECURITY_STRICT_MODE:true}
 
   # Reset Password Configuration

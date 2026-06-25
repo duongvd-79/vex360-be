@@ -67,4 +67,29 @@ public class CloudinaryService implements CloudService {
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
     }
+
+    @Override
+    @Transactional
+    public void delete(String publicId, String resourceType) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+
+        try {
+            Map<?, ?> params = ObjectUtils.asMap(
+                    "resource_type", resolveResourceType(resourceType));
+            cloudinary.uploader().destroy(publicId, params);
+            log.info("Deleted Cloudinary asset. Public ID: {}", publicId);
+        } catch (Exception e) {
+            log.error("Failed to delete Cloudinary asset {}", publicId, e);
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    private String resolveResourceType(String resourceType) {
+        if (resourceType == null || resourceType.isBlank()) {
+            return "image";
+        }
+        return resourceType.toLowerCase();
+    }
 }

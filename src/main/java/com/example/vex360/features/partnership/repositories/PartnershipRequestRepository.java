@@ -19,6 +19,8 @@ public interface PartnershipRequestRepository extends JpaRepository<PartnershipR
 
     boolean existsBySubmittedByUserIdAndStatus(UUID submittedByUserId, PartnershipRequestStatus status);
 
+    long countByStatus(PartnershipRequestStatus status);
+
     @Query("""
             SELECT pr FROM PartnershipRequest pr
             WHERE (:status IS NULL OR pr.status = :status)
