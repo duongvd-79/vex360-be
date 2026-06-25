@@ -15,10 +15,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class ConfigureExhibitionPackageRequest {
-    @NotNull(message = "Package template ID is required")
+    @NotNull(message = "Package template ID không được để trống")
     private UUID templateId;
 
-    @NotNull(message = "Final price is required")
-    @DecimalMin(value = "0.0", message = "Final price must be at least 0.0")
+    @NotNull(message = "Giá tiền không được để trống")
+    @DecimalMin(value = "0.0", message = "Giá tiền phải lớn hơn 0")
     private BigDecimal finalPrice;
 }

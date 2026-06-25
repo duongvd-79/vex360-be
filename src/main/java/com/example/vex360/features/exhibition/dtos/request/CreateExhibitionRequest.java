@@ -18,23 +18,23 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class CreateExhibitionRequest {
-    @NotBlank(message = "Exhibition name is required")
+    @NotBlank(message = "Tên triển lãm không được để trống")
     private String name;
 
-    @NotBlank(message = "Category is required")
+    @NotBlank(message = "Danh mục không được để trống")
     private String category;
 
     private String description;
 
-    @NotNull(message = "Start date is required")
-    @FutureOrPresent(message = "Start date must be in the present or future")
+    @NotNull(message = "Ngày bắt đầu không được để trống")
+    @FutureOrPresent(message = "Ngày bắt đầu phải là hiện tại hoặc tương lai")
     private LocalDate startDate;
 
-    @NotNull(message = "End date is required")
+    @NotNull(message = "Ngày kết thúc không được để trống")
     private LocalDate endDate;
 
-    @NotNull(message = "Estimated booths is required")
-    @Min(value = 1, message = "Estimated booths must be at least 1")
+    @NotNull(message = "Số gian hàng dự kiến không được để trống")
+    @Min(value = 1, message = "Số gian hàng dự kiến phải lớn hơn 0")
     private Integer estimatedBooths;
 
     @Valid

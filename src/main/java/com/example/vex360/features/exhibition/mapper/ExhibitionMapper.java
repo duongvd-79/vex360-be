@@ -23,8 +23,14 @@ public interface ExhibitionMapper {
     @Mapping(target = "estimatedBooths", source = "exhibition.estimatedBooths")
     @Mapping(target = "status", source = "exhibition.status")
     @Mapping(target = "organizerName", source = "exhibition.organizer.fullName")
+    @Mapping(target = "reviewedByName", source = "exhibition.reviewedBy.fullName")
     @Mapping(target = "packages", source = "packages")
     ExhibitionResponseDTO toResponse(Exhibition exhibition, List<ExhibitionPackage> packages);
+
+    @Mapping(target = "organizerName", source = "organizer.fullName")
+    @Mapping(target = "reviewedByName", source = "reviewedBy.fullName")
+    @Mapping(target = "packages", ignore = true)
+    ExhibitionResponseDTO toResponse(Exhibition exhibition);
 
     default ExhibitionResponseDTO toPublicResponse(Exhibition exhibition, List<ExhibitionPackage> packages) {
         ExhibitionResponseDTO response = toResponse(exhibition, packages);

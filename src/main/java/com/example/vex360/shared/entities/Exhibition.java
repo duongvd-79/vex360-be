@@ -7,6 +7,9 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -44,7 +47,7 @@ public class Exhibition {
     @JoinColumn(name = "organizer_user_id", nullable = false)
     User organizer;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, unique = true)
     String name;
 
     @Column(name = "category", nullable = false)
@@ -63,7 +66,18 @@ public class Exhibition {
     Integer estimatedBooths;
 
     @Column(name = "status", nullable = false)
-    String status;
+    @Enumerated(EnumType.STRING)
+    ExhibitionStatus status;
+
+    @Column(name = "rejected_reason", columnDefinition = "TEXT")
+    String rejectedReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by_user_id")
+    User reviewedBy;
+
+    @Column(name = "reviewed_at")
+    LocalDateTime reviewedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

@@ -1,6 +1,7 @@
 package com.example.vex360.features.exhibition.dtos.response;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,5 +28,8 @@ public class ExhibitionResponseDTO {
     private Integer estimatedBooths;
     private String status;
     private String organizerName;
+    private String rejectedReason;
+    private String reviewedByName;
+    private LocalDateTime reviewedAt;
     private List<ExhibitionPackageResponseDTO> packages;
 }

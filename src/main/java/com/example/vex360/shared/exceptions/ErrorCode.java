@@ -65,6 +65,11 @@ public enum ErrorCode {
     // EXHIBITION ERRORS
     EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
     EXHIBITION_PACKAGE_NOT_FOUND("EXHIBITION-002", "Không tìm thấy gói triển lãm", HttpStatus.NOT_FOUND),
+    EXHIBITION_LIMIT_EXCEEDED("EXHIBITION-003", "Mỗi nhà tổ chức chỉ được có tối đa 3 đơn đăng ký ở trạng thái PENDING đồng thời", HttpStatus.BAD_REQUEST),
+    EXHIBITION_CANNOT_CANCEL("EXHIBITION-004", "Không được quyền huỷ đơn đăng ký triển lãm sau khi đăng ký", HttpStatus.BAD_REQUEST),
+    EXHIBITION_INVALID_STATUS("EXHIBITION-005", "Trạng thái đơn đăng ký triển lãm không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
+    EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó", HttpStatus.BAD_REQUEST),
+    EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
     REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
 
     private final String code;

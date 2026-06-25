@@ -39,6 +39,7 @@ import com.example.vex360.shared.entities.PackageTemplate;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 
 @ExtendWith(MockitoExtension.class)
 public class ExhibitionServiceTest {
@@ -83,7 +84,7 @@ public class ExhibitionServiceTest {
                 .organizer(organizerUser)
                 .uuid(UUID.randomUUID())
                 .name("Virtual Expo 2026")
-                .status("ACTIVE")
+                .status(ExhibitionStatus.ACTIVE)
                 .build();
 
         packageTemplate = PackageTemplate.builder()
@@ -111,6 +112,8 @@ public class ExhibitionServiceTest {
                 .estimatedBooths(50)
                 .build();
 
+        when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(0L);
+        when(exhibitionRepository.existsByName("Virtual Expo 2026")).thenReturn(false);
         when(exhibitionRepository.save(any(Exhibition.class))).thenReturn(exhibition);
         when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
                 .thenReturn(ExhibitionResponseDTO.builder().name("Virtual Expo 2026").build());
@@ -120,6 +123,47 @@ public class ExhibitionServiceTest {
         assertNotNull(response);
         assertEquals("Virtual Expo 2026", response.getName());
         verify(exhibitionRepository).save(any(Exhibition.class));
+    }
+
+    @Test
+    public void testCreateExhibition_LimitExceeded() {
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("Another Expo")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(50)
+                .build();
+
+        when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(3L);
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            exhibitionService.createExhibition(organizerUser, request);
+        });
+
+        assertEquals(ErrorCode.EXHIBITION_LIMIT_EXCEEDED, exception.getErrorCode());
+        verify(exhibitionRepository, never()).save(any());
+    }
+
+    @Test
+    public void testCreateExhibition_DuplicateName() {
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("Virtual Expo 2026")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(50)
+                .build();
+
+        when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(0L);
+        when(exhibitionRepository.existsByName("Virtual Expo 2026")).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            exhibitionService.createExhibition(organizerUser, request);
+        });
+
+        assertEquals(ErrorCode.EXHIBITION_NAME_DUPLICATED, exception.getErrorCode());
+        verify(exhibitionRepository, never()).save(any());
     }
 
     @Test

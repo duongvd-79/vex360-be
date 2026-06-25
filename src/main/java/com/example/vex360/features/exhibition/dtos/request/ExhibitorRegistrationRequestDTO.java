@@ -9,6 +9,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ExhibitorRegistrationRequestDTO {
-    @NotNull(message = "Exhibition package ID is required")
+    @NotNull(message = "ID gói triển lãm không được để trống")
     private Integer exhibitionPackageId;
 }
