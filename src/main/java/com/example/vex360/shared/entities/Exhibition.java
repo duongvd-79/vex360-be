@@ -1,0 +1,69 @@
+package com.example.vex360.shared.entities;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import org.hibernate.annotations.CreationTimestamp;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
+@Entity
+@Table(name = "exhibitions")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class Exhibition {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    Integer id;
+
+    @Column(name = "uuid", nullable = false, unique = true)
+    @Builder.Default
+    UUID uuid = UUID.randomUUID();
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "organizer_user_id", nullable = false)
+    User organizer;
+
+    @Column(name = "name", nullable = false)
+    String name;
+
+    @Column(name = "category", nullable = false)
+    String category;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    String description;
+
+    @Column(name = "start_date", nullable = false)
+    LocalDate startDate;
+
+    @Column(name = "end_date", nullable = false)
+    LocalDate endDate;
+
+    @Column(name = "estimated_booths", nullable = false)
+    Integer estimatedBooths;
+
+    @Column(name = "status", nullable = false)
+    String status;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    LocalDateTime createdAt;
+}

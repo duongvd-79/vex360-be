@@ -60,7 +60,12 @@ public enum ErrorCode {
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
-    PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT);
+    PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT),
+
+    // EXHIBITION ERRORS
+    EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
+    EXHIBITION_PACKAGE_NOT_FOUND("EXHIBITION-002", "Không tìm thấy gói triển lãm", HttpStatus.NOT_FOUND),
+    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
 
     private final String code;
     private final String message;
