@@ -2,6 +2,7 @@ package com.example.vex360.features.partnership.controllers;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +39,7 @@ public class PartnershipRequestController extends BaseController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('VISITOR')")
     @Operation(
             summary = "User da dang nhap gui yeu cau hop tac",
             description = "Endpoint authenticated. requesterEmail phai trung email tai khoan dang dang nhap. Neu muon dung email khac, vui long dang xuat va gui yeu cau voi tu cach guest.")

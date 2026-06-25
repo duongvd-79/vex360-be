@@ -11,6 +11,8 @@ public enum ErrorCode {
     INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_ENTITY),
 
+    METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
+
     // AUTH ERRORS
     UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED("AUTH-002", "Không có quyền truy cập", HttpStatus.FORBIDDEN),
@@ -41,12 +43,24 @@ public enum ErrorCode {
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
 
+    // PRODUCT ERRORS
+    PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),
+    PRODUCT_CATEGORY_NOT_FOUND("PRODUCT-002", "Không tìm thấy danh mục sản phẩm", HttpStatus.NOT_FOUND),
+    PRODUCT_SKU_DUPLICATED("PRODUCT-003", "Mã sản phẩm đã tồn tại", HttpStatus.CONFLICT),
+    PRODUCT_CATEGORY_NAME_DUPLICATED("PRODUCT-004", "Tên danh mục sản phẩm đã tồn tại", HttpStatus.CONFLICT),
+    INVALID_PRODUCT_MEDIA("PRODUCT-005", "Hình ảnh hoặc video sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
+    INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
+
     // BOOTH ERRORS
     BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
     INVALID_BOOTH_TEMPLATE("BOOTH-002", "Invalid booth template", HttpStatus.BAD_REQUEST),
     INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
-    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR);
+    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // PACKAGE TEMPLATE ERRORS
+    PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
+    PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT);
 
     private final String code;
     private final String message;

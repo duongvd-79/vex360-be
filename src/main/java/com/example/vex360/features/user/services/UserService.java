@@ -71,12 +71,8 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 userRole,
-                request.getAvatarUrl());
-    }
-
-    @Transactional(readOnly = true)
-    public PageResponse<UserResponseDTO> getUsers(Pageable pageable) {
-        return getUsers(null, null, null, pageable);
+                request.getAvatarUrl(),
+                status);
     }
 
     @Transactional(readOnly = true)
@@ -169,6 +165,17 @@ public class UserService {
             String phoneNumber,
             Role role,
             String avatarUrl) {
+        return createAndSaveUser(email, password, fullName, phoneNumber, role, avatarUrl, UserStatus.ACTIVE);
+    }
+
+    private User createAndSaveUser(
+            String email,
+            String password,
+            String fullName,
+            String phoneNumber,
+            Role role,
+            String avatarUrl,
+            UserStatus status) {
         if (userRepository.existsByEmail(email)) {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
@@ -180,6 +187,7 @@ public class UserService {
                 .phoneNumber(phoneNumber)
                 .role(role)
                 .avatarUrl(avatarUrl)
+                .status(status != null ? status : UserStatus.ACTIVE)
                 .build();
 
         return userRepository.save(user);
