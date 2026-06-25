@@ -21,6 +21,7 @@ import com.example.vex360.shared.entities.Exhibition;
 import com.example.vex360.shared.entities.ExhibitionPackage;
 import com.example.vex360.shared.entities.PackageTemplate;
 import com.example.vex360.shared.entities.User;
+import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -66,7 +67,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 throw new AppException(ErrorCode.VALIDATION_FAILED);
             }
 
-            Set<com.example.vex360.shared.enums.BoothListingPriority> priorities = new HashSet<>();
+            Set<BoothListingPriority> priorities = new HashSet<>();
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
                 PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
                         .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));

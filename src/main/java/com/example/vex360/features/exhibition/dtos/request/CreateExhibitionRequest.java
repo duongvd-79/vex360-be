@@ -1,6 +1,7 @@
 package com.example.vex360.features.exhibition.dtos.request;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.FutureOrPresent;
@@ -37,5 +38,5 @@ public class CreateExhibitionRequest {
     private Integer estimatedBooths;
 
     @Valid
-    private java.util.List<ConfigureExhibitionPackageRequest> packages;
+    private List<ConfigureExhibitionPackageRequest> packages;
 }

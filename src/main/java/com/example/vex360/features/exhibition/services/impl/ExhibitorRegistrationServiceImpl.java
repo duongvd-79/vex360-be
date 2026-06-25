@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
@@ -128,7 +129,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
     @Override
     @Transactional(readOnly = true)
-    public com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO getRegistrationDetails(UUID registrationUuid, UUID companyUserId) {
+    public ExhibitorRegistrationResponseDTO getRegistrationDetails(UUID registrationUuid, UUID companyUserId) {
         ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
 
@@ -142,8 +143,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         return mapToResponse(registration, payment);
     }
 
-    private com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO mapToResponse(ExhibitorRegistration registration, Payment payment) {
-        return com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO.builder()
+    private ExhibitorRegistrationResponseDTO mapToResponse(ExhibitorRegistration registration, Payment payment) {
+        return ExhibitorRegistrationResponseDTO.builder()
                 .uuid(registration.getUuid())
                 .exhibitionPackageId(registration.getExhibitionPackage().getId())
                 .companyUserId(registration.getCompany().getId())
