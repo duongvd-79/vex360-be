@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -66,7 +67,15 @@ class UserControllerUnitTest {
         objectMapper = new ObjectMapper();
         userId = UUID.randomUUID();
         response = new UserResponseDTO(
-                userId, "user@example.com", "User Name", "0912345678", "VISITOR", "avatar.png", "ACTIVE");
+                userId,
+                "user@example.com",
+                "User Name",
+                "0912345678",
+                "VISITOR",
+                "avatar.png",
+                "ACTIVE",
+                LocalDateTime.of(2026, 6, 29, 9, 15),
+                LocalDateTime.of(2026, 6, 29, 10, 30));
     }
 
     @AfterEach
