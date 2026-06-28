@@ -6,6 +6,10 @@ import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -28,6 +32,8 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "exhibitions")
+@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "organizerId", type = java.util.UUID.class))
+@Filter(name = "tenantFilter", condition = "organizer_user_id = :organizerId")
 @Getter
 @Setter
 @NoArgsConstructor
