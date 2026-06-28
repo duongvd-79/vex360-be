@@ -6,7 +6,6 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,7 +52,7 @@ public class AdminPartnershipRequestController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<PartnershipRequestResponseDTO> requests = partnershipRequestService
                 .getRequests(status, requestedRole, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(requests));
+        return ok(requests);
     }
 
     @GetMapping("/summary")
@@ -62,7 +61,7 @@ public class AdminPartnershipRequestController extends BaseController {
             description = "Tra ve so luong partnership request dang cho xu ly, da duyet va da tu choi.")
     public ResponseEntity<ApiResponse<PartnershipRequestSummaryResponseDTO>> getRequestSummary() {
         PartnershipRequestSummaryResponseDTO summary = partnershipRequestService.getRequestSummary();
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(summary));
+        return ok(summary);
     }
 
     @GetMapping("/{id}")
@@ -73,7 +72,7 @@ public class AdminPartnershipRequestController extends BaseController {
             @Parameter(description = "ID partnership request")
             @PathVariable UUID id) {
         PartnershipRequestResponseDTO request = partnershipRequestService.getRequestById(id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
+        return ok(request);
     }
 
     @PostMapping("/{id}/approve")
@@ -84,7 +83,7 @@ public class AdminPartnershipRequestController extends BaseController {
             @Parameter(description = "ID partnership request cần duyệt")
             @PathVariable UUID id) {
         PartnershipRequestResponseDTO request = partnershipRequestService.approveRequest(id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
+        return ok(request);
     }
 
     @PostMapping("/{id}/reject")
@@ -96,6 +95,6 @@ public class AdminPartnershipRequestController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody RejectPartnershipRequest rejectRequest) {
         PartnershipRequestResponseDTO request = partnershipRequestService.rejectRequest(id, rejectRequest);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(request));
+        return ok(request);
     }
 }

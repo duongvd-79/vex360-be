@@ -2,7 +2,6 @@ package com.example.vex360.features.exhibition.controllers;
 
 import java.util.UUID;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +29,6 @@ public class PublicExhibitionController extends BaseController {
     @Operation(summary = "Xem thông tin triển lãm công khai theo UUID", description = "Lấy thông tin chi tiết triển lãm và danh sách gói dịch vụ tương ứng dựa trên UUID. Không để lộ khóa chính (Integer ID) của triển lãm trong payload.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> getExhibitionByUuid(@PathVariable("uuid") UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.getExhibitionByUuid(uuid);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 }

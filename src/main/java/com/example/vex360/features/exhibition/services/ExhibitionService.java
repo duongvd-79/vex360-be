@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
@@ -15,7 +16,7 @@ import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 public interface ExhibitionService {
-    ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request);
+    ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request, MultipartFile keyVisual);
 
     ExhibitionResponseDTO getExhibitionByUuid(UUID uuid);
 
@@ -36,7 +37,9 @@ public interface ExhibitionService {
 
     ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid);
 
-    ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request);
+    ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request, MultipartFile keyVisual);
+
+    ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo, MultipartFile floorPlan, MultipartFile guideline);
 
     ExhibitionResponseDTO approveExhibition(User admin, UUID uuid);
 

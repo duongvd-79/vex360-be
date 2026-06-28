@@ -1,6 +1,5 @@
 package com.example.vex360.features.exhibition.controllers;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +27,6 @@ public class PayOSWebhookController extends BaseController {
     @Operation(summary = "Nhận sự kiện thanh toán từ PayOS", description = "Endpoint công khai nhận webhook từ PayOS khi giao dịch thanh toán thay đổi trạng thái. Thực hiện xác thực chữ ký (signature check) và tự động cập nhật trạng thái đơn hàng.")
     public ResponseEntity<ApiResponse<WebhookData>> handlePayOSWebhook(@RequestBody Object body) {
         WebhookData data = payOSWebhookService.handleWebhook(body);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(data));
+        return ok(data);
     }
 }

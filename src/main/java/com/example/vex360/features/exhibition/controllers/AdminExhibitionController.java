@@ -8,7 +8,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -63,7 +62,7 @@ public class AdminExhibitionController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitionResponseDTO> response = exhibitionService
                 .searchExhibitionsForAdmin(keyword, status, category, startDate, endDate, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 
     @GetMapping("/summary")
@@ -72,7 +71,7 @@ public class AdminExhibitionController extends BaseController {
             description = "Trả về tổng số đơn đăng ký mở triển lãm và số lượng của mỗi trạng thái (PENDING, APPROVED, REJECTED, ACTIVE, ...).")
     public ResponseEntity<ApiResponse<ExhibitionSummaryResponseDTO>> getExhibitionSummary() {
         ExhibitionSummaryResponseDTO summary = exhibitionService.getExhibitionSummary();
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(summary));
+        return ok(summary);
     }
 
     @GetMapping("/{uuid}")
@@ -83,7 +82,7 @@ public class AdminExhibitionController extends BaseController {
             @Parameter(description = "UUID của triển lãm")
             @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.getExhibitionDetailForAdmin(uuid);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 
     @PostMapping("/{uuid}/approve")
@@ -95,7 +94,7 @@ public class AdminExhibitionController extends BaseController {
             @Parameter(description = "UUID của triển lãm")
             @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.approveExhibition(userDetails.getUser(), uuid);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 
     @PostMapping("/{uuid}/reject")
@@ -108,6 +107,6 @@ public class AdminExhibitionController extends BaseController {
             @PathVariable UUID uuid,
             @Valid @RequestBody RejectExhibitionRequest request) {
         ExhibitionResponseDTO response = exhibitionService.rejectExhibition(userDetails.getUser(), uuid, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 }

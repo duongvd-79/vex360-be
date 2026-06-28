@@ -8,7 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,10 +16,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
@@ -45,13 +46,14 @@ public class OrganizerExhibitionController extends BaseController {
 
     private final ExhibitionService exhibitionService;
 
-    @PostMapping
-    @Operation(summary = "Tạo triển lãm mới", description = "Tạo một sự kiện triển lãm mới và gán nhà tổ chức hiện tại làm người sở hữu. Yêu cầu số đơn pending hiện tại phải dưới 3.")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Tạo triển lãm mới", description = "Tạo một sự kiện triển lãm mới và gán nhà tổ chức hiện tại làm người sở hữu. Yêu cầu số đơn pending hiện tại phải dưới 3. Bắt buộc tải lên ảnh bìa Key Visual.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> createExhibition(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Valid @RequestBody CreateExhibitionRequest request) {
-        ExhibitionResponseDTO response = exhibitionService.createExhibition(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(response));
+            @Valid @RequestPart("metadata") CreateExhibitionRequest request,
+            @RequestPart("keyVisual") MultipartFile keyVisual) {
+        ExhibitionResponseDTO response = exhibitionService.createExhibition(userDetails.getUser(), request, keyVisual);
+        return created(response);
     }
 
     @GetMapping
@@ -71,7 +73,7 @@ public class OrganizerExhibitionController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitionResponseDTO> response = exhibitionService
                 .searchExhibitionsForOrganizer(userDetails.getUser(), keyword, status, category, startDate, endDate, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 
     @GetMapping("/{uuid}")
@@ -81,17 +83,31 @@ public class OrganizerExhibitionController extends BaseController {
             @Parameter(description = "UUID của triển lãm")
             @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.getExhibitionDetailForOrganizer(userDetails.getUser(), uuid);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+        return ok(response);
     }
 
-    @PutMapping("/{uuid}")
-    @Operation(summary = "Cập nhật đơn đăng ký triển lãm", description = "Cập nhật thông tin chi tiết của đơn đăng ký triển lãm (chỉ được phép khi đơn đang ở trạng thái PENDING). Không cho phép thay đổi trạng thái hoặc hủy đơn tại đây.")
+    @PutMapping(path = "/{uuid}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Cập nhật đơn đăng ký triển lãm", description = "Cập nhật thông tin chi tiết của đơn đăng ký triển lãm (chỉ được phép khi đơn đang ở trạng thái PENDING). Không cho phép thay đổi trạng thái hoặc hủy đơn tại đây. Cho phép cập nhật lại Key Visual.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> updateExhibition(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm")
             @PathVariable UUID uuid,
-            @Valid @RequestBody CreateExhibitionRequest request) {
-        ExhibitionResponseDTO response = exhibitionService.updateExhibitionForOrganizer(userDetails.getUser(), uuid, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(response));
+            @Valid @RequestPart("metadata") CreateExhibitionRequest request,
+            @RequestPart(value = "keyVisual", required = false) MultipartFile keyVisual) {
+        ExhibitionResponseDTO response = exhibitionService.updateExhibitionForOrganizer(userDetails.getUser(), uuid, request, keyVisual);
+        return ok(response);
+    }
+
+    @PutMapping(path = "/{uuid}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Cập nhật các tệp phương tiện giới thiệu sự kiện", description = "Cập nhật Video giới thiệu (Trailer Video), Sơ đồ mặt bằng (Floor Plan), Hướng dẫn tham quan (Guideline). Chỉ được phép thực hiện sau khi triển lãm đã được duyệt.")
+    public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> updateExhibitionMedia(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "UUID của triển lãm")
+            @PathVariable UUID uuid,
+            @RequestPart(value = "trailerVideo", required = false) MultipartFile trailerVideo,
+            @RequestPart(value = "floorPlan", required = false) MultipartFile floorPlan,
+            @RequestPart(value = "guideline", required = false) MultipartFile guideline) {
+        ExhibitionResponseDTO response = exhibitionService.updateExhibitionMedia(userDetails.getUser(), uuid, trailerVideo, floorPlan, guideline);
+        return ok(response);
     }
 }

@@ -1,6 +1,5 @@
 package com.example.vex360.features.exhibition.controllers;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +36,6 @@ public class AdminExhibitionPackageController extends BaseController {
             @Valid @RequestBody CreatePackageTemplateRequest request) {
         PackageTemplateResponseDTO template = packageTemplateService
                 .createPackageTemplate(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(template));
+        return created(template);
     }
 }

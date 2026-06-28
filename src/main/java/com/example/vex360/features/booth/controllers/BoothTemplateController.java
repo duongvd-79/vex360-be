@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -52,7 +51,7 @@ public class BoothTemplateController extends BaseController {
                 request,
                 extractPanoramaFiles(multipartRequest));
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(template));
+        return created(template);
     }
 
     @GetMapping
@@ -63,14 +62,14 @@ public class BoothTemplateController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "name") Pageable pageable) {
         PageResponse<BoothTemplateSummaryResponseDTO> templates = boothTemplateService
                 .getBoothTemplates(keyword, status, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(templates));
+        return ok(templates);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<BoothTemplateResponseDTO>> getBoothTemplateById(@PathVariable UUID id) {
         BoothTemplateResponseDTO template = boothTemplateService.getBoothTemplateById(id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(template));
+        return ok(template);
     }
 
     private Map<String, MultipartFile> extractPanoramaFiles(MultipartHttpServletRequest request) {

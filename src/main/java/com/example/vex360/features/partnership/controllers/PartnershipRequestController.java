@@ -1,6 +1,5 @@
 package com.example.vex360.features.partnership.controllers;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,7 +34,7 @@ public class PartnershipRequestController extends BaseController {
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> submitGuestRequest(
             @Valid @RequestBody SubmitPartnershipRequest request) {
         PartnershipRequestResponseDTO partnershipRequest = partnershipRequestService.submitGuestRequest(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(partnershipRequest));
+        return created(partnershipRequest);
     }
 
     @PostMapping
@@ -49,6 +48,6 @@ public class PartnershipRequestController extends BaseController {
         PartnershipRequestResponseDTO partnershipRequest = partnershipRequestService.submitAuthenticatedRequest(
                 userDetails.getUser(),
                 request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(partnershipRequest));
+        return created(partnershipRequest);
     }
 }
