@@ -8,7 +8,9 @@ import org.mapstruct.Mapping;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.shared.entities.Exhibition;
+import com.example.vex360.shared.entities.ExhibitionAsset;
 import com.example.vex360.shared.entities.ExhibitionPackage;
+import com.example.vex360.shared.enums.ExhibitionAssetType;
 
 @Mapper(componentModel = "spring")
 public interface ExhibitionMapper {
@@ -25,11 +27,19 @@ public interface ExhibitionMapper {
     @Mapping(target = "organizerName", source = "exhibition.organizer.fullName")
     @Mapping(target = "reviewedByName", source = "exhibition.reviewedBy.fullName")
     @Mapping(target = "packages", source = "packages")
+    @Mapping(target = "keyVisualUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.KEY_VISUAL))")
+    @Mapping(target = "trailerVideoUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.TRAILER_VIDEO))")
+    @Mapping(target = "floorPlanUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.FLOOR_PLAN))")
+    @Mapping(target = "guidelineUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.GUIDELINE))")
     ExhibitionResponseDTO toResponse(Exhibition exhibition, List<ExhibitionPackage> packages);
 
     @Mapping(target = "organizerName", source = "organizer.fullName")
     @Mapping(target = "reviewedByName", source = "reviewedBy.fullName")
     @Mapping(target = "packages", ignore = true)
+    @Mapping(target = "keyVisualUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.KEY_VISUAL))")
+    @Mapping(target = "trailerVideoUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.TRAILER_VIDEO))")
+    @Mapping(target = "floorPlanUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.FLOOR_PLAN))")
+    @Mapping(target = "guidelineUrl", expression = "java(getAssetUrl(exhibition, com.example.vex360.shared.enums.ExhibitionAssetType.GUIDELINE))")
     ExhibitionResponseDTO toResponse(Exhibition exhibition);
 
     default ExhibitionResponseDTO toPublicResponse(Exhibition exhibition, List<ExhibitionPackage> packages) {
@@ -43,4 +53,15 @@ public interface ExhibitionMapper {
     @Mapping(target = "templateId", source = "template.id")
     @Mapping(target = "templateName", source = "template.name")
     ExhibitionPackageResponseDTO toPackageResponse(ExhibitionPackage pkg);
+
+    default String getAssetUrl(Exhibition exhibition, ExhibitionAssetType type) {
+        if (exhibition == null || exhibition.getAssets() == null) {
+            return null;
+        }
+        return exhibition.getAssets().stream()
+                .filter(asset -> asset.getType() == type)
+                .map(ExhibitionAsset::getAssetUrl)
+                .findFirst()
+                .orElse(null);
+    }
 }

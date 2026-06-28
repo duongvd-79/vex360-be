@@ -26,19 +26,26 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDT
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.shared.entities.Exhibition;
+import com.example.vex360.shared.entities.ExhibitionAsset;
 import com.example.vex360.shared.entities.ExhibitionPackage;
 import com.example.vex360.shared.entities.PackageTemplate;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.BoothListingPriority;
+import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.dtos.CloudinaryResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -48,14 +55,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
     private final PackageTemplateRepository packageTemplateRepository;
+    private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitionMapper exhibitionMapper;
+    private final CloudService cloudService;
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request) {
+    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request, MultipartFile keyVisual) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
+
+        validateImageFile(keyVisual, true);
 
         long pendingCount = exhibitionRepository.countByOrganizerIdAndStatus(organizer.getId(), ExhibitionStatus.PENDING);
         if (pendingCount >= 3) {
@@ -83,6 +94,17 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition = exhibitionRepository.save(exhibition);
         log.info("Created Exhibition: {} (ID: {}, UUID: {})", exhibition.getName(), exhibition.getId(),
                 exhibition.getUuid());
+
+        // Upload keyVisual and save as ExhibitionAsset
+        CloudinaryResponse uploadRes = cloudService.upload(keyVisual);
+        ExhibitionAsset keyVisualAsset = ExhibitionAsset.builder()
+                .exhibition(exhibition)
+                .assetUrl(uploadRes.getUrl())
+                .publicId(uploadRes.getPublicId())
+                .type(ExhibitionAssetType.KEY_VISUAL)
+                .build();
+        exhibitionAssetRepository.save(keyVisualAsset);
+        exhibition.getAssets().add(keyVisualAsset);
 
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
         if (request.getPackages() != null && !request.getPackages().isEmpty()) {
@@ -261,7 +283,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request) {
+    public ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request, MultipartFile keyVisual) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -290,6 +312,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition.setEstimatedBooths(request.getEstimatedBooths());
 
         exhibition = exhibitionRepository.save(exhibition);
+
+        // Upload keyVisual if provided
+        if (keyVisual != null && !keyVisual.isEmpty()) {
+            validateImageFile(keyVisual, false);
+            uploadOrReplaceAsset(exhibition, keyVisual, ExhibitionAssetType.KEY_VISUAL, "image");
+        }
 
         // Delete old packages
         List<ExhibitionPackage> oldPackages = exhibitionPackageRepository.findByExhibition(exhibition);
@@ -330,6 +358,46 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         return exhibitionMapper.toResponse(exhibition, savedPackages);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo, MultipartFile floorPlan, MultipartFile guideline) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        // Post-approval assets can only be updated if approved or active
+        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            log.error("Cannot update media assets for exhibition with status {}", exhibition.getStatus());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        // Validate formats & sizes
+        if (trailerVideo != null && !trailerVideo.isEmpty()) {
+            validateVideoFile(trailerVideo);
+            uploadOrReplaceAsset(exhibition, trailerVideo, ExhibitionAssetType.TRAILER_VIDEO, "video");
+        }
+
+        if (floorPlan != null && !floorPlan.isEmpty()) {
+            validateImageFile(floorPlan, false);
+            uploadOrReplaceAsset(exhibition, floorPlan, ExhibitionAssetType.FLOOR_PLAN, "image");
+        }
+
+        if (guideline != null && !guideline.isEmpty()) {
+            validateImageFile(guideline, false);
+            uploadOrReplaceAsset(exhibition, guideline, ExhibitionAssetType.GUIDELINE, "image");
+        }
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
     }
 
     @Override
@@ -377,5 +445,63 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition = exhibitionRepository.save(exhibition);
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png");
+
+    private void validateImageFile(MultipartFile file, boolean required) {
+        if (file == null || file.isEmpty()) {
+            if (required) {
+                log.error("Required image file is missing or empty");
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            return;
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+            log.error("Unsupported image file type: {}", contentType);
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            log.error("Image file size {} exceeds 10MB", file.getSize());
+            throw new AppException(ErrorCode.FILE_SIZE_EXCEEDED);
+        }
+    }
+
+    private void validateVideoFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return;
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.equalsIgnoreCase("video/mp4")) {
+            log.error("Unsupported video file type: {}", contentType);
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+        if (file.getSize() > 100 * 1024 * 1024) {
+            log.error("Video file size {} exceeds 100MB", file.getSize());
+            throw new AppException(ErrorCode.FILE_SIZE_EXCEEDED);
+        }
+    }
+
+    private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type, String resourceType) {
+        ExhibitionAsset existingAsset = exhibitionAssetRepository.findByExhibitionIdAndType(exhibition.getId(), type)
+                .orElse(null);
+        if (existingAsset != null) {
+            cloudService.delete(existingAsset.getPublicId(), resourceType);
+            CloudinaryResponse uploadRes = cloudService.upload(file);
+            existingAsset.setAssetUrl(uploadRes.getUrl());
+            existingAsset.setPublicId(uploadRes.getPublicId());
+            exhibitionAssetRepository.save(existingAsset);
+        } else {
+            CloudinaryResponse uploadRes = cloudService.upload(file);
+            ExhibitionAsset newAsset = ExhibitionAsset.builder()
+                    .exhibition(exhibition)
+                    .assetUrl(uploadRes.getUrl())
+                    .publicId(uploadRes.getPublicId())
+                    .type(type)
+                    .build();
+            exhibitionAssetRepository.save(newAsset);
+            exhibition.getAssets().add(newAsset);
+        }
     }
 }

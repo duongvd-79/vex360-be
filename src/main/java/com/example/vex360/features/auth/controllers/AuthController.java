@@ -57,9 +57,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản", description = "Tạo một tài khoản người dùng mới trong hệ thống.")
-    public ApiResponse<Void> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
-        return createSuccessResponse(null, "Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
+        return ok(null, "Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
     }
 
     /**
@@ -87,8 +87,8 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/login")
     @Operation(summary = "Đăng nhập tài khoản", description = "Xác thực email và mật khẩu của người dùng, trả về Access Token (stateless) và Refresh Token (stateful).")
-    public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return createSuccessResponse(authService.login(request));
+    public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {
+        return ok(authService.login(request));
     }
 
     /**
@@ -100,8 +100,8 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/refresh")
     @Operation(summary = "Làm mới Access Token", description = "Sử dụng Refresh Token hợp lệ để nhận cặp token mới. Áp dụng cơ chế xoay vòng Refresh Token (Rotation) và phát hiện tấn công phát lại (Replay Detection).")
-    public ApiResponse<TokenResponse> refreshToken(@RequestParam("token") String token) {
-        return createSuccessResponse(authService.refreshToken(token));
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@RequestParam("token") String token) {
+        return ok(authService.refreshToken(token));
     }
 
     /**
@@ -112,9 +112,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/logout")
     @Operation(summary = "Đăng xuất tài khoản", description = "Thu hồi Refresh Token hiện tại và đưa Access Token đang dùng vào danh sách đen (blacklist).")
-    public ApiResponse<Void> logout(@RequestParam("token") String token) {
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestParam("token") String token) {
         authService.logout(token);
-        return createSuccessResponse(null, "Đăng xuất thành công!");
+        return ok(null, "Đăng xuất thành công!");
     }
 
     /**
@@ -126,9 +126,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/forgot-password")
     @Operation(summary = "Yêu cầu khôi phục mật khẩu", description = "Gửi một email chứa liên kết khôi phục mật khẩu đã được mã hóa AES. Áp dụng cơ chế chống dò quét email người dùng.")
-    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
-        return createSuccessResponse(null, "Nếu email tồn tại trong hệ thống, mã khôi phục mật khẩu đã được gửi!");
+        return ok(null, "Nếu email tồn tại trong hệ thống, mã khôi phục mật khẩu đã được gửi!");
     }
 
     /**
@@ -155,9 +155,9 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/reset-password")
     @Operation(summary = "Đặt lại mật khẩu mới", description = "Sử dụng token khôi phục đã giải mã để lưu mật khẩu mới, hủy bỏ token khôi phục cũ và thu hồi toàn bộ các phiên làm việc hiện tại của tài khoản.")
-    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
-        return ApiResponse.success(null, "Đặt lại mật khẩu thành công!");
+        return ok(null, "Đặt lại mật khẩu thành công!");
     }
 
     /**
@@ -170,10 +170,10 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/change-password")
     @Operation(summary = "Đổi mật khẩu trực tiếp", description = "Thay đổi mật khẩu mới trực tiếp cho người dùng hiện tại đang đăng nhập. Hệ thống sẽ cập nhật mật khẩu, hủy toàn bộ các phiên hoạt động khác và gửi email thông báo.")
-    public ApiResponse<Void> changePassword(
+    public ResponseEntity<ApiResponse<Void>> changePassword(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(userDetails.getUser(), request);
-        return ApiResponse.success(null, "Thay đổi mật khẩu thành công!");
+        return ok(null, "Thay đổi mật khẩu thành công!");
     }
 }

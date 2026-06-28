@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.entities.User;
+import com.example.vex360.shared.enums.Role;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -52,6 +53,9 @@ public class JwtService {
             claims.put("userId", user.getId().toString());
             claims.put("role", user.getRole().name());
             claims.put("status", user.getStatus().name());
+            if (user.getRole() == Role.ORGANIZER) {
+                claims.put("tenantId", user.getId().toString());
+            }
         } else {
             claims.put("role", userDetails.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
@@ -84,6 +88,10 @@ public class JwtService {
 
     public String extractStatus(String token) {
         return extractClaims(token, claims -> claims.get("status", String.class));
+    }
+
+    public String extractTenantId(String token) {
+        return extractClaims(token, claims -> claims.get("tenantId", String.class));
     }
 
     public <T> T extractClaims(String token, Function<Claims, T> claimsResolver) {

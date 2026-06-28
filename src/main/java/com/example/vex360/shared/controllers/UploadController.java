@@ -1,5 +1,6 @@
 package com.example.vex360.shared.controllers;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -28,11 +29,11 @@ public class UploadController extends BaseController {
 
     @PostMapping
     @Operation(summary = "Tải lên tệp tin", description = "Tải lên hình ảnh hoặc video lên Cloudinary. Yêu cầu đăng nhập. Giới hạn dung lượng tệp tin tối đa là 10MB.")
-    public ApiResponse<CloudinaryResponse> uploadFile(@RequestPart MultipartFile file) {
+    public ResponseEntity<ApiResponse<CloudinaryResponse>> uploadFile(@RequestPart MultipartFile file) {
         log.info("File received: {}", file.getOriginalFilename());
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
         }
-        return createSuccessResponse(cloudService.upload(file), "Tải lên tệp tin thành công!");
+        return ok(cloudService.upload(file), "Tải lên tệp tin thành công!");
     }
 }

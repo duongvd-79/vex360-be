@@ -40,6 +40,11 @@ import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
+import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.dtos.CloudinaryResponse;
+import org.springframework.web.multipart.MultipartFile;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 public class ExhibitionServiceTest {
@@ -55,6 +60,12 @@ public class ExhibitionServiceTest {
 
     @Mock
     private ExhibitionMapper exhibitionMapper;
+
+    @Mock
+    private ExhibitionAssetRepository exhibitionAssetRepository;
+
+    @Mock
+    private CloudService cloudService;
 
     @InjectMocks
     private ExhibitionServiceImpl exhibitionService;
@@ -112,17 +123,27 @@ public class ExhibitionServiceTest {
                 .estimatedBooths(50)
                 .build();
 
+        MultipartFile keyVisual = mock(MultipartFile.class);
+        when(keyVisual.isEmpty()).thenReturn(false);
+        when(keyVisual.getContentType()).thenReturn("image/png");
+        when(keyVisual.getSize()).thenReturn(1000L);
+
         when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(0L);
         when(exhibitionRepository.existsByName("Virtual Expo 2026")).thenReturn(false);
         when(exhibitionRepository.save(any(Exhibition.class))).thenReturn(exhibition);
+        when(cloudService.upload(any(MultipartFile.class))).thenReturn(CloudinaryResponse.builder()
+                .url("http://example.com/logo.png")
+                .publicId("logo_pid")
+                .build());
         when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
                 .thenReturn(ExhibitionResponseDTO.builder().name("Virtual Expo 2026").build());
 
-        ExhibitionResponseDTO response = exhibitionService.createExhibition(organizerUser, request);
+        ExhibitionResponseDTO response = exhibitionService.createExhibition(organizerUser, request, keyVisual);
 
         assertNotNull(response);
         assertEquals("Virtual Expo 2026", response.getName());
         verify(exhibitionRepository).save(any(Exhibition.class));
+        verify(exhibitionAssetRepository).save(any());
     }
 
     @Test
@@ -135,10 +156,15 @@ public class ExhibitionServiceTest {
                 .estimatedBooths(50)
                 .build();
 
+        MultipartFile keyVisual = mock(MultipartFile.class);
+        when(keyVisual.isEmpty()).thenReturn(false);
+        when(keyVisual.getContentType()).thenReturn("image/png");
+        when(keyVisual.getSize()).thenReturn(1000L);
+
         when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(3L);
 
         AppException exception = assertThrows(AppException.class, () -> {
-            exhibitionService.createExhibition(organizerUser, request);
+            exhibitionService.createExhibition(organizerUser, request, keyVisual);
         });
 
         assertEquals(ErrorCode.EXHIBITION_LIMIT_EXCEEDED, exception.getErrorCode());
@@ -155,11 +181,16 @@ public class ExhibitionServiceTest {
                 .estimatedBooths(50)
                 .build();
 
+        MultipartFile keyVisual = mock(MultipartFile.class);
+        when(keyVisual.isEmpty()).thenReturn(false);
+        when(keyVisual.getContentType()).thenReturn("image/png");
+        when(keyVisual.getSize()).thenReturn(1000L);
+
         when(exhibitionRepository.countByOrganizerIdAndStatus(organizerUser.getId(), ExhibitionStatus.PENDING)).thenReturn(0L);
         when(exhibitionRepository.existsByName("Virtual Expo 2026")).thenReturn(true);
 
         AppException exception = assertThrows(AppException.class, () -> {
-            exhibitionService.createExhibition(organizerUser, request);
+            exhibitionService.createExhibition(organizerUser, request, keyVisual);
         });
 
         assertEquals(ErrorCode.EXHIBITION_NAME_DUPLICATED, exception.getErrorCode());

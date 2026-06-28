@@ -32,4 +32,9 @@ public class ExhibitionResponseDTO {
     private String reviewedByName;
     private LocalDateTime reviewedAt;
     private List<ExhibitionPackageResponseDTO> packages;
+
+    private String keyVisualUrl;
+    private String trailerVideoUrl;
+    private String floorPlanUrl;
+    private String guidelineUrl;
 }

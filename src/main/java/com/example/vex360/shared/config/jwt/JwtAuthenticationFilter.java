@@ -15,6 +15,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.TenantContext;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -98,6 +99,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                             SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                            // Set TenantContext if the role is ORGANIZER
+                            if (user.getRole() == Role.ORGANIZER) {
+                                try {
+                                    String tenantIdStr = jwtService.extractTenantId(jwt);
+                                    if (StringUtils.hasText(tenantIdStr)) {
+                                        TenantContext.setCurrentTenantId(UUID.fromString(tenantIdStr));
+                                    }
+                                } catch (Exception e) {
+                                    log.error("Failed to extract or set tenantId in context", e);
+                                }
+                            }
                         }
                     } else if (!strictMode) {
                         // Fallback to database check for backward compatibility / tests (Only in non-strict mode)
@@ -109,17 +122,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                             SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                            if (userDetails instanceof CustomUserDetails customUser) {
+                                User user = customUser.getUser();
+                                if (user.getRole() == Role.ORGANIZER) {
+                                    TenantContext.setCurrentTenantId(user.getId());
+                                }
+                            }
                         }
                     } else {
                         log.warn("Authentication rejected in strict mode: JWT token is missing required claims (userId).");
                     }
                 }
             }
+            filterChain.doFilter(request, response);
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);
+            filterChain.doFilter(request, response);
+        } finally {
+            TenantContext.clear();
         }
-
-        filterChain.doFilter(request, response);
     }
 
     private String getJwtFromRequest(HttpServletRequest request) {

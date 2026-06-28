@@ -5,7 +5,6 @@ import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,7 +44,7 @@ public class AdminPackageTemplateController extends BaseController {
             @Valid @RequestBody CreatePackageTemplateRequest request) {
         PackageTemplateResponseDTO template = packageTemplateService
                 .createPackageTemplate(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(template));
+        return created(template);
     }
 
     @GetMapping
@@ -55,13 +54,13 @@ public class AdminPackageTemplateController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "name") Pageable pageable) {
         PageResponse<PackageTemplateResponseDTO> templates = packageTemplateService
                 .getPackageTemplates(keyword, status, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(templates));
+        return ok(templates);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PackageTemplateResponseDTO>> getPackageTemplateById(@PathVariable UUID id) {
         PackageTemplateResponseDTO template = packageTemplateService.getPackageTemplateById(id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(template));
+        return ok(template);
     }
 
     @PatchMapping("/{id}")
@@ -69,7 +68,7 @@ public class AdminPackageTemplateController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePackageTemplateRequest request) {
         PackageTemplateResponseDTO template = packageTemplateService.updatePackageTemplate(id, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(template));
+        return ok(template);
     }
 
     @PatchMapping("/{id}/status")
@@ -77,7 +76,7 @@ public class AdminPackageTemplateController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePackageTemplateStatusRequest request) {
         PackageTemplateResponseDTO template = packageTemplateService.updatePackageTemplateStatus(id, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(template));
+        return ok(template);
     }
 
 }

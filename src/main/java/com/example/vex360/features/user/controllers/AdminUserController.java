@@ -5,7 +5,6 @@ import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,7 +48,7 @@ public class AdminUserController extends BaseController {
             description = "Tao tai khoan moi, sinh mat khau tam thoi, luu mat khau da hash va gui thong tin dang nhap qua email.")
     public ResponseEntity<ApiResponse<UserResponseDTO>> createUser(@Valid @RequestBody CreateUserRequest request) {
         UserResponseDTO user = userService.createUser(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(user));
+        return created(user);
     }
 
     @GetMapping
@@ -62,16 +61,16 @@ public class AdminUserController extends BaseController {
             @RequestParam(required = false) UserStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "email") Pageable pageable) {
         PageResponse<UserResponseDTO> users = userService.getUsers(keyword, role, status, pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(users));
+        return ok(users);
     }
 
     @GetMapping("/summary")
     @Operation(
             summary = "Admin xem thong ke user",
-            description = "Tra ve tong so user, so tai khoan active, so tai khoan admin va so tai khoan pending.")
+            description = "Tra ver tong so user, so tai khoan active, so tai khoan admin va so tai khoan pending.")
     public ResponseEntity<ApiResponse<UserSummaryResponseDTO>> getUserSummary() {
         UserSummaryResponseDTO summary = userService.getUserSummary();
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(summary));
+        return ok(summary);
     }
 
     @GetMapping("/{id}")
@@ -80,7 +79,7 @@ public class AdminUserController extends BaseController {
             description = "Lay thong tin chi tiet cua mot user theo ID.")
     public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(@PathVariable UUID id) {
         UserResponseDTO user = userService.getUserById(id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
+        return ok(user);
     }
 
     @PatchMapping("/{id}/role")
@@ -91,7 +90,7 @@ public class AdminUserController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request) {
         UserResponseDTO user = userService.updateRole(id, request.getRole());
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
+        return ok(user);
     }
 
     @PatchMapping("/{id}/status")
@@ -102,6 +101,6 @@ public class AdminUserController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStatusRequest request) {
         UserResponseDTO user = userService.updateStatus(id, request.getStatus());
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
+        return ok(user);
     }
 }
