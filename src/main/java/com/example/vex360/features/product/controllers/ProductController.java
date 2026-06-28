@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,7 +44,7 @@ public class ProductController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt") Pageable pageable) {
         PageResponse<ProductResponseDTO> products = productService.getProducts(userDetails.getUser(), pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(products));
+        return ok(products);
     }
 
     @GetMapping("/{id}")
@@ -53,7 +52,7 @@ public class ProductController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         ProductResponseDTO product = productService.getProductById(userDetails.getUser(), id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(product));
+        return ok(product);
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -67,7 +66,7 @@ public class ProductController extends BaseController {
                 request,
                 thumbnail,
                 extractContentFiles(multipartRequest));
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(product));
+        return created(product);
     }
 
     @PatchMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -83,7 +82,7 @@ public class ProductController extends BaseController {
                 request,
                 thumbnail,
                 extractContentFiles(multipartRequest));
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(product));
+        return ok(product);
     }
 
     @DeleteMapping("/{id}")
@@ -91,7 +90,7 @@ public class ProductController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         ProductResponseDTO product = productService.deleteProduct(userDetails.getUser(), id);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(product));
+        return ok(product);
     }
 
     private Map<String, MultipartFile> extractContentFiles(MultipartHttpServletRequest request) {

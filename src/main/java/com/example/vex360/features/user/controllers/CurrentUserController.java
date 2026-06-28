@@ -1,7 +1,6 @@
 package com.example.vex360.features.user.controllers;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -37,7 +36,7 @@ public class CurrentUserController extends BaseController {
     public ResponseEntity<ApiResponse<UserResponseDTO>> getCurrentUser(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         UserResponseDTO user = userService.getCurrentUser(userDetails.getUser());
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
+        return ok(user);
     }
 
     @PatchMapping("/me")
@@ -48,7 +47,7 @@ public class CurrentUserController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody UpdateProfileRequest request) {
         UserResponseDTO user = userService.updateCurrentUserProfile(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(user));
+        return ok(user);
     }
 
     @PatchMapping("/me/password")
@@ -59,6 +58,6 @@ public class CurrentUserController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changeCurrentUserPassword(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(null));
+        return ok(null);
     }
 }

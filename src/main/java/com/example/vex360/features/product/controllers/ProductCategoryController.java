@@ -3,7 +3,6 @@ package com.example.vex360.features.product.controllers;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,7 +38,7 @@ public class ProductCategoryController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) ProductCategoryStatus status) {
         List<ProductCategoryResponseDTO> categories = productCategoryService.getCategories(userDetails.getUser(), status);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(categories));
+        return ok(categories);
     }
 
     @PostMapping
@@ -47,7 +46,7 @@ public class ProductCategoryController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody CreateProductCategoryRequest request) {
         ProductCategoryResponseDTO category = productCategoryService.createCategory(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createSuccessResponse(category));
+        return created(category);
     }
 
     @PatchMapping("/{id}")
@@ -56,7 +55,7 @@ public class ProductCategoryController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProductCategoryRequest request) {
         ProductCategoryResponseDTO category = productCategoryService.updateCategory(userDetails.getUser(), id, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(category));
+        return ok(category);
     }
 
     @PatchMapping("/{id}/status")
@@ -65,6 +64,6 @@ public class ProductCategoryController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProductCategoryStatusRequest request) {
         ProductCategoryResponseDTO category = productCategoryService.updateCategoryStatus(userDetails.getUser(), id, request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(category));
+        return ok(category);
     }
 }

@@ -1,7 +1,6 @@
 package com.example.vex360.features.company.controllers;
 
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,7 +34,7 @@ public class CompanyController extends BaseController {
     public ResponseEntity<ApiResponse<CompanyResponseDTO>> getCurrentUserCompany(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         CompanyResponseDTO company = companyService.getCurrentUserCompany(userDetails.getUser());
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(company));
+        return ok(company);
     }
 
     @PatchMapping("/me")
@@ -46,6 +45,6 @@ public class CompanyController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody UpdateCompanyProfileRequest request) {
         CompanyResponseDTO company = companyService.updateCurrentUserCompany(userDetails.getUser(), request);
-        return ResponseEntity.status(HttpStatus.OK).body(createSuccessResponse(company));
+        return ok(company);
     }
 }
