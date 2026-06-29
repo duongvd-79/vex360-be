@@ -2,6 +2,7 @@ package com.example.vex360.shared.entities;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -64,6 +65,13 @@ public class User {
     @Column(name = "user_status", nullable = false)
     @Builder.Default
     UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    int failedLoginAttempts = 0;
+
+    @Column(name = "lockout_end", nullable = true)
+    Instant lockoutEnd;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

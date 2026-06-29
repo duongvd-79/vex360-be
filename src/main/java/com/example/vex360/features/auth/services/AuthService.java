@@ -12,6 +12,7 @@ public interface AuthService {
     void register(RegisterRequest request);
     void verifyRegistration(String encryptedToken);
     TokenResponse login(LoginRequest request);
+    TokenResponse loginWithGoogle(String code);
     TokenResponse refreshToken(String refreshToken);
     void logout(String refreshToken);
     void forgotPassword(ForgotPasswordRequest request);
