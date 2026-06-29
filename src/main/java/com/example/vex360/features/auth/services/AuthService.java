@@ -11,6 +11,7 @@ import com.example.vex360.shared.entities.User;
 public interface AuthService {
     void register(RegisterRequest request);
     TokenResponse login(LoginRequest request);
+    TokenResponse loginWithGoogle(String code);
     TokenResponse refreshToken(String refreshToken);
     void logout(String refreshToken);
     void forgotPassword(ForgotPasswordRequest request);

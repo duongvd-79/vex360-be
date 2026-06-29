@@ -1,15 +1,24 @@
 package com.example.vex360.features.auth.services.impl;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
@@ -51,6 +60,91 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${app.jwt.refresh-expiration-ms:604800000}")
     private long refreshExpirationMs;
+
+    @Value("${app.security.oauth2.client-id}")
+    private String googleClientId;
+
+    @Value("${app.security.oauth2.client-secret}")
+    private String googleClientSecret;
+
+    @Value("${app.security.oauth2.redirect-uri}")
+    private String googleRedirectUri;
+
+    @Value("${app.security.oauth2.user-info-uri}")
+    private String googleUserInfoUri;
+
+    private static final String GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
+
+    @Override
+    @Transactional
+    public TokenResponse loginWithGoogle(String code) {
+        RestTemplate restTemplate = new RestTemplate();
+
+        // 1. Đổi authorization code lấy Google access token
+        MultiValueMap<String, String> tokenParams = new LinkedMultiValueMap<>();
+        tokenParams.add("code", code);
+        tokenParams.add("client_id", googleClientId);
+        tokenParams.add("client_secret", googleClientSecret);
+        tokenParams.add("redirect_uri", googleRedirectUri);
+        tokenParams.add("grant_type", "authorization_code");
+
+        HttpHeaders tokenHeaders = new HttpHeaders();
+        tokenHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tokenResponse = restTemplate.postForObject(
+                GOOGLE_TOKEN_URI,
+                new HttpEntity<>(tokenParams, tokenHeaders),
+                Map.class);
+
+        if (tokenResponse == null || !tokenResponse.containsKey("access_token")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String googleAccessToken = (String) tokenResponse.get("access_token");
+
+        // 2. Lấy thông tin người dùng từ Google
+        HttpHeaders userInfoHeaders = new HttpHeaders();
+        userInfoHeaders.setBearerAuth(googleAccessToken);
+
+        @SuppressWarnings("unchecked")
+        ResponseEntity<Map> userInfoResponse = restTemplate.exchange(
+                googleUserInfoUri,
+                HttpMethod.GET,
+                new HttpEntity<>(userInfoHeaders),
+                Map.class);
+
+        Map<String, Object> userInfo = userInfoResponse.getBody();
+        if (userInfo == null || !userInfo.containsKey("email")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String email    = (String) userInfo.get("email");
+        String fullName = (String) userInfo.get("name");
+        String avatar   = (String) userInfo.get("picture");
+
+        // 3. Tìm hoặc tạo mới user với provider GOOGLE
+        User user = userService.findOrCreateGoogleUser(email, fullName, avatar);
+
+        // 4. Phát sinh JWT
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        String accessToken = jwtProvider.generateToken(userDetails);
+
+        String tokenStr = UUID.randomUUID().toString();
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
+                .user(user)
+                .build();
+
+        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRepository.save(refreshToken);
+
+        return TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(tokenStr)
+                .build();
+    }
 
     @Override
     @Transactional
