@@ -60,6 +60,12 @@ app:
 
   # Security Whitelist
   security:
+    oauth2:
+      client-id: ${GOOGLE_CLIENT_ID}
+      client-secret: ${GOOGLE_CLIENT_SECRET}
+
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5175/auth/callback/google}
+      user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
     whitelist: /api/v1/auth/**,/api/v1/partnership-requests/guest,/api/v1/package-templates/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html,/api/v1/webhooks/payos/**,/api/v1/public/exhibitions/**
     strict-mode: ${SECURITY_STRICT_MODE:true}
     token-encryption-key: ${TOKEN_ENCRYPTION_KEY}
