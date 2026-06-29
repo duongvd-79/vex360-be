@@ -38,6 +38,7 @@ import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.LogSanitizer;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import io.jsonwebtoken.Claims;
@@ -150,6 +151,15 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse login(LoginRequest request) {
+        // 1. Check if the user account is currently locked (only check if user exists to prevent enumeration)
+        Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (user.getLockoutEnd() != null && user.getLockoutEnd().isAfter(Instant.now())) {
+                throw new AppException(ErrorCode.ACCOUNT_LOCKED);
+            }
+        }
+
         try {
             // Authenticates the user principal via Spring Security AuthenticationManager
             Authentication authentication = authenticationManager.authenticate(
@@ -158,11 +168,16 @@ public class AuthServiceImpl implements AuthService {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             User user = userDetails.getUser();
 
-            // 1. Generate Stateless Access Token (Contains claims for stateless
+            // 2. Reset failed attempts count on successful login
+            if (user.getFailedLoginAttempts() > 0) {
+                userService.resetFailedAttempts(user);
+            }
+
+            // 3. Generate Stateless Access Token (Contains claims for stateless
             // authorization checks)
             String accessToken = jwtProvider.generateToken(userDetails);
 
-            // 2. Generate and Save Refresh Token (High-entropy UUID session key)
+            // 4. Generate and Save Refresh Token (High-entropy UUID session key)
             String tokenStr = UUID.randomUUID().toString();
             RefreshToken refreshToken = RefreshToken.builder()
                     .token(tokenStr)
@@ -181,6 +196,9 @@ public class AuthServiceImpl implements AuthService {
                     .refreshToken(tokenStr)
                     .build();
         } catch (AuthenticationException e) {
+            // 5. Increment failed attempts count and log safely
+            userService.incrementFailedAttempts(request.getEmail());
+            log.warn("Authentication failed for email: {}", LogSanitizer.sanitize(request.getEmail()));
             throw new AppException(ErrorCode.BAD_CREDENTIALS);
         }
     }
@@ -276,7 +294,7 @@ public class AuthServiceImpl implements AuthService {
         Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
         if (userOpt.isEmpty()) {
             log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}",
-                    request.getEmail());
+                    LogSanitizer.sanitize(request.getEmail()));
             return;
         }
 

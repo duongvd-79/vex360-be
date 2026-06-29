@@ -119,6 +119,7 @@ public class AuthServiceImplUnitTest {
         Authentication authentication = mock(Authentication.class);
         CustomUserDetails userDetails = new CustomUserDetails(sampleUser);
 
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
@@ -132,17 +133,52 @@ public class AuthServiceImplUnitTest {
         assertNotNull(response.getRefreshToken());
         verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
         verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
+        verify(userService, never()).resetFailedAttempts(any());
+    }
+
+    @Test
+    public void testLogin_Success_ResetsFailedAttempts() {
+        LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        Authentication authentication = mock(Authentication.class);
+        sampleUser.setFailedLoginAttempts(3);
+        CustomUserDetails userDetails = new CustomUserDetails(sampleUser);
+
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
+                .thenReturn("mockedAccessToken");
+
+        TokenResponse response = authService.login(request);
+
+        assertNotNull(response);
+        verify(userService, times(1)).resetFailedAttempts(sampleUser);
     }
 
     @Test
     public void testLogin_InvalidPassword_ThrowsUnauthenticated() {
         LoginRequest request = new LoginRequest("test@example.com", "WrongPassword");
 
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenThrow(new org.springframework.security.authentication.BadCredentialsException("Bad credentials"));
 
         AppException exception = assertThrows(AppException.class, () -> authService.login(request));
         assertEquals(ErrorCode.BAD_CREDENTIALS, exception.getErrorCode());
+        verify(userService, times(1)).incrementFailedAttempts(request.getEmail());
+    }
+
+    @Test
+    public void testLogin_LockedAccount_ThrowsAccountLocked() {
+        LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        sampleUser.setLockoutEnd(Instant.now().plusSeconds(600));
+
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+
+        AppException exception = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.ACCOUNT_LOCKED, exception.getErrorCode());
+        verify(authenticationManager, never()).authenticate(any());
     }
 
     @Test

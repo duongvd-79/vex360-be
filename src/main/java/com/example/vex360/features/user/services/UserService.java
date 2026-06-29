@@ -1,5 +1,6 @@
 package com.example.vex360.features.user.services;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +26,7 @@ import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.LogSanitizer;
 import com.example.vex360.shared.utils.RandomPasswordGenerator;
 
 import lombok.RequiredArgsConstructor;
@@ -210,5 +212,27 @@ public class UserService {
             return null;
         }
         return keyword.trim();
+    }
+
+    @Transactional
+    public void incrementFailedAttempts(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            int newAttempts = user.getFailedLoginAttempts() + 1;
+            user.setFailedLoginAttempts(newAttempts);
+            if (newAttempts >= 5) {
+                user.setLockoutEnd(Instant.now().plusSeconds(900)); // khóa 15 phút
+                log.warn("User account locked due to too many failed attempts: {}", LogSanitizer.sanitize(email));
+            }
+            userRepository.save(user);
+        });
+    }
+
+    @Transactional
+    public void resetFailedAttempts(User user) {
+        userRepository.findById(user.getId()).ifPresent(u -> {
+            u.setFailedLoginAttempts(0);
+            u.setLockoutEnd(null);
+            userRepository.save(u);
+        });
     }
 }

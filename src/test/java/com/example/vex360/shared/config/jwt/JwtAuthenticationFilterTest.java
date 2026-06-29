@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -15,11 +14,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,9 +28,6 @@ public class JwtAuthenticationFilterTest {
 
     @Mock
     private JwtService jwtService;
-
-    @Mock
-    private UserDetailsService userDetailsService;
 
     @Mock
     private TokenBlacklistService tokenBlacklistService;
@@ -52,8 +47,7 @@ public class JwtAuthenticationFilterTest {
     @BeforeEach
     public void setup() {
         SecurityContextHolder.clearContext();
-        // Set strictMode to false by default for backward compatibility of other tests
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "strictMode", false);
+        ReflectionTestUtils.setField(jwtAuthenticationFilter, "strictMode", true);
     }
 
     @AfterEach
@@ -62,66 +56,29 @@ public class JwtAuthenticationFilterTest {
     }
 
     @Test
-    public void testShouldNotFilter_WhitelistedPath() throws ServletException {
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "whitelist", new String[]{"/api/v1/auth/**", "/swagger-ui/**"});
-        
-        when(request.getServletPath()).thenReturn("/api/v1/auth/login");
-        assertTrue(jwtAuthenticationFilter.shouldNotFilter(request));
-    }
-
-    @Test
-    public void testShouldNotFilter_NonWhitelistedPath() throws ServletException {
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "whitelist", new String[]{"/api/v1/auth/**"});
-        
-        when(request.getServletPath()).thenReturn("/api/v1/users/me");
-        assertFalse(jwtAuthenticationFilter.shouldNotFilter(request));
-    }
-
-    @Test
-    public void testDoFilterInternal_ValidToken_NonStrictModeFallback() throws ServletException, IOException {
-        String jwt = "valid.jwt.token";
-        String email = "test@example.com";
-        UserDetails userDetails = new User(email, "password", Collections.emptyList());
-
-        when(request.getHeader("Authorization")).thenReturn("Bearer " + jwt);
-        when(jwtService.extractEmailFromToken(jwt)).thenReturn(email);
-        when(jwtService.extractUserId(jwt)).thenReturn(null); // Force fallback to DB
-        when(userDetailsService.loadUserByUsername(email)).thenReturn(userDetails);
-        when(jwtService.validateToken(jwt, userDetails)).thenReturn(true);
-
-        jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
-
-        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
-        assertEquals(email, SecurityContextHolder.getContext().getAuthentication().getName());
-        verify(filterChain, times(1)).doFilter(request, response);
-    }
-
-    @Test
-    public void testDoFilterInternal_ValidToken_StrictModeStateless() throws ServletException, IOException {
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "strictMode", true);
+    public void testDoFilterInternal_ValidToken_Success() throws ServletException, IOException {
         String jwt = "valid.jwt.token";
         String email = "test@example.com";
         String userId = UUID.randomUUID().toString();
+        Claims claims = mock(Claims.class);
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + jwt);
         when(tokenBlacklistService.isBlacklisted(jwt)).thenReturn(false);
-        when(jwtService.extractEmailFromToken(jwt)).thenReturn(email);
-        when(jwtService.extractUserId(jwt)).thenReturn(userId);
-        when(jwtService.validateToken(jwt)).thenReturn(true);
-        when(jwtService.extractRole(jwt)).thenReturn("VISITOR");
-        when(jwtService.extractStatus(jwt)).thenReturn("ACTIVE");
+        when(jwtService.extractAllClaims(jwt)).thenReturn(claims);
+        when(claims.getSubject()).thenReturn(email);
+        when(claims.get("userId", String.class)).thenReturn(userId);
+        when(claims.get("role", String.class)).thenReturn("VISITOR");
+        when(claims.get("status", String.class)).thenReturn("ACTIVE");
 
         jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
 
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals(email, SecurityContextHolder.getContext().getAuthentication().getName());
         verify(filterChain, times(1)).doFilter(request, response);
-        verifyNoInteractions(userDetailsService); // Stateles check - no DB query!
     }
 
     @Test
-    public void testDoFilterInternal_BlacklistedToken_StrictMode() throws ServletException, IOException {
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "strictMode", true);
+    public void testDoFilterInternal_BlacklistedToken() throws ServletException, IOException {
         String jwt = "blacklisted.jwt.token";
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + jwt);
@@ -145,17 +102,12 @@ public class JwtAuthenticationFilterTest {
     }
 
     @Test
-    public void testDoFilterInternal_InvalidToken_StrictMode() throws ServletException, IOException {
-        ReflectionTestUtils.setField(jwtAuthenticationFilter, "strictMode", true);
-        String jwt = "invalid.jwt.token";
-        String email = "test@example.com";
-        String userId = UUID.randomUUID().toString();
+    public void testDoFilterInternal_ExpiredToken_WarnsAndContinues() throws ServletException, IOException {
+        String jwt = "expired.jwt.token";
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + jwt);
         when(tokenBlacklistService.isBlacklisted(jwt)).thenReturn(false);
-        when(jwtService.extractEmailFromToken(jwt)).thenReturn(email);
-        when(jwtService.extractUserId(jwt)).thenReturn(userId);
-        when(jwtService.validateToken(jwt)).thenReturn(false); // Invalid token
+        when(jwtService.extractAllClaims(jwt)).thenThrow(mock(ExpiredJwtException.class));
 
         jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
 

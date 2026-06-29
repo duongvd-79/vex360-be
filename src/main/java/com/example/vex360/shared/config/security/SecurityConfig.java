@@ -89,13 +89,13 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Cache-Control", "Accept"));
         configuration.setExposedHeaders(List.of("Authorization"));
-        
+
         if (allowedOrigins != null && allowedOrigins.contains("*")) {
             configuration.setAllowCredentials(false);
         } else {
             configuration.setAllowCredentials(true);
         }
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
