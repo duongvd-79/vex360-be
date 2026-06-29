@@ -31,7 +31,7 @@ class SecurityExceptionHandlerTest {
                 assertThat(body.get("status").asInt()).isEqualTo(401);
                 assertThat(body.get("error").asText()).isEqualTo("UNAUTHORIZED");
                 assertThat(body.get("code").asText()).isEqualTo("AUTH-001");
-                assertThat(body.get("message").asText()).isEqualTo("Unauthenticated or token expired");
+                assertThat(body.get("message").asText()).isEqualTo("Lỗi xác thực hoặc token hết hạn");
                 assertThat(body.get("path").asText()).isEqualTo("/api/v1/users");
         }
 
@@ -51,7 +51,7 @@ class SecurityExceptionHandlerTest {
                 assertThat(body.get("status").asInt()).isEqualTo(403);
                 assertThat(body.get("error").asText()).isEqualTo("FORBIDDEN");
                 assertThat(body.get("code").asText()).isEqualTo("AUTH-002");
-                assertThat(body.get("message").asText()).isEqualTo("Unauthorized");
+                assertThat(body.get("message").asText()).isEqualTo("Không có quyền truy cập");
                 assertThat(body.get("path").asText()).isEqualTo("/api/v1/users");
         }
 }

@@ -16,6 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
@@ -26,9 +29,11 @@ import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.auth.entities.PasswordResetToken;
 import com.example.vex360.features.auth.entities.RefreshToken;
+import com.example.vex360.features.auth.entities.RegistrationToken;
 import com.example.vex360.features.auth.mapper.AuthMapper;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.auth.repositories.RegistrationTokenRepository;
 import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
@@ -37,8 +42,10 @@ import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 @ExtendWith(MockitoExtension.class)
 public class AuthServiceImplUnitTest {
@@ -62,7 +69,13 @@ public class AuthServiceImplUnitTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
+    private RegistrationTokenRepository registrationTokenRepository;
+
+    @Mock
     private MailService mailService;
+
+    @Mock
+    private AuthenticationManager authenticationManager;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -72,6 +85,7 @@ public class AuthServiceImplUnitTest {
     @BeforeEach
     public void setup() {
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "backendBaseUrl", "http://localhost:8080");
         sampleUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("test@example.com")
@@ -89,18 +103,26 @@ public class AuthServiceImplUnitTest {
         mappedDto.setEmail(request.getEmail());
 
         when(authMapper.toUserRequestDTO(request)).thenReturn(mappedDto);
+        when(userService.createUser(mappedDto, UserStatus.PENDING)).thenReturn(sampleUser);
 
         authService.register(request);
 
-        verify(userService, times(1)).createUser(mappedDto);
+        verify(userService, times(1)).createUser(mappedDto, UserStatus.PENDING);
+        verify(registrationTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(registrationTokenRepository, times(1)).save(any(RegistrationToken.class));
+        verify(mailService, times(1)).sendRegistrationVerificationEmail(eq("test@example.com"), any(String.class));
     }
 
     @Test
     public void testLogin_Success() {
         LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        Authentication authentication = mock(Authentication.class);
+        CustomUserDetails userDetails = new CustomUserDetails(sampleUser);
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(true);
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(jwtProvider.generateToken(any(CustomUserDetails.class)))
                 .thenReturn("mockedAccessToken");
 
@@ -111,17 +133,52 @@ public class AuthServiceImplUnitTest {
         assertNotNull(response.getRefreshToken());
         verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
         verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
+        verify(userService, never()).resetFailedAttempts(any());
+    }
+
+    @Test
+    public void testLogin_Success_ResetsFailedAttempts() {
+        LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        Authentication authentication = mock(Authentication.class);
+        sampleUser.setFailedLoginAttempts(3);
+        CustomUserDetails userDetails = new CustomUserDetails(sampleUser);
+
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
+                .thenReturn("mockedAccessToken");
+
+        TokenResponse response = authService.login(request);
+
+        assertNotNull(response);
+        verify(userService, times(1)).resetFailedAttempts(sampleUser);
     }
 
     @Test
     public void testLogin_InvalidPassword_ThrowsUnauthenticated() {
         LoginRequest request = new LoginRequest("test@example.com", "WrongPassword");
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(false);
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new org.springframework.security.authentication.BadCredentialsException("Bad credentials"));
 
         AppException exception = assertThrows(AppException.class, () -> authService.login(request));
-        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        assertEquals(ErrorCode.BAD_CREDENTIALS, exception.getErrorCode());
+        verify(userService, times(1)).incrementFailedAttempts(request.getEmail());
+    }
+
+    @Test
+    public void testLogin_LockedAccount_ThrowsAccountLocked() {
+        LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+        sampleUser.setLockoutEnd(Instant.now().plusSeconds(600));
+
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
+
+        AppException exception = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.ACCOUNT_LOCKED, exception.getErrorCode());
+        verify(authenticationManager, never()).authenticate(any());
     }
 
     @Test
@@ -176,7 +233,7 @@ public class AuthServiceImplUnitTest {
     public void testForgotPassword_UserExists() {
         ForgotPasswordRequest request = new ForgotPasswordRequest("test@example.com");
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(sampleUser));
 
         authService.forgotPassword(request);
 
@@ -189,7 +246,7 @@ public class AuthServiceImplUnitTest {
     public void testForgotPassword_UserDoesNotExist_FailsSilently() {
         ForgotPasswordRequest request = new ForgotPasswordRequest("missing@example.com");
 
-        when(userService.getUserByEmail(request.getEmail())).thenThrow(new AppException(ErrorCode.USER_NOT_FOUND));
+        when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> authService.forgotPassword(request));
         verify(passwordResetTokenRepository, never()).save(any(PasswordResetToken.class));
@@ -198,20 +255,64 @@ public class AuthServiceImplUnitTest {
 
     @Test
     public void testResetPassword_Success() {
-        ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "NewPassword123!");
+        String rawToken = "reset-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        ResetPasswordRequest request = new ResetPasswordRequest(encryptedToken, "NewPassword123!");
         PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token("reset-token")
+                .token(rawToken)
                 .expiryDate(Instant.now().plusSeconds(3600))
                 .user(sampleUser)
                 .build();
 
-        when(passwordResetTokenRepository.findByToken(request.getToken())).thenReturn(Optional.of(resetToken));
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
 
         authService.resetPassword(request);
 
         verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
         verify(passwordResetTokenRepository, times(1)).delete(resetToken);
         verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+    }
+
+    @Test
+    public void testValidateResetToken_Success() {
+        String rawToken = "valid-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(3600))
+                .user(sampleUser)
+                .build();
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+
+        assertDoesNotThrow(() -> authService.validateResetToken(encryptedToken));
+    }
+
+    @Test
+    public void testValidateResetToken_Expired() {
+        String rawToken = "expired-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().minusSeconds(10))
+                .user(sampleUser)
+                .build();
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+
+        AppException ex = assertThrows(AppException.class, () -> authService.validateResetToken(encryptedToken));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
+    }
+
+    @Test
+    public void testValidateResetToken_NotFound() {
+        String rawToken = "missing-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class, () -> authService.validateResetToken(encryptedToken));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
     }
 
     @Test
@@ -222,25 +323,63 @@ public class AuthServiceImplUnitTest {
 
         authService.changePassword(sampleUser, request);
 
+        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
         verify(passwordResetTokenRepository, times(1)).deleteByUser(sampleUser);
-        verify(passwordResetTokenRepository, times(1)).save(any(PasswordResetToken.class));
-        verify(mailService, times(1)).sendPasswordChangeVerificationEmail(eq("test@example.com"), any(String.class));
+        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(mailService, times(1)).sendPasswordChangeNotificationEmail("test@example.com");
     }
 
     @Test
-    public void testConfirmPasswordChange_Success() {
-        PasswordResetToken token = PasswordResetToken.builder()
-                .token("change-token")
-                .expiryDate(Instant.now().plusSeconds(1800))
+    public void testVerifyRegistration_Success() {
+        String rawToken = "verify-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        RegistrationToken regToken = RegistrationToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(3600))
                 .user(sampleUser)
                 .build();
 
-        when(passwordResetTokenRepository.findByToken("change-token")).thenReturn(Optional.of(token));
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(regToken));
 
-        authService.confirmPasswordChange("change-token", "NewPassword123!");
+        assertDoesNotThrow(() -> authService.verifyRegistration(encryptedToken));
 
-        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
-        verify(passwordResetTokenRepository, times(1)).delete(token);
-        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+        verify(userService, times(1)).updateStatus(sampleUser.getId(), UserStatus.ACTIVE);
+        verify(registrationTokenRepository, times(1)).delete(regToken);
+    }
+
+    @Test
+    public void testVerifyRegistration_Expired() {
+        String rawToken = "expired-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+        RegistrationToken regToken = RegistrationToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().minusSeconds(10))
+                .user(sampleUser)
+                .build();
+
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(regToken));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> authService.verifyRegistration(encryptedToken));
+
+        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        verify(registrationTokenRepository, times(1)).delete(regToken);
+        verify(userService, never()).updateStatus(any(UUID.class), any(UserStatus.class));
+    }
+
+    @Test
+    public void testVerifyRegistration_NotFound() {
+        String rawToken = "missing-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        when(registrationTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> authService.verifyRegistration(encryptedToken));
+
+        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        verify(registrationTokenRepository, never()).delete(any(RegistrationToken.class));
+        verify(userService, never()).updateStatus(any(UUID.class), any(UserStatus.class));
     }
 }
+

@@ -9,7 +9,7 @@ public record ApiResponse<T>(
         T data) {
 
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(200, "Success", data);
+        return new ApiResponse<>(200, "Thành công", data);
     }
 
     public static <T> ApiResponse<T> success(T data, String message) {

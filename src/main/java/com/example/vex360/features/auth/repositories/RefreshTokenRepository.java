@@ -1,5 +1,6 @@
 package com.example.vex360.features.auth.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,4 +14,5 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Inte
     Optional<RefreshToken> findByToken(String token);
     void deleteByToken(String token);
     void deleteByUser(User user);
+    List<RefreshToken> findAllByUser(User user);
 }

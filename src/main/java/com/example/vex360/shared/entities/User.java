@@ -1,6 +1,7 @@
 package com.example.vex360.shared.entities;
 
 import java.util.UUID;
+import java.time.Instant;
 
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
@@ -60,4 +61,11 @@ public class User {
     @Column(name = "user_status", nullable = false)
     @Builder.Default
     UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    int failedLoginAttempts = 0;
+
+    @Column(name = "lockout_end", nullable = true)
+    Instant lockoutEnd;
 }

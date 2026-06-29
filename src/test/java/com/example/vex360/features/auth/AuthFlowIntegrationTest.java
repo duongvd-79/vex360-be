@@ -159,7 +159,7 @@ public class AuthFlowIntegrationTest {
                                 .content(objectMapper.writeValueAsString(loginNewReq)))
                                 .andExpect(status().isOk());
 
-                // 7. Request Change Password (when authenticated)
+                // 7. Change Password directly (when authenticated)
                 // Login again to get active access token
                 MvcResult reLoginResult = mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -177,18 +177,7 @@ public class AuthFlowIntegrationTest {
                                 .content(objectMapper.writeValueAsString(changeReq)))
                                 .andExpect(status().isOk());
 
-                // Retrieve token from DB
-                var changeTokenOpt = passwordResetTokenRepository.findAll().stream().findFirst();
-                assertTrue(changeTokenOpt.isPresent());
-                String changeToken = changeTokenOpt.get().getToken();
-
-                // 8. Confirm Password Change (through mail token verification)
-                mockMvc.perform(post("/api/v1/auth/confirm-change-password")
-                                .param("token", changeToken)
-                                .param("newPassword", "AnotherPassword123!"))
-                                .andExpect(status().isOk());
-
-                // Verify login works with the confirmed new password
+                // Verify login works with the new password
                 LoginRequest loginFinalReq = new LoginRequest("test@example.com", "AnotherPassword123!");
                 mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
