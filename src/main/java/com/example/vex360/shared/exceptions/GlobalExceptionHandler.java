@@ -6,11 +6,13 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import com.example.vex360.shared.utils.LogSanitizer;
 
@@ -87,7 +89,46 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 4. Method Not Allowed
+        // 4. Multipart request exceptions (unsupported part media type or missing required parts)
+        @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+        public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupportedException(
+                        HttpMediaTypeNotSupportedException ex,
+                        HttpServletRequest request) {
+                log.warn("Unsupported media type for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
+
+                ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
+                ErrorResponse errorResponse = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(errorCode.getHttpStatus().value())
+                                .error(errorCode.getHttpStatus().name())
+                                .code(errorCode.getCode())
+                                .message(errorCode.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+        }
+
+        @ExceptionHandler(MissingServletRequestPartException.class)
+        public ResponseEntity<ErrorResponse> handleMissingServletRequestPartException(
+                        MissingServletRequestPartException ex,
+                        HttpServletRequest request) {
+                log.warn("Missing multipart request part for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
+
+                ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
+                ErrorResponse errorResponse = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(errorCode.getHttpStatus().value())
+                                .error(errorCode.getHttpStatus().name())
+                                .code(errorCode.getCode())
+                                .message(errorCode.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+        }
+
+        // 5. Method Not Allowed
         @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
         public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(
                         HttpRequestMethodNotSupportedException ex,
@@ -107,7 +148,7 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 5. Runtime Exceptions (e.g. Database Exception, NullPointer, etc.)
+        // 6. Runtime Exceptions (e.g. Database Exception, NullPointer, etc.)
         // Prevent information disclosure by returning a generic uncaught exception error and logging stack trace
         @ExceptionHandler(RuntimeException.class)
         public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
@@ -126,7 +167,7 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 6. Spring Security AccessDeniedException
+        // 7. Spring Security AccessDeniedException
         @ExceptionHandler(AccessDeniedException.class)
         public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex, HttpServletRequest request) {
                 log.warn("Access denied for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
@@ -144,7 +185,7 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
         }
 
-        // 7. Other Exceptions
+        // 8. Other Exceptions
         // Log full stack trace and return standard uncaught exception response
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {

@@ -22,8 +22,10 @@ import com.example.vex360.features.product.dtos.request.CreateProductCategoryReq
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
+import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductCategoryMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
+import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.product.services.ProductCategoryService;
 import com.example.vex360.shared.entities.Company;
 import com.example.vex360.shared.entities.ProductCategory;
@@ -39,6 +41,9 @@ class ProductCategoryServiceUnitTest {
     @Mock
     private ProductCategoryRepository productCategoryRepository;
 
+    @Mock
+    private ProductRepository productRepository;
+
     private ProductCategoryService productCategoryService;
     private User user;
     private Company company;
@@ -48,6 +53,7 @@ class ProductCategoryServiceUnitTest {
         productCategoryService = new ProductCategoryService(
                 companyRepository,
                 productCategoryRepository,
+                productRepository,
                 new ProductCategoryMapper());
         user = User.builder().id(UUID.randomUUID()).email("owner@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).ownerUser(user).name("Orion").build();
@@ -131,5 +137,28 @@ class ProductCategoryServiceUnitTest {
 
         assertEquals(ProductCategoryStatus.INACTIVE, category.getStatus());
         verify(productCategoryRepository).save(category);
+    }
+
+    @Test
+    void updateCategoryStatusToInactiveArchivesProductsInCategory() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder()
+                .id(categoryId)
+                .company(company)
+                .name("MÃ¡y tÃ­nh")
+                .status(ProductCategoryStatus.ACTIVE)
+                .build();
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
+        when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productCategoryService.updateCategoryStatus(user, categoryId,
+                new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE));
+
+        verify(productRepository).updateStatusByCategoryIdAndCompanyId(
+                categoryId,
+                company.getId(),
+                ProductStatus.ARCHIVED);
     }
 }

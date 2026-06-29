@@ -22,6 +22,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.util.StringUtils;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
@@ -96,6 +97,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.security.oauth2.user-info-uri}")
     private String googleUserInfoUri;
 
+    @Value("${app.backend.base-url}")
+    private String backendBaseUrl;
+
     private static final String GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
 
     @Override
@@ -130,7 +134,6 @@ public class AuthServiceImpl implements AuthService {
         HttpHeaders userInfoHeaders = new HttpHeaders();
         userInfoHeaders.setBearerAuth(googleAccessToken);
 
-        @SuppressWarnings("unchecked")
         ResponseEntity<Map> userInfoResponse = restTemplate.exchange(
                 googleUserInfoUri,
                 HttpMethod.GET,
@@ -168,9 +171,6 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(tokenStr)
                 .build();
     }
-
-    @Value("${app.backend.base-url}")
-    private String backendBaseUrl;
 
     /**
      * Registers a new user in the system.

@@ -7,6 +7,7 @@ import org.aspectj.lang.annotation.Before;
 import org.hibernate.Filter;
 import org.hibernate.Session;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -28,7 +29,7 @@ public class TenantFilterAspect {
     @Before("execution(* com.example.vex360..*Repository.*(..))")
     public void enableTenantFilter() {
         try {
-            if (request != null) {
+            if (RequestContextHolder.getRequestAttributes() != null && request != null) {
                 String path = request.getRequestURI();
                 if (path != null && path.startsWith("/api/v1/public/")) {
                     log.debug("Bypassing tenant filter for public endpoint: {}", path);

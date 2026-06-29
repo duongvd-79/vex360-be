@@ -93,16 +93,27 @@ public class AuthController extends BaseController {
         return ok(authService.login(request));
     }
 
+    /**
+     * Endpoint for Google login callback.
+     * 
+     * @param request the Google callback request containing the authorization code
+     * @return unified API response containing token details
+     */
     @PostMapping("/google/callback")
-    public ApiResponse<TokenResponse> googleCallback(@Valid @RequestBody GoogleCallbackRequest request) {
-        return createSuccessResponse(authService.loginWithGoogle(request.getCode()));
+    @Operation(summary = "Đăng nhập bằng Google", description = "Xác thực người dùng thông qua tài khoản Google, trả về Access Token (stateless) và Refresh Token (stateful).")
+    public ResponseEntity<ApiResponse<TokenResponse>> googleCallback(
+            @Valid @RequestBody GoogleCallbackRequest request) {
+        return ok(authService.loginWithGoogle(request.getCode()));
+
     }
 
     /**
      * Endpoint for rotating a refresh token.
+     * 
      * Validates the refresh token and issues a new access token along with a
      * rotated refresh token.
      *
+     * 
      * @param token the current refresh token
      * @return unified API response containing the new token details
      */

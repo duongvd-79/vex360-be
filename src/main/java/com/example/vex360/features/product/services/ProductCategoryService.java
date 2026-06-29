@@ -12,8 +12,10 @@ import com.example.vex360.features.product.dtos.request.UpdateProductCategoryReq
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
 import com.example.vex360.features.product.dtos.response.ProductCategoryResponseDTO;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
+import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductCategoryMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
+import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.shared.entities.Company;
 import com.example.vex360.shared.entities.ProductCategory;
 import com.example.vex360.shared.entities.User;
@@ -27,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 public class ProductCategoryService {
     private final CompanyRepository companyRepository;
     private final ProductCategoryRepository productCategoryRepository;
+    private final ProductRepository productRepository;
     private final ProductCategoryMapper productCategoryMapper;
 
     @Transactional(readOnly = true)
@@ -82,6 +85,12 @@ public class ProductCategoryService {
         Company company = getCompanyForCurrentUser(currentUser);
         ProductCategory category = getCategoryForCompany(categoryId, company);
         category.setStatus(request.getStatus());
+        if (request.getStatus() == ProductCategoryStatus.INACTIVE) {
+            productRepository.updateStatusByCategoryIdAndCompanyId(
+                    categoryId,
+                    company.getId(),
+                    ProductStatus.ARCHIVED);
+        }
         return productCategoryMapper.toResponse(productCategoryRepository.save(category));
     }
 

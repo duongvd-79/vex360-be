@@ -1,7 +1,11 @@
 package com.example.vex360.shared.entities;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.time.Instant;
+
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
@@ -68,4 +72,12 @@ public class User {
 
     @Column(name = "lockout_end", nullable = true)
     Instant lockoutEnd;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    LocalDateTime updatedAt;
 }
