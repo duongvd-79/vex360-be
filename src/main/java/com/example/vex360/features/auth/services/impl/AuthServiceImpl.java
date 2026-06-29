@@ -1,10 +1,16 @@
 package com.example.vex360.features.auth.services.impl;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -12,6 +18,9 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.util.StringUtils;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
@@ -38,6 +47,7 @@ import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.LogSanitizer;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import io.jsonwebtoken.Claims;
@@ -74,8 +84,92 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
 
+    @Value("${app.security.oauth2.client-id}")
+    private String googleClientId;
+
+    @Value("${app.security.oauth2.client-secret}")
+    private String googleClientSecret;
+
+    @Value("${app.security.oauth2.redirect-uri}")
+    private String googleRedirectUri;
+
+    @Value("${app.security.oauth2.user-info-uri}")
+    private String googleUserInfoUri;
+
     @Value("${app.backend.base-url}")
     private String backendBaseUrl;
+
+    private static final String GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
+
+    @Override
+    @Transactional
+    public TokenResponse loginWithGoogle(String code) {
+        RestTemplate restTemplate = new RestTemplate();
+
+        // 1. Đổi authorization code lấy Google access token
+        MultiValueMap<String, String> tokenParams = new LinkedMultiValueMap<>();
+        tokenParams.add("code", code);
+        tokenParams.add("client_id", googleClientId);
+        tokenParams.add("client_secret", googleClientSecret);
+        tokenParams.add("redirect_uri", googleRedirectUri);
+        tokenParams.add("grant_type", "authorization_code");
+
+        HttpHeaders tokenHeaders = new HttpHeaders();
+        tokenHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tokenResponse = restTemplate.postForObject(
+                GOOGLE_TOKEN_URI,
+                new HttpEntity<>(tokenParams, tokenHeaders),
+                Map.class);
+
+        if (tokenResponse == null || !tokenResponse.containsKey("access_token")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String googleAccessToken = (String) tokenResponse.get("access_token");
+
+        // 2. Lấy thông tin người dùng từ Google
+        HttpHeaders userInfoHeaders = new HttpHeaders();
+        userInfoHeaders.setBearerAuth(googleAccessToken);
+
+        ResponseEntity<Map> userInfoResponse = restTemplate.exchange(
+                googleUserInfoUri,
+                HttpMethod.GET,
+                new HttpEntity<>(userInfoHeaders),
+                Map.class);
+
+        Map<String, Object> userInfo = userInfoResponse.getBody();
+        if (userInfo == null || !userInfo.containsKey("email")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String email = (String) userInfo.get("email");
+        String fullName = (String) userInfo.get("name");
+        String avatar = (String) userInfo.get("picture");
+
+        // 3. Tìm hoặc tạo mới user với provider GOOGLE
+        User user = userService.findOrCreateGoogleUser(email, fullName, avatar);
+
+        // 4. Phát sinh JWT
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        String accessToken = jwtProvider.generateToken(userDetails);
+
+        String tokenStr = UUID.randomUUID().toString();
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
+                .user(user)
+                .build();
+
+        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRepository.save(refreshToken);
+
+        return TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(tokenStr)
+                .build();
+    }
 
     /**
      * Registers a new user in the system.
@@ -150,6 +244,16 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse login(LoginRequest request) {
+        // 1. Check if the user account is currently locked (only check if user exists
+        // to prevent enumeration)
+        Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (user.getLockoutEnd() != null && user.getLockoutEnd().isAfter(Instant.now())) {
+                throw new AppException(ErrorCode.ACCOUNT_LOCKED);
+            }
+        }
+
         try {
             // Authenticates the user principal via Spring Security AuthenticationManager
             Authentication authentication = authenticationManager.authenticate(
@@ -158,11 +262,16 @@ public class AuthServiceImpl implements AuthService {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             User user = userDetails.getUser();
 
-            // 1. Generate Stateless Access Token (Contains claims for stateless
+            // 2. Reset failed attempts count on successful login
+            if (user.getFailedLoginAttempts() > 0) {
+                userService.resetFailedAttempts(user);
+            }
+
+            // 3. Generate Stateless Access Token (Contains claims for stateless
             // authorization checks)
             String accessToken = jwtProvider.generateToken(userDetails);
 
-            // 2. Generate and Save Refresh Token (High-entropy UUID session key)
+            // 4. Generate and Save Refresh Token (High-entropy UUID session key)
             String tokenStr = UUID.randomUUID().toString();
             RefreshToken refreshToken = RefreshToken.builder()
                     .token(tokenStr)
@@ -181,6 +290,9 @@ public class AuthServiceImpl implements AuthService {
                     .refreshToken(tokenStr)
                     .build();
         } catch (AuthenticationException e) {
+            // 5. Increment failed attempts count and log safely
+            userService.incrementFailedAttempts(request.getEmail());
+            log.warn("Authentication failed for email: {}", LogSanitizer.sanitize(request.getEmail()));
             throw new AppException(ErrorCode.BAD_CREDENTIALS);
         }
     }
@@ -276,7 +388,7 @@ public class AuthServiceImpl implements AuthService {
         Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
         if (userOpt.isEmpty()) {
             log.info("Forgot password requested for non-existent email (Anti-Enumeration active): {}",
-                    request.getEmail());
+                    LogSanitizer.sanitize(request.getEmail()));
             return;
         }
 

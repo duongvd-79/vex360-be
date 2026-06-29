@@ -1,5 +1,6 @@
 package com.example.vex360.features.auth.entities;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
@@ -41,7 +42,10 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        if (user.getLockoutEnd() == null) {
+            return true;
+        }
+        return user.getLockoutEnd().isBefore(Instant.now());
     }
 
     @Override

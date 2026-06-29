@@ -74,51 +74,16 @@ public class JwtService {
                 .compact();
     }
 
-    public String extractEmailFromToken(String token) {
-        return extractClaims(token, Claims::getSubject);
-    }
-
-    public String extractUserId(String token) {
-        return extractClaims(token, claims -> claims.get("userId", String.class));
-    }
-
-    public String extractRole(String token) {
-        return extractClaims(token, claims -> claims.get("role", String.class));
-    }
-
-    public String extractStatus(String token) {
-        return extractClaims(token, claims -> claims.get("status", String.class));
-    }
-
-    public String extractTenantId(String token) {
-        return extractClaims(token, claims -> claims.get("tenantId", String.class));
-    }
-
     public <T> T extractClaims(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
-    private Claims extractAllClaims(String token) {
+    public Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-    }
-
-    @Deprecated
-    public boolean validateToken(String token, UserDetails userDetails) {
-        final String email = extractEmailFromToken(token);
-        return (email.equals(userDetails.getUsername()) && !isTokenExpired(token));
-    }
-
-    public boolean validateToken(String token) {
-        return !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token) {
-        Date expirationDate = extractClaims(token, Claims::getExpiration);
-        return expirationDate.before(new Date());
     }
 }

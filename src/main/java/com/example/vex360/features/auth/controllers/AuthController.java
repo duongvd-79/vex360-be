@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
+import com.example.vex360.features.auth.dtos.request.GoogleCallbackRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.request.RegisterRequest;
 import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
@@ -89,6 +90,18 @@ public class AuthController extends BaseController {
     @Operation(summary = "Đăng nhập tài khoản", description = "Xác thực email và mật khẩu của người dùng, trả về Access Token (stateless) và Refresh Token (stateful).")
     public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ok(authService.login(request));
+    }
+
+    /**
+     * Endpoint for Google login callback.
+     * 
+     * @param request the Google callback request containing the authorization code
+     * @return unified API response containing token details
+     */
+    @PostMapping("/google/callback")
+    @Operation(summary = "Đăng nhập bằng Google", description = "Xác thực người dùng thông qua tài khoản Google, trả về Access Token (stateless) và Refresh Token (stateful).")
+    public ResponseEntity<ApiResponse<TokenResponse>> googleCallback(@Valid @RequestBody GoogleCallbackRequest request) {
+        return ok(authService.loginWithGoogle(request.getCode()));
     }
 
     /**
