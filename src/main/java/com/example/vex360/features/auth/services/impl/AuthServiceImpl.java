@@ -96,6 +96,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.security.oauth2.user-info-uri}")
     private String googleUserInfoUri;
 
+    @Value("${app.backend.base-url}")
+    private String backendBaseUrl;
+
     private static final String GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
 
     @Override
@@ -130,7 +133,6 @@ public class AuthServiceImpl implements AuthService {
         HttpHeaders userInfoHeaders = new HttpHeaders();
         userInfoHeaders.setBearerAuth(googleAccessToken);
 
-        @SuppressWarnings("unchecked")
         ResponseEntity<Map> userInfoResponse = restTemplate.exchange(
                 googleUserInfoUri,
                 HttpMethod.GET,
@@ -142,9 +144,9 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        String email    = (String) userInfo.get("email");
+        String email = (String) userInfo.get("email");
         String fullName = (String) userInfo.get("name");
-        String avatar   = (String) userInfo.get("picture");
+        String avatar = (String) userInfo.get("picture");
 
         // 3. Tìm hoặc tạo mới user với provider GOOGLE
         User user = userService.findOrCreateGoogleUser(email, fullName, avatar);
@@ -168,9 +170,6 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(tokenStr)
                 .build();
     }
-
-    @Value("${app.backend.base-url}")
-    private String backendBaseUrl;
 
     /**
      * Registers a new user in the system.
@@ -245,7 +244,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse login(LoginRequest request) {
-        // 1. Check if the user account is currently locked (only check if user exists to prevent enumeration)
+        // 1. Check if the user account is currently locked (only check if user exists
+        // to prevent enumeration)
         Optional<User> userOpt = userService.findUserByEmail(request.getEmail());
         if (userOpt.isPresent()) {
             User user = userOpt.get();

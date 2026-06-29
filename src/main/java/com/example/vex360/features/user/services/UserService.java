@@ -162,6 +162,8 @@ public class UserService {
                     .build();
             return userRepository.save(user);
         });
+    }
+
     @Transactional(readOnly = true)
     public Optional<User> findUserByEmail(String email) {
         return userRepository.findByEmail(email);
