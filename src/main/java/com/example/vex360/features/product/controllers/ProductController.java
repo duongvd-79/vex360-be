@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,6 +27,7 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
+import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -42,8 +45,20 @@ public class ProductController extends BaseController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponseDTO>>> getProducts(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt") Pageable pageable) {
-        PageResponse<ProductResponseDTO> products = productService.getProducts(userDetails.getUser(), pageable);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) ProductStatus status,
+            @ParameterObject @PageableDefault(
+                    page = 0,
+                    size = 10,
+                    sort = "createdAt",
+                    direction = Sort.Direction.DESC) Pageable pageable) {
+        PageResponse<ProductResponseDTO> products = productService.getProducts(
+                userDetails.getUser(),
+                keyword,
+                categoryId,
+                status,
+                pageable);
         return ok(products);
     }
 

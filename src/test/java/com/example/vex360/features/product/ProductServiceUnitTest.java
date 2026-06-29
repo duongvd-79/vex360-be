@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,6 +29,7 @@ import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.product.dtos.request.CreateProductContentRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -35,6 +38,7 @@ import com.example.vex360.features.product.repositories.ProductCategoryRepositor
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.entities.Company;
 import com.example.vex360.shared.entities.Product;
 import com.example.vex360.shared.entities.ProductCategory;
@@ -133,6 +137,75 @@ class ProductServiceUnitTest {
     }
 
     @Test
+    void createProductUsesRequestedStatus() {
+        Map<String, MultipartFile> files = new LinkedHashMap<>();
+        files.put("media_1", new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes()));
+        files.put("media_2", new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes()));
+        CreateProductRequest request = validCreateRequest();
+        request.setStatus(ProductStatus.INACTIVE);
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(any(MultipartFile.class)))
+                .thenReturn(upload("/thumb.png", "image/png", 100L))
+                .thenReturn(upload("/front.png", "image/png", 200L))
+                .thenReturn(upload("/demo.mp4", "video/mp4", 300L));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productService.createProduct(user, request, thumbnail(), files);
+
+        ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(productCaptor.capture());
+        assertEquals(ProductStatus.INACTIVE, productCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void getProductsFiltersByNameCategoryAndStatus() {
+        Product product = Product.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .category(category)
+                .name("Robot Arm")
+                .sku("VEX-001")
+                .description("Robot demo")
+                .price(BigDecimal.TEN)
+                .currency("VND")
+                .thumbnailUrl("/thumb.png")
+                .thumbnailPublicId("thumb-public-id")
+                .status(ProductStatus.ACTIVE)
+                .contents(new java.util.ArrayList<>())
+                .build();
+        PageRequest pageable = PageRequest.of(0, 10);
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.searchProducts(
+                company.getId(),
+                "Robot",
+                category.getId(),
+                ProductStatus.ACTIVE,
+                pageable))
+                .thenReturn(new PageImpl<>(List.of(product), pageable, 1));
+
+        PageResponse<ProductResponseDTO> response = productService.getProducts(
+                user,
+                " Robot ",
+                category.getId(),
+                ProductStatus.ACTIVE,
+                pageable);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals("Robot Arm", response.getContent().get(0).getName());
+        verify(productRepository).searchProducts(
+                company.getId(),
+                "Robot",
+                category.getId(),
+                ProductStatus.ACTIVE,
+                pageable);
+    }
+
+    @Test
     void updateProductSynchronizesExistingAndNewContents() {
         UUID productId = UUID.randomUUID();
         ProductContent removedContent = ProductContent.builder()
@@ -165,7 +238,6 @@ class ProductServiceUnitTest {
                 .thumbnailUrl("/old-thumb.png")
                 .thumbnailPublicId("old-thumb-public-id")
                 .status(ProductStatus.ACTIVE)
-                .isVisible(true)
                 .contents(new java.util.ArrayList<>(List.of(removedContent, keptContent)))
                 .build();
         removedContent.setProduct(product);
@@ -178,7 +250,6 @@ class ProductServiceUnitTest {
                 "New desc",
                 BigDecimal.TEN,
                 "VND",
-                true,
                 ProductStatus.ACTIVE,
                 List.of(keptContent.getId()),
                 List.of(new CreateProductContentRequest("media_1", 1)));
@@ -220,7 +291,6 @@ class ProductServiceUnitTest {
                 .thumbnailUrl("/old-thumb.png")
                 .thumbnailPublicId("old-thumb-public-id")
                 .status(ProductStatus.ACTIVE)
-                .isVisible(true)
                 .contents(new java.util.ArrayList<>())
                 .build();
         UpdateProductRequest request = new UpdateProductRequest(
@@ -230,7 +300,6 @@ class ProductServiceUnitTest {
                 "New desc",
                 BigDecimal.TEN,
                 "VND",
-                true,
                 ProductStatus.ACTIVE,
                 List.of(),
                 List.of());
@@ -286,7 +355,6 @@ class ProductServiceUnitTest {
                 .thumbnailUrl("/old-thumb.png")
                 .thumbnailPublicId("old-thumb-public-id")
                 .status(ProductStatus.ACTIVE)
-                .isVisible(true)
                 .contents(new java.util.ArrayList<>(List.of(image, video)))
                 .build();
         image.setProduct(product);
@@ -302,7 +370,6 @@ class ProductServiceUnitTest {
         verify(cloudService).delete("old-a-public-id", "image");
         verify(cloudService).delete("old-video-public-id", "video");
         assertEquals(ProductStatus.ARCHIVED, product.getStatus());
-        assertEquals(false, product.getIsVisible());
     }
 
     @Test
@@ -321,7 +388,6 @@ class ProductServiceUnitTest {
                 .thumbnailUrl("/old-thumb.png")
                 .thumbnailPublicId("old-thumb-public-id")
                 .status(ProductStatus.ACTIVE)
-                .isVisible(true)
                 .contents(new java.util.ArrayList<>())
                 .build();
         UpdateProductRequest request = new UpdateProductRequest(
@@ -331,7 +397,6 @@ class ProductServiceUnitTest {
                 "New desc",
                 BigDecimal.TEN,
                 "VND",
-                true,
                 ProductStatus.ACTIVE,
                 List.of(),
                 List.of());
@@ -358,7 +423,7 @@ class ProductServiceUnitTest {
                 "Robot demo",
                 BigDecimal.TEN,
                 "VND",
-                true,
+                ProductStatus.ACTIVE,
                 List.of(
                         new CreateProductContentRequest("media_1", 0),
                         new CreateProductContentRequest("media_2", 1)));

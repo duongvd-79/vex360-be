@@ -55,10 +55,15 @@ public class ProductService {
     private final ProductMapper productMapper;
 
     @Transactional(readOnly = true)
-    public PageResponse<ProductResponseDTO> getProducts(User currentUser, Pageable pageable) {
+    public PageResponse<ProductResponseDTO> getProducts(
+            User currentUser,
+            String keyword,
+            UUID categoryId,
+            ProductStatus status,
+            Pageable pageable) {
         Company company = getCompanyForCurrentUser(currentUser);
         Page<ProductResponseDTO> products = productRepository
-                .findByCompanyIdAndStatusNotOrderByCreatedAtDesc(company.getId(), ProductStatus.ARCHIVED, pageable)
+                .searchProducts(company.getId(), normalizeKeyword(keyword), categoryId, status, pageable)
                 .map(productMapper::toResponse);
         return PageResponse.from(products);
     }
@@ -98,8 +103,7 @@ public class ProductService {
                 .currency(normalizeCurrency(request.getCurrency()))
                 .thumbnailUrl(thumbnailUpload.getUrl())
                 .thumbnailPublicId(thumbnailUpload.getPublicId())
-                .isVisible(resolveIsVisible(request.getIsVisible()))
-                .status(resolveStatus(request.getIsVisible(), null))
+                .status(resolveMutableStatus(request.getStatus()))
                 .build();
         product.setContents(createContents(product, contentRequests, files));
 
@@ -140,8 +144,7 @@ public class ProductService {
         product.setDescription(request.getDescription().trim());
         product.setPrice(request.getPrice());
         product.setCurrency(normalizeCurrency(request.getCurrency()));
-        product.setIsVisible(resolveIsVisible(request.getIsVisible()));
-        product.setStatus(resolveStatus(request.getIsVisible(), request.getStatus()));
+        product.setStatus(resolveMutableStatus(request.getStatus()));
         synchronizeContents(product, existingContentIds, newContentRequests, files);
 
         return productMapper.toResponse(productRepository.save(product));
@@ -155,7 +158,6 @@ public class ProductService {
         product.getContents().forEach(content ->
                 deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
         product.setStatus(ProductStatus.ARCHIVED);
-        product.setIsVisible(false);
         return productMapper.toResponse(productRepository.save(product));
     }
 
@@ -310,15 +312,15 @@ public class ProductService {
         return currency == null || currency.isBlank() ? "VND" : currency.trim().toUpperCase(Locale.ROOT);
     }
 
-    private Boolean resolveIsVisible(Boolean isVisible) {
-        return !Boolean.FALSE.equals(isVisible);
+    private String normalizeKeyword(String keyword) {
+        return keyword == null || keyword.isBlank() ? null : keyword.trim();
     }
 
-    private ProductStatus resolveStatus(Boolean isVisible, ProductStatus requestedStatus) {
-        if (requestedStatus != null && requestedStatus != ProductStatus.ARCHIVED) {
+    private ProductStatus resolveMutableStatus(ProductStatus requestedStatus) {
+        if (requestedStatus == ProductStatus.ACTIVE || requestedStatus == ProductStatus.INACTIVE) {
             return requestedStatus;
         }
-        return Boolean.FALSE.equals(isVisible) ? ProductStatus.INACTIVE : ProductStatus.ACTIVE;
+        throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
     }
 
     private List<CreateProductContentRequest> safeCreateContents(List<CreateProductContentRequest> contents) {

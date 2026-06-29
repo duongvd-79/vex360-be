@@ -25,7 +25,6 @@ public class ProductMapper {
                 product.getCurrency(),
                 product.getThumbnailUrl(),
                 product.getStatus(),
-                product.getIsVisible(),
                 toContentResponses(product.getContents()));
     }
 

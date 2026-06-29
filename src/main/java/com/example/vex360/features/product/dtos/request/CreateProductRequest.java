@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.example.vex360.features.product.enums.ProductStatus;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -34,7 +36,8 @@ public class CreateProductRequest {
 
     private String currency;
 
-    private Boolean isVisible;
+    @NotNull(message = "Trang thai san pham khong duoc de trong")
+    private ProductStatus status;
 
     private List<@Valid CreateProductContentRequest> contents;
 }
