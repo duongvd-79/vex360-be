@@ -10,12 +10,13 @@ import com.example.vex360.shared.entities.User;
 
 public interface AuthService {
     void register(RegisterRequest request);
+    void verifyRegistration(String encryptedToken);
     TokenResponse login(LoginRequest request);
     TokenResponse loginWithGoogle(String code);
     TokenResponse refreshToken(String refreshToken);
     void logout(String refreshToken);
     void forgotPassword(ForgotPasswordRequest request);
+    void validateResetToken(String encryptedToken);
     void resetPassword(ResetPasswordRequest request);
     void changePassword(User currentUser, ChangePasswordRequest request);
-    void confirmPasswordChange(String token, String newPassword);
 }

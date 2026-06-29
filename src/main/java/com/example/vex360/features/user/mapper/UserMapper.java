@@ -1,6 +1,6 @@
 package com.example.vex360.features.user.mapper;
 
-import java.util.List;
+//import java.util.List;
 
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
@@ -15,8 +15,8 @@ import com.example.vex360.shared.entities.User;
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface UserMapper {
     UserResponseDTO toUserResponseDTO(User user);
-
-    List<UserResponseDTO> toUserResponseDTOs(List<User> users);
+//
+//    List<UserResponseDTO> toUserResponseDTOs(List<User> users);
 
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "fullName", source = "fullName")

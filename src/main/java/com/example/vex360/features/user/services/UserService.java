@@ -1,5 +1,7 @@
 package com.example.vex360.features.user.services;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -8,11 +10,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
+import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -22,32 +27,46 @@ import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.LogSanitizer;
+import com.example.vex360.shared.utils.RandomPasswordGenerator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final MailService mailService;
 
     @Transactional
     public UserResponseDTO createUser(CreateUserRequest request) {
+        String generatedPassword = RandomPasswordGenerator.generate();
         User user = createAndSaveUser(
                 request.getEmail(),
-                request.getPassword(),
+                generatedPassword,
                 request.getFullName(),
                 request.getPhoneNumber(),
-                request.getRole() == null ? Role.VISITOR : request.getRole(),
-                request.getAvatarUrl());
+                request.getRole(),
+                null);
+
+        mailService.sendNewUserCredentialsEmail(user.getEmail(), user.getFullName(), generatedPassword);
 
         return userMapper.toUserResponseDTO(user);
     }
 
     @Transactional
     public User createUser(UserRequestDTO request) {
+        return createUser(request, UserStatus.ACTIVE);
+    }
+
+    @Transactional
+    public User createUser(UserRequestDTO request, UserStatus status) {
         Role userRole = parseRoleOrDefault(request.getRole());
         return createAndSaveUser(
                 request.getEmail(),
@@ -55,14 +74,24 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 userRole,
-                request.getAvatarUrl());
+                request.getAvatarUrl(),
+                status);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<UserResponseDTO> getUsers(Pageable pageable) {
-        Page<UserResponseDTO> users = userRepository.findAll(pageable)
+    public PageResponse<UserResponseDTO> getUsers(String keyword, Role role, UserStatus status, Pageable pageable) {
+        Page<UserResponseDTO> users = userRepository.searchUsers(normalizeKeyword(keyword), role, status, pageable)
                 .map(userMapper::toUserResponseDTO);
         return PageResponse.from(users);
+    }
+
+    @Transactional(readOnly = true)
+    public UserSummaryResponseDTO getUserSummary() {
+        return new UserSummaryResponseDTO(
+                userRepository.count(),
+                userRepository.countByStatus(UserStatus.ACTIVE),
+                userRepository.countByRole(Role.ADMIN),
+                userRepository.countByStatus(UserStatus.PENDING));
     }
 
     @Transactional(readOnly = true)
@@ -86,9 +115,8 @@ public class UserService {
     public void changeCurrentUserPassword(User currentUser, ChangePasswordRequest request) {
         User user = getUserEntityById(currentUser.getId());
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.OLDPASSWORD_FAILED);
         }
-
         updatePassword(user, request.getNewPassword());
     }
 
@@ -103,6 +131,11 @@ public class UserService {
     public UserResponseDTO updateStatus(UUID id, UserStatus status) {
         User user = getUserEntityById(id);
         user.setStatus(status);
+        // refreshTokenRepository.findAllByUser(user).forEach(refreshToken -> {
+        // log.info("Found refresh token: {}", refreshToken.getToken());
+        // refreshTokenRepository.delete(refreshToken);
+        // });
+        refreshTokenRepository.deleteByUser(user);
         return userMapper.toUserResponseDTO(userRepository.save(user));
     }
 
@@ -129,6 +162,9 @@ public class UserService {
                     .build();
             return userRepository.save(user);
         });
+    @Transactional(readOnly = true)
+    public Optional<User> findUserByEmail(String email) {
+        return userRepository.findByEmail(email);
     }
 
     @Transactional
@@ -149,6 +185,17 @@ public class UserService {
             String phoneNumber,
             Role role,
             String avatarUrl) {
+        return createAndSaveUser(email, password, fullName, phoneNumber, role, avatarUrl, UserStatus.ACTIVE);
+    }
+
+    private User createAndSaveUser(
+            String email,
+            String password,
+            String fullName,
+            String phoneNumber,
+            Role role,
+            String avatarUrl,
+            UserStatus status) {
         if (userRepository.existsByEmail(email)) {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
@@ -160,6 +207,7 @@ public class UserService {
                 .phoneNumber(phoneNumber)
                 .role(role)
                 .avatarUrl(avatarUrl)
+                .status(status != null ? status : UserStatus.ACTIVE)
                 .build();
 
         return userRepository.save(user);
@@ -175,5 +223,34 @@ public class UserService {
         } catch (IllegalArgumentException e) {
             throw new AppException(ErrorCode.ROLE_NOT_FOUND);
         }
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim();
+    }
+
+    @Transactional
+    public void incrementFailedAttempts(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            int newAttempts = user.getFailedLoginAttempts() + 1;
+            user.setFailedLoginAttempts(newAttempts);
+            if (newAttempts >= 5) {
+                user.setLockoutEnd(Instant.now().plusSeconds(900)); // khóa 15 phút
+                log.warn("User account locked due to too many failed attempts: {}", LogSanitizer.sanitize(email));
+            }
+            userRepository.save(user);
+        });
+    }
+
+    @Transactional
+    public void resetFailedAttempts(User user) {
+        userRepository.findById(user.getId()).ifPresent(u -> {
+            u.setFailedLoginAttempts(0);
+            u.setLockoutEnd(null);
+            userRepository.save(u);
+        });
     }
 }

@@ -1,6 +1,7 @@
 package com.example.vex360.features.user;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -26,11 +27,13 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.example.vex360.features.user.controllers.UserController;
+import com.example.vex360.features.user.controllers.AdminUserController;
+import com.example.vex360.features.user.controllers.CurrentUserController;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
+import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -53,7 +56,9 @@ class UserControllerUnitTest {
     @BeforeEach
     void setup() {
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(userService))
+                .standaloneSetup(
+                        new AdminUserController(userService),
+                        new CurrentUserController(userService))
                 .setCustomArgumentResolvers(
                         new PageableHandlerMethodArgumentResolver(),
                         new AuthenticationPrincipalArgumentResolver())
@@ -61,7 +66,7 @@ class UserControllerUnitTest {
         objectMapper = new ObjectMapper();
         userId = UUID.randomUUID();
         response = new UserResponseDTO(
-                userId, "user@example.com", "User Name", "123", "VISITOR", "avatar.png", "ACTIVE");
+                userId, "user@example.com", "User Name", "0912345678", "VISITOR", "avatar.png", "ACTIVE");
     }
 
     @AfterEach
@@ -72,7 +77,7 @@ class UserControllerUnitTest {
     @Test
     void createUserReturnsApiResponse() throws Exception {
         CreateUserRequest request = new CreateUserRequest(
-                "user@example.com", "Password123!", "User Name", "123", Role.VISITOR, "avatar.png");
+                "user@example.com", "User Name", "0912345678", Role.VISITOR);
 
         when(userService.createUser(any(CreateUserRequest.class))).thenReturn(response);
 
@@ -96,9 +101,10 @@ class UserControllerUnitTest {
                 .last(true)
                 .build();
 
-        when(userService.getUsers(any(Pageable.class))).thenReturn(pageResponse);
+        when(userService.getUsers(eq("user"), eq(Role.ADMIN), eq(UserStatus.ACTIVE), any(Pageable.class)))
+                .thenReturn(pageResponse);
 
-        mockMvc.perform(get("/api/v1/users?page=0&size=10"))
+        mockMvc.perform(get("/api/v1/users?page=0&size=10&keyword=user&role=ADMIN&status=ACTIVE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].email").value("user@example.com"))
                 .andExpect(jsonPath("$.data.page").value(0))
@@ -108,9 +114,23 @@ class UserControllerUnitTest {
     }
 
     @Test
+    void getUserSummaryReturnsApiResponse() throws Exception {
+        UserSummaryResponseDTO summary = new UserSummaryResponseDTO(1284L, 1102L, 12L, 45L);
+
+        when(userService.getUserSummary()).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/users/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalUsers").value(1284))
+                .andExpect(jsonPath("$.data.activeUsers").value(1102))
+                .andExpect(jsonPath("$.data.adminUsers").value(12))
+                .andExpect(jsonPath("$.data.pendingUsers").value(45));
+    }
+
+    @Test
     void updateCurrentUserProfileReturnsApiResponse() throws Exception {
         User user = User.builder().id(userId).email("user@example.com").role(Role.VISITOR).status(UserStatus.ACTIVE).build();
-        UpdateProfileRequest request = new UpdateProfileRequest("User Name", "123", "avatar.png");
+        UpdateProfileRequest request = new UpdateProfileRequest("User Name", "0912345678", "avatar.png");
 
         when(userService.updateCurrentUserProfile(any(User.class), any(UpdateProfileRequest.class))).thenReturn(response);
         authenticate(user);
