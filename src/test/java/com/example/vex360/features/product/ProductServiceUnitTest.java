@@ -74,7 +74,8 @@ class ProductServiceUnitTest {
                 productCategoryRepository,
                 productRepository,
                 cloudService,
-                new ProductMapper());
+                new ProductMapper(),
+                Runnable::run);
         user = User.builder().id(UUID.randomUUID()).email("owner@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).ownerUser(user).name("Orion").build();
         category = ProductCategory.builder()
@@ -102,18 +103,20 @@ class ProductServiceUnitTest {
 
     @Test
     void createProductUploadsThumbnailAndMedia() {
+        MockMultipartFile thumbnail = thumbnail();
+        MockMultipartFile frontFile = new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes());
+        MockMultipartFile videoFile = new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes());
         Map<String, MultipartFile> files = new LinkedHashMap<>();
-        files.put("media_1", new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes()));
-        files.put("media_2", new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes()));
+        files.put("media_1", frontFile);
+        files.put("media_2", videoFile);
 
         when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
-        when(cloudService.upload(any(MultipartFile.class)))
-                .thenReturn(upload("/thumb.png", "image/png", 100L))
-                .thenReturn(upload("/front.png", "image/png", 200L))
-                .thenReturn(upload("/demo.mp4", "video/mp4", 300L));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(cloudService.upload(frontFile)).thenReturn(upload("/front.png", "front-public-id", "image/png", 200L));
+        when(cloudService.upload(videoFile)).thenReturn(upload("/demo.mp4", "video-public-id", "video/mp4", 300L));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product product = invocation.getArgument(0);
             product.setId(UUID.randomUUID());
@@ -121,7 +124,7 @@ class ProductServiceUnitTest {
             return product;
         });
 
-        productService.createProduct(user, validCreateRequest(), thumbnail(), files);
+        productService.createProduct(user, validCreateRequest(), thumbnail, files);
 
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(productCaptor.capture());
@@ -129,18 +132,24 @@ class ProductServiceUnitTest {
         assertEquals(company, savedProduct.getCompany());
         assertEquals(category, savedProduct.getCategory());
         assertEquals("/thumb.png", savedProduct.getThumbnailUrl());
-        assertEquals("public-id", savedProduct.getThumbnailPublicId());
+        assertEquals("thumb-public-id", savedProduct.getThumbnailPublicId());
         assertEquals(2, savedProduct.getContents().size());
-        assertEquals("public-id", savedProduct.getContents().get(0).getPublicId());
+        assertEquals("front-public-id", savedProduct.getContents().get(0).getPublicId());
         assertEquals(ProductContentType.IMAGE, savedProduct.getContents().get(0).getType());
+        assertEquals(0, savedProduct.getContents().get(0).getOrderIndex());
+        assertEquals("video-public-id", savedProduct.getContents().get(1).getPublicId());
         assertEquals(ProductContentType.VIDEO, savedProduct.getContents().get(1).getType());
+        assertEquals(1, savedProduct.getContents().get(1).getOrderIndex());
     }
 
     @Test
     void createProductUsesRequestedStatus() {
+        MockMultipartFile thumbnail = thumbnail();
+        MockMultipartFile frontFile = new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes());
+        MockMultipartFile videoFile = new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes());
         Map<String, MultipartFile> files = new LinkedHashMap<>();
-        files.put("media_1", new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes()));
-        files.put("media_2", new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes()));
+        files.put("media_1", frontFile);
+        files.put("media_2", videoFile);
         CreateProductRequest request = validCreateRequest();
         request.setStatus(ProductStatus.INACTIVE);
 
@@ -148,17 +157,103 @@ class ProductServiceUnitTest {
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
-        when(cloudService.upload(any(MultipartFile.class)))
-                .thenReturn(upload("/thumb.png", "image/png", 100L))
-                .thenReturn(upload("/front.png", "image/png", 200L))
-                .thenReturn(upload("/demo.mp4", "video/mp4", 300L));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(cloudService.upload(frontFile)).thenReturn(upload("/front.png", "front-public-id", "image/png", 200L));
+        when(cloudService.upload(videoFile)).thenReturn(upload("/demo.mp4", "video-public-id", "video/mp4", 300L));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        productService.createProduct(user, request, thumbnail(), files);
+        productService.createProduct(user, request, thumbnail, files);
 
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(productCaptor.capture());
         assertEquals(ProductStatus.INACTIVE, productCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void createProductCleansUploadedFilesWhenParallelUploadFails() {
+        MockMultipartFile thumbnail = thumbnail();
+        MockMultipartFile frontFile = new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes());
+        MockMultipartFile videoFile = new MockMultipartFile("media_2", "demo.mp4", "video/mp4", "video".getBytes());
+        Map<String, MultipartFile> files = new LinkedHashMap<>();
+        files.put("media_1", frontFile);
+        files.put("media_2", videoFile);
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(cloudService.upload(frontFile)).thenReturn(upload("/front.png", "front-public-id", "image/png", 200L));
+        when(cloudService.upload(videoFile)).thenThrow(new AppException(ErrorCode.UPLOAD_FAILED));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productService.createProduct(user, validCreateRequest(), thumbnail, files));
+
+        assertEquals(ErrorCode.UPLOAD_FAILED, exception.getErrorCode());
+        verify(cloudService).delete("thumb-public-id", "image");
+        verify(cloudService).delete("front-public-id", "image");
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void createProductRejectsMoreThanFiveImages() {
+        CreateProductRequest request = validCreateRequest();
+        request.setContents(List.of(
+                new CreateProductContentRequest("media_1", 0),
+                new CreateProductContentRequest("media_2", 1),
+                new CreateProductContentRequest("media_3", 2),
+                new CreateProductContentRequest("media_4", 3),
+                new CreateProductContentRequest("media_5", 4),
+                new CreateProductContentRequest("media_6", 5)));
+        Map<String, MultipartFile> files = new LinkedHashMap<>();
+        for (int i = 1; i <= 6; i++) {
+            files.put("media_" + i, new MockMultipartFile(
+                    "media_" + i,
+                    "image-" + i + ".png",
+                    "image/png",
+                    "image".getBytes()));
+        }
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+
+        assertEquals(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        verify(cloudService, never()).upload(any(MultipartFile.class));
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void createProductRejectsMoreThanOneVideo() {
+        MockMultipartFile thumbnail = thumbnail();
+        MockMultipartFile imageFile = new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes());
+        MockMultipartFile firstVideoFile = new MockMultipartFile("media_2", "demo-1.mp4", "video/mp4", "video".getBytes());
+        MockMultipartFile secondVideoFile = new MockMultipartFile("media_3", "demo-2.mp4", "video/mp4", "video".getBytes());
+        CreateProductRequest request = validCreateRequest();
+        request.setContents(List.of(
+                new CreateProductContentRequest("media_1", 0),
+                new CreateProductContentRequest("media_2", 1),
+                new CreateProductContentRequest("media_3", 2)));
+        Map<String, MultipartFile> files = new LinkedHashMap<>();
+        files.put("media_1", imageFile);
+        files.put("media_2", firstVideoFile);
+        files.put("media_3", secondVideoFile);
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail, files));
+
+        assertEquals(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        verify(cloudService, never()).upload(any(MultipartFile.class));
+        verify(productRepository, never()).save(any(Product.class));
     }
 
     @Test
@@ -253,8 +348,9 @@ class ProductServiceUnitTest {
                 ProductStatus.ACTIVE,
                 List.of(keptContent.getId()),
                 List.of(new CreateProductContentRequest("media_1", 1)));
+        MockMultipartFile newContentFile = new MockMultipartFile("media_1", "new.png", "image/png", "image".getBytes());
         Map<String, MultipartFile> files = Map.of(
-                "media_1", new MockMultipartFile("media_1", "new.png", "image/png", "image".getBytes()));
+                "media_1", newContentFile);
 
         when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
@@ -262,7 +358,7 @@ class ProductServiceUnitTest {
                 .thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
-        when(cloudService.upload(any(MultipartFile.class))).thenReturn(upload("/new.png", "image/png", 200L));
+        when(cloudService.upload(newContentFile)).thenReturn(upload("/new.png", "new-public-id", "image/png", 200L));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         productService.updateProduct(user, productId, request, null, files);
@@ -272,8 +368,65 @@ class ProductServiceUnitTest {
         assertEquals(keptContent.getId(), product.getContents().get(0).getId());
         assertEquals(0, product.getContents().get(0).getOrderIndex());
         assertEquals("/new.png", product.getContents().get(1).getContentUrl());
+        assertEquals("new-public-id", product.getContents().get(1).getPublicId());
         assertEquals(1, product.getContents().get(1).getOrderIndex());
         verify(cloudService).delete("old-a-public-id", "image");
+    }
+
+    @Test
+    void updateProductRejectsMoreThanOneVideoIncludingExistingContents() {
+        UUID productId = UUID.randomUUID();
+        ProductContent existingVideo = ProductContent.builder()
+                .id(UUID.randomUUID())
+                .contentUrl("/old-video.mp4")
+                .publicId("old-video-public-id")
+                .type(ProductContentType.VIDEO)
+                .orderIndex(0)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .build();
+        Product product = Product.builder()
+                .id(productId)
+                .company(company)
+                .category(category)
+                .name("Old")
+                .sku("OLD")
+                .description("Old desc")
+                .price(BigDecimal.ONE)
+                .currency("VND")
+                .thumbnailUrl("/old-thumb.png")
+                .thumbnailPublicId("old-thumb-public-id")
+                .status(ProductStatus.ACTIVE)
+                .contents(new java.util.ArrayList<>(List.of(existingVideo)))
+                .build();
+        existingVideo.setProduct(product);
+
+        UpdateProductRequest request = new UpdateProductRequest(
+                "Robot",
+                "VEX-002",
+                category.getId(),
+                "New desc",
+                BigDecimal.TEN,
+                "VND",
+                ProductStatus.ACTIVE,
+                List.of(existingVideo.getId()),
+                List.of(new CreateProductContentRequest("media_1", 1)));
+        MockMultipartFile newVideoFile = new MockMultipartFile("media_1", "new-video.mp4", "video/mp4", "video".getBytes());
+        Map<String, MultipartFile> files = Map.of("media_1", newVideoFile);
+
+        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, null, files));
+
+        assertEquals(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        verify(cloudService, never()).upload(any(MultipartFile.class));
+        verify(productRepository, never()).save(any(Product.class));
     }
 
     @Test
@@ -369,7 +522,7 @@ class ProductServiceUnitTest {
         verify(cloudService).delete("old-thumb-public-id", "image");
         verify(cloudService).delete("old-a-public-id", "image");
         verify(cloudService).delete("old-video-public-id", "video");
-        assertEquals(ProductStatus.ARCHIVED, product.getStatus());
+        assertEquals(ProductStatus.INACTIVE, product.getStatus());
     }
 
     @Test
@@ -413,6 +566,7 @@ class ProductServiceUnitTest {
 
         assertEquals(category, product.getCategory());
         assertEquals("Robot", product.getName());
+        assertEquals(ProductStatus.INACTIVE, product.getStatus());
     }
 
     private CreateProductRequest validCreateRequest() {

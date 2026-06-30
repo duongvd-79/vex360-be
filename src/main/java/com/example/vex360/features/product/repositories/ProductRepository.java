@@ -16,15 +16,12 @@ import com.example.vex360.shared.entities.Product;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
-    Page<Product> findByCompanyIdAndStatusNotOrderByCreatedAtDesc(UUID companyId, ProductStatus status, Pageable pageable);
-
     @Query("""
             SELECT p FROM Product p
             WHERE p.company.id = :companyId
               AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:categoryId IS NULL OR p.category.id = :categoryId)
-              AND ((:status IS NULL AND p.status <> com.example.vex360.features.product.enums.ProductStatus.ARCHIVED)
-                   OR (:status IS NOT NULL AND p.status = :status))
+              AND (:status IS NULL OR p.status = :status)
             """)
     Page<Product> searchProducts(
             @Param("companyId") UUID companyId,

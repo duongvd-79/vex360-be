@@ -2,6 +2,7 @@ package com.example.vex360.features.product;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -87,7 +88,7 @@ class ProductControllerUnitTest {
                 "Robot demo",
                 BigDecimal.TEN,
                 "VND",
-                true,
+                ProductStatus.ACTIVE,
                 List.of(new CreateProductContentRequest("media_1", 0)));
         MockMultipartFile metadata = jsonPart("metadata", request);
         MockMultipartFile thumbnail = new MockMultipartFile(
@@ -125,7 +126,6 @@ class ProductControllerUnitTest {
                 "Robot demo",
                 BigDecimal.TEN,
                 "VND",
-                true,
                 ProductStatus.ACTIVE,
                 List.of(UUID.randomUUID()),
                 List.of(new CreateProductContentRequest("media_2", 1)));
@@ -159,11 +159,27 @@ class ProductControllerUnitTest {
                 .first(true)
                 .last(true)
                 .build();
-        when(productService.getProducts(any(User.class), any(Pageable.class))).thenReturn(pageResponse);
+        when(productService.getProducts(
+                any(User.class),
+                eq("Robot"),
+                any(UUID.class),
+                eq(ProductStatus.ACTIVE),
+                any(Pageable.class))).thenReturn(pageResponse);
+        UUID categoryId = UUID.randomUUID();
 
-        mockMvc.perform(get("/api/v1/products"))
+        mockMvc.perform(get("/api/v1/products")
+                .param("keyword", "Robot")
+                .param("categoryId", categoryId.toString())
+                .param("status", "ACTIVE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].name").value("Robot"));
+
+        verify(productService).getProducts(
+                any(User.class),
+                eq("Robot"),
+                eq(categoryId),
+                eq(ProductStatus.ACTIVE),
+                any(Pageable.class));
     }
 
     private MockMultipartFile jsonPart(String name, Object value) throws Exception {
@@ -189,7 +205,6 @@ class ProductControllerUnitTest {
                 "VND",
                 "/thumb.png",
                 ProductStatus.ACTIVE,
-                true,
                 List.of(new ProductContentResponseDTO(
                         UUID.randomUUID(),
                         "/front.png",
