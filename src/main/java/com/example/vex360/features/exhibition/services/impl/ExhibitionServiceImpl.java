@@ -27,6 +27,7 @@ import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.shared.entities.Exhibition;
@@ -36,7 +37,9 @@ import com.example.vex360.shared.entities.PackageTemplate;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
+import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
@@ -56,6 +59,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionPackageRepository exhibitionPackageRepository;
     private final PackageTemplateRepository packageTemplateRepository;
     private final ExhibitionAssetRepository exhibitionAssetRepository;
+    private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
 
@@ -68,6 +72,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         validateImageFile(keyVisual, true);
 
+        // Validate dates
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(), request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         long pendingCount = exhibitionRepository.countByOrganizerIdAndStatus(organizer.getId(), ExhibitionStatus.PENDING);
         if (pendingCount >= 3) {
             log.error("Organizer {} already has {} pending exhibition requests", organizer.getId(), pendingCount);
@@ -79,6 +89,32 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
+        // Pre-validate packages
+        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
+            if (request.getPackages().size() > 3) {
+                log.error("Exhibition packages size exceeds limit of 3");
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+
+            Set<BoothListingPriority> priorities = new HashSet<>();
+            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
+                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
+                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+                if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
+                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
+                            template.getPrice());
+                    throw new AppException(ErrorCode.VALIDATION_FAILED);
+                }
+
+                if (!priorities.add(template.getListingPriority())) {
+                    log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
+                    throw new AppException(ErrorCode.VALIDATION_FAILED);
+                }
+            }
+        }
+
+        // Save exhibition entity after all validations pass
         Exhibition exhibition = Exhibition.builder()
                 .organizer(organizer)
                 .uuid(UUID.randomUUID())
@@ -106,34 +142,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibitionAssetRepository.save(keyVisualAsset);
         exhibition.getAssets().add(keyVisualAsset);
 
+        // Save packages
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
         if (request.getPackages() != null && !request.getPackages().isEmpty()) {
-            if (request.getPackages().size() > 3) {
-                log.error("Exhibition packages size exceeds limit of 3");
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-
-            Set<BoothListingPriority> priorities = new HashSet<>();
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
                 PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
                         .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
-
-                if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
-                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
-                            template.getPrice());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-
-                if (!priorities.add(template.getListingPriority())) {
-                    log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
 
                 ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                         .exhibition(exhibition)
                         .template(template)
                         .finalPrice(pkgReq.getFinalPrice())
-                        .status("ACTIVE")
+                        .status(ExhibitionPackageStatus.ACTIVE)
                         .build();
 
                 savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
@@ -237,7 +257,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 .exhibition(exhibition)
                 .template(template)
                 .finalPrice(request.getFinalPrice())
-                .status("ACTIVE")
+                .status(ExhibitionPackageStatus.ACTIVE)
                 .build();
 
         exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
@@ -295,7 +315,32 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        if (exhibition.getStatus() != ExhibitionStatus.PENDING) {
+        // Allow update only if PENDING or REJECTED
+        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            log.error("Exhibition {} status is not PENDING or REJECTED. Cannot update.", exhibition.getId());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        // Rejection limit validation
+        if (exhibition.getRejectionCount() >= 3) {
+            log.error("Exhibition {} has reached the maximum rejection limit (3). Cannot edit.", exhibition.getId());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        // Date validation: endDate >= startDate
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(), request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        // Update time-window validation: must be before start date, and no exhibitors registered yet
+        if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
+            log.error("Cannot update exhibition on or after its start date {}", exhibition.getStartDate());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        if (exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(exhibition.getId())) {
+            log.error("Cannot update exhibition because exhibitors have already registered");
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -304,27 +349,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
-        exhibition.setName(trimmedName);
-        exhibition.setCategory(request.getCategory().trim());
-        exhibition.setDescription(request.getDescription());
-        exhibition.setStartDate(request.getStartDate());
-        exhibition.setEndDate(request.getEndDate());
-        exhibition.setEstimatedBooths(request.getEstimatedBooths());
-
-        exhibition = exhibitionRepository.save(exhibition);
-
-        // Upload keyVisual if provided
-        if (keyVisual != null && !keyVisual.isEmpty()) {
-            validateImageFile(keyVisual, false);
-            uploadOrReplaceAsset(exhibition, keyVisual, ExhibitionAssetType.KEY_VISUAL, "image");
-        }
-
-        // Delete old packages
-        List<ExhibitionPackage> oldPackages = exhibitionPackageRepository.findByExhibition(exhibition);
-        exhibitionPackageRepository.deleteAll(oldPackages);
-
-        // Add new packages
-        List<ExhibitionPackage> savedPackages = new ArrayList<>();
+        // Pre-validate packages
         if (request.getPackages() != null && !request.getPackages().isEmpty()) {
             if (request.getPackages().size() > 3) {
                 log.error("Exhibition packages size exceeds limit of 3");
@@ -345,12 +370,48 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                     log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
                     throw new AppException(ErrorCode.VALIDATION_FAILED);
                 }
+            }
+        }
+
+        // Update basic metadata
+        exhibition.setName(trimmedName);
+        exhibition.setCategory(request.getCategory().trim());
+        exhibition.setDescription(request.getDescription());
+        exhibition.setStartDate(request.getStartDate());
+        exhibition.setEndDate(request.getEndDate());
+        exhibition.setEstimatedBooths(request.getEstimatedBooths());
+
+        // Reset rejection status back to PENDING if it was REJECTED
+        if (exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            exhibition.setStatus(ExhibitionStatus.PENDING);
+            exhibition.setRejectedReason(null);
+            exhibition.setReviewedBy(null);
+            exhibition.setReviewedAt(null);
+        }
+
+        exhibition = exhibitionRepository.save(exhibition);
+
+        // Upload keyVisual if provided (validations already passed)
+        if (keyVisual != null && !keyVisual.isEmpty()) {
+            validateImageFile(keyVisual, false);
+            uploadOrReplaceAsset(exhibition, keyVisual, ExhibitionAssetType.KEY_VISUAL, "image");
+        }
+
+        // Delete old packages and save new packages
+        List<ExhibitionPackage> oldPackages = exhibitionPackageRepository.findByExhibition(exhibition);
+        exhibitionPackageRepository.deleteAll(oldPackages);
+
+        List<ExhibitionPackage> savedPackages = new ArrayList<>();
+        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
+            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
+                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
+                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
 
                 ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                         .exhibition(exhibition)
                         .template(template)
                         .finalPrice(pkgReq.getFinalPrice())
-                        .status("ACTIVE")
+                        .status(ExhibitionPackageStatus.ACTIVE)
                         .build();
 
                 savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
@@ -380,19 +441,25 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
-        // Validate formats & sizes
+        // 1. Validate all file formats & sizes first
         if (trailerVideo != null && !trailerVideo.isEmpty()) {
             validateVideoFile(trailerVideo);
-            uploadOrReplaceAsset(exhibition, trailerVideo, ExhibitionAssetType.TRAILER_VIDEO, "video");
         }
-
         if (floorPlan != null && !floorPlan.isEmpty()) {
             validateImageFile(floorPlan, false);
-            uploadOrReplaceAsset(exhibition, floorPlan, ExhibitionAssetType.FLOOR_PLAN, "image");
         }
-
         if (guideline != null && !guideline.isEmpty()) {
             validateImageFile(guideline, false);
+        }
+
+        // 2. Perform uploads after all validations pass
+        if (trailerVideo != null && !trailerVideo.isEmpty()) {
+            uploadOrReplaceAsset(exhibition, trailerVideo, ExhibitionAssetType.TRAILER_VIDEO, "video");
+        }
+        if (floorPlan != null && !floorPlan.isEmpty()) {
+            uploadOrReplaceAsset(exhibition, floorPlan, ExhibitionAssetType.FLOOR_PLAN, "image");
+        }
+        if (guideline != null && !guideline.isEmpty()) {
             uploadOrReplaceAsset(exhibition, guideline, ExhibitionAssetType.GUIDELINE, "image");
         }
 
@@ -405,6 +472,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionResponseDTO approveExhibition(User admin, UUID uuid) {
         if (admin == null || admin.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (admin.getRole() != Role.ADMIN) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
@@ -430,6 +501,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
+        if (admin.getRole() != Role.ADMIN) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
@@ -441,6 +516,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition.setRejectedReason(request.getRejectedReason());
         exhibition.setReviewedBy(admin);
         exhibition.setReviewedAt(LocalDateTime.now());
+
+        // Increment rejection count
+        int newRejectionCount = exhibition.getRejectionCount() + 1;
+        exhibition.setRejectionCount(newRejectionCount);
+
+        if (newRejectionCount >= 3) {
+            log.info("Exhibition {} reached maximum rejection limit (3). Renaming to release name.", exhibition.getId());
+            exhibition.setName(exhibition.getName() + " (Rejected-" + UUID.randomUUID().toString().substring(0, 8) + ")");
+        }
 
         exhibition = exhibitionRepository.save(exhibition);
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);

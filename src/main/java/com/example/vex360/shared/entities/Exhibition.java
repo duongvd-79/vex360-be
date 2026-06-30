@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.BatchSize;
 
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterDef;
@@ -82,6 +83,10 @@ public class Exhibition {
     @Column(name = "rejected_reason", columnDefinition = "TEXT")
     String rejectedReason;
 
+    @Column(name = "rejection_count", nullable = false)
+    @Builder.Default
+    int rejectionCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by_user_id")
     User reviewedBy;
@@ -94,6 +99,7 @@ public class Exhibition {
     LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "exhibition", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20)
     @Builder.Default
     List<ExhibitionAsset> assets = new ArrayList<>();
 }

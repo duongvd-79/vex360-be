@@ -5,8 +5,12 @@ import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.example.vex360.shared.enums.ExhibitionPackageStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -47,7 +51,8 @@ public class ExhibitionPackage {
     BigDecimal finalPrice;
 
     @Column(name = "status", nullable = false)
-    String status;
+    @Enumerated(EnumType.STRING)
+    ExhibitionPackageStatus status;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

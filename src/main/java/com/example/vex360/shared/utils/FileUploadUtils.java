@@ -5,10 +5,15 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 public class FileUploadUtils {
+    private FileUploadUtils() {
+    }
+    private static final Random r = new Random();
 
     // Allowed file types (MIME types)
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
@@ -86,7 +91,7 @@ public class FileUploadUtils {
     public static String generateUniqueFilename(MultipartFile file) {
         String extension = getFileExtension(file.getOriginalFilename());
         String timestamp = String.valueOf(System.currentTimeMillis());
-        String random = String.valueOf((int) (Math.random() * 10000));
+        String random = String.valueOf(r.nextInt(10000));
         return "upload_" + timestamp + "_" + random + "." + extension;
     }
 
@@ -96,7 +101,7 @@ public class FileUploadUtils {
     public static String generateFolderName(MultipartFile file) {
         String extension = getFileExtension(file.getOriginalFilename());
         String type = getFileType(extension);
-        String date = java.time.LocalDate.now().toString();
+        String date = LocalDate.now().toString();
         return type + "/" + date;
     }
 }
