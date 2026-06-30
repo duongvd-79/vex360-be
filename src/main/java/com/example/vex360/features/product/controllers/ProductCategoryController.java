@@ -37,7 +37,8 @@ public class ProductCategoryController extends BaseController {
     public ResponseEntity<ApiResponse<List<ProductCategoryResponseDTO>>> getCategories(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) ProductCategoryStatus status) {
-        List<ProductCategoryResponseDTO> categories = productCategoryService.getCategories(userDetails.getUser(), status);
+        List<ProductCategoryResponseDTO> categories = productCategoryService.getCategories(userDetails.getUser(),
+                status);
         return ok(categories);
     }
 
@@ -63,7 +64,8 @@ public class ProductCategoryController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProductCategoryStatusRequest request) {
-        ProductCategoryResponseDTO category = productCategoryService.updateCategoryStatus(userDetails.getUser(), id, request);
+        ProductCategoryResponseDTO category = productCategoryService.updateCategoryStatus(userDetails.getUser(), id,
+                request);
         return ok(category);
     }
 }

@@ -89,7 +89,7 @@ public class ProductCategoryService {
             productRepository.updateStatusByCategoryIdAndCompanyId(
                     categoryId,
                     company.getId(),
-                    ProductStatus.ARCHIVED);
+                    ProductStatus.INACTIVE);
         }
         return productCategoryMapper.toResponse(productCategoryRepository.save(category));
     }

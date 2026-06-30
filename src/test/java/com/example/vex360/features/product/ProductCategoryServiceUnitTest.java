@@ -140,7 +140,7 @@ class ProductCategoryServiceUnitTest {
     }
 
     @Test
-    void updateCategoryStatusToInactiveArchivesProductsInCategory() {
+    void updateCategoryStatusToInactiveSetsProductsInactiveInCategory() {
         UUID categoryId = UUID.randomUUID();
         ProductCategory category = ProductCategory.builder()
                 .id(categoryId)
@@ -159,6 +159,6 @@ class ProductCategoryServiceUnitTest {
         verify(productRepository).updateStatusByCategoryIdAndCompanyId(
                 categoryId,
                 company.getId(),
-                ProductStatus.ARCHIVED);
+                ProductStatus.INACTIVE);
     }
 }
