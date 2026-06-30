@@ -99,7 +99,4 @@ spring:
     username: ${AIVEN_DB_USER}
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-<<<<<<< HEAD
-=======
 
->>>>>>> 29db237964716af154d43ff12bbee433f276e5ad
