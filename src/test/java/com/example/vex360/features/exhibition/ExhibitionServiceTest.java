@@ -39,6 +39,7 @@ import com.example.vex360.shared.entities.PackageTemplate;
 import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.shared.services.CloudService;
@@ -109,7 +110,7 @@ public class ExhibitionServiceTest {
                 .exhibition(exhibition)
                 .template(packageTemplate)
                 .finalPrice(BigDecimal.valueOf(6000000))
-                .status("ACTIVE")
+                .status(ExhibitionPackageStatus.ACTIVE)
                 .build();
     }
 

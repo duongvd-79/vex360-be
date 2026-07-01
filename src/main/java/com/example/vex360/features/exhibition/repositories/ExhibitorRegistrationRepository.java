@@ -11,4 +11,6 @@ import java.util.UUID;
 @Repository
 public interface ExhibitorRegistrationRepository extends JpaRepository<ExhibitorRegistration, Integer> {
     Optional<ExhibitorRegistration> findByUuid(UUID uuid);
+    boolean existsByExhibitionPackageExhibitionId(Integer exhibitionId);
+    boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
 }
