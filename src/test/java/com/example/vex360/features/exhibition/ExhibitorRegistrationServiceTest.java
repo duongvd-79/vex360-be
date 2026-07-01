@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
@@ -59,6 +60,9 @@ public class ExhibitorRegistrationServiceTest {
 
     @Mock
     private PayOSIntegrationService payOSIntegrationService;
+
+    @Mock
+    private BoothProvisioningService boothProvisioningService;
 
     @InjectMocks
     private ExhibitorRegistrationServiceImpl registrationService;
@@ -143,6 +147,7 @@ public class ExhibitorRegistrationServiceTest {
 
         verify(registrationRepository).save(any());
         verify(paymentRepository).save(any());
+        verify(boothProvisioningService).ensureBoothForApprovedRegistration(registration);
         verify(payOSIntegrationService, never()).createPaymentLink(anyLong(), anyLong(), anyString(), anyString(), anyString());
     }
 

@@ -33,4 +33,25 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             WHERE b.id = :id AND b.isTemplate = true
             """)
     Optional<Booth> findTemplateById(@Param("id") UUID id);
+
+    @Query("""
+            SELECT b FROM Booth b
+            WHERE b.isTemplate = false
+              AND b.company.id = :companyId
+            """)
+    Page<Booth> findCompanyBooths(
+            @Param("companyId") UUID companyId,
+            Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Booth b
+            WHERE b.id = :id
+              AND b.isTemplate = false
+              AND b.company.id = :companyId
+            """)
+    Optional<Booth> findCompanyBoothById(
+            @Param("id") UUID id,
+            @Param("companyId") UUID companyId);
+
+    Optional<Booth> findByExhibitorRegistrationId(Integer exhibitorRegistrationId);
 }

@@ -81,7 +81,7 @@ class BoothTemplateControllerUnitTest {
                 "admin@example.com",
                 null,
                 null,
-                List.of(new PanoramaResponseDTO(UUID.randomUUID(), "Entrance", "/uploads/panoramas/a.jpg", 0, true, List.of())));
+                List.of(new PanoramaResponseDTO(UUID.randomUUID(), "Entrance", "/uploads/panoramas/a.jpg", "a.jpg", 0, true, List.of())));
     }
 
     @AfterEach

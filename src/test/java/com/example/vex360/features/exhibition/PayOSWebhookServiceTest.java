@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
@@ -39,6 +40,9 @@ public class PayOSWebhookServiceTest {
 
     @Mock
     private ExhibitorRegistrationRepository registrationRepository;
+
+    @Mock
+    private BoothProvisioningService boothProvisioningService;
 
     @Mock
     private PayOS payOS;
@@ -126,6 +130,7 @@ public class PayOSWebhookServiceTest {
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository).save(pendingRegistration);
+        verify(boothProvisioningService).ensureBoothForApprovedRegistration(pendingRegistration);
     }
 
     @Test
@@ -145,6 +150,7 @@ public class PayOSWebhookServiceTest {
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository, never()).save(any());
+        verify(boothProvisioningService, never()).ensureBoothForApprovedRegistration(any());
     }
 
     @Test
@@ -161,5 +167,6 @@ public class PayOSWebhookServiceTest {
         assertEquals(ErrorCode.UNCATCHED_EXCEPTION, exception.getErrorCode());
         verify(paymentRepository, never()).save(any());
         verify(registrationRepository, never()).save(any());
+        verify(boothProvisioningService, never()).ensureBoothForApprovedRegistration(any());
     }
 }

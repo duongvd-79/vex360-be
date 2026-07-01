@@ -9,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.shared.entities.Company;
+import com.example.vex360.shared.entities.ExhibitorRegistration;
 import com.example.vex360.shared.entities.User;
 
 import jakarta.persistence.CascadeType;
@@ -23,6 +25,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -65,6 +68,28 @@ public class Booth {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    Company company;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exhibitor_registration_id", unique = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    ExhibitorRegistration exhibitorRegistration;
+
+    @Column(name = "thumbnail_url", length = 1000)
+    String thumbnailUrl;
+
+    @Column(name = "thumbnail_public_id", length = 500)
+    String thumbnailPublicId;
+
+    @Column(name = "display_template_key", length = 100)
+    @Builder.Default
+    String displayTemplateKey = "classic";
 
     @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

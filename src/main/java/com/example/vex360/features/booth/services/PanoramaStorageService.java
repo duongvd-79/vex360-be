@@ -46,6 +46,22 @@ public class PanoramaStorageService {
         }
     }
 
+    public void delete(String imageKey) {
+        if (imageKey == null || imageKey.isBlank()) {
+            return;
+        }
+
+        try {
+            Path uploadDir = Paths.get(panoramaDirectory).toAbsolutePath().normalize();
+            Path targetPath = uploadDir.resolve(imageKey).normalize();
+            if (targetPath.startsWith(uploadDir)) {
+                Files.deleteIfExists(targetPath);
+            }
+        } catch (IOException ignored) {
+            // The database change should not fail because an old local file is already gone.
+        }
+    }
+
     private void validateImageFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
