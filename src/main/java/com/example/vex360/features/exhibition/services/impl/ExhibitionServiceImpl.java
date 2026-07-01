@@ -65,12 +65,19 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request, MultipartFile keyVisual) {
+    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request, MultipartFile keyVisual, List<MultipartFile> sponsorLogos) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         validateImageFile(keyVisual, true);
+
+        // Validate sponsor logos if provided
+        if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
+            for (MultipartFile logo : sponsorLogos) {
+                validateImageFile(logo, true);
+            }
+        }
 
         // Validate dates
         if (request.getEndDate().isBefore(request.getStartDate())) {
@@ -157,6 +164,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                         .build();
 
                 savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
+            }
+        }
+
+        // Upload sponsor logos and save as ExhibitionAsset
+        if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
+            for (MultipartFile logo : sponsorLogos) {
+                if (logo != null && !logo.isEmpty()) {
+                    CloudinaryResponse uploadResLogo = cloudService.upload(logo);
+                    ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
+                            .exhibition(exhibition)
+                            .assetUrl(uploadResLogo.getUrl())
+                            .publicId(uploadResLogo.getPublicId())
+                            .type(ExhibitionAssetType.SPONSOR_LOGO)
+                            .build();
+                    exhibitionAssetRepository.save(sponsorLogoAsset);
+                    exhibition.getAssets().add(sponsorLogoAsset);
+                }
             }
         }
 
@@ -587,5 +611,252 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             exhibitionAssetRepository.save(newAsset);
             exhibition.getAssets().add(newAsset);
         }
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        validateImageFile(file, true);
+
+        CloudinaryResponse uploadRes = cloudService.upload(file);
+        ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
+                .exhibition(exhibition)
+                .assetUrl(uploadRes.getUrl())
+                .publicId(uploadRes.getPublicId())
+                .type(ExhibitionAssetType.SPONSOR_LOGO)
+                .build();
+        exhibitionAssetRepository.save(sponsorLogoAsset);
+        exhibition.getAssets().add(sponsorLogoAsset);
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
+                .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
+
+        if (!asset.getExhibition().getId().equals(exhibition.getId()) || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        validateImageFile(file, true);
+
+        try {
+            cloudService.delete(asset.getPublicId(), "image");
+        } catch (Exception e) {
+            log.error("Failed to delete old asset from Cloudinary: {}", asset.getPublicId(), e);
+        }
+
+        CloudinaryResponse uploadRes = cloudService.upload(file);
+        asset.setAssetUrl(uploadRes.getUrl());
+        asset.setPublicId(uploadRes.getPublicId());
+        exhibitionAssetRepository.save(asset);
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO deleteSponsorLogo(User organizer, UUID uuid, UUID assetId) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
+                .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
+
+        if (!asset.getExhibition().getId().equals(exhibition.getId()) || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        try {
+            cloudService.delete(asset.getPublicId(), "image");
+        } catch (Exception e) {
+            log.error("Failed to delete asset from Cloudinary: {}", asset.getPublicId(), e);
+        }
+
+        exhibitionAssetRepository.delete(asset);
+        exhibition.getAssets().remove(asset);
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid, ConfigureExhibitionPackageRequest request) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
+        if (currentPackages.size() >= 3) {
+            log.error("Exhibition packages size exceeds limit of 3");
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        PackageTemplate template = packageTemplateRepository.findById(request.getTemplateId())
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
+            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        boolean duplicatePriority = currentPackages.stream()
+                .anyMatch(pkg -> pkg.getTemplate().getListingPriority() == template.getListingPriority());
+        if (duplicatePriority) {
+            log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .exhibition(exhibition)
+                .template(template)
+                .finalPrice(request.getFinalPrice())
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+
+        exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
+        return exhibitionMapper.toPackageResponse(exhibitionPackage);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId, ConfigureExhibitionPackageRequest request) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
+            log.error("Cannot update package {} because exhibitors have already registered", packageId);
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+
+        if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        PackageTemplate template = packageTemplateRepository.findById(request.getTemplateId())
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        if (!exhibitionPackage.getTemplate().getId().equals(template.getId())) {
+            List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
+            boolean duplicatePriority = currentPackages.stream()
+                    .filter(pkg -> !pkg.getId().equals(packageId))
+                    .anyMatch(pkg -> pkg.getTemplate().getListingPriority() == template.getListingPriority());
+            if (duplicatePriority) {
+                log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            exhibitionPackage.setTemplate(template);
+        }
+
+        if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
+            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        exhibitionPackage.setFinalPrice(request.getFinalPrice());
+        exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
+        return exhibitionMapper.toPackageResponse(exhibitionPackage);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
+            log.error("Cannot delete package {} because exhibitors have already registered", packageId);
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+
+        if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        exhibitionPackageRepository.delete(exhibitionPackage);
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
     }
 }

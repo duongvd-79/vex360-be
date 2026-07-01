@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +26,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
 import com.cloudinary.Uploader;
+import com.cloudinary.Url;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -58,13 +64,21 @@ class CloudinaryServiceTest {
         mockResult.put("public_id", "test_public_id");
         mockResult.put("width", 800);
         mockResult.put("height", 600);
+        mockResult.put("resource_type", "image");
 
         when(uploader.upload(any(byte[].class), anyMap())).thenReturn(mockResult);
+
+        Url mockUrl = mock(Url.class);
+        when(cloudinary.url()).thenReturn(mockUrl);
+        when(mockUrl.secure(anyBoolean())).thenReturn(mockUrl);
+        when(mockUrl.resourceType(anyString())).thenReturn(mockUrl);
+        when(mockUrl.transformation(any(Transformation.class))).thenReturn(mockUrl);
+        when(mockUrl.generate(anyString())).thenReturn("https://cloudinary.com/test_public_id.png");
 
         CloudinaryResponse response = cloudinaryService.upload(validFile);
 
         assertNotNull(response);
-        assertEquals("https://cloudinary.com/test.png", response.getUrl());
+        assertEquals("https://cloudinary.com/test_public_id.png", response.getUrl());
         assertEquals("test_public_id", response.getPublicId());
         assertEquals("test.png", response.getFileName());
         assertEquals(800, response.getWidth());

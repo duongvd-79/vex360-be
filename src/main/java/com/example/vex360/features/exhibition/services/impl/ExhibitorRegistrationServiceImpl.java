@@ -39,10 +39,10 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
 
-    @Value("${app.payos.return-url:http://localhost:5173/payment/success}")
+    @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
-    @Value("${app.payos.cancel-url:http://localhost:5173/payment/cancel}")
+    @Value("${app.payos.cancel-url:http://localhost:5175/payment/cancel}")
     private String cancelUrl;
 
     @Override
@@ -55,16 +55,11 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
 
         BigDecimal finalPrice = expPackage.getFinalPrice();
-        BigDecimal floorPrice = expPackage.getTemplate().getPrice();
 
-        // Enforce Business Validation Rule: final_price >= Corresponding PackageTemplate.price
-        if (finalPrice.compareTo(floorPrice) < 0) {
-            log.error("Validation failed: final_price ({}) is less than template price ({})", finalPrice, floorPrice);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
-        }
-
-        BigDecimal systemFee = floorPrice;
-        BigDecimal organizerPayout = finalPrice.subtract(floorPrice);
+        // Under Option B, Platform fees are charged to the Organizer, not the Exhibitor.
+        // Exhibitor only pays finalPrice (which can be 0).
+        BigDecimal systemFee = BigDecimal.ZERO;
+        BigDecimal organizerPayout = finalPrice;
 
         // 1. Create registration record
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
