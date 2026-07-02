@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
@@ -46,6 +47,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final BoothProvisioningService boothProvisioningService;
 
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;

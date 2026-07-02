@@ -36,8 +36,7 @@ public class UpdateProductRequest {
 
     private String currency;
 
-    private Boolean isVisible;
-
+    @NotNull(message = "Trang thai san pham khong duoc de trong")
     private ProductStatus status;
 
     private List<UUID> existingContentIds;

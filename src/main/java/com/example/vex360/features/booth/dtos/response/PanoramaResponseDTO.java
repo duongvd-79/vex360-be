@@ -14,6 +14,7 @@ public class PanoramaResponseDTO {
     private UUID id;
     private String name;
     private String imageUrl;
+    private String imageKey;
     private Integer orderIndex;
     private Boolean isDefault;
     private List<HotspotResponseDTO> hotspots;

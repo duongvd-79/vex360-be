@@ -25,6 +25,5 @@ public class ProductResponseDTO {
     private String currency;
     private String thumbnailUrl;
     private ProductStatus status;
-    private Boolean isVisible;
     private List<ProductContentResponseDTO> contents;
 }

@@ -2,8 +2,13 @@ package com.example.vex360.features.booth.entities;
 
 import java.util.UUID;
 
+import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.shared.entities.Product;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,6 +37,11 @@ public class Hotspot {
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    @Builder.Default
+    HotspotType type = HotspotType.NAV;
+
     @Column(name = "name", nullable = false)
     String name;
 
@@ -42,12 +52,26 @@ public class Hotspot {
     @EqualsAndHashCode.Exclude
     Panorama sourcePanorama;
 
-    // Panorama se duoc mo khi nguoi dung bam hotspot.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "target_panorama_id", nullable = false)
+    @JoinColumn(name = "target_panorama_id")
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     Panorama targetPanorama;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "media_asset_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    MediaAsset mediaAsset;
+
+    @Column(name = "info_text", columnDefinition = "TEXT")
+    String infoText;
 
     @Column(name = "x_position", nullable = false)
     Double xPosition;
@@ -57,4 +81,13 @@ public class Hotspot {
 
     @Column(name = "z_position", nullable = false)
     Double zPosition;
+
+    @Column(name = "icon_style", length = 100)
+    String iconStyle;
+
+    @Column(name = "scale")
+    Double scale;
+
+    @Column(name = "z_index")
+    Integer zIndex;
 }

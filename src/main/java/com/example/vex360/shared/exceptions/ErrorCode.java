@@ -50,6 +50,7 @@ public enum ErrorCode {
     PRODUCT_CATEGORY_NAME_DUPLICATED("PRODUCT-004", "Tên danh mục sản phẩm đã tồn tại", HttpStatus.CONFLICT),
     INVALID_PRODUCT_MEDIA("PRODUCT-005", "Hình ảnh hoặc video sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
+    INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
 
     // BOOTH ERRORS
     BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
@@ -57,6 +58,13 @@ public enum ErrorCode {
     INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
+    BOOTH_NOT_FOUND("BOOTH-006", "Booth not found", HttpStatus.NOT_FOUND),
+    INVALID_BOOTH("BOOTH-007", "Invalid booth", HttpStatus.BAD_REQUEST),
+    PANORAMA_NOT_FOUND("BOOTH-008", "Panorama not found", HttpStatus.NOT_FOUND),
+    HOTSPOT_NOT_FOUND("BOOTH-009", "Hotspot not found", HttpStatus.NOT_FOUND),
+    INVALID_HOTSPOT("BOOTH-010", "Invalid hotspot", HttpStatus.BAD_REQUEST),
+    MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
+    INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),

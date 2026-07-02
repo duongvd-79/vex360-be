@@ -87,10 +87,6 @@ public class Product {
     @Builder.Default
     ProductStatus status = ProductStatus.ACTIVE;
 
-    @Column(name = "is_visible", nullable = false)
-    @Builder.Default
-    Boolean isVisible = true;
-
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude

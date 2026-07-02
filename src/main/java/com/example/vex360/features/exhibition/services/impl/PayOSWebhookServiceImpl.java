@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSWebhookService;
@@ -27,6 +28,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
     private final PaymentRepository paymentRepository;
     private final ExhibitorRegistrationRepository registrationRepository;
+    private final BoothProvisioningService boothProvisioningService;
     private final PayOS payOS;
 
     @Override
@@ -54,6 +56,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 ExhibitorRegistration registration = payment.getExhibitorRegistration();
                 registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                 registrationRepository.save(registration);
+                boothProvisioningService.ensureBoothForApprovedRegistration(registration);
 
                 log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
             } else {
