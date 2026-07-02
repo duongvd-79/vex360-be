@@ -33,7 +33,8 @@ import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
-import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.user.events.UserStatusChangedEvent;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -53,7 +54,7 @@ class UserServiceUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private RefreshTokenRepository refreshTokenRepository;
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private MailService mailService;
@@ -65,7 +66,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setup() {
         UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-        userService = new UserService(userRepository, passwordEncoder, userMapper, refreshTokenRepository, mailService);
+        userService = new UserService(userRepository, passwordEncoder, userMapper, eventPublisher, mailService);
         userId = UUID.randomUUID();
         sampleUser = User.builder()
                 .id(userId)
@@ -232,6 +233,7 @@ class UserServiceUnitTest {
 
         assertEquals("ADMIN", roleResponse.getRole());
         assertEquals("BLOCKED", statusResponse.getStatus());
+        verify(eventPublisher).publishEvent(any(UserStatusChangedEvent.class));
     }
 
     @Test

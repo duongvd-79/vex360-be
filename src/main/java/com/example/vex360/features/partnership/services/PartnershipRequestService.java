@@ -5,11 +5,10 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
@@ -17,13 +16,11 @@ import com.example.vex360.features.partnership.dtos.response.PartnershipRequestR
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.Company;
 import com.example.vex360.shared.entities.PartnershipRequest;
 import com.example.vex360.shared.entities.User;
-import com.example.vex360.shared.enums.AuthProvider;
-import com.example.vex360.shared.enums.CompanyStatus;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -37,9 +34,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PartnershipRequestService {
     private final PartnershipRequestRepository partnershipRequestRepository;
-    private final UserRepository userRepository;
-    private final CompanyRepository companyRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
+    private final CompanyService companyService;
     private final MailService mailService;
     private final PartnershipRequestMapper partnershipRequestMapper;
 
@@ -48,7 +44,7 @@ public class PartnershipRequestService {
         validateSubmission(request);
         String requesterEmail = normalize(request.getRequesterEmail());
 
-        if (userRepository.existsByEmail(requesterEmail)) {
+        if (userService.existsByEmail(requesterEmail)) {
             throw new AppException(ErrorCode.PARTNERSHIP_EMAIL_ALREADY_REGISTERED);
         }
         if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
@@ -143,36 +139,34 @@ public class PartnershipRequestService {
 
     private void approveGuestRequest(PartnershipRequest request) {
         String email = normalize(request.getRequesterEmail());
-        if (userRepository.existsByEmail(email)) {
+        if (userService.existsByEmail(email)) {
             throw new AppException(ErrorCode.PARTNERSHIP_EMAIL_ALREADY_REGISTERED);
         }
 
         String temporaryPassword = RandomPasswordGenerator.generate();
-        User user = User.builder()
-                .email(email)
-                .password(passwordEncoder.encode(temporaryPassword))
-                .fullName(normalize(request.getRequesterName()))
-                .phoneNumber(normalize(request.getRequesterPhoneNumber()))
-                .role(request.getRequestedRole())
-                .provider(AuthProvider.LOCAL)
-                .status(UserStatus.ACTIVE)
-                .build();
+        UserRequestDTO userRequest = new UserRequestDTO(
+                email,
+                temporaryPassword,
+                normalize(request.getRequesterName()),
+                normalize(request.getRequesterPhoneNumber()),
+                request.getRequestedRole().name(),
+                null
+        );
 
-        User savedUser = userRepository.save(user);
-        createCompany(savedUser, request);
+        User savedUser = userService.createUser(userRequest, UserStatus.ACTIVE);
+        companyService.createCompany(savedUser, normalize(request.getOrganizationName()), normalize(request.getRequesterEmail()));
         mailService.sendNewUserCredentialsEmail(savedUser.getEmail(), savedUser.getFullName(), temporaryPassword);
     }
 
     private void approveAuthenticatedRequest(PartnershipRequest request) {
         User submittedByUser = request.getSubmittedByUser();
-        User user = userRepository.findById(submittedByUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = userService.getUserEntityById(submittedByUser.getId());
 
         user.setRole(request.getRequestedRole());
-        User savedUser = userRepository.save(user);
+        User savedUser = userService.saveUserEntity(user);
 
-        if (!companyRepository.existsByOwnerUserId(savedUser.getId())) {
-            createCompany(savedUser, request);
+        if (!companyService.existsByOwnerUserId(savedUser.getId())) {
+            companyService.createCompany(savedUser, normalize(request.getOrganizationName()), normalize(request.getRequesterEmail()));
         }
 
         mailService.sendPartnershipApprovedEmail(
@@ -180,16 +174,6 @@ public class PartnershipRequestService {
                 resolveNotificationName(request, savedUser),
                 request.getRequestedRole(),
                 request.getOrganizationName());
-    }
-
-    private Company createCompany(User ownerUser, PartnershipRequest request) {
-        Company company = Company.builder()
-                .ownerUser(ownerUser)
-                .name(normalize(request.getOrganizationName()))
-                .email(normalize(request.getRequesterEmail()))
-                .status(CompanyStatus.INCOMPLETE_PROFILE)
-                .build();
-        return companyRepository.save(company);
     }
 
     private PartnershipRequest buildRequest(SubmitPartnershipRequest request, User submittedByUser) {
@@ -268,8 +252,7 @@ public class PartnershipRequestService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        return userRepository.findById(currentUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        return userService.getUserEntityById(currentUser.getId());
     }
 
     private PartnershipRequest getRequest(UUID id) {

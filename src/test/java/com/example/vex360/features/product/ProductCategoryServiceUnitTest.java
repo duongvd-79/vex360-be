@@ -17,7 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.dtos.request.CreateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
@@ -36,7 +36,7 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 @ExtendWith(MockitoExtension.class)
 class ProductCategoryServiceUnitTest {
     @Mock
-    private CompanyRepository companyRepository;
+    private CompanyService companyService;
 
     @Mock
     private ProductCategoryRepository productCategoryRepository;
@@ -51,7 +51,7 @@ class ProductCategoryServiceUnitTest {
     @BeforeEach
     void setup() {
         productCategoryService = new ProductCategoryService(
-                companyRepository,
+                companyService,
                 productCategoryRepository,
                 productRepository,
                 new ProductCategoryMapper());
@@ -61,7 +61,7 @@ class ProductCategoryServiceUnitTest {
 
     @Test
     void createCategoryRejectsDuplicateNameInSameCompany() {
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.existsByCompanyIdAndNameIgnoreCase(company.getId(), "Máy tính"))
                 .thenReturn(true);
 
@@ -75,7 +75,7 @@ class ProductCategoryServiceUnitTest {
 
     @Test
     void createCategoryStoresActiveCategoryForCurrentCompany() {
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.existsByCompanyIdAndNameIgnoreCase(company.getId(), "Máy tính"))
                 .thenReturn(false);
         when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> {
@@ -106,7 +106,7 @@ class ProductCategoryServiceUnitTest {
                 .status(ProductCategoryStatus.ACTIVE)
                 .build();
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
         when(productCategoryRepository.existsByCompanyIdAndNameIgnoreCaseAndIdNot(company.getId(), "Mới", categoryId))
                 .thenReturn(true);
@@ -128,7 +128,7 @@ class ProductCategoryServiceUnitTest {
                 .status(ProductCategoryStatus.ACTIVE)
                 .build();
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
         when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -149,7 +149,7 @@ class ProductCategoryServiceUnitTest {
                 .status(ProductCategoryStatus.ACTIVE)
                 .build();
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
         when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

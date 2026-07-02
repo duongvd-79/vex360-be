@@ -7,9 +7,11 @@ import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+@Disabled("Obsolete test. Admin user is now seeded programmatically via AdminAccountInitializer.")
 class AdminSeedMigrationTest {
 
     @Test

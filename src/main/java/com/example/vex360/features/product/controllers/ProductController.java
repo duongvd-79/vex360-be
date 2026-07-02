@@ -48,11 +48,7 @@ public class ProductController extends BaseController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) ProductStatus status,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "createdAt",
-                    direction = Sort.Direction.DESC) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ProductResponseDTO> products = productService.getProducts(
                 userDetails.getUser(),
                 keyword,

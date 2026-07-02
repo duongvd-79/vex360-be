@@ -1,5 +1,7 @@
 package com.example.vex360.features.company.services;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,27 @@ public class CompanyService {
         }
 
         return companyMapper.toResponse(companyRepository.save(company));
+    }
+
+    @Transactional(readOnly = true)
+    public Company getCompanyEntityForCurrentUser(User currentUser) {
+        return getCompanyForCurrentUser(currentUser);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByOwnerUserId(UUID ownerUserId) {
+        return companyRepository.existsByOwnerUserId(ownerUserId);
+    }
+
+    @Transactional
+    public Company createCompany(User ownerUser, String name, String email) {
+        Company company = Company.builder()
+                .ownerUser(ownerUser)
+                .name(name)
+                .email(email)
+                .status(CompanyStatus.INCOMPLETE_PROFILE)
+                .build();
+        return companyRepository.save(company);
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {

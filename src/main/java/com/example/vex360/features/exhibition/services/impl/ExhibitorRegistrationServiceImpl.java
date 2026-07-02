@@ -16,14 +16,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.entities.ExhibitionPackage;
 import com.example.vex360.shared.entities.ExhibitorRegistration;
 import com.example.vex360.shared.entities.Payment;
@@ -44,11 +43,9 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
-    private final BoothProvisioningService boothProvisioningService;
-
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
@@ -60,8 +57,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Override
     @Transactional
     public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId) {
-        User company = userRepository.findById(companyUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User company = userService.getUserEntityById(companyUserId);
 
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
@@ -209,7 +205,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         // If it was auto-approved (free), also create a FREE payment record for
         // tracking
         if (registration.getStatus() == ExhibitorRegistrationStatus.APPROVED) {
-            long orderCode = System.currentTimeMillis() / 1000 * 1000000L + (long) (Math.random() * 1000000L);
+            long orderCode = System.currentTimeMillis() / 1000 * 1000000L + random.nextLong(1000000L);
             Payment payment = Payment.builder()
                     .exhibitorRegistration(registration)
                     .orderCode(orderCode)

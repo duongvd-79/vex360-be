@@ -29,7 +29,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
-import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
+import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.shared.entities.Exhibition;
 import com.example.vex360.shared.entities.ExhibitionAsset;
 import com.example.vex360.shared.entities.ExhibitionPackage;
@@ -57,7 +57,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
-    private final PackageTemplateRepository packageTemplateRepository;
+    private final PackageTemplateService packageTemplateService;
     private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final ExhibitionMapper exhibitionMapper;
@@ -65,7 +65,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request, MultipartFile keyVisual, List<MultipartFile> sponsorLogos) {
+    public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request,
+            MultipartFile keyVisual, List<MultipartFile> sponsorLogos) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -81,11 +82,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Validate dates
         if (request.getEndDate().isBefore(request.getStartDate())) {
-            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(), request.getStartDate());
+            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
+                    request.getStartDate());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        long pendingCount = exhibitionRepository.countByOrganizerIdAndStatus(organizer.getId(), ExhibitionStatus.PENDING);
+        long pendingCount = exhibitionRepository.countByOrganizerIdAndStatus(organizer.getId(),
+                ExhibitionStatus.PENDING);
         if (pendingCount >= 3) {
             log.error("Organizer {} already has {} pending exhibition requests", organizer.getId(), pendingCount);
             throw new AppException(ErrorCode.EXHIBITION_LIMIT_EXCEEDED);
@@ -105,8 +108,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
             Set<BoothListingPriority> priorities = new HashSet<>();
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
 
                 if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
                     log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
@@ -153,8 +155,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
         if (request.getPackages() != null && !request.getPackages().isEmpty()) {
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
 
                 ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                         .exhibition(exhibition)
@@ -265,8 +266,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        PackageTemplate template = packageTemplateRepository.findById(request.getTemplateId())
-                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
@@ -327,7 +327,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request, MultipartFile keyVisual) {
+    public ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid,
+            CreateExhibitionRequest request, MultipartFile keyVisual) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -353,11 +354,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Date validation: endDate >= startDate
         if (request.getEndDate().isBefore(request.getStartDate())) {
-            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(), request.getStartDate());
+            log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
+                    request.getStartDate());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        // Update time-window validation: must be before start date, and no exhibitors registered yet
+        // Update time-window validation: must be before start date, and no exhibitors
+        // registered yet
         if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
             log.error("Cannot update exhibition on or after its start date {}", exhibition.getStartDate());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
@@ -382,11 +385,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
             Set<BoothListingPriority> priorities = new HashSet<>();
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
 
                 if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
-                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(), template.getPrice());
+                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
+                            template.getPrice());
                     throw new AppException(ErrorCode.VALIDATION_FAILED);
                 }
 
@@ -428,8 +431,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
         if (request.getPackages() != null && !request.getPackages().isEmpty()) {
             for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateRepository.findById(pkgReq.getTemplateId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
 
                 ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                         .exhibition(exhibition)
@@ -447,7 +449,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo, MultipartFile floorPlan, MultipartFile guideline) {
+    public ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo,
+            MultipartFile floorPlan, MultipartFile guideline) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -546,8 +549,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition.setRejectionCount(newRejectionCount);
 
         if (newRejectionCount >= 3) {
-            log.info("Exhibition {} reached maximum rejection limit (3). Renaming to release name.", exhibition.getId());
-            exhibition.setName(exhibition.getName() + " (Rejected-" + UUID.randomUUID().toString().substring(0, 8) + ")");
+            log.info("Exhibition {} reached maximum rejection limit (3). Renaming to release name.",
+                    exhibition.getId());
+            exhibition
+                    .setName(exhibition.getName() + " (Rejected-" + UUID.randomUUID().toString().substring(0, 8) + ")");
         }
 
         exhibition = exhibitionRepository.save(exhibition);
@@ -591,7 +596,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
     }
 
-    private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type, String resourceType) {
+    private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type,
+            String resourceType) {
         ExhibitionAsset existingAsset = exhibitionAssetRepository.findByExhibitionIdAndType(exhibition.getId(), type)
                 .orElse(null);
         if (existingAsset != null) {
@@ -668,7 +674,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
 
-        if (!asset.getExhibition().getId().equals(exhibition.getId()) || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+        if (!asset.getExhibition().getId().equals(exhibition.getId())
+                || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -710,7 +717,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
 
-        if (!asset.getExhibition().getId().equals(exhibition.getId()) || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+        if (!asset.getExhibition().getId().equals(exhibition.getId())
+                || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -729,7 +737,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid, ConfigureExhibitionPackageRequest request) {
+    public ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid,
+            ConfigureExhibitionPackageRequest request) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -751,8 +760,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        PackageTemplate template = packageTemplateRepository.findById(request.getTemplateId())
-                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
@@ -779,7 +787,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId, ConfigureExhibitionPackageRequest request) {
+    public ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId,
+            ConfigureExhibitionPackageRequest request) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -803,8 +812,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        PackageTemplate template = packageTemplateRepository.findById(request.getTemplateId())
-                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
 
         if (!exhibitionPackage.getTemplate().getId().equals(template.getId())) {
             List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
