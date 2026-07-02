@@ -1,8 +1,14 @@
-package com.example.vex360.shared.entities;
+package com.example.vex360.features.product.entities;
 
+import com.example.vex360.features.company.entities.Company;
+
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-import com.example.vex360.shared.enums.CompanyStatus;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import com.example.vex360.features.product.enums.ProductCategoryStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +19,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -26,51 +32,41 @@ import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "companies", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_companies_owner_user", columnNames = "owner_user_id")
+@Table(name = "product_categories", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_product_categories_company_name", columnNames = {"company_id", "name"})
 })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Company {
+public class ProductCategory {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_user_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
-    User ownerUser;
+    Company company;
 
     @Column(name = "name", nullable = false)
     String name;
 
-    @Column(name = "industry")
-    String industry;
-
     @Column(name = "description", columnDefinition = "TEXT")
     String description;
-
-    @Column(name = "logo_url", length = 1000)
-    String logoUrl;
-
-    @Column(name = "website")
-    String website;
-
-    @Column(name = "email")
-    String email;
-
-    @Column(name = "phone")
-    String phone;
-
-    @Column(name = "address", columnDefinition = "TEXT")
-    String address;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
-    CompanyStatus status = CompanyStatus.INCOMPLETE_PROFILE;
+    ProductCategoryStatus status = ProductCategoryStatus.ACTIVE;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    LocalDateTime updatedAt;
 }

@@ -12,18 +12,17 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
-import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.enums.ProductStatus;
-import com.example.vex360.features.product.repositories.ProductRepository;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.Product;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.product.services.ProductService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -35,9 +34,9 @@ public class ExhibitorHotspotService {
     private final BoothRepository boothRepository;
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
-    private final ProductRepository productRepository;
+    private final ProductService productService;
     private final MediaAssetRepository mediaAssetRepository;
-    private final CompanyRepository companyRepository;
+    private final CompanyService companyService;
     private final BoothMapper boothMapper;
 
     @Transactional(readOnly = true)
@@ -129,8 +128,7 @@ public class ExhibitorHotspotService {
         if (request.getProductId() == null) {
             throw new AppException(ErrorCode.INVALID_HOTSPOT);
         }
-        Product product = productRepository.findByIdAndCompanyId(request.getProductId(), company.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+        Product product = productService.getProductForCompany(request.getProductId(), company);
         if (product.getStatus() != ProductStatus.ACTIVE) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
         }
@@ -166,11 +164,7 @@ public class ExhibitorHotspotService {
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
-        if (currentUser == null || currentUser.getId() == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        return companyRepository.findByOwnerUserId(currentUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        return companyService.getCompanyEntityForCurrentUser(currentUser);
     }
 
     private String resolveName(String requestedName, String fallbackName) {

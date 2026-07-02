@@ -1,4 +1,4 @@
-package com.example.vex360.shared.entities;
+package com.example.vex360.features.user.entities;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

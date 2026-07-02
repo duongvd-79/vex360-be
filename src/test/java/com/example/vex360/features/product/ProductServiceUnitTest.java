@@ -25,7 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.dtos.request.CreateProductContentRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
@@ -39,11 +39,11 @@ import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.Product;
-import com.example.vex360.shared.entities.ProductCategory;
-import com.example.vex360.shared.entities.ProductContent;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.product.entities.ProductCategory;
+import com.example.vex360.features.product.entities.ProductContent;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
@@ -51,7 +51,7 @@ import com.example.vex360.shared.services.CloudService;
 @ExtendWith(MockitoExtension.class)
 class ProductServiceUnitTest {
     @Mock
-    private CompanyRepository companyRepository;
+    private CompanyService companyService;
 
     @Mock
     private ProductCategoryRepository productCategoryRepository;
@@ -70,7 +70,7 @@ class ProductServiceUnitTest {
     @BeforeEach
     void setup() {
         productService = new ProductService(
-                companyRepository,
+                companyService,
                 productCategoryRepository,
                 productRepository,
                 cloudService,
@@ -89,7 +89,7 @@ class ProductServiceUnitTest {
     @Test
     void createProductRejectsInactiveCategory() {
         category.setStatus(ProductCategoryStatus.INACTIVE);
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -110,7 +110,7 @@ class ProductServiceUnitTest {
         files.put("media_1", frontFile);
         files.put("media_2", videoFile);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -153,7 +153,7 @@ class ProductServiceUnitTest {
         CreateProductRequest request = validCreateRequest();
         request.setStatus(ProductStatus.INACTIVE);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -178,7 +178,7 @@ class ProductServiceUnitTest {
         files.put("media_1", frontFile);
         files.put("media_2", videoFile);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -214,7 +214,7 @@ class ProductServiceUnitTest {
                     "image".getBytes()));
         }
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -243,7 +243,7 @@ class ProductServiceUnitTest {
         files.put("media_2", firstVideoFile);
         files.put("media_3", secondVideoFile);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -274,7 +274,7 @@ class ProductServiceUnitTest {
                 .build();
         PageRequest pageable = PageRequest.of(0, 10);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.searchProducts(
                 company.getId(),
                 "Robot",
@@ -352,7 +352,7 @@ class ProductServiceUnitTest {
         Map<String, MultipartFile> files = Map.of(
                 "media_1", newContentFile);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
                 .thenReturn(false);
@@ -414,7 +414,7 @@ class ProductServiceUnitTest {
         MockMultipartFile newVideoFile = new MockMultipartFile("media_1", "new-video.mp4", "video/mp4", "video".getBytes());
         Map<String, MultipartFile> files = Map.of("media_1", newVideoFile);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
                 .thenReturn(false);
@@ -459,7 +459,7 @@ class ProductServiceUnitTest {
         MockMultipartFile newThumbnail = new MockMultipartFile(
                 "thumbnail", "new-thumb.png", "image/png", "image".getBytes());
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
                 .thenReturn(false);
@@ -513,7 +513,7 @@ class ProductServiceUnitTest {
         image.setProduct(product);
         video.setProduct(product);
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -554,7 +554,7 @@ class ProductServiceUnitTest {
                 List.of(),
                 List.of());
 
-        when(companyRepository.findByOwnerUserId(user.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
                 .thenReturn(false);
@@ -585,10 +585,6 @@ class ProductServiceUnitTest {
 
     private MockMultipartFile thumbnail() {
         return new MockMultipartFile("thumbnail", "thumb.png", "image/png", "image".getBytes());
-    }
-
-    private CloudinaryResponse upload(String url, String mimeType, Long fileSize) {
-        return upload(url, "public-id", mimeType, fileSize);
     }
 
     private CloudinaryResponse upload(String url, String publicId, String mimeType, Long fileSize) {

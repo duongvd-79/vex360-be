@@ -9,9 +9,9 @@ import org.mapstruct.Mapping;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.SponsorMediaResponseDTO;
-import com.example.vex360.shared.entities.Exhibition;
-import com.example.vex360.shared.entities.ExhibitionAsset;
-import com.example.vex360.shared.entities.ExhibitionPackage;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
 
 @Mapper(componentModel = "spring")

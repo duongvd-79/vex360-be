@@ -43,7 +43,7 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.config.jwt.TokenBlacklistService;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;

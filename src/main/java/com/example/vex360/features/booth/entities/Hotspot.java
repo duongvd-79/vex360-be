@@ -3,7 +3,7 @@ package com.example.vex360.features.booth.entities;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.HotspotType;
-import com.example.vex360.shared.entities.Product;
+import com.example.vex360.features.product.entities.Product;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

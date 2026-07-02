@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.example.vex360.shared.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
 import java.util.Optional;

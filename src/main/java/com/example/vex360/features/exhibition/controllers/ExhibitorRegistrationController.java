@@ -18,7 +18,7 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistratio
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

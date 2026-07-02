@@ -9,9 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.user.entities.User;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

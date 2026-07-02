@@ -5,12 +5,13 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.services.BoothProvisioningService;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSWebhookService;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
-import com.example.vex360.shared.entities.Payment;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -28,7 +29,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
     private final PaymentRepository paymentRepository;
     private final ExhibitorRegistrationRepository registrationRepository;
-    private final BoothProvisioningService boothProvisioningService;
+    private final ApplicationEventPublisher eventPublisher;
     private final PayOS payOS;
 
     @Override
@@ -37,7 +38,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
         try {
             // Verify webhook payload signature using CHECKSUM_KEY via PayOS SDK
             WebhookData data = payOS.webhooks().verify(body);
-            log.info("Successfully verified PayOS Webhook for orderCode: {}, code: {}", data.getOrderCode(), data.getCode());
+            log.info("Successfully verified PayOS Webhook for orderCode: {}, code: {}", data.getOrderCode(),
+                    data.getCode());
 
             Long orderCode = data.getOrderCode();
             Payment payment = paymentRepository.findByOrderCode(orderCode)
@@ -56,7 +58,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 ExhibitorRegistration registration = payment.getExhibitorRegistration();
                 registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                 registrationRepository.save(registration);
-                boothProvisioningService.ensureBoothForApprovedRegistration(registration);
+                eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
 
                 log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
             } else {

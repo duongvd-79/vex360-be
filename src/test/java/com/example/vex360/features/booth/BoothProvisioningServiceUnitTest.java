@@ -23,10 +23,10 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
-import com.example.vex360.features.company.repositories.CompanyRepository;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,7 +35,7 @@ class BoothProvisioningServiceUnitTest {
     private BoothRepository boothRepository;
 
     @Mock
-    private CompanyRepository companyRepository;
+    private CompanyService companyService;
 
     private BoothProvisioningService boothProvisioningService;
     private User exhibitorUser;
@@ -43,7 +43,7 @@ class BoothProvisioningServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        boothProvisioningService = new BoothProvisioningService(boothRepository, companyRepository);
+        boothProvisioningService = new BoothProvisioningService(boothRepository, companyService);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -60,7 +60,7 @@ class BoothProvisioningServiceUnitTest {
     void createsBoothForApprovedRegistration() {
         ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
         when(boothRepository.findByExhibitorRegistrationId(registration.getId())).thenReturn(Optional.empty());
-        when(companyRepository.findByOwnerUserId(exhibitorUser.getId())).thenReturn(Optional.of(company));
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.save(any(Booth.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
@@ -84,7 +84,8 @@ class BoothProvisioningServiceUnitTest {
                 .company(company)
                 .exhibitorRegistration(registration)
                 .build();
-        when(boothRepository.findByExhibitorRegistrationId(registration.getId())).thenReturn(Optional.of(existingBooth));
+        when(boothRepository.findByExhibitorRegistrationId(registration.getId()))
+                .thenReturn(Optional.of(existingBooth));
 
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
 

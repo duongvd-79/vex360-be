@@ -14,7 +14,7 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageRes
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 public interface ExhibitionService {

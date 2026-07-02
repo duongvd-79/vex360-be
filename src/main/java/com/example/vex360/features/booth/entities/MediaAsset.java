@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.example.vex360.features.booth.enums.MediaAssetType;
-import com.example.vex360.shared.entities.Company;
+import com.example.vex360.features.company.entities.Company;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

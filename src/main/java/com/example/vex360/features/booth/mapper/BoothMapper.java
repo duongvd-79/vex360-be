@@ -17,10 +17,10 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
-import com.example.vex360.shared.entities.Product;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.user.entities.User;
 
 @Mapper(componentModel = "spring")
 public interface BoothMapper {

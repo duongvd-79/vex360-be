@@ -33,11 +33,12 @@ import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
-import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.user.events.UserStatusChangedEvent;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -53,7 +54,7 @@ class UserServiceUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private RefreshTokenRepository refreshTokenRepository;
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private MailService mailService;
@@ -65,7 +66,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setup() {
         UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-        userService = new UserService(userRepository, passwordEncoder, userMapper, refreshTokenRepository, mailService);
+        userService = new UserService(userRepository, passwordEncoder, userMapper, eventPublisher, mailService);
         userId = UUID.randomUUID();
         sampleUser = User.builder()
                 .id(userId)
@@ -169,10 +170,10 @@ class UserServiceUnitTest {
     void updateCurrentUserProfileIgnoresNullFields() {
         UpdateProfileRequest request = new UpdateProfileRequest("New Name", null, "new.png");
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByEmail(sampleUser.getEmail())).thenReturn(Optional.of(sampleUser));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserResponseDTO response = userService.updateCurrentUserProfile(sampleUser, request);
+        UserResponseDTO response = userService.updateCurrentUserProfile(sampleUser.getEmail(), request);
 
         assertEquals("New Name", sampleUser.getFullName());
         assertEquals("123", sampleUser.getPhoneNumber());
@@ -185,10 +186,10 @@ class UserServiceUnitTest {
     void updateCurrentUserProfileReturnsUpdatedPhoneNumber() {
         UpdateProfileRequest request = new UpdateProfileRequest(null, "0912345678", null);
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByEmail(sampleUser.getEmail())).thenReturn(Optional.of(sampleUser));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserResponseDTO response = userService.updateCurrentUserProfile(sampleUser, request);
+        UserResponseDTO response = userService.updateCurrentUserProfile(sampleUser.getEmail(), request);
 
         assertEquals("0912345678", sampleUser.getPhoneNumber());
         assertEquals("0912345678", response.getPhoneNumber());
@@ -198,11 +199,11 @@ class UserServiceUnitTest {
     void changeCurrentUserPasswordThrowsWhenOldPasswordDoesNotMatch() {
         ChangePasswordRequest request = new ChangePasswordRequest("wrong", "NewPassword123!");
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByEmail(sampleUser.getEmail())).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("wrong", "encodedPassword")).thenReturn(false);
 
         AppException exception = assertThrows(AppException.class,
-                () -> userService.changeCurrentUserPassword(sampleUser, request));
+                () -> userService.changeCurrentUserPassword(sampleUser.getEmail(), request));
 
         assertSame(ErrorCode.OLDPASSWORD_FAILED, exception.getErrorCode());
         verify(userRepository, never()).save(any(User.class));
@@ -212,11 +213,11 @@ class UserServiceUnitTest {
     void changeCurrentUserPasswordEncodesAndSavesNewPassword() {
         ChangePasswordRequest request = new ChangePasswordRequest("old", "NewPassword123!");
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.findByEmail(sampleUser.getEmail())).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("old", "encodedPassword")).thenReturn(true);
         when(passwordEncoder.encode("NewPassword123!")).thenReturn("encodedNewPassword");
 
-        userService.changeCurrentUserPassword(sampleUser, request);
+        userService.changeCurrentUserPassword(sampleUser.getEmail(), request);
 
         assertEquals("encodedNewPassword", sampleUser.getPassword());
         verify(userRepository).save(sampleUser);
@@ -232,6 +233,7 @@ class UserServiceUnitTest {
 
         assertEquals("ADMIN", roleResponse.getRole());
         assertEquals("BLOCKED", statusResponse.getStatus());
+        verify(eventPublisher).publishEvent(any(UserStatusChangedEvent.class));
     }
 
     @Test
@@ -241,7 +243,8 @@ class UserServiceUnitTest {
         when(userRepository.searchUsers("user", Role.VISITOR, UserStatus.ACTIVE, pageable))
                 .thenReturn(new PageImpl<>(List.of(sampleUser), pageable, 1));
 
-        PageResponse<UserResponseDTO> response = userService.getUsers(" user ", Role.VISITOR, UserStatus.ACTIVE, pageable);
+        PageResponse<UserResponseDTO> response = userService.getUsers(" user ", Role.VISITOR, UserStatus.ACTIVE,
+                pageable);
 
         assertEquals(1, response.getContent().size());
         assertEquals(0, response.getPage());

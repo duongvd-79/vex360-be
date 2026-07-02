@@ -1,4 +1,4 @@
-package com.example.vex360.shared.entities;
+package com.example.vex360.features.exhibition.entities;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

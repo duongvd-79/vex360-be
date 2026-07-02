@@ -44,7 +44,7 @@ import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothTemplateService;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;

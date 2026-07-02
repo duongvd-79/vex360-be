@@ -8,20 +8,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.company.repositories.CompanyRepository;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
+import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
-import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
-
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class BoothProvisioningService {
     private final BoothRepository boothRepository;
-    private final CompanyRepository companyRepository;
+    private final CompanyService companyService;
 
     @Transactional
     public Optional<Booth> ensureBoothForApprovedRegistration(ExhibitorRegistration registration) {
@@ -37,8 +34,7 @@ public class BoothProvisioningService {
             return existingBooth;
         }
 
-        Company company = companyRepository.findByOwnerUserId(registration.getCompany().getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        Company company = companyService.getCompanyEntityForCurrentUser(registration.getCompany());
 
         Booth booth = Booth.builder()
                 .name(company.getName())

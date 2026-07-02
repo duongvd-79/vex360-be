@@ -10,7 +10,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.user.events.UserStatusChangedEvent;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
@@ -21,7 +22,7 @@ import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -41,7 +42,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final MailService mailService;
 
     @Transactional
@@ -100,20 +101,20 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserResponseDTO getCurrentUser(User currentUser) {
-        return userMapper.toUserResponseDTO(getUserEntityById(currentUser.getId()));
+    public UserResponseDTO getCurrentUser(String email) {
+        return userMapper.toUserResponseDTO(getUserByEmail(email));
     }
 
     @Transactional
-    public UserResponseDTO updateCurrentUserProfile(User currentUser, UpdateProfileRequest request) {
-        User user = getUserEntityById(currentUser.getId());
+    public UserResponseDTO updateCurrentUserProfile(String email, UpdateProfileRequest request) {
+        User user = getUserByEmail(email);
         userMapper.updateProfile(user, request);
         return userMapper.toUserResponseDTO(userRepository.save(user));
     }
 
     @Transactional
-    public void changeCurrentUserPassword(User currentUser, ChangePasswordRequest request) {
-        User user = getUserEntityById(currentUser.getId());
+    public void changeCurrentUserPassword(String email, ChangePasswordRequest request) {
+        User user = getUserByEmail(email);
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.OLDPASSWORD_FAILED);
         }
@@ -131,11 +132,8 @@ public class UserService {
     public UserResponseDTO updateStatus(UUID id, UserStatus status) {
         User user = getUserEntityById(id);
         user.setStatus(status);
-        // refreshTokenRepository.findAllByUser(user).forEach(refreshToken -> {
-        // log.info("Found refresh token: {}", refreshToken.getToken());
-        // refreshTokenRepository.delete(refreshToken);
-        // });
-        refreshTokenRepository.deleteByUser(user);
+        eventPublisher.publishEvent(new UserStatusChangedEvent(this, user));
+
         return userMapper.toUserResponseDTO(userRepository.save(user));
     }
 
@@ -175,7 +173,23 @@ public class UserService {
         userRepository.save(user);
     }
 
-    private User getUserEntityById(UUID id) {
+    @Transactional
+    public User saveUserEntity(User user) {
+        return userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    @Transactional
+    public void createAdminUser(String email, String password, String fullName) {
+        createAndSaveUser(email, password, fullName, null, Role.ADMIN, null, UserStatus.ACTIVE);
+    }
+
+    @Transactional(readOnly = true)
+    public User getUserEntityById(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }

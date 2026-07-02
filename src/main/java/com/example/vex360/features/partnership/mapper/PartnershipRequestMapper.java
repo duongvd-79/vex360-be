@@ -4,7 +4,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
-import com.example.vex360.shared.entities.PartnershipRequest;
+import com.example.vex360.features.partnership.entities.PartnershipRequest;
 
 @Mapper(componentModel = "spring")
 public interface PartnershipRequestMapper {

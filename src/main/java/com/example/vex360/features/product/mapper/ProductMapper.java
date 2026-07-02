@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.product.dtos.response.ProductContentResponseDTO;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
-import com.example.vex360.shared.entities.Product;
-import com.example.vex360.shared.entities.ProductContent;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.product.entities.ProductContent;
 
 @Component
 public class ProductMapper {

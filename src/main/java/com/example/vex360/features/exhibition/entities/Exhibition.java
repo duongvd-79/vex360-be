@@ -1,4 +1,6 @@
-package com.example.vex360.shared.entities;
+package com.example.vex360.features.exhibition.entities;
+
+import com.example.vex360.features.user.entities.User;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

@@ -17,11 +17,11 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
@@ -35,7 +35,7 @@ public class ExhibitorMediaAssetService {
 
     private final MediaAssetRepository mediaAssetRepository;
     private final HotspotRepository hotspotRepository;
-    private final CompanyRepository companyRepository;
+    private final CompanyService companyService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
 
@@ -107,11 +107,7 @@ public class ExhibitorMediaAssetService {
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
-        if (currentUser == null || currentUser.getId() == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        return companyRepository.findByOwnerUserId(currentUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        return companyService.getCompanyEntityForCurrentUser(currentUser);
     }
 
     private String normalizeMimeType(MultipartFile file) {
