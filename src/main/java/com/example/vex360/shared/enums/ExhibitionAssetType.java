@@ -4,5 +4,6 @@ public enum ExhibitionAssetType {
     KEY_VISUAL,
     TRAILER_VIDEO,
     FLOOR_PLAN,
-    GUIDELINE
+    GUIDELINE,
+    SPONSOR_LOGO
 }

@@ -25,4 +25,12 @@ public class ExhibitorRegistrationResponseDTO {
     private String checkoutUrl;
     private String paymentStatus;
     private Long orderCode;
+
+    // Additional fields for Organizer management
+    private String companyName;
+    private String companyEmail;
+    private String packageName;
+    private String exhibitionName;
+    private String rejectedReason;
+    private String reviewedByName;
 }

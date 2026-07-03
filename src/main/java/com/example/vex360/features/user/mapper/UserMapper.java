@@ -10,7 +10,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface UserMapper {

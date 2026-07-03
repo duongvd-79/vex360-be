@@ -17,8 +17,8 @@ import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplate
 import com.example.vex360.features.packagetemplate.mapper.PackageTemplateMapper;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.PackageTemplate;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.PackageTemplateStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -71,8 +71,8 @@ public class PackageTemplateService {
     @Transactional(readOnly = true)
     public List<PackageTemplateResponseDTO> getActivePackageTemplates() {
         return packageTemplateRepository.findByStatus(
-                        PackageTemplateStatus.ACTIVE,
-                        Sort.by(Sort.Order.asc("price"), Sort.Order.asc("name")))
+                PackageTemplateStatus.ACTIVE,
+                Sort.by(Sort.Order.asc("price"), Sort.Order.asc("name")))
                 .stream()
                 .map(packageTemplateMapper::toResponse)
                 .toList();
@@ -119,6 +119,11 @@ public class PackageTemplateService {
         PackageTemplate template = getPackageTemplate(id);
         template.setStatus(request.getStatus());
         return packageTemplateMapper.toResponse(packageTemplateRepository.save(template));
+    }
+
+    @Transactional(readOnly = true)
+    public PackageTemplate getPackageTemplateEntity(UUID id) {
+        return getPackageTemplate(id);
     }
 
     private PackageTemplate getPackageTemplate(UUID id) {

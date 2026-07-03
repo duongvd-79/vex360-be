@@ -11,7 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 

@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.dtos.request.CreateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
@@ -16,9 +16,9 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductCategoryMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.ProductCategory;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.product.entities.ProductCategory;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class ProductCategoryService {
-    private final CompanyRepository companyRepository;
+    private final CompanyService companyService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
     private final ProductCategoryMapper productCategoryMapper;
@@ -100,11 +100,6 @@ public class ProductCategoryService {
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
-        if (currentUser == null || currentUser.getId() == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        return companyRepository.findByOwnerUserId(currentUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        return companyService.getCompanyEntityForCurrentUser(currentUser);
     }
 }

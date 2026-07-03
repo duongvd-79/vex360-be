@@ -6,7 +6,7 @@ import com.example.vex360.features.auth.dtos.request.RegisterRequest;
 import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 
 public interface AuthService {
     void register(RegisterRequest request);

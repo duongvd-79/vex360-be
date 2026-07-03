@@ -3,8 +3,8 @@ package com.example.vex360.features.packagetemplate.mapper;
 import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
-import com.example.vex360.shared.entities.PackageTemplate;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.features.user.entities.User;
 
 @Component
 public class PackageTemplateMapper {

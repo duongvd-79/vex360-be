@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.example.vex360.features.auth.entities.RegistrationToken;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 
 @Repository
 public interface RegistrationTokenRepository extends JpaRepository<RegistrationToken, Integer> {

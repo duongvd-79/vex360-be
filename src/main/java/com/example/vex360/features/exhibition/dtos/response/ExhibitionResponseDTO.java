@@ -32,6 +32,7 @@ public class ExhibitionResponseDTO {
     private String reviewedByName;
     private LocalDateTime reviewedAt;
     private List<ExhibitionPackageResponseDTO> packages;
+    private List<SponsorMediaResponseDTO> sponsorLogos;
 
     private String keyVisualUrl;
     private String trailerVideoUrl;

@@ -58,6 +58,13 @@ public enum ErrorCode {
     INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
     PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
+    BOOTH_NOT_FOUND("BOOTH-006", "Booth not found", HttpStatus.NOT_FOUND),
+    INVALID_BOOTH("BOOTH-007", "Invalid booth", HttpStatus.BAD_REQUEST),
+    PANORAMA_NOT_FOUND("BOOTH-008", "Panorama not found", HttpStatus.NOT_FOUND),
+    HOTSPOT_NOT_FOUND("BOOTH-009", "Hotspot not found", HttpStatus.NOT_FOUND),
+    INVALID_HOTSPOT("BOOTH-010", "Invalid hotspot", HttpStatus.BAD_REQUEST),
+    MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
+    INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),

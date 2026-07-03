@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.dtos.request.CreateProductContentRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
@@ -35,11 +35,11 @@ import com.example.vex360.features.product.repositories.ProductCategoryRepositor
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.entities.Company;
-import com.example.vex360.shared.entities.Product;
-import com.example.vex360.shared.entities.ProductCategory;
-import com.example.vex360.shared.entities.ProductContent;
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.product.entities.ProductCategory;
+import com.example.vex360.features.product.entities.ProductContent;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
@@ -51,7 +51,7 @@ public class ProductService {
     private static final Set<String> ALLOWED_THUMBNAIL_TYPES = Set.of("image/jpeg", "image/png");
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "video/mp4");
 
-    private final CompanyRepository companyRepository;
+    private final CompanyService companyService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
     private final CloudService cloudService;
@@ -59,13 +59,13 @@ public class ProductService {
     private final Executor productMediaUploadExecutor;
 
     public ProductService(
-            CompanyRepository companyRepository,
+            CompanyService companyService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
             ProductMapper productMapper,
             @Qualifier("productMediaUploadExecutor") Executor productMediaUploadExecutor) {
-        this.companyRepository = companyRepository;
+        this.companyService = companyService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
@@ -146,7 +146,8 @@ public class ProductService {
         }
 
         ProductCategory category = getCategoryForUpdate(request.getCategoryId(), company, product);
-        List<UUID> existingContentIds = request.getExistingContentIds() == null ? List.of() : request.getExistingContentIds();
+        List<UUID> existingContentIds = request.getExistingContentIds() == null ? List.of()
+                : request.getExistingContentIds();
         List<CreateProductContentRequest> newContentRequests = safeCreateContents(request.getNewContents());
         validateFileMap(newContentRequests, files);
         validateContentFiles(newContentRequests, files);
@@ -186,8 +187,8 @@ public class ProductService {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
         deleteCloudFile(product.getThumbnailPublicId(), "image");
-        product.getContents().forEach(content ->
-                deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+        product.getContents()
+                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -346,18 +347,14 @@ public class ProductService {
         return category;
     }
 
-    private Product getProductForCompany(UUID productId, Company company) {
+    @Transactional(readOnly = true)
+    public Product getProductForCompany(UUID productId, Company company) {
         return productRepository.findByIdAndCompanyId(productId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
-        if (currentUser == null || currentUser.getId() == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        return companyRepository.findByOwnerUserId(currentUser.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        return companyService.getCompanyEntityForCurrentUser(currentUser);
     }
 
     private void validateFileMap(List<CreateProductContentRequest> contentRequests, Map<String, MultipartFile> files) {
@@ -374,7 +371,8 @@ public class ProductService {
     }
 
     private void validateThumbnail(MultipartFile thumbnail) {
-        if (thumbnail == null || thumbnail.isEmpty() || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
+        if (thumbnail == null || thumbnail.isEmpty()
+                || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
         }
     }

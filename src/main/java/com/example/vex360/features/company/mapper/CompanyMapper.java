@@ -8,7 +8,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import com.example.vex360.features.company.dtos.request.UpdateCompanyProfileRequest;
 import com.example.vex360.features.company.dtos.response.CompanyResponseDTO;
-import com.example.vex360.shared.entities.Company;
+import com.example.vex360.features.company.entities.Company;
 
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CompanyMapper {

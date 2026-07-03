@@ -3,7 +3,7 @@ package com.example.vex360.features.product.mapper;
 import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.product.dtos.response.ProductCategoryResponseDTO;
-import com.example.vex360.shared.entities.ProductCategory;
+import com.example.vex360.features.product.entities.ProductCategory;
 
 @Component
 public class ProductCategoryMapper {

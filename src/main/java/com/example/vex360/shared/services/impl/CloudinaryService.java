@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
 import com.cloudinary.utils.ObjectUtils;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -42,16 +43,27 @@ public class CloudinaryService implements CloudService {
                     "resource_type", "auto");
 
             @SuppressWarnings("unchecked")
-            Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(),
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(file.getBytes(),
                     params);
 
             log.info("Successfully uploaded file {} to Cloudinary. Public ID: {}",
                     file.getOriginalFilename(), uploadResult.get("public_id"));
 
-            String url = (String) uploadResult.get("secure_url");
             String publicId = (String) uploadResult.get("public_id");
             Integer width = (Integer) uploadResult.get("width");
             Integer height = (Integer) uploadResult.get("height");
+            String resourceType = (String) uploadResult.get("resource_type");
+            if (resourceType == null || resourceType.isBlank()) {
+                resourceType = "image";
+            }
+
+            String url = cloudinary.url()
+                    .secure(true)
+                    .resourceType(resourceType)
+                    .transformation(new Transformation()
+                            .quality("auto")
+                            .fetchFormat("auto"))
+                    .generate(publicId);
 
             return CloudinaryResponse.builder()
                     .url(url)

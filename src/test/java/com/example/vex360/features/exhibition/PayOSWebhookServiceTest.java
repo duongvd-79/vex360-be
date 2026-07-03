@@ -18,11 +18,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
-import com.example.vex360.shared.entities.ExhibitorRegistration;
-import com.example.vex360.shared.entities.Payment;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -39,6 +41,9 @@ public class PayOSWebhookServiceTest {
 
     @Mock
     private ExhibitorRegistrationRepository registrationRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private PayOS payOS;
@@ -111,7 +116,7 @@ public class PayOSWebhookServiceTest {
     @Test
     public void testHandleWebhook_Success_PaymentPaid() throws Exception {
         Object mockBody = new Object();
-        
+
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
         when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(pendingPayment));
@@ -126,6 +131,7 @@ public class PayOSWebhookServiceTest {
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository).save(pendingRegistration);
+        verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test
@@ -145,6 +151,7 @@ public class PayOSWebhookServiceTest {
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -161,5 +168,6 @@ public class PayOSWebhookServiceTest {
         assertEquals(ErrorCode.UNCATCHED_EXCEPTION, exception.getErrorCode());
         verify(paymentRepository, never()).save(any());
         verify(registrationRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

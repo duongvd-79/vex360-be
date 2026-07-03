@@ -2,7 +2,7 @@ package com.example.vex360.features.auth.entities;
 
 import java.time.Instant;
 
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
