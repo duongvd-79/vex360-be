@@ -2,6 +2,9 @@ package com.example.vex360.features.booth.dtos.response;
 
 import java.util.UUID;
 
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
 
 import lombok.AllArgsConstructor;
@@ -28,4 +31,7 @@ public class HotspotResponseDTO {
     private String iconStyle;
     private Double scale;
     private Integer zIndex;
+    private HotspotMediaClickAction mediaClickAction;
+    private HotspotInfoContentType infoContentType;
+    private HotspotCornersDTO corners;
 }
