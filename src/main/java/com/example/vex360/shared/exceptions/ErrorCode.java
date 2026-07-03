@@ -9,7 +9,7 @@ public enum ErrorCode {
     // SYSTEM ERRORS
     UNCATCHED_EXCEPTION("SYS-001", "Lỗi hệ thống", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
-    VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_ENTITY),
+    VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
     METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
 

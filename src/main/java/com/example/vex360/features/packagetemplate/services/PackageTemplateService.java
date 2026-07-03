@@ -72,7 +72,7 @@ public class PackageTemplateService {
     public List<PackageTemplateResponseDTO> getActivePackageTemplates() {
         return packageTemplateRepository.findByStatus(
                 PackageTemplateStatus.ACTIVE,
-                Sort.by(Sort.Order.asc("price"), Sort.Order.asc("name")))
+                Sort.by(Sort.Order.asc(PackageTemplate::getPrice), Sort.Order.asc(PackageTemplate::getName)))
                 .stream()
                 .map(packageTemplateMapper::toResponse)
                 .toList();

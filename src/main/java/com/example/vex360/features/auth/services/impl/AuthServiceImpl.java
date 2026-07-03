@@ -51,6 +51,7 @@ import com.example.vex360.shared.utils.LogSanitizer;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,7 +80,7 @@ public class AuthServiceImpl implements AuthService {
     private final RegistrationTokenRepository registrationTokenRepository;
     private final MailService mailService;
     private final TokenBlacklistService tokenBlacklistService;
-    private final jakarta.servlet.http.HttpServletRequest httpServletRequest;
+    private final HttpServletRequest httpServletRequest;
 
     @Value("${app.jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;

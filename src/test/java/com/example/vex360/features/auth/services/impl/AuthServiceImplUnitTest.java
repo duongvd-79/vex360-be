@@ -53,7 +53,7 @@ import com.example.vex360.shared.utils.TokenEncryptionUtils;
 import jakarta.servlet.http.HttpServletRequest;
 
 @ExtendWith(MockitoExtension.class)
-class AuthServiceImplTest {
+class AuthServiceImplUnitTest {
 
     @Mock
     private UserService userService;
@@ -315,7 +315,8 @@ class AuthServiceImplTest {
         testUser.setFailedLoginAttempts(0);
 
         when(userService.findUserByEmail("test@example.com")).thenReturn(Optional.of(testUser));
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(jwtProvider.generateToken(userDetails)).thenReturn("mock-access-token");
 
@@ -337,7 +338,8 @@ class AuthServiceImplTest {
         testUser.setFailedLoginAttempts(3);
 
         when(userService.findUserByEmail("test@example.com")).thenReturn(Optional.of(testUser));
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(jwtProvider.generateToken(userDetails)).thenReturn("mock-access-token");
 
@@ -372,7 +374,8 @@ class AuthServiceImplTest {
 
         when(userService.findUserByEmail("test@example.com")).thenReturn(Optional.of(testUser));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenThrow(new AuthenticationException("Bad credentials") {});
+                .thenThrow(new AuthenticationException("Bad credentials") {
+                });
 
         AppException ex = assertThrows(AppException.class, () -> authService.login(request));
         assertEquals(ErrorCode.BAD_CREDENTIALS, ex.getErrorCode());
