@@ -38,7 +38,7 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "products", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_products_company_sku", columnNames = {"company_id", "sku"})
+        @UniqueConstraint(name = "uk_products_company_sku", columnNames = { "company_id", "sku" })
 })
 @Data
 @NoArgsConstructor
@@ -83,6 +83,10 @@ public class Product {
 
     @Column(name = "thumbnail_public_id", nullable = false, length = 500)
     String thumbnailPublicId;
+
+    @Column(name = "thumbnail_file_size", nullable = false)
+    @Builder.Default
+    Long thumbnailFileSize = 0L;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

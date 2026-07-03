@@ -36,8 +36,14 @@ public class CreateProductRequest {
 
     private String currency;
 
-    @NotNull(message = "Trang thai san pham khong duoc de trong")
+    @NotNull(message = "Trạng thái sản phẩm không được để trống")
     private ProductStatus status;
 
-    private List<@Valid CreateProductContentRequest> contents;
+    @NotBlank(message = "Ảnh đại diện sản phẩm không được để trống")
+    private String thumbnailUrl;
+
+    @NotBlank(message = "Public ID Cloudinary không được để trống")
+    private String thumbnailPublicId;
+
+    private List<@Valid CreateProductContentPreUploadedRequest> contents;
 }

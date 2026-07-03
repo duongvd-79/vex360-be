@@ -1,7 +1,6 @@
 package com.example.vex360.features.product.services;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -9,22 +8,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.company.services.CompanyService;
-import com.example.vex360.features.product.dtos.request.CreateProductContentRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
+import com.example.vex360.features.product.dtos.request.CreateProductContentPreUploadedRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
@@ -33,7 +27,6 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
-import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.product.entities.Product;
@@ -48,29 +41,24 @@ import com.example.vex360.shared.services.CloudService;
 public class ProductService {
     private static final int MAX_IMAGE_CONTENT_COUNT = 5;
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
-    private static final Set<String> ALLOWED_THUMBNAIL_TYPES = Set.of("image/jpeg", "image/png");
-    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "video/mp4");
 
     private final CompanyService companyService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
-    private final Executor productMediaUploadExecutor;
 
     public ProductService(
             CompanyService companyService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
-            ProductMapper productMapper,
-            @Qualifier("productMediaUploadExecutor") Executor productMediaUploadExecutor) {
+            ProductMapper productMapper) {
         this.companyService = companyService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
-        this.productMediaUploadExecutor = productMediaUploadExecutor;
     }
 
     @Transactional(readOnly = true)
@@ -96,9 +84,7 @@ public class ProductService {
     @Transactional
     public ProductResponseDTO createProduct(
             User currentUser,
-            CreateProductRequest request,
-            MultipartFile thumbnail,
-            Map<String, MultipartFile> files) {
+            CreateProductRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         String sku = request.getSku().trim();
         if (productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), sku)) {
@@ -106,14 +92,11 @@ public class ProductService {
         }
 
         ProductCategory category = getActiveCategoryForCompany(request.getCategoryId(), company);
-        validateThumbnail(thumbnail);
-        List<CreateProductContentRequest> contentRequests = safeCreateContents(request.getContents());
-        validateFileMap(contentRequests, files);
-        validateContentFiles(contentRequests, files);
-        validateContentTypeCounts(contentRequests, files);
+        List<CreateProductContentPreUploadedRequest> contentRequests = request.getContents() == null ? List.of()
+                : request.getContents();
+        validateContentTypeCounts(contentRequests);
         ProductStatus status = resolveMutableStatus(request.getStatus());
 
-        ProductMediaUploads uploads = uploadProductMedia(thumbnail, contentRequests, files);
         Product product = Product.builder()
                 .company(company)
                 .category(category)
@@ -122,11 +105,11 @@ public class ProductService {
                 .description(request.getDescription().trim())
                 .price(request.getPrice())
                 .currency(normalizeCurrency(request.getCurrency()))
-                .thumbnailUrl(uploads.thumbnailUpload().getUrl())
-                .thumbnailPublicId(uploads.thumbnailUpload().getPublicId())
+                .thumbnailUrl(request.getThumbnailUrl())
+                .thumbnailPublicId(request.getThumbnailPublicId())
                 .status(status)
                 .build();
-        product.setContents(createContents(product, uploads.contentUploads()));
+        product.setContents(createContentsFromUploaded(product, contentRequests));
 
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -135,9 +118,7 @@ public class ProductService {
     public ProductResponseDTO updateProduct(
             User currentUser,
             UUID productId,
-            UpdateProductRequest request,
-            MultipartFile thumbnail,
-            Map<String, MultipartFile> files) {
+            UpdateProductRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
         String sku = request.getSku().trim();
@@ -148,22 +129,11 @@ public class ProductService {
         ProductCategory category = getCategoryForUpdate(request.getCategoryId(), company, product);
         List<UUID> existingContentIds = request.getExistingContentIds() == null ? List.of()
                 : request.getExistingContentIds();
-        List<CreateProductContentRequest> newContentRequests = safeCreateContents(request.getNewContents());
-        validateFileMap(newContentRequests, files);
-        validateContentFiles(newContentRequests, files);
+        List<CreateProductContentPreUploadedRequest> newContentRequests = request.getNewContents() == null ? List.of()
+                : request.getNewContents();
         validateExistingContentIds(product, existingContentIds);
-        validateContentTypeCounts(product, existingContentIds, newContentRequests, files);
+        validateContentTypeCountsForUpdate(product, existingContentIds, newContentRequests);
         ProductStatus status = resolveStatusForCategory(category, request.getStatus());
-
-        boolean replacingThumbnail = thumbnail != null && !thumbnail.isEmpty();
-        if (thumbnail != null && !thumbnail.isEmpty()) {
-            validateThumbnail(thumbnail);
-        }
-
-        ProductMediaUploads uploads = uploadProductMedia(
-                replacingThumbnail ? thumbnail : null,
-                newContentRequests,
-                files);
 
         product.setCategory(category);
         product.setName(request.getName().trim());
@@ -172,12 +142,12 @@ public class ProductService {
         product.setPrice(request.getPrice());
         product.setCurrency(normalizeCurrency(request.getCurrency()));
         product.setStatus(status);
-        if (replacingThumbnail) {
+        if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
             deleteCloudFile(product.getThumbnailPublicId(), "image");
-            product.setThumbnailUrl(uploads.thumbnailUpload().getUrl());
-            product.setThumbnailPublicId(uploads.thumbnailUpload().getPublicId());
+            product.setThumbnailUrl(request.getThumbnailUrl());
+            product.setThumbnailPublicId(request.getThumbnailPublicId());
         }
-        synchronizeContents(product, existingContentIds, createContents(product, uploads.contentUploads()));
+        synchronizeContents(product, existingContentIds, createContentsFromUploaded(product, newContentRequests));
 
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -193,6 +163,31 @@ public class ProductService {
         return productMapper.toResponse(productRepository.save(product));
     }
 
+    private List<ProductContent> createContentsFromUploaded(
+            Product product,
+            List<CreateProductContentPreUploadedRequest> requests) {
+        List<ProductContent> contents = requests.stream()
+                .sorted(Comparator.comparing(CreateProductContentPreUploadedRequest::getOrderIndex))
+                .map(req -> createContentFromUploaded(product, req))
+                .collect(Collectors.toCollection(ArrayList::new));
+        for (int i = 0; i < contents.size(); i++) {
+            contents.get(i).setOrderIndex(i);
+        }
+        return contents;
+    }
+
+    private ProductContent createContentFromUploaded(Product product, CreateProductContentPreUploadedRequest req) {
+        return ProductContent.builder()
+                .product(product)
+                .contentUrl(req.getContentUrl())
+                .publicId(req.getPublicId())
+                .type(resolveContentType(req.getMimeType()))
+                .orderIndex(req.getOrderIndex())
+                .mimeType(req.getMimeType())
+                .fileSize(req.getFileSize())
+                .build();
+    }
+
     private void synchronizeContents(
             Product product,
             List<UUID> existingContentIds,
@@ -204,9 +199,8 @@ public class ProductService {
 
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
-            if (content == null) {
+            if (content == null)
                 throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-            }
             nextContents.add(content);
         }
 
@@ -225,6 +219,44 @@ public class ProductService {
         product.getContents().addAll(nextContents);
     }
 
+    private void validateContentTypeCounts(List<CreateProductContentPreUploadedRequest> requests) {
+        long imageCount = requests.stream()
+                .map(r -> resolveContentType(r.getMimeType()))
+                .filter(ProductContentType.IMAGE::equals).count();
+        long videoCount = requests.stream()
+                .map(r -> resolveContentType(r.getMimeType()))
+                .filter(ProductContentType.VIDEO::equals).count();
+        validateContentTypeCounts(imageCount, videoCount);
+    }
+
+    private void validateContentTypeCountsForUpdate(
+            Product product,
+            List<UUID> existingContentIds,
+            List<CreateProductContentPreUploadedRequest> newRequests) {
+        Set<UUID> keptIds = new HashSet<>(existingContentIds);
+        long imageCount = product.getContents().stream()
+                .filter(c -> keptIds.contains(c.getId()))
+                .map(ProductContent::getType)
+                .filter(ProductContentType.IMAGE::equals).count();
+        long videoCount = product.getContents().stream()
+                .filter(c -> keptIds.contains(c.getId()))
+                .map(ProductContent::getType)
+                .filter(ProductContentType.VIDEO::equals).count();
+        imageCount += newRequests.stream()
+                .map(r -> resolveContentType(r.getMimeType()))
+                .filter(ProductContentType.IMAGE::equals).count();
+        videoCount += newRequests.stream()
+                .map(r -> resolveContentType(r.getMimeType()))
+                .filter(ProductContentType.VIDEO::equals).count();
+        validateContentTypeCounts(imageCount, videoCount);
+    }
+
+    private void validateContentTypeCounts(long imageCount, long videoCount) {
+        if (imageCount > MAX_IMAGE_CONTENT_COUNT || videoCount > MAX_VIDEO_CONTENT_COUNT) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+        }
+    }
+
     private void validateExistingContentIds(Product product, List<UUID> existingContentIds) {
         Set<UUID> currentContentIds = product.getContents().stream()
                 .map(ProductContent::getId)
@@ -236,94 +268,19 @@ public class ProductService {
         }
     }
 
-    private List<ProductContent> createContents(
-            Product product,
-            List<CloudinaryResponse> contentUploads) {
-        List<ProductContent> contents = contentUploads.stream()
-                .map(upload -> createContent(product, upload))
-                .collect(Collectors.toCollection(ArrayList::new));
-        for (int i = 0; i < contents.size(); i++) {
-            contents.get(i).setOrderIndex(i);
-        }
-        return contents;
+    private void deleteCloudFile(String publicId, String resourceType) {
+        cloudService.delete(publicId, resourceType);
     }
 
-    private ProductContent createContent(Product product, CloudinaryResponse upload) {
-        return ProductContent.builder()
-                .product(product)
-                .contentUrl(upload.getUrl())
-                .publicId(upload.getPublicId())
-                .type(resolveContentType(upload.getFileType()))
-                .orderIndex(0)
-                .mimeType(upload.getFileType())
-                .fileSize(upload.getFileSize())
-                .build();
+    private ProductContentType resolveContentType(String mimeType) {
+        if (mimeType != null && mimeType.toLowerCase(Locale.ROOT).startsWith("video/")) {
+            return ProductContentType.VIDEO;
+        }
+        return ProductContentType.IMAGE;
     }
 
-    private ProductMediaUploads uploadProductMedia(
-            MultipartFile thumbnail,
-            List<CreateProductContentRequest> contentRequests,
-            Map<String, MultipartFile> files) {
-        Map<String, MultipartFile> safeFiles = files == null ? Map.of() : files;
-        List<CloudinaryResponse> uploadedFiles = Collections.synchronizedList(new ArrayList<>());
-        CompletableFuture<CloudinaryResponse> thumbnailFuture = thumbnail == null
-                ? null
-                : uploadAsync(thumbnail, uploadedFiles);
-        List<CompletableFuture<CloudinaryResponse>> contentFutures = contentRequests.stream()
-                .sorted(Comparator.comparing(CreateProductContentRequest::getOrderIndex))
-                .map(request -> uploadAsync(safeFiles.get(request.getFileKey()), uploadedFiles))
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        List<CompletableFuture<CloudinaryResponse>> allFutures = new ArrayList<>(contentFutures);
-        if (thumbnailFuture != null) {
-            allFutures.add(thumbnailFuture);
-        }
-
-        try {
-            CompletableFuture.allOf(allFutures.toArray(CompletableFuture[]::new)).join();
-        } catch (CompletionException exception) {
-            cleanupUploadedFiles(uploadedFiles);
-            throw toAppException(exception);
-        }
-
-        CloudinaryResponse thumbnailUpload = thumbnailFuture == null ? null : thumbnailFuture.join();
-        List<CloudinaryResponse> contentUploads = contentFutures.stream()
-                .map(CompletableFuture::join)
-                .collect(Collectors.toCollection(ArrayList::new));
-        return new ProductMediaUploads(thumbnailUpload, contentUploads);
-    }
-
-    private CompletableFuture<CloudinaryResponse> uploadAsync(
-            MultipartFile file,
-            List<CloudinaryResponse> uploadedFiles) {
-        return CompletableFuture
-                .supplyAsync(() -> cloudService.upload(file), productMediaUploadExecutor)
-                .whenComplete((upload, exception) -> {
-                    if (exception == null && upload != null) {
-                        uploadedFiles.add(upload);
-                    }
-                });
-    }
-
-    private void cleanupUploadedFiles(List<CloudinaryResponse> uploadedFiles) {
-        uploadedFiles.forEach(upload -> {
-            try {
-                deleteCloudFile(upload.getPublicId(), toResourceType(resolveContentType(upload.getFileType())));
-            } catch (RuntimeException ignored) {
-                // Keep the original upload failure as the response error.
-            }
-        });
-    }
-
-    private AppException toAppException(Throwable throwable) {
-        Throwable cause = throwable;
-        while (cause instanceof CompletionException && cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-        if (cause instanceof AppException appException) {
-            return appException;
-        }
-        return new AppException(ErrorCode.UPLOAD_FAILED);
+    private String toResourceType(ProductContentType type) {
+        return type == ProductContentType.VIDEO ? "video" : "image";
     }
 
     private ProductCategory getActiveCategoryForCompany(UUID categoryId, Company company) {
@@ -354,109 +311,10 @@ public class ProductService {
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
         return companyService.getCompanyEntityForCurrentUser(currentUser);
-    }
-
-    private void validateFileMap(List<CreateProductContentRequest> contentRequests, Map<String, MultipartFile> files) {
-        Set<String> expectedFileKeys = contentRequests.stream()
-                .map(CreateProductContentRequest::getFileKey)
-                .collect(Collectors.toCollection(HashSet::new));
-        if (expectedFileKeys.size() != contentRequests.size()) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-        }
-        Set<String> actualFileKeys = files == null ? Set.of() : files.keySet();
-        if (!actualFileKeys.equals(expectedFileKeys)) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-        }
-    }
-
-    private void validateThumbnail(MultipartFile thumbnail) {
-        if (thumbnail == null || thumbnail.isEmpty()
-                || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-        }
-    }
-
-    private void validateContentFile(MultipartFile file) {
-        if (file == null || file.isEmpty() || !ALLOWED_CONTENT_TYPES.contains(normalizeMimeType(file))) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-        }
-    }
-
-    private void validateContentFiles(
-            List<CreateProductContentRequest> contentRequests,
-            Map<String, MultipartFile> files) {
-        Map<String, MultipartFile> safeFiles = files == null ? Map.of() : files;
-        contentRequests.forEach(request -> validateContentFile(safeFiles.get(request.getFileKey())));
-    }
-
-    private void validateContentTypeCounts(
-            List<CreateProductContentRequest> contentRequests,
-            Map<String, MultipartFile> files) {
-        Map<String, MultipartFile> safeFiles = files == null ? Map.of() : files;
-        long imageCount = contentRequests.stream()
-                .map(request -> resolveContentType(normalizeMimeType(safeFiles.get(request.getFileKey()))))
-                .filter(ProductContentType.IMAGE::equals)
-                .count();
-        long videoCount = contentRequests.stream()
-                .map(request -> resolveContentType(normalizeMimeType(safeFiles.get(request.getFileKey()))))
-                .filter(ProductContentType.VIDEO::equals)
-                .count();
-        validateContentTypeCounts(imageCount, videoCount);
-    }
-
-    private void validateContentTypeCounts(
-            Product product,
-            List<UUID> existingContentIds,
-            List<CreateProductContentRequest> newContentRequests,
-            Map<String, MultipartFile> files) {
-        Set<UUID> keptContentIds = new HashSet<>(existingContentIds);
-        long imageCount = product.getContents().stream()
-                .filter(content -> keptContentIds.contains(content.getId()))
-                .map(ProductContent::getType)
-                .filter(ProductContentType.IMAGE::equals)
-                .count();
-        long videoCount = product.getContents().stream()
-                .filter(content -> keptContentIds.contains(content.getId()))
-                .map(ProductContent::getType)
-                .filter(ProductContentType.VIDEO::equals)
-                .count();
-
-        Map<String, MultipartFile> safeFiles = files == null ? Map.of() : files;
-        imageCount += newContentRequests.stream()
-                .map(request -> resolveContentType(normalizeMimeType(safeFiles.get(request.getFileKey()))))
-                .filter(ProductContentType.IMAGE::equals)
-                .count();
-        videoCount += newContentRequests.stream()
-                .map(request -> resolveContentType(normalizeMimeType(safeFiles.get(request.getFileKey()))))
-                .filter(ProductContentType.VIDEO::equals)
-                .count();
-        validateContentTypeCounts(imageCount, videoCount);
-    }
-
-    private void validateContentTypeCounts(long imageCount, long videoCount) {
-        if (imageCount > MAX_IMAGE_CONTENT_COUNT || videoCount > MAX_VIDEO_CONTENT_COUNT) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
-        }
-    }
-
-    private ProductContentType resolveContentType(String mimeType) {
-        if (mimeType != null && mimeType.toLowerCase(Locale.ROOT).startsWith("video/")) {
-            return ProductContentType.VIDEO;
-        }
-        return ProductContentType.IMAGE;
-    }
-
-    private String toResourceType(ProductContentType type) {
-        return type == ProductContentType.VIDEO ? "video" : "image";
-    }
-
-    private void deleteCloudFile(String publicId, String resourceType) {
-        cloudService.delete(publicId, resourceType);
-    }
-
-    private String normalizeMimeType(MultipartFile file) {
-        return file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
     }
 
     private String normalizeCurrency(String currency) {
@@ -480,14 +338,5 @@ public class ProductService {
             return ProductStatus.INACTIVE;
         }
         return status;
-    }
-
-    private List<CreateProductContentRequest> safeCreateContents(List<CreateProductContentRequest> contents) {
-        return contents == null ? List.of() : contents;
-    }
-
-    private record ProductMediaUploads(
-            CloudinaryResponse thumbnailUpload,
-            List<CloudinaryResponse> contentUploads) {
     }
 }

@@ -29,16 +29,28 @@ public enum ErrorCode {
     FILE_TYPE_NOT_SUPPORTED("FILE-002", "File type not supported", HttpStatus.BAD_REQUEST),
     NOT_A_PANORAMA("FILE-003", "Not a panorama", HttpStatus.BAD_REQUEST),
     UPLOAD_FAILED("FILE-004", "File upload failed", HttpStatus.INTERNAL_SERVER_ERROR),
+    FILE_TOO_LARGE("FILE-005", "File vượt quá dung lượng cho phép (tối đa 10MB)", HttpStatus.PAYLOAD_TOO_LARGE),
+    STORAGE_QUOTA_EXCEEDED("FILE-006", "Dung lượng lưu trữ của công ty đã đầy. Vui lòng nâng cấp gói dịch vụ.",
+            HttpStatus.PAYLOAD_TOO_LARGE),
+    STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói dịch vụ lưu trữ.", HttpStatus.NOT_FOUND),
+    STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
     INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Old Password is failed", HttpStatus.BAD_REQUEST),
 
     // PARTNERSHIP ERRORS
-    PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001", "Email này đã có tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.", HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
+            "Email này đã có tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.",
+            HttpStatus.BAD_REQUEST),
     PARTNERSHIP_REQUEST_NOT_FOUND("PARTNER-002", "Partnership request not found", HttpStatus.NOT_FOUND),
-    INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER", HttpStatus.BAD_REQUEST),
-    INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action", HttpStatus.BAD_REQUEST),
-    PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.", HttpStatus.BAD_REQUEST),
-    PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006", "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.", HttpStatus.BAD_REQUEST),
+    INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER",
+            HttpStatus.BAD_REQUEST),
+    INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action",
+            HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.",
+            HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006",
+            "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
+            HttpStatus.BAD_REQUEST),
 
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
@@ -49,7 +61,8 @@ public enum ErrorCode {
     PRODUCT_SKU_DUPLICATED("PRODUCT-003", "Mã sản phẩm đã tồn tại", HttpStatus.CONFLICT),
     PRODUCT_CATEGORY_NAME_DUPLICATED("PRODUCT-004", "Tên danh mục sản phẩm đã tồn tại", HttpStatus.CONFLICT),
     INVALID_PRODUCT_MEDIA("PRODUCT-005", "Hình ảnh hoặc video sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
-    INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
+    INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ",
+            HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
 
     // BOOTH ERRORS
@@ -74,10 +87,15 @@ public enum ErrorCode {
     // EXHIBITION ERRORS
     EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
     EXHIBITION_PACKAGE_NOT_FOUND("EXHIBITION-002", "Không tìm thấy gói triển lãm", HttpStatus.NOT_FOUND),
-    EXHIBITION_LIMIT_EXCEEDED("EXHIBITION-003", "Mỗi nhà tổ chức chỉ được có tối đa 3 đơn đăng ký ở trạng thái PENDING đồng thời", HttpStatus.BAD_REQUEST),
-    EXHIBITION_CANNOT_CANCEL("EXHIBITION-004", "Không được quyền huỷ đơn đăng ký triển lãm sau khi đăng ký", HttpStatus.BAD_REQUEST),
-    EXHIBITION_INVALID_STATUS("EXHIBITION-005", "Trạng thái đơn đăng ký triển lãm không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
-    EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó", HttpStatus.BAD_REQUEST),
+    EXHIBITION_LIMIT_EXCEEDED("EXHIBITION-003",
+            "Mỗi nhà tổ chức chỉ được có tối đa 3 đơn đăng ký ở trạng thái PENDING đồng thời",
+            HttpStatus.BAD_REQUEST),
+    EXHIBITION_CANNOT_CANCEL("EXHIBITION-004", "Không được quyền huỷ đơn đăng ký triển lãm sau khi đăng ký",
+            HttpStatus.BAD_REQUEST),
+    EXHIBITION_INVALID_STATUS("EXHIBITION-005", "Trạng thái đơn đăng ký triển lãm không hợp lệ cho thao tác này",
+            HttpStatus.BAD_REQUEST),
+    EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó",
+            HttpStatus.BAD_REQUEST),
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
     REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
 
