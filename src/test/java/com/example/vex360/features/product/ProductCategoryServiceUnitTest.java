@@ -1,12 +1,15 @@
 package com.example.vex360.features.product;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.dtos.request.CreateProductCategoryRequest;
+import com.example.vex360.features.product.dtos.response.ProductCategoryResponseDTO;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
@@ -107,7 +111,8 @@ class ProductCategoryServiceUnitTest {
                 .build();
 
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
         when(productCategoryRepository.existsByCompanyIdAndNameIgnoreCaseAndIdNot(company.getId(), "Mới", categoryId))
                 .thenReturn(true);
 
@@ -129,8 +134,10 @@ class ProductCategoryServiceUnitTest {
                 .build();
 
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
-        when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productCategoryRepository.save(any(ProductCategory.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         productCategoryService.updateCategoryStatus(user, categoryId,
                 new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE));
@@ -150,8 +157,10 @@ class ProductCategoryServiceUnitTest {
                 .build();
 
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.of(category));
-        when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productCategoryRepository.save(any(ProductCategory.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         productCategoryService.updateCategoryStatus(user, categoryId,
                 new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE));
@@ -160,5 +169,103 @@ class ProductCategoryServiceUnitTest {
                 categoryId,
                 company.getId(),
                 ProductStatus.INACTIVE);
+    }
+
+    @Test
+    void getCategories_StatusNull_ReturnsAllCategories() {
+        ProductCategory category = ProductCategory.builder().id(UUID.randomUUID()).name("Electronics").company(company)
+                .build();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByCompanyIdOrderByNameAsc(company.getId())).thenReturn(List.of(category));
+
+        List<ProductCategoryResponseDTO> result = productCategoryService.getCategories(user, null);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Electronics", result.get(0).getName());
+    }
+
+    @Test
+    void getCategories_StatusActive_ReturnsActiveCategoriesOnly() {
+        ProductCategory category = ProductCategory.builder().id(UUID.randomUUID()).name("Electronics").company(company)
+                .status(ProductCategoryStatus.ACTIVE).build();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByCompanyIdAndStatusOrderByNameAsc(company.getId(),
+                ProductCategoryStatus.ACTIVE)).thenReturn(List.of(category));
+
+        List<ProductCategoryResponseDTO> result = productCategoryService.getCategories(user,
+                ProductCategoryStatus.ACTIVE);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Electronics", result.get(0).getName());
+    }
+
+    @Test
+    void updateCategory_Success_SavesAndReturnsCategory() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder().id(categoryId).company(company).name("Old Name")
+                .status(ProductCategoryStatus.ACTIVE).build();
+        UpdateProductCategoryRequest request = new UpdateProductCategoryRequest("New Name", "New Description");
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productCategoryRepository.existsByCompanyIdAndNameIgnoreCaseAndIdNot(company.getId(), "New Name",
+                categoryId)).thenReturn(false);
+        when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductCategoryResponseDTO result = productCategoryService.updateCategory(user, categoryId, request);
+
+        assertNotNull(result);
+        assertEquals("New Name", result.getName());
+        assertEquals("New Description", category.getDescription());
+    }
+
+    @Test
+    void updateCategory_NotFound_ThrowsException() {
+        UUID categoryId = UUID.randomUUID();
+        UpdateProductCategoryRequest request = new UpdateProductCategoryRequest("New Name", "New Description");
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productCategoryService.updateCategory(user, categoryId, request));
+        assertSame(ErrorCode.PRODUCT_CATEGORY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void updateCategoryStatus_ToActive_DoesNotCallProductRepo() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder().id(categoryId).company(company).name("Electronics")
+                .status(ProductCategoryStatus.INACTIVE).build();
+        UpdateProductCategoryStatusRequest request = new UpdateProductCategoryStatusRequest(
+                ProductCategoryStatus.ACTIVE);
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productCategoryRepository.save(any(ProductCategory.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductCategoryResponseDTO result = productCategoryService.updateCategoryStatus(user, categoryId, request);
+
+        assertNotNull(result);
+        assertEquals(ProductCategoryStatus.ACTIVE, category.getStatus());
+        verify(productRepository, never()).updateStatusByCategoryIdAndCompanyId(any(), any(), any());
+    }
+
+    @Test
+    void updateCategoryStatus_NotFound_ThrowsException() {
+        UUID categoryId = UUID.randomUUID();
+        UpdateProductCategoryStatusRequest request = new UpdateProductCategoryStatusRequest(
+                ProductCategoryStatus.ACTIVE);
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId())).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> productCategoryService.updateCategoryStatus(user, categoryId, request));
+        assertSame(ErrorCode.PRODUCT_CATEGORY_NOT_FOUND, exception.getErrorCode());
     }
 }

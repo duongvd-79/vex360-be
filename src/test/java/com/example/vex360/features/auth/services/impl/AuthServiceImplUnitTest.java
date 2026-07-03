@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.*;
 
@@ -382,6 +383,43 @@ class AuthServiceImplUnitTest {
         verify(userService).incrementFailedAttempts("test@example.com");
     }
 
+    @Test
+    void login_UserNotFound_ThrowsBadCredentialsAndIncrementsAttempts() {
+        LoginRequest request = new LoginRequest("nonexistent@example.com", "password");
+
+        when(userService.findUserByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new AuthenticationException("Bad credentials") {
+                });
+
+        AppException ex = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.BAD_CREDENTIALS, ex.getErrorCode());
+        verify(userService).incrementFailedAttempts("nonexistent@example.com");
+    }
+
+    @Test
+    void login_LockoutExpired_AllowsLogin() {
+        LoginRequest request = new LoginRequest("test@example.com", "password");
+        Authentication authentication = mock(Authentication.class);
+        // lockoutEnd in the past => should NOT be blocked
+        testUser.setLockoutEnd(Instant.now().minusSeconds(60));
+        testUser.setFailedLoginAttempts(0);
+        CustomUserDetails userDetails = new CustomUserDetails(testUser);
+
+        when(userService.findUserByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(jwtProvider.generateToken(userDetails)).thenReturn("mock-access-token");
+
+        TokenResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("mock-access-token", response.getAccessToken());
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
     // ==========================================
     // refreshToken Tests
     // ==========================================
@@ -475,6 +513,55 @@ class AuthServiceImplUnitTest {
 
         verify(refreshTokenRepository).delete(refreshToken);
         verify(tokenBlacklistService).blacklistToken("access-token-xyz", expirationDate);
+    }
+
+    @Test
+    void logout_RefreshTokenNotFound_StillBlacklists() {
+        when(refreshTokenRepository.findByToken("nonexistent-token")).thenReturn(Optional.empty());
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer access-token-xyz");
+
+        Date expirationDate = new Date(System.currentTimeMillis() + 100000);
+        when(jwtProvider.extractClaims(eq("access-token-xyz"), any())).thenReturn(expirationDate);
+
+        assertDoesNotThrow(() -> authService.logout("nonexistent-token"));
+
+        verify(refreshTokenRepository, never()).delete(any(RefreshToken.class));
+        verify(tokenBlacklistService).blacklistToken("access-token-xyz", expirationDate);
+    }
+
+    @Test
+    void logout_NoAuthorizationHeader_StillSucceeds() {
+        String tokenStr = "refresh-token-2";
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .user(testUser)
+                .build();
+
+        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(refreshToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn(null);
+
+        assertDoesNotThrow(() -> authService.logout(tokenStr));
+
+        verify(refreshTokenRepository).delete(refreshToken);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+    }
+
+    @Test
+    void logout_BlacklistFails_StillSucceeds() {
+        String tokenStr = "refresh-token-3";
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .user(testUser)
+                .build();
+
+        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(refreshToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.logout(tokenStr));
+
+        verify(refreshTokenRepository).delete(refreshToken);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
     }
 
     // ==========================================
@@ -654,7 +741,7 @@ class AuthServiceImplUnitTest {
 
     private void setField(Object target, String fieldName, Object value) {
         try {
-            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            Field field = target.getClass().getDeclaredField(fieldName);
             field.setAccessible(true);
             field.set(target, value);
         } catch (Exception e) {

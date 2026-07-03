@@ -383,6 +383,21 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
+    void getRequests_RequestedRoleNull_DoesNotThrowException() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(partnershipRequestRepository.searchRequests(PartnershipRequestStatus.PENDING, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
+                PartnershipRequestStatus.PENDING,
+                null,
+                pageable);
+
+        assertNotNull(response);
+        assertEquals(0, response.getContent().size());
+    }
+
+    @Test
     void getRequestSummaryCountsRequestsByStatus() {
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING)).thenReturn(5L);
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED)).thenReturn(4L);
@@ -393,6 +408,277 @@ class PartnershipRequestServiceUnitTest {
         assertEquals(5L, response.getPendingRequests());
         assertEquals(4L, response.getApprovedRequests());
         assertEquals(3L, response.getRejectedRequests());
+    }
+
+    @Test
+    void approveGuestRequest_EmailAlreadyRegistered_ThrowsException() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, null, Role.EXHIBITOR);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(userService.existsByEmail("requester@example.com")).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.approveRequest(requestId));
+
+        assertSame(ErrorCode.PARTNERSHIP_EMAIL_ALREADY_REGISTERED, exception.getErrorCode());
+        verify(userService, never()).createUser(any(), any());
+    }
+
+    @Test
+    void submitGuestRequest_RequestNull_ThrowsException() {
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitGuestRequest(null));
+
+        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+    }
+
+    @Test
+    void submitGuestRequest_AcceptedPolicyNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("guest@example.com", Role.EXHIBITOR);
+        request.setAcceptedPolicy(null);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitGuestRequest(request));
+
+        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+    }
+
+    @Test
+    void submitGuestRequest_AcceptedPolicyFalse_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("guest@example.com", Role.EXHIBITOR);
+        request.setAcceptedPolicy(false);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitGuestRequest(request));
+
+        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+    }
+
+    @Test
+    void submitGuestRequest_RoleNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("guest@example.com", null);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitGuestRequest(request));
+
+        assertSame(ErrorCode.INVALID_PARTNERSHIP_ROLE, exception.getErrorCode());
+    }
+
+    @Test
+    void submitGuestRequest_RoleInvalid_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("guest@example.com", Role.VISITOR);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitGuestRequest(request));
+
+        assertSame(ErrorCode.INVALID_PARTNERSHIP_ROLE, exception.getErrorCode());
+    }
+
+    @Test
+    void submitAuthenticatedRequest_RequesterEmailNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest(null, Role.EXHIBITOR);
+
+        when(userService.getUserEntityById(user.getId())).thenReturn(user);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitAuthenticatedRequest(user, request));
+
+        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER, exception.getErrorCode());
+    }
+
+    @Test
+    void submitAuthenticatedRequest_UserEmailNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.EXHIBITOR);
+        User userWithNullEmail = User.builder().id(UUID.randomUUID()).email(null).build();
+
+        when(userService.getUserEntityById(userWithNullEmail.getId())).thenReturn(userWithNullEmail);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitAuthenticatedRequest(userWithNullEmail, request));
+
+        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER, exception.getErrorCode());
+    }
+
+    @Test
+    void submitAuthenticatedRequest_CurrentUserNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.EXHIBITOR);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitAuthenticatedRequest(null, request));
+
+        assertSame(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+    }
+
+    @Test
+    void submitAuthenticatedRequest_CurrentUserIdNull_ThrowsException() {
+        SubmitPartnershipRequest request = validRequest("user@example.com", Role.EXHIBITOR);
+        User badUser = User.builder().id(null).email("user@example.com").build();
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.submitAuthenticatedRequest(badUser, request));
+
+        assertSame(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+    }
+
+    @Test
+    void getRequestById_NotFound_ThrowsException() {
+        UUID requestId = UUID.randomUUID();
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> partnershipRequestService.getRequestById(requestId));
+
+        assertSame(ErrorCode.PARTNERSHIP_REQUEST_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void submitGuestRequest_NormalizeTrimEmpty_ReturnsNullFields() {
+        SubmitPartnershipRequest request = new SubmitPartnershipRequest(
+                "   ", "guest@example.com", "   ", "   ", Role.EXHIBITOR, "   ", true);
+
+        when(userService.existsByEmail("guest@example.com")).thenReturn(false);
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.submitGuestRequest(request);
+
+        ArgumentCaptor<PartnershipRequest> captor = ArgumentCaptor.forClass(PartnershipRequest.class);
+        verify(partnershipRequestRepository).save(captor.capture());
+        PartnershipRequest saved = captor.getValue();
+
+        assertNull(saved.getRequesterName());
+        assertNull(saved.getRequesterPhoneNumber());
+        assertNull(saved.getOrganizationName());
+        assertNull(saved.getMessage());
+    }
+
+    @Test
+    void resolveNotificationEmail_SubmittedUserEmailNull_ReturnsRequesterEmail() {
+        UUID requestId = UUID.randomUUID();
+        User submitted = User.builder().id(UUID.randomUUID()).email(null).build();
+        PartnershipRequest request = pendingRequest(requestId, submitted, Role.EXHIBITOR);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.rejectRequest(requestId, new RejectPartnershipRequest("No"));
+
+        verify(mailService).sendPartnershipRejectedEmail(
+                eq("requester@example.com"),
+                anyString(),
+                anyString(),
+                anyString());
+    }
+
+    @Test
+    void resolveNotificationEmail_RequesterEmailNull_ReturnsUserEmail() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, user, Role.EXHIBITOR);
+        request.setRequesterEmail(null);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.rejectRequest(requestId, new RejectPartnershipRequest("No"));
+
+        verify(mailService).sendPartnershipRejectedEmail(
+                eq("user@example.com"),
+                anyString(),
+                anyString(),
+                anyString());
+    }
+
+    @Test
+    void resolveNotificationEmail_DifferentEmails_ReturnsRequesterEmail() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, user, Role.EXHIBITOR);
+        request.setRequesterEmail("different@example.com");
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.rejectRequest(requestId, new RejectPartnershipRequest("No"));
+
+        verify(mailService).sendPartnershipRejectedEmail(
+                eq("different@example.com"),
+                anyString(),
+                anyString(),
+                anyString());
+    }
+
+    @Test
+    void resolveNotificationName_FullNameNull_ReturnsRequesterName() {
+        UUID requestId = UUID.randomUUID();
+        User submitted = User.builder().id(UUID.randomUUID()).email("user@example.com").fullName(null).build();
+        PartnershipRequest request = pendingRequest(requestId, submitted, Role.EXHIBITOR);
+        request.setRequesterEmail("user@example.com");
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.rejectRequest(requestId, new RejectPartnershipRequest("No"));
+
+        verify(mailService).sendPartnershipRejectedEmail(
+                anyString(),
+                eq("Requester Name"),
+                anyString(),
+                anyString());
+    }
+
+    @Test
+    void approveRequest_AuthenticatedDifferentEmail_ReturnsRequesterEmail() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, user, Role.ORGANIZER);
+        request.setRequesterEmail("different@example.com");
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(userService.getUserEntityById(user.getId())).thenReturn(user);
+        when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(true);
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.approveRequest(requestId);
+
+        verify(mailService).sendPartnershipApprovedEmail(
+                eq("different@example.com"),
+                eq("Requester Name"),
+                eq(Role.ORGANIZER),
+                anyString());
+    }
+
+    @Test
+    void approveRequest_AuthenticatedRequesterEmailNull_ReturnsUserEmailAndName() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, user, Role.ORGANIZER);
+        request.setRequesterEmail(null);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(userService.getUserEntityById(user.getId())).thenReturn(user);
+        when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(true);
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        partnershipRequestService.approveRequest(requestId);
+
+        verify(mailService).sendPartnershipApprovedEmail(
+                eq("user@example.com"),
+                eq("User Name"),
+                eq(Role.ORGANIZER),
+                anyString());
+    }
+
+    @Test
+    void getRequestById_Exists_ReturnsPartnershipRequestResponseDTO() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = pendingRequest(requestId, null, Role.EXHIBITOR);
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+
+        PartnershipRequestResponseDTO response = partnershipRequestService.getRequestById(requestId);
+
+        assertNotNull(response);
+        assertEquals(requestId, response.getId());
+        assertEquals("requester@example.com", response.getRequesterEmail());
     }
 
     private SubmitPartnershipRequest validRequest(String email, Role role) {
