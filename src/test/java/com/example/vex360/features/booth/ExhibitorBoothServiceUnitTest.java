@@ -27,7 +27,6 @@ import org.springframework.mock.web.MockMultipartFile;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
-
 import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;

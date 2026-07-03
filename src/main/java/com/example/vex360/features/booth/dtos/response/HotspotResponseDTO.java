@@ -2,9 +2,12 @@ package com.example.vex360.features.booth.dtos.response;
 
 import java.util.UUID;
 
+<<<<<<< HEAD
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
+=======
+>>>>>>> 1787f98 (Merge branch 'dev' of https://github.com/duongvd-79/vex360-be into Myntt)
 import com.example.vex360.features.booth.enums.HotspotType;
 
 import lombok.AllArgsConstructor;
