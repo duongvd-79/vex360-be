@@ -82,6 +82,64 @@ public class CloudinaryService implements CloudService {
 
     @Override
     @Transactional
+    public CloudinaryResponse uploadToFolder(MultipartFile file, String folder) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+
+        FileUploadUtils.validateFileType(file);
+        FileUploadUtils.validateFileSize(file, 10);
+        log.info("File received for folder [{}]: {}", folder, file.getOriginalFilename());
+
+        try {
+            String date = java.time.LocalDate.now().toString();
+            String targetFolder = (folder != null && !folder.isBlank())
+                    ? folder + "/" + date
+                    : FileUploadUtils.generateFolderName(file);
+
+            Map<?, ?> params = ObjectUtils.asMap(
+                    "folder", targetFolder,
+                    "resource_type", "auto");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
+
+            log.info("Successfully uploaded file {} to Cloudinary folder [{}]. Public ID: {}",
+                    file.getOriginalFilename(), targetFolder, uploadResult.get("public_id"));
+
+            String publicId = (String) uploadResult.get("public_id");
+            Integer width = (Integer) uploadResult.get("width");
+            Integer height = (Integer) uploadResult.get("height");
+            String resourceType = (String) uploadResult.get("resource_type");
+            if (resourceType == null || resourceType.isBlank()) {
+                resourceType = "image";
+            }
+
+            String url = cloudinary.url()
+                    .secure(true)
+                    .resourceType(resourceType)
+                    .transformation(new Transformation()
+                            .quality("auto")
+                            .fetchFormat("auto"))
+                    .generate(publicId);
+
+            return CloudinaryResponse.builder()
+                    .url(url)
+                    .publicId(publicId)
+                    .fileName(file.getOriginalFilename())
+                    .fileSize(file.getSize())
+                    .fileType(file.getContentType())
+                    .width(width)
+                    .height(height)
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to upload file {} to Cloudinary folder [{}]", file.getOriginalFilename(), folder, e);
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    @Override
+    @Transactional
     public void delete(String publicId, String resourceType) {
         if (publicId == null || publicId.isBlank()) {
             return;

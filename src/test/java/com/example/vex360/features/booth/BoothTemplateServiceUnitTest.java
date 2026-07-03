@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -33,13 +34,14 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.services.BoothTemplateService;
-import com.example.vex360.features.booth.services.PanoramaStorageService;
-import com.example.vex360.features.booth.services.PanoramaStorageService.StoredPanoramaFile;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.utils.FileUploadUtils;
 
 @ExtendWith(MockitoExtension.class)
 class BoothTemplateServiceUnitTest {
@@ -53,7 +55,7 @@ class BoothTemplateServiceUnitTest {
     private HotspotRepository hotspotRepository;
 
     @Mock
-    private PanoramaStorageService panoramaStorageService;
+    private CloudService cloudService;
 
     private BoothTemplateService boothTemplateService;
     private User admin;
@@ -64,7 +66,7 @@ class BoothTemplateServiceUnitTest {
                 boothRepository,
                 panoramaRepository,
                 hotspotRepository,
-                panoramaStorageService,
+                cloudService,
                 Mappers.getMapper(BoothMapper.class));
         admin = User.builder()
                 .id(UUID.randomUUID())
@@ -205,10 +207,18 @@ class BoothTemplateServiceUnitTest {
             return booth;
         });
 
-        when(panoramaStorageService.store(any(MultipartFile.class))).thenAnswer(invocation -> {
-            MultipartFile file = invocation.getArgument(0);
-            return new StoredPanoramaFile("/uploads/panoramas/" + file.getOriginalFilename(), file.getOriginalFilename());
-        });
+        when(cloudService.uploadToFolder(any(MultipartFile.class), eq(FileUploadUtils.PANORAMA_FOLDER)))
+                .thenAnswer(invocation -> {
+                    MultipartFile file = invocation.getArgument(0);
+                    String publicId = FileUploadUtils.PANORAMA_FOLDER + "/" + file.getOriginalFilename();
+                    return CloudinaryResponse.builder()
+                            .url("https://res.cloudinary.com/demo/image/upload/" + publicId)
+                            .publicId(publicId)
+                            .fileName(file.getOriginalFilename())
+                            .fileSize(file.getSize())
+                            .fileType(file.getContentType())
+                            .build();
+                });
 
         when(panoramaRepository.saveAll(any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")

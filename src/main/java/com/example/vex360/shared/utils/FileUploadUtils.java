@@ -15,6 +15,9 @@ public class FileUploadUtils {
     }
     private static final Random r = new Random();
 
+    /** Cloudinary folder prefix for panorama images */
+    public static final String PANORAMA_FOLDER = "panorama";
+
     // Allowed file types (MIME types)
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
             "image/jpeg", "image/png", "image/gif", "image/bmp",
