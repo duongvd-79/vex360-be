@@ -17,8 +17,9 @@ spring:
 
   # Flyway Configuration
   flyway:
-    enabled: false
+    enabled: true
     baseline-on-migrate: true
+    baseline-version: 4
 
   # Mail Server Configuration
   mail:
@@ -36,8 +37,8 @@ spring:
   # Asset Upload Configuration
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 100MB
+      max-file-size: 60MB
+      max-request-size: 62MB
 
 # Custom Application Settings
 app:
@@ -99,4 +100,3 @@ spring:
     username: ${AIVEN_DB_USER}
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-

@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.example.vex360.shared.enums.PaymentStatus;
+import com.example.vex360.features.company.entities.StoragePackageOrder;
+import com.example.vex360.shared.enums.PaymentType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,9 +41,18 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exhibitor_registration_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "exhibitor_registration_id", nullable = true)
     ExhibitorRegistration exhibitorRegistration;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "storage_package_order_id", nullable = true)
+    StoragePackageOrder storagePackageOrder;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", nullable = false)
+    @Builder.Default
+    PaymentType paymentType = PaymentType.EXHIBITION_REGISTRATION;
 
     @Column(name = "order_code", nullable = false, unique = true)
     Long orderCode;

@@ -16,6 +16,12 @@ import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.features.company.entities.StoragePackageOrder;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
+import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.shared.enums.PaymentType;
+import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +37,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PayOS payOS;
+    private final StoragePackageOrderRepository storagePackageOrderRepository;
+    private final CompanyRepository companyRepository;
 
     @Override
     @Transactional
@@ -46,7 +54,6 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
 
             if ("00".equals(data.getCode())) {
-                // Payment was successful
                 payment.setStatus(PaymentStatus.PAID);
                 payment.setPaidAt(LocalDateTime.now());
                 if (data.getReference() != null) {
@@ -54,18 +61,31 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 }
                 paymentRepository.save(payment);
 
-                // Update associated ExhibitorRegistration to APPROVED
-                ExhibitorRegistration registration = payment.getExhibitorRegistration();
-                registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-                registrationRepository.save(registration);
-                eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
+                    StoragePackageOrder order = payment.getStoragePackageOrder();
+                    order.setStatus(StoragePackageOrderStatus.PAID);
+                    order.setPaidAt(LocalDateTime.now());
+                    storagePackageOrderRepository.save(order);
 
-                log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
+                    Company company = order.getCompany();
+                    company.setStorageQuotaBytes(
+                            company.getStorageQuotaBytes() + order.getStoragePackage().getQuotaBytes());
+                    companyRepository.save(company);
+
+                    log.info("Storage package PAID. Company {} quota increased by {}B", company.getId(),
+                            order.getStoragePackage().getQuotaBytes());
+                } else {
+                    ExhibitorRegistration registration = payment.getExhibitorRegistration();
+                    registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+                    registrationRepository.save(registration);
+                    eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+
+                    log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
+                }
             } else {
-                // Payment failed or expired
                 payment.setStatus(PaymentStatus.FAILED);
                 paymentRepository.save(payment);
-                log.warn("Payment FAILED/EXPIRED for orderCode: {}. Registration remains PENDING.", orderCode);
+                log.warn("Payment FAILED/EXPIRED for orderCode: {}. Code: {}", orderCode, data.getCode());
             }
 
             return data;

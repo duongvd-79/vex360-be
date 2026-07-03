@@ -75,4 +75,13 @@ public class Company {
     @Column(name = "status", nullable = false)
     @Builder.Default
     CompanyStatus status = CompanyStatus.INCOMPLETE_PROFILE;
+
+    @Column(name = "storage_used_bytes", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    @Builder.Default
+    Long storageUsedBytes = 0L;
+
+    @Column(name = "storage_quota_bytes", nullable = false, columnDefinition = "BIGINT DEFAULT 524288000")
+    @Builder.Default
+    Long storageQuotaBytes = 524_288_000L;
+
 }
