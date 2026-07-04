@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,9 +20,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryResponseDTO;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.booth.dtos.request.CreateBoothTemplateRequest;
 import com.example.vex360.features.booth.dtos.request.CreateHotspotRequest;
 import com.example.vex360.features.booth.dtos.request.CreatePanoramaRequest;
@@ -198,6 +205,142 @@ class BoothTemplateServiceUnitTest {
                 Map.of()));
 
         assertSame(ErrorCode.PANORAMA_FILE_INVALID, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_NullUser_ThrowsUnauthenticated() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT,
+                List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null)));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                null, request, Map.of("file_1", image("file_1"))));
+
+        assertSame(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_NullRequest_ThrowsInvalidBoothTemplate() {
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, null, Map.of("file_1", image("file_1"))));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_BlankName_ThrowsInvalidBoothTemplate() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "   ", "Desc", BoothStatus.DRAFT,
+                List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null)));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request, Map.of("file_1", image("file_1"))));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_EmptyPanoramas_ThrowsInvalidBoothTemplate() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT, List.of());
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request, Map.of()));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_NullPanorama_ThrowsInvalidBoothTemplate() {
+        List<CreatePanoramaRequest> panos = new ArrayList<>();
+        panos.add(null);
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT, panos);
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request, Map.of()));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_DuplicateClientKey_ThrowsInvalidBoothTemplate() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT,
+                List.of(
+                        new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null),
+                        new CreatePanoramaRequest("pano_1", "file_2", "Entrance 2", null, null, null)));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request, Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_UnreachablePanorama_ThrowsInvalidPanoramaHotspot() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT,
+                List.of(
+                        new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, true,
+                                List.of(new CreateHotspotRequest("Go Main", "pano_2", 1.0, 2.0, 3.0))),
+                        new CreatePanoramaRequest("pano_2", "file_2", "Main", null, false, List.of()),
+                        new CreatePanoramaRequest("pano_3", "file_3", "Secret Room", null, false, List.of()) // disconnected!
+                ));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request,
+                Map.of("file_1", image("file_1"), "file_2", image("file_2"), "file_3", image("file_3"))));
+
+        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+    }
+
+    @Test
+    void getBoothTemplates_Succeeds() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        Booth booth = Booth.builder()
+                .id(UUID.randomUUID())
+                .name("Template A")
+                .isTemplate(true)
+                .status(BoothStatus.PUBLISHED)
+                .build();
+        Page<Booth> page = new PageImpl<>(List.of(booth), pageable, 1);
+
+        when(boothRepository.searchTemplates("Template", BoothStatus.PUBLISHED, pageable)).thenReturn(page);
+
+        PageResponse<BoothTemplateSummaryResponseDTO> response = boothTemplateService.getBoothTemplates(" Template ",
+                BoothStatus.PUBLISHED, pageable);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("Template A", response.getContent().get(0).getName());
+    }
+
+    @Test
+    void getBoothTemplateById_Exists_ReturnsDto() {
+        UUID id = UUID.randomUUID();
+        Booth booth = Booth.builder()
+                .id(id)
+                .name("Template A")
+                .isTemplate(true)
+                .status(BoothStatus.PUBLISHED)
+                .build();
+
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+
+        BoothTemplateResponseDTO response = boothTemplateService.getBoothTemplateById(id);
+
+        assertNotNull(response);
+        assertEquals("Template A", response.getName());
+    }
+
+    @Test
+    void getBoothTemplateById_NotFound_ThrowsException() {
+        UUID id = UUID.randomUUID();
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.getBoothTemplateById(id));
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND, exception.getErrorCode());
     }
 
     private void mockSaveFlow() {

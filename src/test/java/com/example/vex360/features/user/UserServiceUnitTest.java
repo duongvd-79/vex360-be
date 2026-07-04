@@ -1,6 +1,9 @@
 package com.example.vex360.features.user;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,6 +13,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +43,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -266,5 +271,218 @@ class UserServiceUnitTest {
         assertEquals(1102L, response.getActiveUsers());
         assertEquals(12L, response.getAdminUsers());
         assertEquals(45L, response.getPendingUsers());
+    }
+
+    // ==========================================
+    // getUserById Tests
+    // ==========================================
+
+    @Test
+    void getUserByIdReturnsUserResponseDTO() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+
+        UserResponseDTO response = userService.getUserById(userId);
+
+        assertEquals("user@example.com", response.getEmail());
+        assertEquals("Old Name", response.getFullName());
+    }
+
+    // ==========================================
+    // getCurrentUser Tests
+    // ==========================================
+
+    @Test
+    void getCurrentUserReturnsUserResponseDTO() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(sampleUser));
+
+        UserResponseDTO response = userService.getCurrentUser("user@example.com");
+
+        assertEquals("user@example.com", response.getEmail());
+        assertEquals("Old Name", response.getFullName());
+    }
+
+    @Test
+    void getCurrentUserThrowsWhenEmailNotFound() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> userService.getCurrentUser("missing@example.com"));
+        assertSame(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+    }
+
+    // ==========================================
+    // createUser(UserRequestDTO) edge cases
+    // ==========================================
+
+    @Test
+    void createUserWithUserRequestDTO_RoleNull_DefaultsToVisitor() {
+        UserRequestDTO dto = new UserRequestDTO(
+                "norole@example.com", "Password123!", "No Role User", "12345", null, "avatar.png");
+
+        when(userRepository.existsByEmail("norole@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = userService.createUser(dto);
+
+        assertEquals(Role.VISITOR, createdUser.getRole());
+    }
+
+    @Test
+    void createUserWithUserRequestDTO_RoleInvalid_ThrowsRoleNotFound() {
+        UserRequestDTO dto = new UserRequestDTO(
+                "invalid@example.com", "Password123!", "Invalid Role User", "12345", "INVALID_ROLE",
+                "avatar.png");
+
+        AppException ex = assertThrows(AppException.class, () -> userService.createUser(dto));
+        assertSame(ErrorCode.ROLE_NOT_FOUND, ex.getErrorCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void createUserWithUserRequestDTO_EmailExists_ThrowsEmailAlreadyExists() {
+        UserRequestDTO dto = new UserRequestDTO(
+                "existing@example.com", "Password123!", "Existing User", "12345", "VISITOR", "avatar.png");
+
+        when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
+
+        AppException ex = assertThrows(AppException.class, () -> userService.createUser(dto));
+        assertSame(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getErrorCode());
+    }
+
+    // ==========================================
+    // getUsers edge cases
+    // ==========================================
+
+    @Test
+    void getUsersWithNullKeyword_PassesNullToRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
+
+        when(userRepository.searchUsers(null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<UserResponseDTO> response = userService.getUsers(null, null, null, pageable);
+
+        assertEquals(0, response.getContent().size());
+        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(pageable));
+    }
+
+    // ==========================================
+    // findOrCreateGoogleUser Tests
+    // ==========================================
+
+    @Test
+    void findOrCreateGoogleUser_UserExists_ReturnsExistingUser() {
+        when(userRepository.findByEmail("google@example.com")).thenReturn(Optional.of(sampleUser));
+
+        User result = userService.findOrCreateGoogleUser("google@example.com", "Google User", "avatar.png");
+
+        assertSame(sampleUser, result);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void findOrCreateGoogleUser_NewUser_WithFullName() {
+        when(userRepository.findByEmail("new@google.com")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.findOrCreateGoogleUser("new@google.com", "New Google User", "avatar.png");
+
+        assertEquals("new@google.com", result.getEmail());
+        assertEquals("New Google User", result.getFullName());
+        assertEquals(Role.VISITOR, result.getRole());
+        assertEquals(AuthProvider.GOOGLE, result.getProvider());
+        assertEquals("avatar.png", result.getAvatarUrl());
+        assertNull(result.getPassword());
+        verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    void findOrCreateGoogleUser_NewUser_FullNameNull_FallsBackToEmail() {
+        when(userRepository.findByEmail("new@google.com")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.findOrCreateGoogleUser("new@google.com", null, "avatar.png");
+
+        assertEquals("new@google.com", result.getFullName());
+        verify(userRepository).save(any(User.class));
+    }
+
+    // ==========================================
+    // incrementFailedAttempts Tests
+    // ==========================================
+
+    @Test
+    void incrementFailedAttempts_BelowThreshold_IncrementsOnly() {
+        sampleUser.setFailedLoginAttempts(2);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(sampleUser));
+
+        userService.incrementFailedAttempts("user@example.com");
+
+        assertEquals(3, sampleUser.getFailedLoginAttempts());
+        assertNull(sampleUser.getLockoutEnd());
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void incrementFailedAttempts_ReachesThreshold_SetsLockoutEnd() {
+        sampleUser.setFailedLoginAttempts(4);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(sampleUser));
+
+        userService.incrementFailedAttempts("user@example.com");
+
+        assertEquals(5, sampleUser.getFailedLoginAttempts());
+        assertNotNull(sampleUser.getLockoutEnd());
+        assertTrue(sampleUser.getLockoutEnd().isAfter(Instant.now()));
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void incrementFailedAttempts_EmailNotFound_DoesNothing() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> userService.incrementFailedAttempts("missing@example.com"));
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    // ==========================================
+    // resetFailedAttempts Tests
+    // ==========================================
+
+    @Test
+    void resetFailedAttempts_Success() {
+        sampleUser.setFailedLoginAttempts(3);
+        sampleUser.setLockoutEnd(Instant.now().plusSeconds(900));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+
+        userService.resetFailedAttempts(sampleUser);
+
+        assertEquals(0, sampleUser.getFailedLoginAttempts());
+        assertNull(sampleUser.getLockoutEnd());
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void resetFailedAttempts_UserNotFound_DoesNothing() {
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> userService.resetFailedAttempts(sampleUser));
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    // ==========================================
+    // updatePassword Tests
+    // ==========================================
+
+    @Test
+    void updatePassword_EncodesAndSaves() {
+        when(passwordEncoder.encode("newPassword")).thenReturn("encodedNewPassword");
+
+        userService.updatePassword(sampleUser, "newPassword");
+
+        assertEquals("encodedNewPassword", sampleUser.getPassword());
+        verify(userRepository).save(sampleUser);
     }
 }

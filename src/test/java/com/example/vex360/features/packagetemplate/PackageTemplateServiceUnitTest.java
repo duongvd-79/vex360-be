@@ -188,6 +188,119 @@ class PackageTemplateServiceUnitTest {
         verify(packageTemplateRepository).save(template);
     }
 
+    @Test
+    void createPackageTemplate_UserNull_ThrowsException() {
+        CreatePackageTemplateRequest request = sampleCreateRequest("Premium");
+        AppException ex = assertThrows(AppException.class,
+                () -> packageTemplateService.createPackageTemplate(null, request));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
+    }
+
+    @Test
+    void createPackageTemplate_UserIdNull_ThrowsException() {
+        CreatePackageTemplateRequest request = sampleCreateRequest("Premium");
+        User user = User.builder().id(null).build();
+        AppException ex = assertThrows(AppException.class,
+                () -> packageTemplateService.createPackageTemplate(user, request));
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());
+    }
+
+    @Test
+    void createPackageTemplate_CurrencyNull_SavesWithVnd() {
+        CreatePackageTemplateRequest request = new CreatePackageTemplateRequest(
+                "Premium", "Desc", BigDecimal.TEN, null, 1, 1, 1, 1, 100L, BoothListingPriority.NORMAL);
+
+        when(packageTemplateRepository.existsByNameIgnoreCase("Premium")).thenReturn(false);
+        when(packageTemplateRepository.save(any(PackageTemplate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        packageTemplateService.createPackageTemplate(admin, request);
+
+        ArgumentCaptor<PackageTemplate> captor = ArgumentCaptor.forClass(PackageTemplate.class);
+        verify(packageTemplateRepository).save(captor.capture());
+        assertEquals("VND", captor.getValue().getCurrency());
+    }
+
+    @Test
+    void getPackageTemplates_KeywordNull_SearchWithNull() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(packageTemplateRepository.searchPackageTemplates(null, PackageTemplateStatus.ACTIVE, pageable))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        packageTemplateService.getPackageTemplates(null, PackageTemplateStatus.ACTIVE, pageable);
+
+        verify(packageTemplateRepository).searchPackageTemplates(null, PackageTemplateStatus.ACTIVE, pageable);
+    }
+
+    @Test
+    void getPackageTemplates_KeywordBlank_SearchWithNull() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(packageTemplateRepository.searchPackageTemplates(null, PackageTemplateStatus.ACTIVE, pageable))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        packageTemplateService.getPackageTemplates("   ", PackageTemplateStatus.ACTIVE, pageable);
+
+        verify(packageTemplateRepository).searchPackageTemplates(null, PackageTemplateStatus.ACTIVE, pageable);
+    }
+
+    @Test
+    void getPackageTemplateById_Exists_ReturnsDto() {
+        UUID id = UUID.randomUUID();
+        PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
+        when(packageTemplateRepository.findById(id)).thenReturn(Optional.of(template));
+
+        PackageTemplateResponseDTO response = packageTemplateService.getPackageTemplateById(id);
+
+        assertEquals("Pro", response.getName());
+    }
+
+    @Test
+    void getPackageTemplateById_NotFound_ThrowsException() {
+        UUID id = UUID.randomUUID();
+        when(packageTemplateRepository.findById(id)).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> packageTemplateService.getPackageTemplateById(id));
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
+    void getActivePackageTemplateById_Exists_ReturnsDto() {
+        UUID id = UUID.randomUUID();
+        PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
+        when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)).thenReturn(Optional.of(template));
+
+        PackageTemplateResponseDTO response = packageTemplateService.getActivePackageTemplateById(id);
+
+        assertEquals("Pro", response.getName());
+    }
+
+    @Test
+    void getPackageTemplateEntity_Exists_ReturnsEntity() {
+        UUID id = UUID.randomUUID();
+        PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
+        when(packageTemplateRepository.findById(id)).thenReturn(Optional.of(template));
+
+        PackageTemplate entity = packageTemplateService.getPackageTemplateEntity(id);
+
+        assertEquals("Pro", entity.getName());
+    }
+
+    @Test
+    void updatePackageTemplate_Success_SavesNewData() {
+        UUID id = UUID.randomUUID();
+        PackageTemplate template = sampleTemplate("Old Pro", PackageTemplateStatus.ACTIVE);
+        UpdatePackageTemplateRequest request = sampleUpdateRequest("New Pro");
+
+        when(packageTemplateRepository.findById(id)).thenReturn(Optional.of(template));
+        when(packageTemplateRepository.existsByNameIgnoreCaseAndIdNot("New Pro", id)).thenReturn(false);
+        when(packageTemplateRepository.save(template)).thenAnswer(inv -> inv.getArgument(0));
+
+        PackageTemplateResponseDTO response = packageTemplateService.updatePackageTemplate(id, request);
+
+        assertEquals("New Pro", response.getName());
+        assertEquals("USD", response.getCurrency());
+    }
+
     private CreatePackageTemplateRequest sampleCreateRequest(String name) {
         return new CreatePackageTemplateRequest(
                 name,

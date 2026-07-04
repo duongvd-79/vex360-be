@@ -103,6 +103,23 @@ class BoothProvisioningServiceUnitTest {
         verify(boothRepository, never()).save(any());
     }
 
+    @Test
+    void ensureBoothForApprovedRegistration_NullRegistration_ReturnsEmpty() {
+        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(null);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void ensureBoothForApprovedRegistration_NullRegistrationId_ReturnsEmpty() {
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(null)
+                .company(exhibitorUser)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
+        assertTrue(result.isEmpty());
+    }
+
     private ExhibitorRegistration registration(ExhibitorRegistrationStatus status) {
         return ExhibitorRegistration.builder()
                 .id(1)

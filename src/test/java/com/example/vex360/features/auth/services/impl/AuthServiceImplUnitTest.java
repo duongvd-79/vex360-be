@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.*;
 
@@ -155,6 +156,46 @@ class AuthServiceImplUnitTest {
     }
 
     @Test
+    void loginWithGoogle_NewUser_Success() {
+        Map<String, Object> mockTokenResponse = new HashMap<>();
+        mockTokenResponse.put("access_token", "google-access-token");
+
+        Map<String, Object> mockUserInfo = new HashMap<>();
+        mockUserInfo.put("email", "new_google@example.com");
+        mockUserInfo.put("name", "New Google User");
+        mockUserInfo.put("picture", "avatar.png");
+
+        try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
+                (mock, context) -> {
+                    when(mock.postForObject(anyString(), any(HttpEntity.class), eq(Map.class)))
+                            .thenReturn(mockTokenResponse);
+                    when(mock.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                            .thenReturn(ResponseEntity.ok(mockUserInfo));
+                })) {
+
+            User newUser = User.builder()
+                    .id(UUID.randomUUID())
+                    .email("new_google@example.com")
+                    .fullName("New Google User")
+                    .role(Role.VISITOR)
+                    .status(UserStatus.ACTIVE)
+                    .build();
+
+            when(userService.findOrCreateGoogleUser("new_google@example.com", "New Google User", "avatar.png"))
+                    .thenReturn(newUser);
+            when(jwtProvider.generateToken(any(CustomUserDetails.class))).thenReturn("access-token-456");
+
+            TokenResponse response = authService.loginWithGoogle("oauth-code");
+
+            assertNotNull(response);
+            assertEquals("access-token-456", response.getAccessToken());
+            assertNotNull(response.getRefreshToken());
+            verify(refreshTokenRepository).deleteByUser(newUser);
+            verify(refreshTokenRepository).save(any(RefreshToken.class));
+        }
+    }
+
+    @Test
     void loginWithGoogle_TokenResponseNull_ThrowsUnauthenticated() {
         try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
                 (mock, context) -> {
@@ -248,6 +289,28 @@ class AuthServiceImplUnitTest {
         verify(registrationTokenRepository).deleteByUser(pendingUser);
         verify(registrationTokenRepository).save(any(RegistrationToken.class));
         verify(mailService).sendRegistrationVerificationEmail(eq("register@example.com"), anyString());
+    }
+
+    @Test
+    void register_EmailAlreadyExists_ThrowsConflict() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("register@example.com");
+        request.setPassword("password");
+
+        UserRequestDTO userRequest = new UserRequestDTO();
+        userRequest.setEmail("register@example.com");
+        userRequest.setPassword("password");
+
+        when(authMapper.toUserRequestDTO(request)).thenReturn(userRequest);
+        when(userService.createUser(userRequest, UserStatus.PENDING))
+                .thenThrow(new AppException(ErrorCode.EMAIL_ALREADY_EXISTS));
+
+        AppException ex = assertThrows(AppException.class, () -> authService.register(request));
+        assertEquals(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getErrorCode());
+
+        verify(registrationTokenRepository, never()).deleteByUser(any());
+        verify(registrationTokenRepository, never()).save(any());
+        verify(mailService, never()).sendRegistrationVerificationEmail(any(), any());
     }
 
     // ==========================================
@@ -382,6 +445,43 @@ class AuthServiceImplUnitTest {
         verify(userService).incrementFailedAttempts("test@example.com");
     }
 
+    @Test
+    void login_UserNotFound_ThrowsBadCredentialsAndIncrementsAttempts() {
+        LoginRequest request = new LoginRequest("nonexistent@example.com", "password");
+
+        when(userService.findUserByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new AuthenticationException("Bad credentials") {
+                });
+
+        AppException ex = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.BAD_CREDENTIALS, ex.getErrorCode());
+        verify(userService).incrementFailedAttempts("nonexistent@example.com");
+    }
+
+    @Test
+    void login_LockoutExpired_AllowsLogin() {
+        LoginRequest request = new LoginRequest("test@example.com", "password");
+        Authentication authentication = mock(Authentication.class);
+        // lockoutEnd in the past => should NOT be blocked
+        testUser.setLockoutEnd(Instant.now().minusSeconds(60));
+        testUser.setFailedLoginAttempts(0);
+        CustomUserDetails userDetails = new CustomUserDetails(testUser);
+
+        when(userService.findUserByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(jwtProvider.generateToken(userDetails)).thenReturn("mock-access-token");
+
+        TokenResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("mock-access-token", response.getAccessToken());
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
     // ==========================================
     // refreshToken Tests
     // ==========================================
@@ -475,6 +575,55 @@ class AuthServiceImplUnitTest {
 
         verify(refreshTokenRepository).delete(refreshToken);
         verify(tokenBlacklistService).blacklistToken("access-token-xyz", expirationDate);
+    }
+
+    @Test
+    void logout_RefreshTokenNotFound_StillBlacklists() {
+        when(refreshTokenRepository.findByToken("nonexistent-token")).thenReturn(Optional.empty());
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer access-token-xyz");
+
+        Date expirationDate = new Date(System.currentTimeMillis() + 100000);
+        when(jwtProvider.extractClaims(eq("access-token-xyz"), any())).thenReturn(expirationDate);
+
+        assertDoesNotThrow(() -> authService.logout("nonexistent-token"));
+
+        verify(refreshTokenRepository, never()).delete(any(RefreshToken.class));
+        verify(tokenBlacklistService).blacklistToken("access-token-xyz", expirationDate);
+    }
+
+    @Test
+    void logout_NoAuthorizationHeader_StillSucceeds() {
+        String tokenStr = "refresh-token-2";
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .user(testUser)
+                .build();
+
+        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(refreshToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn(null);
+
+        assertDoesNotThrow(() -> authService.logout(tokenStr));
+
+        verify(refreshTokenRepository).delete(refreshToken);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+    }
+
+    @Test
+    void logout_BlacklistFails_StillSucceeds() {
+        String tokenStr = "refresh-token-3";
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(tokenStr)
+                .user(testUser)
+                .build();
+
+        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(refreshToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.logout(tokenStr));
+
+        verify(refreshTokenRepository).delete(refreshToken);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
     }
 
     // ==========================================
@@ -618,6 +767,31 @@ class AuthServiceImplUnitTest {
         verify(userService, never()).updatePassword(any(), any());
     }
 
+    @Test
+    void resetPassword_BlacklistFails_StillSucceeds() {
+        String rawToken = "valid-reset-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(60))
+                .user(testUser)
+                .build();
+
+        ResetPasswordRequest request = new ResetPasswordRequest(encryptedToken, "new-password");
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.resetPassword(request));
+
+        verify(userService).updatePassword(testUser, "new-password");
+        verify(passwordResetTokenRepository).delete(resetToken);
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+    }
+
     // ==========================================
     // changePassword Tests
     // ==========================================
@@ -652,9 +826,26 @@ class AuthServiceImplUnitTest {
         verify(userService, never()).updatePassword(any(), any());
     }
 
+    @Test
+    void changePassword_BlacklistFails_StillSucceeds() {
+        ChangePasswordRequest request = new ChangePasswordRequest("old-password", "new-password");
+
+        when(passwordEncoder.matches("old-password", testUser.getPassword())).thenReturn(true);
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.changePassword(testUser, request));
+
+        verify(userService).updatePassword(testUser, "new-password");
+        verify(passwordResetTokenRepository).deleteByUser(testUser);
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+        verify(mailService).sendPasswordChangeNotificationEmail("test@example.com");
+    }
+
     private void setField(Object target, String fieldName, Object value) {
         try {
-            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            Field field = target.getClass().getDeclaredField(fieldName);
             field.setAccessible(true);
             field.set(target, value);
         } catch (Exception e) {

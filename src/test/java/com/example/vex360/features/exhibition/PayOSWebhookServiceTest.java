@@ -34,7 +34,7 @@ import vn.payos.PayOS;
 import vn.payos.model.webhooks.WebhookData;
 
 @ExtendWith(MockitoExtension.class)
-public class PayOSWebhookServiceTest {
+class PayOSWebhookServiceTest {
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -60,7 +60,7 @@ public class PayOSWebhookServiceTest {
     private WebhookData failedWebhookData;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         pendingRegistration = ExhibitorRegistration.builder()
                 .id(1)
                 .status(ExhibitorRegistrationStatus.PENDING)
@@ -114,7 +114,7 @@ public class PayOSWebhookServiceTest {
     }
 
     @Test
-    public void testHandleWebhook_Success_PaymentPaid() throws Exception {
+    void testHandleWebhook_Success_PaymentPaid() throws Exception {
         Object mockBody = new Object();
 
         when(payOS.webhooks()).thenReturn(webhookService);
@@ -135,7 +135,7 @@ public class PayOSWebhookServiceTest {
     }
 
     @Test
-    public void testHandleWebhook_Failure_PaymentFailed() throws Exception {
+    void testHandleWebhook_Failure_PaymentFailed() throws Exception {
         Object mockBody = new Object();
 
         when(payOS.webhooks()).thenReturn(webhookService);
@@ -155,7 +155,7 @@ public class PayOSWebhookServiceTest {
     }
 
     @Test
-    public void testHandleWebhook_SignatureVerificationFailed_ThrowsAppException() throws Exception {
+    void testHandleWebhook_SignatureVerificationFailed_ThrowsAppException() throws Exception {
         Object mockBody = new Object();
 
         when(payOS.webhooks()).thenReturn(webhookService);
@@ -169,5 +169,30 @@ public class PayOSWebhookServiceTest {
         verify(paymentRepository, never()).save(any());
         verify(registrationRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void testHandleWebhook_Success_PaymentPaid_ReferenceNull() throws Exception {
+        Object mockBody = new Object();
+        WebhookData successDataNoRef = org.mockito.Mockito.mock(WebhookData.class);
+        when(successDataNoRef.getOrderCode()).thenReturn(123456L);
+        when(successDataNoRef.getCode()).thenReturn("00");
+        when(successDataNoRef.getReference()).thenReturn(null);
+
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(successDataNoRef);
+        when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(pendingPayment));
+
+        WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
+
+        assertNotNull(result);
+        assertEquals("00", result.getCode());
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        org.junit.jupiter.api.Assertions.assertNull(pendingPayment.getPaymentReference());
+        assertEquals(ExhibitorRegistrationStatus.APPROVED, pendingRegistration.getStatus());
+
+        verify(paymentRepository).save(pendingPayment);
+        verify(registrationRepository).save(pendingRegistration);
+        verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 }

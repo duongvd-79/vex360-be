@@ -1,6 +1,8 @@
 package com.example.vex360.features.product;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -115,7 +117,7 @@ class ProductServiceUnitTest {
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
         when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
-        when(cloudService.upload(frontFile)).thenReturn(upload("/front.png", "front-public-id", "image/png", 200L));
+        when(cloudService.upload(frontFile)).thenReturn(upload("/front.png", "front-public-id", null, 200L));
         when(cloudService.upload(videoFile)).thenReturn(upload("/demo.mp4", "video-public-id", "video/mp4", 300L));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product product = invocation.getArgument(0);
@@ -231,8 +233,10 @@ class ProductServiceUnitTest {
     void createProductRejectsMoreThanOneVideo() {
         MockMultipartFile thumbnail = thumbnail();
         MockMultipartFile imageFile = new MockMultipartFile("media_1", "front.png", "image/png", "image".getBytes());
-        MockMultipartFile firstVideoFile = new MockMultipartFile("media_2", "demo-1.mp4", "video/mp4", "video".getBytes());
-        MockMultipartFile secondVideoFile = new MockMultipartFile("media_3", "demo-2.mp4", "video/mp4", "video".getBytes());
+        MockMultipartFile firstVideoFile = new MockMultipartFile("media_2", "demo-1.mp4", "video/mp4",
+                "video".getBytes());
+        MockMultipartFile secondVideoFile = new MockMultipartFile("media_3", "demo-2.mp4", "video/mp4",
+                "video".getBytes());
         CreateProductRequest request = validCreateRequest();
         request.setContents(List.of(
                 new CreateProductContentRequest("media_1", 0),
@@ -411,7 +415,8 @@ class ProductServiceUnitTest {
                 ProductStatus.ACTIVE,
                 List.of(existingVideo.getId()),
                 List.of(new CreateProductContentRequest("media_1", 1)));
-        MockMultipartFile newVideoFile = new MockMultipartFile("media_1", "new-video.mp4", "video/mp4", "video".getBytes());
+        MockMultipartFile newVideoFile = new MockMultipartFile("media_1", "new-video.mp4", "video/mp4",
+                "video".getBytes());
         Map<String, MultipartFile> files = Map.of("media_1", newVideoFile);
 
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
@@ -465,7 +470,8 @@ class ProductServiceUnitTest {
                 .thenReturn(false);
         when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
-        when(cloudService.upload(newThumbnail)).thenReturn(upload("/new-thumb.png", "new-thumb-public-id", "image/png", 200L));
+        when(cloudService.upload(newThumbnail))
+                .thenReturn(upload("/new-thumb.png", "new-thumb-public-id", "image/png", 200L));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         productService.updateProduct(user, productId, request, newThumbnail, Map.of());
@@ -567,6 +573,523 @@ class ProductServiceUnitTest {
         assertEquals(category, product.getCategory());
         assertEquals("Robot", product.getName());
         assertEquals(ProductStatus.INACTIVE, product.getStatus());
+    }
+
+    @Test
+    void getProductById_Exists_ReturnsProductResponseDTO() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).category(category).name("Product A")
+                .sku("SKU1").description("Desc").price(BigDecimal.ONE).currency("VND").status(ProductStatus.ACTIVE)
+                .contents(List.of()).build();
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+
+        ProductResponseDTO result = productService.getProductById(user, productId);
+
+        assertNotNull(result);
+        assertEquals("Product A", result.getName());
+    }
+
+    @Test
+    void getProductById_NotFound_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class, () -> productService.getProductById(user, productId));
+        assertSame(ErrorCode.PRODUCT_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
+    void getProducts_KeywordNullOrEmpty_PassesNullToRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.searchProducts(company.getId(), null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<ProductResponseDTO> result = productService.getProducts(user, "   ", null, null, pageable);
+
+        assertNotNull(result);
+        assertEquals(0, result.getContent().size());
+        verify(productRepository).searchProducts(company.getId(), null, null, null, pageable);
+    }
+
+    @Test
+    void createProduct_SkuDuplicated_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(true);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), Map.of()));
+        assertSame(ErrorCode.PRODUCT_SKU_DUPLICATED, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_CategoryNotFound_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), Map.of()));
+        assertSame(ErrorCode.PRODUCT_CATEGORY_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ThumbnailNull_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, null, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ThumbnailEmpty_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        MockMultipartFile emptyThumb = new MockMultipartFile("thumbnail", "thumb.png", "image/png", new byte[0]);
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, emptyThumb, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ThumbnailInvalidMimeType_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        MockMultipartFile badThumb = new MockMultipartFile("thumbnail", "thumb.txt", "text/plain", "abc".getBytes());
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, badThumb, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_FileMapMismatchKeysSize_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        Map<String, MultipartFile> files = Map.of("media_1", thumbnail());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_FileMapMismatchActualKeys_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        Map<String, MultipartFile> files = Map.of("media_1", thumbnail(), "media_3", thumbnail());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ContentFileInvalid_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        MockMultipartFile badContent = new MockMultipartFile("media_2", "bad.txt", "text/plain", "abc".getBytes());
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        Map<String, MultipartFile> files = Map.of("media_1", thumbnail(), "media_2", badContent);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_InvalidStatus_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        request.setStatus(null);
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        Map<String, MultipartFile> files = Map.of("media_1", thumbnail(), "media_2", thumbnail());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_STATUS, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_DefaultCurrency_SavesWithVnd() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "   ", ProductStatus.ACTIVE,
+                List.of());
+        MockMultipartFile thumbnail = thumbnail();
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        productService.createProduct(user, request, thumbnail, Map.of());
+
+        ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(captor.capture());
+        assertEquals("VND", captor.getValue().getCurrency());
+    }
+
+    @Test
+    void updateProduct_SkuDuplicated_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).sku("OLD").build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(), List.of());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(true);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, null, Map.of()));
+        assertSame(ErrorCode.PRODUCT_SKU_DUPLICATED, ex.getErrorCode());
+    }
+
+    @Test
+    void updateProduct_CategoryNotFound_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).sku("OLD").build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(), List.of());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, null, Map.of()));
+        assertSame(ErrorCode.PRODUCT_CATEGORY_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
+    void updateProduct_CategoryInactive_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        ProductCategory oldCat = ProductCategory.builder().id(UUID.randomUUID()).build();
+        Product product = Product.builder().id(productId).company(company).category(oldCat).sku("OLD").build();
+        category.setStatus(ProductCategoryStatus.INACTIVE);
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(), List.of());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, null, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_CATEGORY_STATUS, ex.getErrorCode());
+    }
+
+    @Test
+    void updateProduct_ExistingContentIdNotFound_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).category(category).sku("OLD")
+                .contents(List.of()).build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(UUID.randomUUID()), List.of());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, null, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void updateProduct_NewThumbnailInvalidMimeType_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).category(category).sku("OLD")
+                .contents(List.of()).build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(), List.of());
+        MockMultipartFile badThumb = new MockMultipartFile("thumbnail", "thumb.txt", "text/plain", "abc".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.updateProduct(user, productId, request, badThumb, Map.of()));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void uploadProductMedia_NonAppException_ThrowsUploadFailed() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "VND", ProductStatus.ACTIVE,
+                List.of());
+        MockMultipartFile thumbnail = thumbnail();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenThrow(new RuntimeException("Cloudinary offline"));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail, Map.of()));
+        assertSame(ErrorCode.UPLOAD_FAILED, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_DuplicateFileKeys_ThrowsException() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "VND", ProductStatus.ACTIVE,
+                List.of(new CreateProductContentRequest("media_1", 0), new CreateProductContentRequest("media_1", 1)));
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), Map.of("media_1", thumbnail())));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_FilesMapNull_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), null));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ContentFileNull_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        Map<String, MultipartFile> files = new LinkedHashMap<>();
+        files.put("media_1", null);
+        files.put("media_2", thumbnail());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ContentFileEmpty_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        MockMultipartFile emptyFile = new MockMultipartFile("media_1", "empty.png", "image/png", new byte[0]);
+        Map<String, MultipartFile> files = Map.of("media_1", emptyFile, "media_2", thumbnail());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_ContentFileNullContentType_ThrowsException() {
+        CreateProductRequest request = validCreateRequest();
+        MockMultipartFile nullMimeFile = new MockMultipartFile("media_1", "file", null, "data".getBytes());
+        Map<String, MultipartFile> files = Map.of("media_1", nullMimeFile, "media_2", thumbnail());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail(), files));
+        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, ex.getErrorCode());
+    }
+
+    @Test
+    void createProduct_CurrencyNull_SavesWithVnd() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, null, ProductStatus.ACTIVE,
+                List.of());
+        MockMultipartFile thumbnail = thumbnail();
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        productService.createProduct(user, request, thumbnail, Map.of());
+
+        ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(captor.capture());
+        assertEquals("VND", captor.getValue().getCurrency());
+    }
+
+    @Test
+    void getProducts_KeywordNull_PassesNullToRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.searchProducts(company.getId(), null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<ProductResponseDTO> result = productService.getProducts(user, null, null, null, pageable);
+
+        assertNotNull(result);
+        verify(productRepository).searchProducts(company.getId(), null, null, null, pageable);
+    }
+
+    @Test
+    void createProduct_ContentsNull_SavesSuccessfully() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "VND", ProductStatus.ACTIVE, null);
+        MockMultipartFile thumbnail = thumbnail();
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        productService.createProduct(user, request, thumbnail, null);
+
+        verify(productRepository).save(any(Product.class));
+    }
+
+    @Test
+    void updateProduct_CategoryNull_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        Product product = Product.builder().id(productId).company(company).category(null).sku("OLD")
+                .contents(new java.util.ArrayList<>()).build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, null, List.of());
+        MockMultipartFile emptyThumb = new MockMultipartFile("thumbnail", "thumb.png", "image/png", new byte[0]);
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        productService.updateProduct(user, productId, request, emptyThumb, null);
+
+        verify(productRepository).save(any(Product.class));
+    }
+
+    @Test
+    void cleanupUploadedFiles_ThrowsException_Ignored() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "VND", ProductStatus.ACTIVE,
+                List.of(new CreateProductContentRequest("media_1", 0)));
+        MockMultipartFile thumbnail = thumbnail();
+        MockMultipartFile contentFile = thumbnail();
+        Map<String, MultipartFile> files = Map.of("media_1", contentFile);
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenReturn(upload("/thumb.png", "thumb-public-id", "image/png", 100L));
+        when(cloudService.upload(contentFile)).thenThrow(new RuntimeException("Upload failed"));
+        org.mockito.Mockito.doThrow(new RuntimeException("Delete failed")).when(cloudService).delete("thumb-public-id",
+                "image");
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail, files));
+        assertSame(ErrorCode.UPLOAD_FAILED, ex.getErrorCode());
+        verify(cloudService).delete("thumb-public-id", "image");
+    }
+
+    @Test
+    void uploadProductMedia_CompletionExceptionNullCause_ThrowsUploadFailed() {
+        CreateProductRequest request = new CreateProductRequest(
+                "Robot", "VEX-001", category.getId(), "Robot demo", BigDecimal.TEN, "VND", ProductStatus.ACTIVE,
+                List.of());
+        MockMultipartFile thumbnail = thumbnail();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCase(company.getId(), "VEX-001")).thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(cloudService.upload(thumbnail)).thenThrow(new java.util.concurrent.CompletionException(null));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> productService.createProduct(user, request, thumbnail, Map.of()));
+        assertSame(ErrorCode.UPLOAD_FAILED, ex.getErrorCode());
+    }
+
+    @Test
+    void updateProduct_CategoryGetIdNull_ThrowsException() {
+        UUID productId = UUID.randomUUID();
+        ProductCategory oldCat = ProductCategory.builder().id(null).build();
+        Product product = Product.builder().id(productId).company(company).category(oldCat).sku("OLD")
+                .contents(new java.util.ArrayList<>()).build();
+        UpdateProductRequest request = new UpdateProductRequest("Robot", "VEX-002", category.getId(), "New desc",
+                BigDecimal.TEN, "VND", ProductStatus.ACTIVE, List.of(), List.of());
+
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productRepository.findByIdAndCompanyId(productId, company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "VEX-002", productId))
+                .thenReturn(false);
+        when(productCategoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        productService.updateProduct(user, productId, request, null, Map.of());
+
+        verify(productRepository).save(any(Product.class));
     }
 
     private CreateProductRequest validCreateRequest() {

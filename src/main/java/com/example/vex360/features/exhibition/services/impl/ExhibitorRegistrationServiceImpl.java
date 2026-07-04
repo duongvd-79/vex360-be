@@ -27,6 +27,7 @@ import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -62,12 +63,23 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
 
-        // Create registration record in PENDING status (requires Organizer approval
-        // first)
+        PackageTemplate template = expPackage.getTemplate();
+
+        // Create registration record in PENDING status with template snapshot values
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .company(company)
                 .exhibitionPackage(expPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
+                .packageNameSnapshot(template.getName())
+                .priceSnapshot(template.getPrice())
+                .finalPriceSnapshot(expPackage.getFinalPrice())
+                .currencySnapshot(template.getCurrency())
+                .maxProductsPerBoothSnapshot(template.getMaxProductsPerBooth())
+                .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
+                .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
+                .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
+                .storageLimitMbSnapshot(template.getStorageLimitMb())
+                .listingPrioritySnapshot(template.getListingPriority())
                 .build();
         return registrationRepository.save(registration);
     }
@@ -270,7 +282,9 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .orderCode(payment != null ? payment.getOrderCode() : null)
                 .companyName(registration.getCompany().getFullName())
                 .companyEmail(registration.getCompany().getEmail())
-                .packageName(registration.getExhibitionPackage().getTemplate().getName())
+                .packageName(registration.getPackageNameSnapshot() != null ? 
+                        registration.getPackageNameSnapshot() : 
+                        registration.getExhibitionPackage().getTemplate().getName())
                 .exhibitionName(registration.getExhibitionPackage().getExhibition().getName())
                 .rejectedReason(registration.getRejectedReason())
                 .reviewedByName(
