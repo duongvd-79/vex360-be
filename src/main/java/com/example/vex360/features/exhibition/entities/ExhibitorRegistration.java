@@ -2,11 +2,13 @@ package com.example.vex360.features.exhibition.entities;
 
 import com.example.vex360.features.user.entities.User;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
 import jakarta.persistence.Column;
@@ -67,4 +69,36 @@ public class ExhibitorRegistration {
 
     @Column(name = "rejected_reason", columnDefinition = "TEXT")
     String rejectedReason;
+
+    // Snapshot fields to preserve template state at registration time
+    @Column(name = "package_name_snapshot")
+    String packageNameSnapshot;
+
+    @Column(name = "price_snapshot", precision = 15, scale = 2)
+    BigDecimal priceSnapshot;
+
+    @Column(name = "final_price_snapshot", precision = 15, scale = 2)
+    BigDecimal finalPriceSnapshot;
+
+    @Column(name = "currency_snapshot", length = 10)
+    String currencySnapshot;
+
+    @Column(name = "max_products_per_booth_snapshot")
+    Integer maxProductsPerBoothSnapshot;
+
+    @Column(name = "max_embedded_videos_per_booth_snapshot")
+    Integer maxEmbeddedVideosPerBoothSnapshot;
+
+    @Column(name = "max_panoramas_per_booth_snapshot")
+    Integer maxPanoramasPerBoothSnapshot;
+
+    @Column(name = "max_hotspots_per_booth_snapshot")
+    Integer maxHotspotsPerBoothSnapshot;
+
+    @Column(name = "storage_limit_mb_snapshot")
+    Long storageLimitMbSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "listing_priority_snapshot")
+    BoothListingPriority listingPrioritySnapshot;
 }

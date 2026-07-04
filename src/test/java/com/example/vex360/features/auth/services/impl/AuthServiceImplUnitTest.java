@@ -156,6 +156,46 @@ class AuthServiceImplUnitTest {
     }
 
     @Test
+    void loginWithGoogle_NewUser_Success() {
+        Map<String, Object> mockTokenResponse = new HashMap<>();
+        mockTokenResponse.put("access_token", "google-access-token");
+
+        Map<String, Object> mockUserInfo = new HashMap<>();
+        mockUserInfo.put("email", "new_google@example.com");
+        mockUserInfo.put("name", "New Google User");
+        mockUserInfo.put("picture", "avatar.png");
+
+        try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
+                (mock, context) -> {
+                    when(mock.postForObject(anyString(), any(HttpEntity.class), eq(Map.class)))
+                            .thenReturn(mockTokenResponse);
+                    when(mock.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                            .thenReturn(ResponseEntity.ok(mockUserInfo));
+                })) {
+
+            User newUser = User.builder()
+                    .id(UUID.randomUUID())
+                    .email("new_google@example.com")
+                    .fullName("New Google User")
+                    .role(Role.VISITOR)
+                    .status(UserStatus.ACTIVE)
+                    .build();
+
+            when(userService.findOrCreateGoogleUser("new_google@example.com", "New Google User", "avatar.png"))
+                    .thenReturn(newUser);
+            when(jwtProvider.generateToken(any(CustomUserDetails.class))).thenReturn("access-token-456");
+
+            TokenResponse response = authService.loginWithGoogle("oauth-code");
+
+            assertNotNull(response);
+            assertEquals("access-token-456", response.getAccessToken());
+            assertNotNull(response.getRefreshToken());
+            verify(refreshTokenRepository).deleteByUser(newUser);
+            verify(refreshTokenRepository).save(any(RefreshToken.class));
+        }
+    }
+
+    @Test
     void loginWithGoogle_TokenResponseNull_ThrowsUnauthenticated() {
         try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
                 (mock, context) -> {
@@ -249,6 +289,28 @@ class AuthServiceImplUnitTest {
         verify(registrationTokenRepository).deleteByUser(pendingUser);
         verify(registrationTokenRepository).save(any(RegistrationToken.class));
         verify(mailService).sendRegistrationVerificationEmail(eq("register@example.com"), anyString());
+    }
+
+    @Test
+    void register_EmailAlreadyExists_ThrowsConflict() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("register@example.com");
+        request.setPassword("password");
+
+        UserRequestDTO userRequest = new UserRequestDTO();
+        userRequest.setEmail("register@example.com");
+        userRequest.setPassword("password");
+
+        when(authMapper.toUserRequestDTO(request)).thenReturn(userRequest);
+        when(userService.createUser(userRequest, UserStatus.PENDING))
+                .thenThrow(new AppException(ErrorCode.EMAIL_ALREADY_EXISTS));
+
+        AppException ex = assertThrows(AppException.class, () -> authService.register(request));
+        assertEquals(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getErrorCode());
+
+        verify(registrationTokenRepository, never()).deleteByUser(any());
+        verify(registrationTokenRepository, never()).save(any());
+        verify(mailService, never()).sendRegistrationVerificationEmail(any(), any());
     }
 
     // ==========================================
@@ -705,6 +767,31 @@ class AuthServiceImplUnitTest {
         verify(userService, never()).updatePassword(any(), any());
     }
 
+    @Test
+    void resetPassword_BlacklistFails_StillSucceeds() {
+        String rawToken = "valid-reset-token";
+        String encryptedToken = TokenEncryptionUtils.encrypt(rawToken);
+
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(rawToken)
+                .expiryDate(Instant.now().plusSeconds(60))
+                .user(testUser)
+                .build();
+
+        ResetPasswordRequest request = new ResetPasswordRequest(encryptedToken, "new-password");
+
+        when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.resetPassword(request));
+
+        verify(userService).updatePassword(testUser, "new-password");
+        verify(passwordResetTokenRepository).delete(resetToken);
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+    }
+
     // ==========================================
     // changePassword Tests
     // ==========================================
@@ -737,6 +824,23 @@ class AuthServiceImplUnitTest {
         AppException ex = assertThrows(AppException.class, () -> authService.changePassword(testUser, request));
         assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
         verify(userService, never()).updatePassword(any(), any());
+    }
+
+    @Test
+    void changePassword_BlacklistFails_StillSucceeds() {
+        ChangePasswordRequest request = new ChangePasswordRequest("old-password", "new-password");
+
+        when(passwordEncoder.matches("old-password", testUser.getPassword())).thenReturn(true);
+        when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer bad-jwt");
+        when(jwtProvider.extractClaims(eq("bad-jwt"), any())).thenThrow(new RuntimeException("JWT parse error"));
+
+        assertDoesNotThrow(() -> authService.changePassword(testUser, request));
+
+        verify(userService).updatePassword(testUser, "new-password");
+        verify(passwordResetTokenRepository).deleteByUser(testUser);
+        verify(refreshTokenRepository).deleteByUser(testUser);
+        verify(tokenBlacklistService, never()).blacklistToken(any(), any());
+        verify(mailService).sendPasswordChangeNotificationEmail("test@example.com");
     }
 
     private void setField(Object target, String fieldName, Object value) {
