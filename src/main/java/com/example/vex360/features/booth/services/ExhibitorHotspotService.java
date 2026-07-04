@@ -43,6 +43,7 @@ public class ExhibitorHotspotService {
     private final MediaAssetRepository mediaAssetRepository;
     private final CompanyService companyService;
     private final BoothMapper boothMapper;
+    private final BoothBenefitGuardService boothBenefitGuardService;
 
     @Transactional(readOnly = true)
     public List<HotspotResponseDTO> getHotspots(User currentUser, UUID boothId, UUID panoramaId) {
@@ -63,6 +64,7 @@ public class ExhibitorHotspotService {
                 .sourcePanorama(sourcePanorama)
                 .build();
         applyRequest(hotspot, request, sourcePanorama.getBooth(), company);
+        boothBenefitGuardService.assertCanCreateHotspot(sourcePanorama.getBooth(), hotspot);
         return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
     }
 
@@ -77,6 +79,7 @@ public class ExhibitorHotspotService {
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         applyRequest(hotspot, request, sourcePanorama.getBooth(), sourcePanorama.getBooth().getCompany());
+        boothBenefitGuardService.assertCanUpdateHotspot(sourcePanorama.getBooth(), hotspot);
         return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
     }
 

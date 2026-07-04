@@ -36,6 +36,7 @@ public class ExhibitorPanoramaService {
     private final CompanyService companyService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
+    private final BoothBenefitGuardService boothBenefitGuardService;
 
     @Transactional(readOnly = true)
     public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
@@ -59,6 +60,7 @@ public class ExhibitorPanoramaService {
         if (request == null || isBlank(request.getName())) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }
+        boothBenefitGuardService.assertCanAddPanorama(booth);
 
         CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
         Panorama panorama = Panorama.builder()

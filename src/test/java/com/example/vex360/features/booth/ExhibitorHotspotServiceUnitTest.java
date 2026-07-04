@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +22,7 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
@@ -36,6 +39,7 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothBenefitGuardService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -66,6 +70,9 @@ class ExhibitorHotspotServiceUnitTest {
     @Mock
     private CompanyService companyService;
 
+    @Mock
+    private BoothBenefitGuardService boothBenefitGuardService;
+
     private ExhibitorHotspotService exhibitorHotspotService;
     private User exhibitorUser;
     private Company company;
@@ -81,7 +88,8 @@ class ExhibitorHotspotServiceUnitTest {
                 productService,
                 mediaAssetRepository,
                 companyService,
-                Mappers.getMapper(BoothMapper.class));
+                Mappers.getMapper(BoothMapper.class),
+                boothBenefitGuardService);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -131,6 +139,7 @@ class ExhibitorHotspotServiceUnitTest {
         assertEquals(product.getId(), response.getProduct().getId());
         assertEquals("https://cdn.example/product.png", response.getProduct().getThumbnailUrl());
         assertEquals(ProductStatus.ACTIVE, response.getProduct().getStatus());
+        verify(boothBenefitGuardService).assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
     }
 
     @Test
@@ -147,6 +156,25 @@ class ExhibitorHotspotServiceUnitTest {
 
                 assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
         }
+
+    @Test
+    void createHotspot_QuotaExceeded_DoesNotSaveHotspot() {
+        Product product = product(ProductStatus.ACTIVE);
+        mockBoothAndPanorama();
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        doThrow(new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED))
+                .when(boothBenefitGuardService)
+                .assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(product.getId())));
+
+        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
+    }
 
     private void mockBoothAndPanorama() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);

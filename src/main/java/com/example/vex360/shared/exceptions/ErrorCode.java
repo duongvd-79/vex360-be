@@ -65,6 +65,7 @@ public enum ErrorCode {
     INVALID_HOTSPOT("BOOTH-010", "Invalid hotspot", HttpStatus.BAD_REQUEST),
     MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
+    BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
