@@ -17,6 +17,8 @@ import com.example.vex360.features.booth.entities.Panorama;
 public interface PanoramaRepository extends JpaRepository<Panorama, UUID> {
     List<Panorama> findByBoothIdOrderByOrderIndexAsc(UUID boothId);
 
+    long countByBoothId(UUID boothId);
+
     Optional<Panorama> findByIdAndBoothId(UUID id, UUID boothId);
 
     @Modifying

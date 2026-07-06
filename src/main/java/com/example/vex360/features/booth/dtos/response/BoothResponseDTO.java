@@ -17,6 +17,8 @@ public class BoothResponseDTO {
     private UUID id;
     private UUID companyId;
     private UUID registrationUuid;
+    private UUID exhibitionUuid;
+    private String exhibitionName;
     private String name;
     private String description;
     private String thumbnailUrl;

@@ -2,6 +2,9 @@ package com.example.vex360.features.booth.dtos.request;
 
 import java.util.UUID;
 
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
 
 import jakarta.validation.constraints.NotNull;
@@ -40,4 +43,10 @@ public class UpsertHotspotRequest {
     private Double scale;
 
     private Integer zIndex;
+
+    private HotspotMediaClickAction mediaClickAction;
+
+    private HotspotInfoContentType infoContentType;
+
+    private HotspotCornersDTO corners;
 }

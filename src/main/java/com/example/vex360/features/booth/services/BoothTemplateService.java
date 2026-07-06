@@ -31,8 +31,10 @@ import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
-import com.example.vex360.features.booth.services.PanoramaStorageService.StoredPanoramaFile;
+import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.utils.FileUploadUtils;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -45,7 +47,7 @@ public class BoothTemplateService {
     private final BoothRepository boothRepository;
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
-    private final PanoramaStorageService panoramaStorageService;
+    private final CloudService cloudService;
     private final BoothMapper boothMapper;
 
     @Transactional
@@ -102,13 +104,15 @@ public class BoothTemplateService {
 
         for (int i = 0; i < panoramaRequests.size(); i++) {
             CreatePanoramaRequest panoramaRequest = panoramaRequests.get(i);
-            StoredPanoramaFile storedFile = panoramaStorageService.store(panoramaFiles.get(panoramaRequest.getFileKey()));
+            CloudinaryResponse uploaded = cloudService.uploadToFolder(
+                    panoramaFiles.get(panoramaRequest.getFileKey()),
+                    FileUploadUtils.PANORAMA_FOLDER);
 
             panoramas.add(Panorama.builder()
                     .booth(booth)
                     .name(panoramaRequest.getName().trim())
-                    .imageUrl(storedFile.imageUrl())
-                    .imageKey(storedFile.imageKey())
+                    .imageUrl(uploaded.getUrl())
+                    .imageKey(uploaded.getPublicId())
                     .orderIndex(panoramaRequest.getOrderIndex() == null ? i : panoramaRequest.getOrderIndex())
                     .isDefault(Boolean.TRUE.equals(panoramaRequest.getIsDefault()))
                     .build());

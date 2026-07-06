@@ -6,12 +6,17 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
+import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
@@ -38,6 +43,7 @@ public class ExhibitorHotspotService {
     private final MediaAssetRepository mediaAssetRepository;
     private final CompanyService companyService;
     private final BoothMapper boothMapper;
+    private final BoothBenefitGuardService boothBenefitGuardService;
 
     @Transactional(readOnly = true)
     public List<HotspotResponseDTO> getHotspots(User currentUser, UUID boothId, UUID panoramaId) {
@@ -58,6 +64,7 @@ public class ExhibitorHotspotService {
                 .sourcePanorama(sourcePanorama)
                 .build();
         applyRequest(hotspot, request, sourcePanorama.getBooth(), company);
+        boothBenefitGuardService.assertCanCreateHotspot(sourcePanorama.getBooth(), hotspot);
         return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
     }
 
@@ -72,6 +79,7 @@ public class ExhibitorHotspotService {
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         applyRequest(hotspot, request, sourcePanorama.getBooth(), sourcePanorama.getBooth().getCompany());
+        boothBenefitGuardService.assertCanUpdateHotspot(sourcePanorama.getBooth(), hotspot);
         return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
     }
 
@@ -104,11 +112,14 @@ public class ExhibitorHotspotService {
         hotspot.setProduct(null);
         hotspot.setMediaAsset(null);
         hotspot.setInfoText(null);
+        hotspot.setMediaClickAction(null);
+        hotspot.setInfoContentType(null);
+        applyCorners(hotspot, request.getType(), request.getCorners());
 
         switch (request.getType()) {
             case NAV -> applyNavigationHotspot(hotspot, request, booth);
             case PRODUCT -> applyProductHotspot(hotspot, request, company);
-            case INFO -> applyInfoHotspot(hotspot, request);
+            case INFO -> applyInfoHotspot(hotspot, request, company);
             case MEDIA -> applyMediaHotspot(hotspot, request, company);
             default -> throw new AppException(ErrorCode.INVALID_HOTSPOT);
         }
@@ -136,13 +147,24 @@ public class ExhibitorHotspotService {
         hotspot.setName(resolveName(request.getName(), product.getName()));
     }
 
-    private void applyInfoHotspot(Hotspot hotspot, UpsertHotspotRequest request) {
-        String infoText = trimToNull(request.getInfoText());
-        if (infoText == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
-        }
-        hotspot.setInfoText(infoText);
+    private void applyInfoHotspot(Hotspot hotspot, UpsertHotspotRequest request, Company company) {
+        HotspotInfoContentType contentType = resolveInfoContentType(request);
+        hotspot.setInfoContentType(contentType);
         hotspot.setName(resolveName(request.getName(), "Info"));
+
+        switch (contentType) {
+            case NONE -> {
+                hotspot.setInfoText(null);
+                hotspot.setMediaAsset(null);
+                hotspot.setProduct(null);
+            }
+            case IMAGE -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
+                    MediaAssetType.IMAGE));
+            case VIDEO -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
+                    MediaAssetType.VIDEO));
+            case PRODUCT -> applyProductHotspot(hotspot, request, company);
+            default -> throw new AppException(ErrorCode.INVALID_HOTSPOT);
+        }
     }
 
     private void applyMediaHotspot(Hotspot hotspot, UpsertHotspotRequest request, Company company) {
@@ -152,7 +174,81 @@ public class ExhibitorHotspotService {
         MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(request.getMediaAssetId(), company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         hotspot.setMediaAsset(mediaAsset);
+        hotspot.setMediaClickAction(request.getMediaClickAction() == null
+                ? HotspotMediaClickAction.DEFAULT
+                : request.getMediaClickAction());
         hotspot.setName(resolveName(request.getName(), mediaAsset.getName()));
+    }
+
+    private HotspotInfoContentType resolveInfoContentType(UpsertHotspotRequest request) {
+        if (request.getInfoContentType() != null) {
+            return request.getInfoContentType();
+        }
+        if (request.getProductId() != null) {
+            return HotspotInfoContentType.PRODUCT;
+        }
+        if (request.getMediaAssetId() != null) {
+            return HotspotInfoContentType.IMAGE;
+        }
+        return HotspotInfoContentType.NONE;
+    }
+
+    private MediaAsset getMediaAssetForType(UUID mediaAssetId, Company company, MediaAssetType expectedType) {
+        if (mediaAssetId == null) {
+            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+        }
+        MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(mediaAssetId, company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
+        if (mediaAsset.getType() != expectedType) {
+            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+        }
+        return mediaAsset;
+    }
+
+    private void applyCorners(Hotspot hotspot, HotspotType type, HotspotCornersDTO corners) {
+        if (type != HotspotType.MEDIA && type != HotspotType.PRODUCT) {
+            clearCorners(hotspot);
+            return;
+        }
+        if (corners == null) {
+            return;
+        }
+        if (!isCorner(corners.getTl()) || !isCorner(corners.getTr())
+                || !isCorner(corners.getBl()) || !isCorner(corners.getBr())) {
+            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+        }
+        hotspot.setCornerTlX(corners.getTl().get(0));
+        hotspot.setCornerTlY(corners.getTl().get(1));
+        hotspot.setCornerTlZ(corners.getTl().get(2));
+        hotspot.setCornerTrX(corners.getTr().get(0));
+        hotspot.setCornerTrY(corners.getTr().get(1));
+        hotspot.setCornerTrZ(corners.getTr().get(2));
+        hotspot.setCornerBlX(corners.getBl().get(0));
+        hotspot.setCornerBlY(corners.getBl().get(1));
+        hotspot.setCornerBlZ(corners.getBl().get(2));
+        hotspot.setCornerBrX(corners.getBr().get(0));
+        hotspot.setCornerBrY(corners.getBr().get(1));
+        hotspot.setCornerBrZ(corners.getBr().get(2));
+    }
+
+    private boolean isCorner(List<Double> corner) {
+        return corner != null && corner.size() == 3
+                && corner.get(0) != null && corner.get(1) != null && corner.get(2) != null;
+    }
+
+    private void clearCorners(Hotspot hotspot) {
+        hotspot.setCornerTlX(null);
+        hotspot.setCornerTlY(null);
+        hotspot.setCornerTlZ(null);
+        hotspot.setCornerTrX(null);
+        hotspot.setCornerTrY(null);
+        hotspot.setCornerTrZ(null);
+        hotspot.setCornerBlX(null);
+        hotspot.setCornerBlY(null);
+        hotspot.setCornerBlZ(null);
+        hotspot.setCornerBrX(null);
+        hotspot.setCornerBrY(null);
+        hotspot.setCornerBrZ(null);
     }
 
     private Panorama getPanoramaForCurrentUser(User currentUser, UUID boothId, UUID panoramaId) {

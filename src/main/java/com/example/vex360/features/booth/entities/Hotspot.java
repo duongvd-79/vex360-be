@@ -2,6 +2,8 @@ package com.example.vex360.features.booth.entities;
 
 import java.util.UUID;
 
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.product.entities.Product;
 
@@ -90,4 +92,48 @@ public class Hotspot {
 
     @Column(name = "z_index")
     Integer zIndex;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_click_action", length = 20)
+    HotspotMediaClickAction mediaClickAction;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "info_content_type", length = 20)
+    HotspotInfoContentType infoContentType;
+
+    @Column(name = "corner_tl_x")
+    Double cornerTlX;
+
+    @Column(name = "corner_tl_y")
+    Double cornerTlY;
+
+    @Column(name = "corner_tl_z")
+    Double cornerTlZ;
+
+    @Column(name = "corner_tr_x")
+    Double cornerTrX;
+
+    @Column(name = "corner_tr_y")
+    Double cornerTrY;
+
+    @Column(name = "corner_tr_z")
+    Double cornerTrZ;
+
+    @Column(name = "corner_bl_x")
+    Double cornerBlX;
+
+    @Column(name = "corner_bl_y")
+    Double cornerBlY;
+
+    @Column(name = "corner_bl_z")
+    Double cornerBlZ;
+
+    @Column(name = "corner_br_x")
+    Double cornerBrX;
+
+    @Column(name = "corner_br_y")
+    Double cornerBrY;
+
+    @Column(name = "corner_br_z")
+    Double cornerBrZ;
 }

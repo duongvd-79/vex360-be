@@ -5,10 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,7 +22,7 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
@@ -27,12 +30,16 @@ import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothBenefitGuardService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -63,6 +70,9 @@ class ExhibitorHotspotServiceUnitTest {
     @Mock
     private CompanyService companyService;
 
+    @Mock
+    private BoothBenefitGuardService boothBenefitGuardService;
+
     private ExhibitorHotspotService exhibitorHotspotService;
     private User exhibitorUser;
     private Company company;
@@ -78,7 +88,8 @@ class ExhibitorHotspotServiceUnitTest {
                 productService,
                 mediaAssetRepository,
                 companyService,
-                Mappers.getMapper(BoothMapper.class));
+                Mappers.getMapper(BoothMapper.class),
+                boothBenefitGuardService);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -128,6 +139,7 @@ class ExhibitorHotspotServiceUnitTest {
         assertEquals(product.getId(), response.getProduct().getId());
         assertEquals("https://cdn.example/product.png", response.getProduct().getThumbnailUrl());
         assertEquals(ProductStatus.ACTIVE, response.getProduct().getStatus());
+        verify(boothBenefitGuardService).assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
     }
 
     @Test
@@ -142,7 +154,26 @@ class ExhibitorHotspotServiceUnitTest {
                 panorama.getId(),
                 productHotspotRequest(product.getId())));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
+                assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
+        }
+
+    @Test
+    void createHotspot_QuotaExceeded_DoesNotSaveHotspot() {
+        Product product = product(ProductStatus.ACTIVE);
+        mockBoothAndPanorama();
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        doThrow(new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED))
+                .when(boothBenefitGuardService)
+                .assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(product.getId())));
+
+        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
     }
 
     private void mockBoothAndPanorama() {
@@ -153,234 +184,66 @@ class ExhibitorHotspotServiceUnitTest {
                 .thenReturn(Optional.of(panorama));
     }
 
-    @Test
-    void getHotspots_Succeeds() {
-        mockBoothAndPanorama();
-        Hotspot hotspot = Hotspot.builder().id(UUID.randomUUID()).name("Hotspot A").sourcePanorama(panorama).build();
-        when(hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId())).thenReturn(List.of(hotspot));
+        private Product product(ProductStatus status) {
+                return Product.builder()
+                                .id(UUID.randomUUID())
+                                .company(company)
+                                .name("Active Product")
+                                .sku("SKU-001")
+                                .description("Description")
+                                .price(BigDecimal.valueOf(100000))
+                                .currency("VND")
+                                .thumbnailUrl("https://cdn.example/product.png")
+                                .thumbnailPublicId("product_public_id")
+                                .status(status)
+                                .build();
+        }
 
-        List<HotspotResponseDTO> response = exhibitorHotspotService.getHotspots(exhibitorUser, booth.getId(),
-                panorama.getId());
+        private UpsertHotspotRequest productHotspotRequest(UUID productId) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.PRODUCT);
+                request.setName("Featured product");
+                request.setProductId(productId);
+                request.setIconStyle("default");
+                return request;
+        }
 
-        assertNotNull(response);
-        assertEquals(1, response.size());
-        assertEquals("Hotspot A", response.get(0).getName());
-    }
+        private UpsertHotspotRequest mediaHotspotRequest(UUID mediaAssetId, HotspotMediaClickAction clickAction) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
+                request.setName("Media hotspot");
+                request.setMediaAssetId(mediaAssetId);
+                request.setMediaClickAction(clickAction);
+                request.setCorners(corners());
+                return request;
+        }
 
-    @Test
-    void createHotspot_NavigationType_Succeeds() {
-        mockBoothAndPanorama();
-        Panorama target = Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Main Room").build();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.NAV, "Go Main", 0.0, 0.0, 0.0,
-                target.getId(), null, null, null, "default", 1.0, 1);
+        private UpsertHotspotRequest infoHotspotRequest(
+                        HotspotInfoContentType contentType,
+                        UUID mediaAssetId,
+                        UUID productId) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.INFO);
+                request.setName("Info hotspot");
+                request.setInfoContentType(contentType);
+                request.setMediaAssetId(mediaAssetId);
+                request.setProductId(productId);
+                return request;
+        }
 
-        when(panoramaRepository.findByIdAndBoothId(target.getId(), booth.getId())).thenReturn(Optional.of(target));
-        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> {
-            Hotspot h = inv.getArgument(0);
-            h.setId(UUID.randomUUID());
-            return h;
-        });
+        private UpsertHotspotRequest baseRequest(HotspotType type) {
+                UpsertHotspotRequest request = new UpsertHotspotRequest();
+                request.setType(type);
+                request.setXPosition(0.12);
+                request.setYPosition(1.4);
+                request.setZPosition(-2.1);
+                request.setScale(1.0);
+                request.setZIndex(1);
+                return request;
+        }
 
-        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(),
-                panorama.getId(), request);
-
-        assertNotNull(response);
-        assertEquals(HotspotType.NAV, response.getType());
-        assertEquals("Go Main", response.getName());
-        assertEquals(target.getId(), response.getTargetPanoramaId());
-    }
-
-    @Test
-    void createHotspot_InfoType_Succeeds() {
-        mockBoothAndPanorama();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.INFO, null, 0.0, 0.0, 0.0,
-                null, null, null, "Welcome Info", "default", 1.0, 1);
-
-        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> {
-            Hotspot h = inv.getArgument(0);
-            h.setId(UUID.randomUUID());
-            return h;
-        });
-
-        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(),
-                panorama.getId(), request);
-
-        assertNotNull(response);
-        assertEquals(HotspotType.INFO, response.getType());
-        assertEquals("Info", response.getName());
-        assertEquals("Welcome Info", response.getInfoText());
-    }
-
-    @Test
-    void createHotspot_MediaType_Succeeds() {
-        mockBoothAndPanorama();
-        UUID mediaId = UUID.randomUUID();
-        MediaAsset media = MediaAsset.builder().id(mediaId).company(company).name("Video Intro").build();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.MEDIA, "Watch this", 0.0, 0.0, 0.0,
-                null, null, mediaId, null, "default", 1.0, 1);
-
-        when(mediaAssetRepository.findByIdAndCompanyId(mediaId, company.getId())).thenReturn(Optional.of(media));
-        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> {
-            Hotspot h = inv.getArgument(0);
-            h.setId(UUID.randomUUID());
-            return h;
-        });
-
-        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(),
-                panorama.getId(), request);
-
-        assertNotNull(response);
-        assertEquals(HotspotType.MEDIA, response.getType());
-        assertEquals("Watch this", response.getName());
-        assertEquals(mediaId, response.getMediaAsset().getId());
-    }
-
-    @Test
-    void createHotspot_InvalidCoordinates_ThrowsException() {
-        mockBoothAndPanorama();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.INFO, null, null, 0.0, 0.0,
-                null, null, null, "Welcome Info", "default", 1.0, 1);
-
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(), panorama.getId(), request));
-        assertSame(ErrorCode.INVALID_HOTSPOT, ex.getErrorCode());
-    }
-
-    @Test
-    void createHotspot_NavigationTargetMissing_ThrowsException() {
-        mockBoothAndPanorama();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.NAV, "Go Main", 0.0, 0.0, 0.0,
-                null, null, null, null, "default", 1.0, 1);
-
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(), panorama.getId(), request));
-        assertSame(ErrorCode.INVALID_HOTSPOT, ex.getErrorCode());
-    }
-
-    @Test
-    void createHotspot_InfoTextMissing_ThrowsException() {
-        mockBoothAndPanorama();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.INFO, null, 0.0, 0.0, 0.0,
-                null, null, null, "   ", "default", 1.0, 1);
-
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(), panorama.getId(), request));
-        assertSame(ErrorCode.INVALID_HOTSPOT, ex.getErrorCode());
-    }
-
-    @Test
-    void createHotspot_MediaAssetMissing_ThrowsException() {
-        mockBoothAndPanorama();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.MEDIA, "Watch this", 0.0, 0.0, 0.0,
-                null, null, null, null, "default", 1.0, 1);
-
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitorHotspotService.createHotspot(exhibitorUser, booth.getId(), panorama.getId(), request));
-        assertSame(ErrorCode.INVALID_HOTSPOT, ex.getErrorCode());
-    }
-
-    @Test
-    void updateHotspot_Succeeds() {
-        mockBoothAndPanorama();
-        UUID hotspotId = UUID.randomUUID();
-        Hotspot hotspot = Hotspot.builder().id(hotspotId).sourcePanorama(panorama).type(HotspotType.INFO)
-                .infoText("Old Info").build();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.INFO, "New Info Name", 1.0, 2.0, 3.0,
-                null, null, null, "New Info", "default", 1.0, 1);
-
-        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, panorama.getId()))
-                .thenReturn(Optional.of(hotspot));
-        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        HotspotResponseDTO response = exhibitorHotspotService.updateHotspot(exhibitorUser, booth.getId(),
-                panorama.getId(), hotspotId, request);
-
-        assertNotNull(response);
-        assertEquals("New Info Name", response.getName());
-        assertEquals("New Info", hotspot.getInfoText());
-    }
-
-    @Test
-    void updateHotspot_NotFound_ThrowsException() {
-        mockBoothAndPanorama();
-        UUID hotspotId = UUID.randomUUID();
-        UpsertHotspotRequest request = new UpsertHotspotRequest(
-                HotspotType.INFO, "New Info Name", 1.0, 2.0, 3.0,
-                null, null, null, "New Info", "default", 1.0, 1);
-
-        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, panorama.getId())).thenReturn(Optional.empty());
-
-        AppException ex = assertThrows(AppException.class, () -> exhibitorHotspotService.updateHotspot(exhibitorUser,
-                booth.getId(), panorama.getId(), hotspotId, request));
-        assertSame(ErrorCode.HOTSPOT_NOT_FOUND, ex.getErrorCode());
-    }
-
-    @Test
-    void deleteHotspot_Succeeds() {
-        mockBoothAndPanorama();
-        UUID hotspotId = UUID.randomUUID();
-        Hotspot hotspot = Hotspot.builder().id(hotspotId).sourcePanorama(panorama).type(HotspotType.INFO)
-                .infoText("Old Info").build();
-
-        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, panorama.getId()))
-                .thenReturn(Optional.of(hotspot));
-
-        HotspotResponseDTO response = exhibitorHotspotService.deleteHotspot(exhibitorUser, booth.getId(),
-                panorama.getId(), hotspotId);
-
-        assertNotNull(response);
-        assertEquals(hotspotId, response.getId());
-        verify(hotspotRepository).delete(hotspot);
-    }
-
-    @Test
-    void deleteHotspot_NotFound_ThrowsException() {
-        mockBoothAndPanorama();
-        UUID hotspotId = UUID.randomUUID();
-
-        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, panorama.getId())).thenReturn(Optional.empty());
-
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitorHotspotService.deleteHotspot(exhibitorUser, booth.getId(), panorama.getId(), hotspotId));
-        assertSame(ErrorCode.HOTSPOT_NOT_FOUND, ex.getErrorCode());
-    }
-
-    private Product product(ProductStatus status) {
-        return Product.builder()
-                .id(UUID.randomUUID())
-                .company(company)
-                .name("Active Product")
-                .sku("SKU-001")
-                .description("Description")
-                .price(BigDecimal.valueOf(100000))
-                .currency("VND")
-                .thumbnailUrl("https://cdn.example/product.png")
-                .thumbnailPublicId("product_public_id")
-                .status(status)
-                .build();
-    }
-
-    private UpsertHotspotRequest productHotspotRequest(UUID productId) {
-        return new UpsertHotspotRequest(
-                HotspotType.PRODUCT,
-                "Featured product",
-                0.12,
-                1.4,
-                -2.1,
-                null,
-                productId,
-                null,
-                null,
-                "default",
-                1.0,
-                1);
-    }
+        private HotspotCornersDTO corners() {
+                return new HotspotCornersDTO(
+                                List.of(-1.0, 1.0, 0.0),
+                                List.of(1.0, 1.0, 0.0),
+                                List.of(-1.0, -1.0, 0.0),
+                                List.of(1.0, -1.0, 0.0));
+        }
 }

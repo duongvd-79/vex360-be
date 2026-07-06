@@ -2,9 +2,11 @@ package com.example.vex360.features.booth.mapper;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 import org.mapstruct.Mapper;
 
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryResponseDTO;
@@ -19,6 +21,8 @@ import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.user.entities.User;
 
@@ -62,6 +66,8 @@ public interface BoothMapper {
                 booth.getId(),
                 company == null ? null : company.getId(),
                 registration == null ? null : registration.getUuid(),
+                getExhibitionUuid(registration),
+                getExhibitionName(registration),
                 booth.getName(),
                 booth.getDescription(),
                 booth.getThumbnailUrl(),
@@ -70,6 +76,24 @@ public interface BoothMapper {
                 booth.getCreatedAt(),
                 booth.getUpdatedAt(),
                 toPanoramaResponseDTOs(booth.getPanoramas()));
+    }
+
+    private UUID getExhibitionUuid(ExhibitorRegistration registration) {
+        Exhibition exhibition = getExhibition(registration);
+        return exhibition == null ? null : exhibition.getUuid();
+    }
+
+    private String getExhibitionName(ExhibitorRegistration registration) {
+        Exhibition exhibition = getExhibition(registration);
+        return exhibition == null ? null : exhibition.getName();
+    }
+
+    private Exhibition getExhibition(ExhibitorRegistration registration) {
+        if (registration == null) {
+            return null;
+        }
+        ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
+        return exhibitionPackage == null ? null : exhibitionPackage.getExhibition();
     }
 
     default List<PanoramaResponseDTO> toPanoramaResponseDTOs(List<Panorama> panoramas) {
@@ -127,7 +151,24 @@ public interface BoothMapper {
                 hotspot.getZPosition(),
                 hotspot.getIconStyle(),
                 hotspot.getScale(),
-                hotspot.getZIndex());
+                hotspot.getZIndex(),
+                hotspot.getMediaClickAction(),
+                hotspot.getInfoContentType(),
+                toHotspotCornersDTO(hotspot));
+    }
+
+    default HotspotCornersDTO toHotspotCornersDTO(Hotspot hotspot) {
+        if (hotspot.getCornerTlX() == null || hotspot.getCornerTlY() == null || hotspot.getCornerTlZ() == null
+                || hotspot.getCornerTrX() == null || hotspot.getCornerTrY() == null || hotspot.getCornerTrZ() == null
+                || hotspot.getCornerBlX() == null || hotspot.getCornerBlY() == null || hotspot.getCornerBlZ() == null
+                || hotspot.getCornerBrX() == null || hotspot.getCornerBrY() == null || hotspot.getCornerBrZ() == null) {
+            return null;
+        }
+        return new HotspotCornersDTO(
+                List.of(hotspot.getCornerTlX(), hotspot.getCornerTlY(), hotspot.getCornerTlZ()),
+                List.of(hotspot.getCornerTrX(), hotspot.getCornerTrY(), hotspot.getCornerTrZ()),
+                List.of(hotspot.getCornerBlX(), hotspot.getCornerBlY(), hotspot.getCornerBlZ()),
+                List.of(hotspot.getCornerBrX(), hotspot.getCornerBrY(), hotspot.getCornerBrZ()));
     }
 
     default MediaAssetResponseDTO toMediaAssetResponseDTO(MediaAsset mediaAsset) {

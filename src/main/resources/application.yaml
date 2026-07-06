@@ -33,7 +33,7 @@ spring:
           starttls:
             enable: true
             
-  # Asset Upload Configuration
+  # File Upload Configuration
   servlet:
     multipart:
       max-file-size: 10MB
