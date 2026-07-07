@@ -19,6 +19,7 @@ spring:
   flyway:
     enabled: false
     baseline-on-migrate: true
+    baseline-version: 4
 
   # Mail Server Configuration
   mail:
@@ -36,8 +37,8 @@ spring:
   # File Upload Configuration
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 100MB
+      max-file-size: 60MB
+      max-request-size: 62MB
 
 # Custom Application Settings
 app:
@@ -51,7 +52,7 @@ app:
     client-id: ${PAYOS_CLIENT_ID:mock_client_id}
     api-key: ${PAYOS_API_KEY:mock_api_key}
     checksum-key: ${PAYOS_CHECKSUM_KEY:mock_checksum_key}
-    
+
   # JWT Settings
   jwt:
     secret: ${JWT_SECRET}
@@ -66,6 +67,7 @@ app:
 
       redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5175/auth/callback/google}
       user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+
     whitelist: /api/v1/auth/**,/api/v1/partnership-requests/guest,/api/v1/package-templates/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html,/api/v1/webhooks/payos/**,/api/v1/public/exhibitions/**
     strict-mode: ${SECURITY_STRICT_MODE:true}
     token-encryption-key: ${TOKEN_ENCRYPTION_KEY}
@@ -88,7 +90,6 @@ spring:
     username: ${LOCAL_DB_USER:root}
     password: ${LOCAL_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
 ---
 spring:
   config:
@@ -99,4 +100,3 @@ spring:
     username: ${AIVEN_DB_USER}
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-

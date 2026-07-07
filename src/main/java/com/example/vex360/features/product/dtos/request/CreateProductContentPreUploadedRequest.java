@@ -10,9 +10,17 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateProductContentRequest {
-    @NotBlank(message = "Mã file nội dung không được để trống")
-    private String fileKey;
+public class CreateProductContentPreUploadedRequest {
+    @NotBlank(message = "URL nội dung không được để trống")
+    private String contentUrl;
+
+    @NotBlank(message = "Public ID Cloudinary không được để trống")
+    private String publicId;
+
+    @NotBlank(message = "Loại file không được để trống")
+    private String mimeType;
+
+    private long fileSize;
 
     @NotNull(message = "Thứ tự nội dung không được để trống")
     @Min(0)

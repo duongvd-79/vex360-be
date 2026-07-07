@@ -39,7 +39,10 @@ public class UpdateProductRequest {
     @NotNull(message = "Trang thai san pham khong duoc de trong")
     private ProductStatus status;
 
+    private String thumbnailUrl;
+    private String thumbnailPublicId;
+
     private List<UUID> existingContentIds;
 
-    private List<@Valid CreateProductContentRequest> newContents;
+    private List<@Valid CreateProductContentPreUploadedRequest> newContents;
 }

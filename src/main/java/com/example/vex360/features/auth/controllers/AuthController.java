@@ -33,7 +33,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Controller exposing authentication endpoints.
- * Integrates input validation using Jakarta Validation (@Valid) to enforce boundary security,
+ * Integrates input validation using Jakarta Validation (@Valid) to enforce
+ * boundary security,
  * and standardizes responses using the generic ApiResponse structure.
  */
 @RestController
@@ -100,17 +101,23 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/google/callback")
     @Operation(summary = "Đăng nhập bằng Google", description = "Xác thực người dùng thông qua tài khoản Google, trả về Access Token (stateless) và Refresh Token (stateful).")
-    public ResponseEntity<ApiResponse<TokenResponse>> googleCallback(@Valid @RequestBody GoogleCallbackRequest request) {
+    public ResponseEntity<ApiResponse<TokenResponse>> googleCallback(
+            @Valid @RequestBody GoogleCallbackRequest request) {
         return ok(authService.loginWithGoogle(request.getCode()));
+
     }
 
     /**
      * Endpoint for rotating a refresh token.
-     * Validates the refresh token and issues a new access token along with a rotated refresh token.
+     * 
+     * Validates the refresh token and issues a new access token along with a
+     * rotated refresh token.
      *
+     * 
      * @param token the current refresh token
      * @return unified API response containing the new token details
      */
+
     @PostMapping("/refresh")
     @Operation(summary = "Làm mới Access Token", description = "Sử dụng Refresh Token hợp lệ để nhận cặp token mới. Áp dụng cơ chế xoay vòng Refresh Token (Rotation) và phát hiện tấn công phát lại (Replay Detection).")
     public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@RequestParam("token") String token) {
@@ -132,7 +139,8 @@ public class AuthController extends BaseController {
 
     /**
      * Endpoint to request a forgot password link.
-     * Prevents email enumeration by returning a generic success message regardless of email existence.
+     * Prevents email enumeration by returning a generic success message regardless
+     * of email existence.
      *
      * @param request containing the user email
      * @return unified API response confirming initiation
@@ -145,7 +153,8 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * Endpoint to validate reset token and redirect user to the password reset page.
+     * Endpoint to validate reset token and redirect user to the password reset
+     * page.
      *
      * @param token the encrypted reset token
      * @return redirection ResponseEntity to the frontend reset password form
@@ -178,7 +187,7 @@ public class AuthController extends BaseController {
      * Changes password directly and sends notification email.
      *
      * @param userDetails the current authenticated principal
-     * @param request containing old and new passwords
+     * @param request     containing old and new passwords
      * @return unified API response confirming success
      */
     @PostMapping("/change-password")
