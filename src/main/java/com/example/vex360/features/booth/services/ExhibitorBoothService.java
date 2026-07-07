@@ -35,6 +35,7 @@ public class ExhibitorBoothService {
     private final CompanyService companyService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
+    private final BoothReviewPolicyService boothReviewPolicyService;
 
     @Transactional(readOnly = true)
     public PageResponse<BoothResponseDTO> getBooths(User currentUser, Pageable pageable) {
@@ -58,6 +59,7 @@ public class ExhibitorBoothService {
             MultipartFile thumbnail) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
+        boothReviewPolicyService.assertEditable(booth);
 
         if (request != null) {
             updateMetadata(booth, request);

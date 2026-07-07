@@ -37,6 +37,7 @@ public class ExhibitorPanoramaService {
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
+    private final BoothReviewPolicyService boothReviewPolicyService;
 
     @Transactional(readOnly = true)
     public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
@@ -57,6 +58,7 @@ public class ExhibitorPanoramaService {
             CreateExhibitorPanoramaRequest request,
             MultipartFile image) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
+        boothReviewPolicyService.assertEditable(booth);
         if (request == null || isBlank(request.getName())) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }
@@ -89,6 +91,7 @@ public class ExhibitorPanoramaService {
             UpdateExhibitorPanoramaRequest request,
             MultipartFile image) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
+        boothReviewPolicyService.assertEditable(booth);
         Panorama panorama = getPanoramaForBooth(panoramaId, booth);
 
         if (request != null) {
@@ -122,6 +125,7 @@ public class ExhibitorPanoramaService {
     @Transactional
     public PanoramaResponseDTO deletePanorama(User currentUser, UUID boothId, UUID panoramaId) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
+        boothReviewPolicyService.assertEditable(booth);
         Panorama panorama = getPanoramaForBooth(panoramaId, booth);
         if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
             throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);

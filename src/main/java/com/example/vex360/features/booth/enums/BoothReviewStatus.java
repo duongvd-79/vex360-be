@@ -1,8 +1,7 @@
 package com.example.vex360.features.booth.enums;
 
-public enum BoothStatus {
-    DRAFT,
+public enum BoothReviewStatus {
     PENDING,
-    PUBLISHED,
-    ARCHIVED
+    APPROVED,
+    REJECTED
 }

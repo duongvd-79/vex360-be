@@ -66,6 +66,11 @@ public enum ErrorCode {
     MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
     BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
+    BOOTH_REVIEW_REQUEST_NOT_FOUND("BOOTH-014", "Booth review request not found", HttpStatus.NOT_FOUND),
+    BOOTH_REVIEW_ALREADY_PENDING("BOOTH-015", "Booth review request is already pending", HttpStatus.BAD_REQUEST),
+    BOOTH_NOT_EDITABLE("BOOTH-016", "Booth is not editable in the current status", HttpStatus.BAD_REQUEST),
+    BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
+    INVALID_BOOTH_REVIEW_STATUS("BOOTH-018", "Invalid booth review status for this action", HttpStatus.BAD_REQUEST),
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),

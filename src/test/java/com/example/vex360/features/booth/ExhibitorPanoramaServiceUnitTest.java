@@ -27,6 +27,7 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.services.BoothBenefitGuardService;
+import com.example.vex360.features.booth.services.BoothReviewPolicyService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
@@ -55,6 +56,9 @@ class ExhibitorPanoramaServiceUnitTest {
     @Mock
     private BoothBenefitGuardService boothBenefitGuardService;
 
+    @Mock
+    private BoothReviewPolicyService boothReviewPolicyService;
+
     private ExhibitorPanoramaService exhibitorPanoramaService;
     private User exhibitorUser;
     private Company company;
@@ -69,7 +73,8 @@ class ExhibitorPanoramaServiceUnitTest {
                 companyService,
                 cloudService,
                 Mappers.getMapper(BoothMapper.class),
-                boothBenefitGuardService);
+                boothBenefitGuardService,
+                boothReviewPolicyService);
         exhibitorUser = User.builder().id(UUID.randomUUID()).email("exhibitor@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).ownerUser(exhibitorUser).name("VEX Company").build();
         booth = Booth.builder()
