@@ -1,7 +1,6 @@
 package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,18 +20,13 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
-import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.enums.HotspotInfoContentType;
-import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
-import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
@@ -207,27 +200,6 @@ class ExhibitorHotspotServiceUnitTest {
                 return request;
         }
 
-        private UpsertHotspotRequest mediaHotspotRequest(UUID mediaAssetId, HotspotMediaClickAction clickAction) {
-                UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
-                request.setName("Media hotspot");
-                request.setMediaAssetId(mediaAssetId);
-                request.setMediaClickAction(clickAction);
-                request.setCorners(corners());
-                return request;
-        }
-
-        private UpsertHotspotRequest infoHotspotRequest(
-                        HotspotInfoContentType contentType,
-                        UUID mediaAssetId,
-                        UUID productId) {
-                UpsertHotspotRequest request = baseRequest(HotspotType.INFO);
-                request.setName("Info hotspot");
-                request.setInfoContentType(contentType);
-                request.setMediaAssetId(mediaAssetId);
-                request.setProductId(productId);
-                return request;
-        }
-
         private UpsertHotspotRequest baseRequest(HotspotType type) {
                 UpsertHotspotRequest request = new UpsertHotspotRequest();
                 request.setType(type);
@@ -237,13 +209,5 @@ class ExhibitorHotspotServiceUnitTest {
                 request.setScale(1.0);
                 request.setZIndex(1);
                 return request;
-        }
-
-        private HotspotCornersDTO corners() {
-                return new HotspotCornersDTO(
-                                List.of(-1.0, 1.0, 0.0),
-                                List.of(1.0, 1.0, 0.0),
-                                List.of(-1.0, -1.0, 0.0),
-                                List.of(1.0, -1.0, 0.0));
         }
 }
