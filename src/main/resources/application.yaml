@@ -17,7 +17,7 @@ spring:
 
   # Flyway Configuration
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
     baseline-version: 4
 

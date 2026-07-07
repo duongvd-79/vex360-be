@@ -2,11 +2,8 @@ package com.example.vex360.features.booth.entities;
 
 import java.util.UUID;
 
-<<<<<<< HEAD
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
-=======
->>>>>>> 1787f98 (Merge branch 'dev' of https://github.com/duongvd-79/vex360-be into Myntt)
 import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.product.entities.Product;
 
