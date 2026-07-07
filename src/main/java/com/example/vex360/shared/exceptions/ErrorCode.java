@@ -11,15 +11,15 @@ public enum ErrorCode {
     INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
-    METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
+        METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
 
-    // AUTH ERRORS
-    UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),
-    UNAUTHORIZED("AUTH-002", "Không có quyền truy cập", HttpStatus.FORBIDDEN),
-    BAD_CREDENTIALS("AUTH-003", "Sai tài khoản hoặc mật khẩu", HttpStatus.UNAUTHORIZED),
-    ACCOUNT_LOCKED("AUTH-004", "Tài khoản đã bị khóa", HttpStatus.UNAUTHORIZED),
-    ACCOUNT_DISABLED("AUTH-005", "Tài khoản bị vô hiệu hóa", HttpStatus.UNAUTHORIZED),
-    ACCOUNT_PENDING("AUTH-006", "Tài khoản chưa được kích hoạt", HttpStatus.UNAUTHORIZED),
+        // AUTH ERRORS
+        UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),
+        UNAUTHORIZED("AUTH-002", "Không có quyền truy cập", HttpStatus.FORBIDDEN),
+        BAD_CREDENTIALS("AUTH-003", "Sai tài khoản hoặc mật khẩu", HttpStatus.UNAUTHORIZED),
+        ACCOUNT_LOCKED("AUTH-004", "Tài khoản đã bị khóa", HttpStatus.UNAUTHORIZED),
+        ACCOUNT_DISABLED("AUTH-005", "Tài khoản bị vô hiệu hóa", HttpStatus.UNAUTHORIZED),
+        ACCOUNT_PENDING("AUTH-006", "Tài khoản chưa được kích hoạt", HttpStatus.UNAUTHORIZED),
 
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "User not found", HttpStatus.NOT_FOUND),
@@ -52,8 +52,8 @@ public enum ErrorCode {
             "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
             HttpStatus.BAD_REQUEST),
 
-    // COMPANY ERRORS
-    COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
+        // COMPANY ERRORS
+        COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
 
     // PRODUCT ERRORS
     PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),
@@ -80,9 +80,9 @@ public enum ErrorCode {
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
     BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
 
-    // PACKAGE TEMPLATE ERRORS
-    PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
-    PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT),
+        // PACKAGE TEMPLATE ERRORS
+        PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
+        PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT),
 
     // EXHIBITION ERRORS
     EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
@@ -99,13 +99,13 @@ public enum ErrorCode {
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
     REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
 
-    private final String code;
-    private final String message;
-    private final HttpStatus httpStatus;
+        private final String code;
+        private final String message;
+        private final HttpStatus httpStatus;
 
-    ErrorCode(String code, String message, HttpStatus httpStatus) {
-        this.code = code;
-        this.message = message;
-        this.httpStatus = httpStatus;
-    }
+        ErrorCode(String code, String message, HttpStatus httpStatus) {
+                this.code = code;
+                this.message = message;
+                this.httpStatus = httpStatus;
+        }
 }

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.util.StringUtils;
 
@@ -179,6 +180,7 @@ public class AuthServiceImpl implements AuthService {
      *
      * @param request the registration details
      */
+
     @Override
     @Transactional
     public void register(RegisterRequest request) {
