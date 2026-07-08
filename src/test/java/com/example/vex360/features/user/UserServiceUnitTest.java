@@ -32,7 +32,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
@@ -87,8 +86,12 @@ class UserServiceUnitTest {
 
     @Test
     void createUserGeneratesPasswordAndSendsCredentialsEmail() {
-        CreateUserRequest request = new CreateUserRequest(
-                "new@example.com", "New User", "0912345678", Role.ADMIN);
+        CreateUserRequest request = CreateUserRequest.builder()
+                .email("new@example.com")
+                .fullName("New User")
+                .phoneNumber("0912345678")
+                .role(Role.ADMIN)
+                .build();
 
         when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
         when(passwordEncoder.encode(any(String.class))).thenReturn("encodedNewPassword");
@@ -116,8 +119,12 @@ class UserServiceUnitTest {
 
     @Test
     void createUserThrowsWhenEmailExists() {
-        CreateUserRequest request = new CreateUserRequest(
-                "new@example.com", "New User", "0912345678", Role.ADMIN);
+        CreateUserRequest request = CreateUserRequest.builder()
+                .email("new@example.com")
+                .fullName("New User")
+                .phoneNumber("0912345678")
+                .role(Role.ADMIN)
+                .build();
 
         when(userRepository.existsByEmail("new@example.com")).thenReturn(true);
 
@@ -129,15 +136,21 @@ class UserServiceUnitTest {
     }
 
     @Test
-    void createUserWithUserRequestDTOSuccess_DefaultsActive() {
-        UserRequestDTO dto = new UserRequestDTO(
-                "request@example.com", "Password123!", "Dto User", "12345", "VISITOR", "avatar.png");
+    void createUser_Success_DefaultsActive() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("request@example.com")
+                .password("Password123!")
+                .fullName("Dto User")
+                .phoneNumber("0987654321")
+                .role(Role.VISITOR)
+                .avatarUrl("avatar.png")
+                .build();
 
         when(userRepository.existsByEmail("request@example.com")).thenReturn(false);
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User createdUser = userService.createUser(dto);
+        User createdUser = userService.createUser(dto, UserStatus.ACTIVE);
 
         assertEquals("request@example.com", createdUser.getEmail());
         assertEquals(UserStatus.ACTIVE, createdUser.getStatus());
@@ -146,9 +159,15 @@ class UserServiceUnitTest {
     }
 
     @Test
-    void createUserWithUserRequestDTOAndStatusSuccess() {
-        UserRequestDTO dto = new UserRequestDTO(
-                "request@example.com", "Password123!", "Dto User", "12345", "VISITOR", "avatar.png");
+    void createUser_WithStatusSuccess() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("request@example.com")
+                .password("Password123!")
+                .fullName("Dto User")
+                .phoneNumber("0987654321")
+                .role(Role.VISITOR)
+                .avatarUrl("avatar.png")
+                .build();
 
         when(userRepository.existsByEmail("request@example.com")).thenReturn(false);
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
@@ -229,16 +248,44 @@ class UserServiceUnitTest {
     }
 
     @Test
-    void updateRoleAndStatus() {
+    void updateRole_Success() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserResponseDTO roleResponse = userService.updateRole(userId, Role.ADMIN);
-        UserResponseDTO statusResponse = userService.updateStatus(userId, UserStatus.BLOCKED);
 
         assertEquals("ADMIN", roleResponse.getRole());
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void updateRole_ThrowsWhenUserNotFound() {
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> userService.updateRole(userId, Role.ADMIN));
+        assertSame(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void updateStatus_Success() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserResponseDTO statusResponse = userService.updateStatus(userId, UserStatus.BLOCKED);
+
         assertEquals("BLOCKED", statusResponse.getStatus());
         verify(eventPublisher).publishEvent(any(UserStatusChangedEvent.class));
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void updateStatus_ThrowsWhenUserNotFound() {
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> userService.updateStatus(userId, UserStatus.BLOCKED));
+        assertSame(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -311,42 +358,43 @@ class UserServiceUnitTest {
     }
 
     // ==========================================
-    // createUser(UserRequestDTO) edge cases
+    // createUser(CreateUserRequest) edge cases
     // ==========================================
 
     @Test
-    void createUserWithUserRequestDTO_RoleNull_DefaultsToVisitor() {
-        UserRequestDTO dto = new UserRequestDTO(
-                "norole@example.com", "Password123!", "No Role User", "12345", null, "avatar.png");
+    void createUser_RoleNull_DefaultsToVisitor() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("norole@example.com")
+                .password("Password123!")
+                .fullName("No Role User")
+                .phoneNumber("0987654321")
+                .role(null)
+                .avatarUrl("avatar.png")
+                .build();
 
         when(userRepository.existsByEmail("norole@example.com")).thenReturn(false);
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User createdUser = userService.createUser(dto);
+        User createdUser = userService.createUser(dto, UserStatus.ACTIVE);
 
         assertEquals(Role.VISITOR, createdUser.getRole());
     }
 
     @Test
-    void createUserWithUserRequestDTO_RoleInvalid_ThrowsRoleNotFound() {
-        UserRequestDTO dto = new UserRequestDTO(
-                "invalid@example.com", "Password123!", "Invalid Role User", "12345", "INVALID_ROLE",
-                "avatar.png");
-
-        AppException ex = assertThrows(AppException.class, () -> userService.createUser(dto));
-        assertSame(ErrorCode.ROLE_NOT_FOUND, ex.getErrorCode());
-        verify(userRepository, never()).save(any(User.class));
-    }
-
-    @Test
-    void createUserWithUserRequestDTO_EmailExists_ThrowsEmailAlreadyExists() {
-        UserRequestDTO dto = new UserRequestDTO(
-                "existing@example.com", "Password123!", "Existing User", "12345", "VISITOR", "avatar.png");
+    void createUser_EmailExists_ThrowsEmailAlreadyExists() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("existing@example.com")
+                .password("Password123!")
+                .fullName("Existing User")
+                .phoneNumber("0987654321")
+                .role(Role.VISITOR)
+                .avatarUrl("avatar.png")
+                .build();
 
         when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
 
-        AppException ex = assertThrows(AppException.class, () -> userService.createUser(dto));
+        AppException ex = assertThrows(AppException.class, () -> userService.createUser(dto, UserStatus.ACTIVE));
         assertSame(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getErrorCode());
     }
 
@@ -484,5 +532,179 @@ class UserServiceUnitTest {
 
         assertEquals("encodedNewPassword", sampleUser.getPassword());
         verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void createUser_PreservesNullAvatarUrl() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("norole@example.com")
+                .password("Password123!")
+                .fullName("No Role User")
+                .phoneNumber("0987654321")
+                .role(Role.VISITOR)
+                .avatarUrl(null)
+                .build();
+
+        when(userRepository.existsByEmail("norole@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = userService.createUser(dto, UserStatus.ACTIVE);
+
+        assertNull(createdUser.getAvatarUrl());
+    }
+
+    @Test
+    void getUsersWithEmptyKeyword_PassesNullToRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
+
+        when(userRepository.searchUsers(null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<UserResponseDTO> response = userService.getUsers("", null, null, pageable);
+
+        assertEquals(0, response.getContent().size());
+        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(pageable));
+    }
+
+    @Test
+    void getUsersWithBlankKeyword_PassesNullToRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
+
+        when(userRepository.searchUsers(null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<UserResponseDTO> response = userService.getUsers("   ", null, null, pageable);
+
+        assertEquals(0, response.getContent().size());
+        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(pageable));
+    }
+
+    @Test
+    void getUserByEmail_Success() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(sampleUser));
+
+        User result = userService.getUserByEmail("user@example.com");
+
+        assertSame(sampleUser, result);
+    }
+
+    @Test
+    void getUserByEmail_ThrowsWhenNotFound() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> userService.getUserByEmail("missing@example.com"));
+        assertSame(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void findUserByEmail_Success() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(sampleUser));
+
+        Optional<User> result = userService.findUserByEmail("user@example.com");
+
+        assertTrue(result.isPresent());
+        assertSame(sampleUser, result.get());
+    }
+
+    @Test
+    void findUserByEmail_NotFound() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        Optional<User> result = userService.findUserByEmail("missing@example.com");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void saveUserEntity_Success() {
+        when(userRepository.save(sampleUser)).thenReturn(sampleUser);
+
+        User result = userService.saveUserEntity(sampleUser);
+
+        assertSame(sampleUser, result);
+        verify(userRepository).save(sampleUser);
+    }
+
+    @Test
+    void existsByEmail_True() {
+        when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
+
+        boolean result = userService.existsByEmail("user@example.com");
+
+        assertTrue(result);
+    }
+
+    @Test
+    void existsByEmail_False() {
+        when(userRepository.existsByEmail("missing@example.com")).thenReturn(false);
+
+        boolean result = userService.existsByEmail("missing@example.com");
+
+        assertTrue(!result);
+    }
+
+    @Test
+    void createAdminUser_Success() {
+        when(userRepository.existsByEmail("admin@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("adminPass")).thenReturn("encodedAdminPass");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.createAdminUser("admin@example.com", "adminPass", "Admin User");
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        User savedUser = captor.getValue();
+        assertEquals("admin@example.com", savedUser.getEmail());
+        assertEquals("encodedAdminPass", savedUser.getPassword());
+        assertEquals("Admin User", savedUser.getFullName());
+        assertEquals(Role.ADMIN, savedUser.getRole());
+        assertEquals(UserStatus.ACTIVE, savedUser.getStatus());
+    }
+
+    @Test
+    void createAdminUser_ThrowsWhenEmailExists() {
+        when(userRepository.existsByEmail("admin@example.com")).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class, () -> userService.createAdminUser("admin@example.com", "adminPass", "Admin User"));
+        assertSame(ErrorCode.EMAIL_ALREADY_EXISTS, exception.getErrorCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void getUserEntityById_Success() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
+
+        User result = userService.getUserEntityById(userId);
+
+        assertSame(sampleUser, result);
+    }
+
+    @Test
+    void getUserEntityById_ThrowsWhenNotFound() {
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> userService.getUserEntityById(userId));
+        assertSame(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void createUser_StatusNull_DefaultsToActive() {
+        CreateUserRequest dto = CreateUserRequest.builder()
+                .email("nullstatus@example.com")
+                .password("Password123!")
+                .fullName("Null Status User")
+                .phoneNumber("0987654321")
+                .role(Role.VISITOR)
+                .avatarUrl("avatar.png")
+                .build();
+
+        when(userRepository.existsByEmail("nullstatus@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = userService.createUser(dto, null);
+
+        assertEquals(UserStatus.ACTIVE, createdUser.getStatus());
     }
 }

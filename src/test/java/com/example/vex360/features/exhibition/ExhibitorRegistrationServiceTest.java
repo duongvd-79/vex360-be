@@ -38,6 +38,7 @@ import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
 @ExtendWith(MockitoExtension.class)
@@ -87,6 +88,7 @@ class ExhibitorRegistrationServiceTest {
         Exhibition exhibition = Exhibition.builder()
                 .id(1)
                 .name("Expo")
+                .status(ExhibitionStatus.REGISTRATION)
                 .build();
 
         paidPackage = ExhibitionPackage.builder()
@@ -137,6 +139,30 @@ class ExhibitorRegistrationServiceTest {
         });
 
         assertEquals(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void testInitializeRegistration_InvalidExhibitionStatus_ThrowsException() {
+        Exhibition pendingExhibition = Exhibition.builder()
+                .id(2)
+                .name("Pending Expo")
+                .status(ExhibitionStatus.PENDING)
+                .build();
+        ExhibitionPackage pendingPackage = ExhibitionPackage.builder()
+                .id(12)
+                .template(paidPackage.getTemplate())
+                .exhibition(pendingExhibition)
+                .build();
+
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(packageRepository.findById(12)).thenReturn(Optional.of(pendingPackage));
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            registrationService.initializeRegistration(companyUser.getId(), 12);
+        });
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 

@@ -39,7 +39,7 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "exhibitions")
-@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "organizerId", type = java.util.UUID.class))
+@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "organizerId", type = UUID.class))
 @Filter(name = "tenantFilter", condition = "organizer_user_id = :organizerId")
 @Getter
 @Setter

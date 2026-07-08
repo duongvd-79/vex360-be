@@ -26,7 +26,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:status IS NULL OR e.status = :status)
+              AND (e.status IN :statuses)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
               AND (:startDate IS NULL OR e.startDate >= :startDate)
               AND (:endDate IS NULL OR e.endDate <= :endDate)
@@ -37,14 +37,14 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:status IS NULL OR e.status = :status)
+              AND (e.status IN :statuses)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
               AND (:startDate IS NULL OR e.startDate >= :startDate)
               AND (:endDate IS NULL OR e.endDate <= :endDate)
             """)
     Page<Exhibition> searchExhibitions(
             @Param("keyword") String keyword,
-            @Param("status") ExhibitionStatus status,
+            @Param("statuses") List<ExhibitionStatus> statuses,
             @Param("category") String category,
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate,
@@ -67,8 +67,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
               AND (:startDate IS NULL OR e.startDate >= :startDate)
               AND (:endDate IS NULL OR e.endDate <= :endDate)
-            """,
-           countQuery = """
+            """, countQuery = """
             SELECT COUNT(e) FROM Exhibition e
             LEFT JOIN e.organizer o
             WHERE o.id = :organizerId

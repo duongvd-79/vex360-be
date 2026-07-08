@@ -228,4 +228,13 @@ public class OrganizerExhibitionController extends BaseController {
                                 .rejectRegistration(userDetails.getUser(), registrationUuid, rejectedReason);
                 return ok(response);
         }
+
+        @PutMapping("/{uuid}/publish")
+        @Operation(summary = "Công bố triển lãm rộng rãi cho Visitor", description = "Chuyển trạng thái triển lãm từ REGISTRATION sang PUBLISHED để công chúng (Visitor) có thể tìm kiếm và xem thông tin.")
+        public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> publishExhibition(
+                        @AuthenticationPrincipal CustomUserDetails userDetails,
+                        @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
+                ExhibitionResponseDTO response = exhibitionService.publishExhibition(userDetails.getUser(), uuid);
+                return ok(response);
+        }
 }
