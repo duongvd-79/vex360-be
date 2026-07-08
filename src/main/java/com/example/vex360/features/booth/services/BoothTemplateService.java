@@ -27,6 +27,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
@@ -44,6 +45,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class BoothTemplateService {
+    private static final String IMAGE_RESOURCE_TYPE = "image";
+
     private final BoothRepository boothRepository;
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
@@ -67,15 +70,25 @@ public class BoothTemplateService {
                 .createdBy(currentUser)
                 .build();
 
-        Booth savedBooth = boothRepository.save(booth);
-        List<Panorama> savedPanoramas = createPanoramas(savedBooth, request.getPanoramas(), panoramaFiles);
-        savedBooth.setPanoramas(savedPanoramas);
+        List<String> uploadedImageKeys = new ArrayList<>();
+        try {
+            Booth savedBooth = boothRepository.save(booth);
+            List<Panorama> savedPanoramas = createPanoramas(
+                    savedBooth,
+                    request.getPanoramas(),
+                    panoramaFiles,
+                    uploadedImageKeys);
+            savedBooth.setPanoramas(savedPanoramas);
 
-        Map<String, Panorama> panoramaByClientKey = mapPanoramasByClientKey(request.getPanoramas(), savedPanoramas);
-        List<Hotspot> savedHotspots = createHotspots(request.getPanoramas(), panoramaByClientKey);
-        attachHotspotsToSourcePanoramas(savedPanoramas, savedHotspots);
+            Map<String, Panorama> panoramaByClientKey = mapPanoramasByClientKey(request.getPanoramas(), savedPanoramas);
+            List<Hotspot> savedHotspots = createHotspots(request.getPanoramas(), panoramaByClientKey);
+            attachHotspotsToSourcePanoramas(savedPanoramas, savedHotspots);
 
-        return boothMapper.toTemplateResponseDTO(savedBooth);
+            return boothMapper.toTemplateResponseDTO(savedBooth);
+        } catch (RuntimeException exception) {
+            cleanupUploadedImages(uploadedImageKeys);
+            throw exception;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -96,10 +109,27 @@ public class BoothTemplateService {
         return boothMapper.toTemplateResponseDTO(booth);
     }
 
+    @Transactional
+    public BoothTemplateResponseDTO deleteBoothTemplate(UUID id) {
+        Booth booth = boothRepository.findTemplateById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
+        if (booth.getStatus() != BoothStatus.DRAFT) {
+            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
+        }
+
+        BoothTemplateResponseDTO response = boothMapper.toTemplateResponseDTO(booth);
+        List<String> imageKeys = collectOwnedImageKeys(booth);
+
+        boothRepository.delete(booth);
+        cleanupUploadedImages(imageKeys);
+        return response;
+    }
+
     private List<Panorama> createPanoramas(
             Booth booth,
             List<CreatePanoramaRequest> panoramaRequests,
-            Map<String, MultipartFile> panoramaFiles) {
+            Map<String, MultipartFile> panoramaFiles,
+            List<String> uploadedImageKeys) {
         List<Panorama> panoramas = new ArrayList<>();
 
         for (int i = 0; i < panoramaRequests.size(); i++) {
@@ -107,6 +137,7 @@ public class BoothTemplateService {
             CloudinaryResponse uploaded = cloudService.uploadToFolder(
                     panoramaFiles.get(panoramaRequest.getFileKey()),
                     FileUploadUtils.PANORAMA_FOLDER);
+            uploadedImageKeys.add(uploaded.getPublicId());
 
             panoramas.add(Panorama.builder()
                     .booth(booth)
@@ -142,6 +173,7 @@ public class BoothTemplateService {
                 Panorama targetPanorama = panoramaByClientKey.get(hotspotRequest.getTargetPanoramaKey());
 
                 hotspots.add(Hotspot.builder()
+                        .type(HotspotType.NAV)
                         .name(hotspotRequest.getName().trim())
                         .sourcePanorama(sourcePanorama)
                         .targetPanorama(targetPanorama)
@@ -173,6 +205,7 @@ public class BoothTemplateService {
         if (request == null || isBlank(request.getName())) {
             throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
         }
+        validateCreateStatus(request.getStatus());
         if (request.getPanoramas() == null || request.getPanoramas().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
         }
@@ -180,6 +213,13 @@ public class BoothTemplateService {
         validatePanoramas(request.getPanoramas(), files);
         validateHotspots(request.getPanoramas());
         validateReachablePanoramas(request.getPanoramas());
+    }
+
+    private void validateCreateStatus(BoothStatus status) {
+        if (status == null || status == BoothStatus.DRAFT || status == BoothStatus.PUBLISHED) {
+            return;
+        }
+        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
     }
 
     private void validatePanoramas(List<CreatePanoramaRequest> panoramas, Map<String, MultipartFile> files) {
@@ -299,6 +339,26 @@ public class BoothTemplateService {
             return null;
         }
         return keyword.trim();
+    }
+
+    private List<String> collectOwnedImageKeys(Booth booth) {
+        List<String> imageKeys = new ArrayList<>();
+        imageKeys.add(booth.getThumbnailPublicId());
+        booth.getPanoramas().forEach(panorama -> imageKeys.add(panorama.getImageKey()));
+        return imageKeys;
+    }
+
+    private void cleanupUploadedImages(List<String> uploadedImageKeys) {
+        for (String imageKey : uploadedImageKeys) {
+            if (isBlank(imageKey)) {
+                continue;
+            }
+            try {
+                cloudService.delete(imageKey, IMAGE_RESOURCE_TYPE);
+            } catch (RuntimeException ignored) {
+                // Preserve the original create failure if cleanup also fails.
+            }
+        }
     }
 
     private boolean isBlank(String value) {

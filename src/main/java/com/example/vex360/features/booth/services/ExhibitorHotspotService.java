@@ -162,6 +162,13 @@ public class ExhibitorHotspotService {
                 hotspot.setMediaAsset(null);
                 hotspot.setProduct(null);
             }
+            case TEXT -> {
+                String infoText = trimToNull(request.getInfoText());
+                if (infoText == null) {
+                    throw new AppException(ErrorCode.INVALID_HOTSPOT);
+                }
+                hotspot.setInfoText(infoText);
+            }
             case IMAGE -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
                     MediaAssetType.IMAGE));
             case VIDEO -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
@@ -193,6 +200,9 @@ public class ExhibitorHotspotService {
         }
         if (request.getMediaAssetId() != null) {
             return HotspotInfoContentType.IMAGE;
+        }
+        if (trimToNull(request.getInfoText()) != null) {
+            return HotspotInfoContentType.TEXT;
         }
         return HotspotInfoContentType.NONE;
     }

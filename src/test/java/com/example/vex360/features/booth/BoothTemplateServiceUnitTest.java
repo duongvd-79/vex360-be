@@ -2,10 +2,13 @@ package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -36,6 +39,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
@@ -89,7 +93,7 @@ class BoothTemplateServiceUnitTest {
         CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
                 "Template A",
                 "Demo",
-                BoothStatus.DRAFT,
+                null,
                 List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null)));
 
         BoothTemplateResponseDTO response = boothTemplateService.createBoothTemplate(
@@ -98,10 +102,30 @@ class BoothTemplateServiceUnitTest {
                 Map.of("file_1", image("file_1")));
 
         assertEquals("Template A", response.getName());
+        assertSame(BoothStatus.DRAFT, response.getStatus());
+        assertEquals(true, response.getIsTemplate());
         assertEquals(1, response.getPanoramas().size());
         assertEquals("Entrance", response.getPanoramas().get(0).getName());
         assertEquals(true, response.getPanoramas().get(0).getIsDefault());
         assertEquals(0, response.getPanoramas().get(0).getHotspots().size());
+    }
+
+    @Test
+    void createTemplateWithPublishedStatusSucceeds() {
+        mockSaveFlow();
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template Published",
+                "Demo",
+                BoothStatus.PUBLISHED,
+                List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, true, null)));
+
+        BoothTemplateResponseDTO response = boothTemplateService.createBoothTemplate(
+                admin,
+                request,
+                Map.of("file_1", image("file_1")));
+
+        assertSame(BoothStatus.PUBLISHED, response.getStatus());
+        assertEquals(true, response.getIsTemplate());
     }
 
     @Test
@@ -128,7 +152,31 @@ class BoothTemplateServiceUnitTest {
 
         assertEquals(2, response.getPanoramas().size());
         assertEquals(1, response.getPanoramas().get(0).getHotspots().size());
+        assertSame(HotspotType.NAV, response.getPanoramas().get(0).getHotspots().get(0).getType());
         assertEquals("Main", response.getPanoramas().get(0).getHotspots().get(0).getTargetPanoramaName());
+        assertNull(response.getPanoramas().get(0).getHotspots().get(0).getProduct());
+        assertNull(response.getPanoramas().get(0).getHotspots().get(0).getMediaAsset());
+        assertNull(response.getPanoramas().get(0).getHotspots().get(0).getInfoText());
+    }
+
+    @Test
+    void createTemplateThrowsWhenStatusCannotBeCreated() {
+        for (BoothStatus status : List.of(BoothStatus.PENDING, BoothStatus.ARCHIVED)) {
+            CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                    "Template",
+                    null,
+                    status,
+                    List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, true, null)));
+
+            AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                    admin,
+                    request,
+                    Map.of("file_1", image("file_1"))));
+
+            assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        }
+
+        verify(cloudService, never()).uploadToFolder(any(MultipartFile.class), eq(FileUploadUtils.PANORAMA_FOLDER));
     }
 
     @Test
@@ -208,6 +256,22 @@ class BoothTemplateServiceUnitTest {
     }
 
     @Test
+    void createTemplateThrowsWhenPanoramaFileExtra() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template F",
+                null,
+                BoothStatus.DRAFT,
+                List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null)));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin,
+                request,
+                Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
+
+        assertSame(ErrorCode.PANORAMA_FILE_INVALID, exception.getErrorCode());
+    }
+
+    @Test
     void createTemplate_NullUser_ThrowsUnauthenticated() {
         CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
                 "Template", "Desc", BoothStatus.DRAFT,
@@ -278,6 +342,20 @@ class BoothTemplateServiceUnitTest {
     }
 
     @Test
+    void createTemplate_DuplicateFileKey_ThrowsInvalidBoothTemplate() {
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT,
+                List.of(
+                        new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null),
+                        new CreatePanoramaRequest("pano_2", "file_1", "Entrance 2", null, null, null)));
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
+                admin, request, Map.of("file_1", image("file_1"))));
+
+        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+    }
+
+    @Test
     void createTemplate_UnreachablePanorama_ThrowsInvalidPanoramaHotspot() {
         CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
                 "Template", "Desc", BoothStatus.DRAFT,
@@ -293,6 +371,40 @@ class BoothTemplateServiceUnitTest {
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"), "file_3", image("file_3"))));
 
         assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+    }
+
+    @Test
+    void createTemplate_WhenLaterUploadFails_DeletesPreviouslyUploadedImages() {
+        when(boothRepository.save(any(Booth.class))).thenAnswer(invocation -> {
+            Booth booth = invocation.getArgument(0);
+            booth.setId(UUID.randomUUID());
+            return booth;
+        });
+        when(cloudService.uploadToFolder(any(MultipartFile.class), eq(FileUploadUtils.PANORAMA_FOLDER)))
+                .thenReturn(CloudinaryResponse.builder()
+                        .url("https://res.cloudinary.com/demo/image/upload/panorama/file_1.jpg")
+                        .publicId("panorama/file_1.jpg")
+                        .fileName("file_1.jpg")
+                        .fileSize(5L)
+                        .fileType("image/jpeg")
+                        .build())
+                .thenThrow(new RuntimeException("upload failed"));
+
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template", "Desc", BoothStatus.DRAFT,
+                List.of(
+                        new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, true,
+                                List.of(new CreateHotspotRequest("Go Main", "pano_2", 1.0, 2.0, 3.0))),
+                        new CreatePanoramaRequest("pano_2", "file_2", "Main", null, false, List.of())));
+
+        assertThrows(RuntimeException.class, () -> boothTemplateService.createBoothTemplate(
+                admin,
+                request,
+                Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
+
+        verify(cloudService).delete("panorama/file_1.jpg", "image");
+        verify(panoramaRepository, never()).saveAll(any());
+        verify(hotspotRepository, never()).saveAll(any());
     }
 
     @Test
@@ -343,6 +455,70 @@ class BoothTemplateServiceUnitTest {
         assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND, exception.getErrorCode());
     }
 
+    @Test
+    void deleteBoothTemplate_DraftTemplate_DeletesBoothAndCloudImages() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        booth.setThumbnailPublicId("template/thumb.jpg");
+        booth.setPanoramas(List.of(
+                panorama(booth, "Entrance", "panorama/entrance.jpg"),
+                panorama(booth, "Main", "panorama/main.jpg")));
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+
+        BoothTemplateResponseDTO response = boothTemplateService.deleteBoothTemplate(id);
+
+        assertEquals(booth.getId(), response.getId());
+        assertEquals("Template A", response.getName());
+        assertEquals(2, response.getPanoramas().size());
+        verify(boothRepository).delete(booth);
+        verify(cloudService).delete("template/thumb.jpg", "image");
+        verify(cloudService).delete("panorama/entrance.jpg", "image");
+        verify(cloudService).delete("panorama/main.jpg", "image");
+    }
+
+    @Test
+    void deleteBoothTemplate_DraftTemplate_SkipsBlankImageKeys() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        booth.setThumbnailPublicId(null);
+        booth.setPanoramas(List.of(
+                panorama(booth, "Entrance", ""),
+                panorama(booth, "Main", "   ")));
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+
+        boothTemplateService.deleteBoothTemplate(id);
+
+        verify(boothRepository).delete(booth);
+        verify(cloudService, never()).delete(any(), eq("image"));
+    }
+
+    @Test
+    void deleteBoothTemplate_NonDraftTemplate_ThrowsBoothNotEditable() {
+        for (BoothStatus status : List.of(BoothStatus.PENDING, BoothStatus.PUBLISHED, BoothStatus.ARCHIVED)) {
+            UUID id = UUID.randomUUID();
+            when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(templateBooth(status)));
+
+            AppException exception = assertThrows(AppException.class, () -> boothTemplateService.deleteBoothTemplate(id));
+
+            assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+        }
+
+        verify(boothRepository, never()).delete(any(Booth.class));
+        verify(cloudService, never()).delete(any(), eq("image"));
+    }
+
+    @Test
+    void deleteBoothTemplate_NotFound_ThrowsBoothTemplateNotFound() {
+        UUID id = UUID.randomUUID();
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class, () -> boothTemplateService.deleteBoothTemplate(id));
+
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND, exception.getErrorCode());
+        verify(boothRepository, never()).delete(any(Booth.class));
+        verify(cloudService, never()).delete(any(), eq("image"));
+    }
+
     private void mockSaveFlow() {
         when(boothRepository.save(any(Booth.class))).thenAnswer(invocation -> {
             Booth booth = invocation.getArgument(0);
@@ -380,5 +556,28 @@ class BoothTemplateServiceUnitTest {
 
     private MockMultipartFile image(String name) {
         return new MockMultipartFile(name, name + ".jpg", "image/jpeg", "image".getBytes());
+    }
+
+    private Booth templateBooth(BoothStatus status) {
+        return Booth.builder()
+                .id(UUID.randomUUID())
+                .name("Template A")
+                .description("Demo")
+                .status(status)
+                .isTemplate(true)
+                .createdBy(admin)
+                .build();
+    }
+
+    private Panorama panorama(Booth booth, String name, String imageKey) {
+        return Panorama.builder()
+                .id(UUID.randomUUID())
+                .booth(booth)
+                .name(name)
+                .imageUrl("https://res.cloudinary.com/demo/image/upload/" + imageKey)
+                .imageKey(imageKey)
+                .orderIndex(0)
+                .isDefault(false)
+                .build();
     }
 }

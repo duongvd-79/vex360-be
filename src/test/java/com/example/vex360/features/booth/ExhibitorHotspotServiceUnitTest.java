@@ -26,6 +26,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
@@ -174,6 +175,28 @@ class ExhibitorHotspotServiceUnitTest {
         verify(hotspotRepository, never()).save(any());
     }
 
+    @Test
+    void createInfoHotspot_WithText_SavesInfoText() {
+        mockBoothAndPanorama();
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> {
+            Hotspot hotspot = invocation.getArgument(0);
+            hotspot.setId(UUID.randomUUID());
+            return hotspot;
+        });
+        UpsertHotspotRequest request = infoHotspotRequest(null, null, null);
+        request.setInfoText("  Welcome to our booth  ");
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                request);
+
+        assertEquals(HotspotType.INFO, response.getType());
+        assertEquals(HotspotInfoContentType.TEXT, response.getInfoContentType());
+        assertEquals("Welcome to our booth", response.getInfoText());
+    }
+
     private void mockBoothAndPanorama() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
@@ -201,6 +224,18 @@ class ExhibitorHotspotServiceUnitTest {
                 UpsertHotspotRequest request = baseRequest(HotspotType.PRODUCT);
                 request.setName("Featured product");
                 request.setProductId(productId);
+                request.setIconStyle("default");
+                return request;
+        }
+
+        private UpsertHotspotRequest infoHotspotRequest(
+                        String name,
+                        String infoText,
+                        HotspotInfoContentType infoContentType) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.INFO);
+                request.setName(name == null ? "Information" : name);
+                request.setInfoText(infoText);
+                request.setInfoContentType(infoContentType);
                 request.setIconStyle("default");
                 return request;
         }

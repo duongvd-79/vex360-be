@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -69,6 +70,13 @@ public class BoothTemplateController extends BaseController {
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<BoothTemplateResponseDTO>> getBoothTemplateById(@PathVariable UUID id) {
         BoothTemplateResponseDTO template = boothTemplateService.getBoothTemplateById(id);
+        return ok(template);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<BoothTemplateResponseDTO>> deleteBoothTemplate(@PathVariable UUID id) {
+        BoothTemplateResponseDTO template = boothTemplateService.deleteBoothTemplate(id);
         return ok(template);
     }
 
