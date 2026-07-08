@@ -34,7 +34,7 @@ import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
+import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import static org.mockito.ArgumentMatchers.eq;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
@@ -207,9 +207,9 @@ class PartnershipRequestServiceUnitTest {
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userService.existsByEmail("requester@example.com")).thenReturn(false);
-        when(userService.createUser(any(UserRequestDTO.class), any(UserStatus.class)))
+        when(userService.createUser(any(CreateUserRequest.class), any(UserStatus.class)))
                 .thenAnswer(invocation -> {
-                    UserRequestDTO req = invocation.getArgument(0);
+                    CreateUserRequest req = invocation.getArgument(0);
                     UserStatus status = invocation.getArgument(1);
                     return User.builder()
                             .id(UUID.randomUUID())
@@ -217,7 +217,7 @@ class PartnershipRequestServiceUnitTest {
                             .password("encodedPassword")
                             .fullName(req.getFullName())
                             .phoneNumber(req.getPhoneNumber())
-                            .role(Role.valueOf(req.getRole()))
+                            .role(req.getRole())
                             .status(status)
                             .build();
                 });
@@ -238,7 +238,7 @@ class PartnershipRequestServiceUnitTest {
 
         PartnershipRequestResponseDTO response = partnershipRequestService.approveRequest(requestId);
 
-        ArgumentCaptor<UserRequestDTO> userReqCaptor = ArgumentCaptor.forClass(UserRequestDTO.class);
+        ArgumentCaptor<CreateUserRequest> userReqCaptor = ArgumentCaptor.forClass(CreateUserRequest.class);
         ArgumentCaptor<User> ownerCaptor = ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> emailCaptor = ArgumentCaptor.forClass(String.class);
@@ -246,11 +246,11 @@ class PartnershipRequestServiceUnitTest {
         verify(companyService).createCompany(ownerCaptor.capture(), nameCaptor.capture(),
                 emailCaptor.capture());
 
-        UserRequestDTO savedUserReq = userReqCaptor.getValue();
+        CreateUserRequest savedUserReq = userReqCaptor.getValue();
         String savedCompanyName = nameCaptor.getValue();
 
         assertEquals("requester@example.com", savedUserReq.getEmail());
-        assertEquals(Role.EXHIBITOR.name(), savedUserReq.getRole());
+        assertEquals(Role.EXHIBITOR, savedUserReq.getRole());
         assertEquals("Vex360 Partner", savedCompanyName);
         assertEquals("APPROVED", response.getStatus());
         assertNotNull(request.getReviewedAt());
@@ -361,7 +361,7 @@ class PartnershipRequestServiceUnitTest {
 
         assertSame(ErrorCode.INVALID_PARTNERSHIP_REQUEST_STATUS, approveException.getErrorCode());
         assertSame(ErrorCode.INVALID_PARTNERSHIP_REQUEST_STATUS, rejectException.getErrorCode());
-        verify(userService, never()).createUser(any(UserRequestDTO.class), any(UserStatus.class));
+        verify(userService, never()).createUser(any(CreateUserRequest.class), any(UserStatus.class));
     }
 
     @Test
