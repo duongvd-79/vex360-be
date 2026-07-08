@@ -23,11 +23,13 @@ import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -62,6 +64,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+
+        Exhibition exhibition = expPackage.getExhibition();
+        if (exhibition == null || (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
+                && exhibition.getStatus() != ExhibitionStatus.PUBLISHED
+                && exhibition.getStatus() != ExhibitionStatus.ACTIVE)) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
 
         PackageTemplate template = expPackage.getTemplate();
 
@@ -282,9 +291,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .orderCode(payment != null ? payment.getOrderCode() : null)
                 .companyName(registration.getCompany().getFullName())
                 .companyEmail(registration.getCompany().getEmail())
-                .packageName(registration.getPackageNameSnapshot() != null ? 
-                        registration.getPackageNameSnapshot() : 
-                        registration.getExhibitionPackage().getTemplate().getName())
+                .packageName(registration.getPackageNameSnapshot() != null ? registration.getPackageNameSnapshot()
+                        : registration.getExhibitionPackage().getTemplate().getName())
                 .exhibitionName(registration.getExhibitionPackage().getExhibition().getName())
                 .rejectedReason(registration.getRejectedReason())
                 .reviewedByName(

@@ -18,52 +18,62 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 public interface ExhibitionService {
-        ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request,
-                        MultipartFile keyVisual, List<MultipartFile> sponsorLogos);
+	ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request,
+			MultipartFile keyVisual, List<MultipartFile> sponsorLogos);
 
-        ExhibitionResponseDTO getExhibitionByUuid(UUID uuid);
+	ExhibitionResponseDTO getExhibitionByUuid(UUID uuid);
 
-        ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
-                        ConfigureExhibitionPackageRequest request);
+	ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
+			ConfigureExhibitionPackageRequest request);
 
-        PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
-                        String keyword, ExhibitionStatus status, String category,
-                        LocalDate startDate, LocalDate endDate, Pageable pageable);
+	PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
+			String keyword, ExhibitionStatus status, String category,
+			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-        ExhibitionSummaryResponseDTO getExhibitionSummary();
+	ExhibitionSummaryResponseDTO getExhibitionSummary();
 
-        ExhibitionResponseDTO getExhibitionDetailForAdmin(UUID uuid);
+	ExhibitionResponseDTO getExhibitionDetailForAdmin(UUID uuid);
 
-        PageResponse<ExhibitionResponseDTO> searchExhibitionsForOrganizer(
-                        User organizer, String keyword, ExhibitionStatus status, String category,
-                        LocalDate startDate, LocalDate endDate, Pageable pageable);
+	PageResponse<ExhibitionResponseDTO> searchExhibitionsForOrganizer(
+			User organizer, String keyword, ExhibitionStatus status, String category,
+			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-        ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid);
+	ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid);
 
-        ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request,
-                        MultipartFile keyVisual);
+	ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid, CreateExhibitionRequest request,
+			MultipartFile keyVisual);
 
-        ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo,
-                        MultipartFile floorPlan, MultipartFile guideline);
+	PageResponse<ExhibitionResponseDTO> searchExhibitionsForVisitor(
+			String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-        ExhibitionResponseDTO approveExhibition(User admin, UUID uuid);
+	PageResponse<ExhibitionResponseDTO> searchExhibitionsForExhibitor(
+			String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-        ExhibitionResponseDTO rejectExhibition(User admin, UUID uuid,
-                        RejectExhibitionRequest request);
+	ExhibitionResponseDTO getExhibitionDetailForExhibitor(UUID uuid);
 
-        // Sponsor Media CRU
-        ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file);
+	ExhibitionResponseDTO publishExhibition(User organizer, UUID uuid);
 
-        ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file);
+	ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo,
+			MultipartFile floorPlan, MultipartFile guideline);
 
-        ExhibitionResponseDTO deleteSponsorLogo(User organizer, UUID uuid, UUID assetId);
+	ExhibitionResponseDTO approveExhibition(User admin, UUID uuid);
 
-        // Exhibition Package CRU
-        ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid,
-                        ConfigureExhibitionPackageRequest request);
+	ExhibitionResponseDTO rejectExhibition(User admin, UUID uuid,
+			RejectExhibitionRequest request);
 
-        ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId,
-                        ConfigureExhibitionPackageRequest request);
+	// Sponsor Media CRU
+	ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file);
 
-        ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId);
+	ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file);
+
+	ExhibitionResponseDTO deleteSponsorLogo(User organizer, UUID uuid, UUID assetId);
+
+	// Exhibition Package CRU
+	ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid,
+			ConfigureExhibitionPackageRequest request);
+
+	ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId,
+			ConfigureExhibitionPackageRequest request);
+
+	ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId);
 }
