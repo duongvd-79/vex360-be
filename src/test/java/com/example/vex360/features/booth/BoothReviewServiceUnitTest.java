@@ -19,7 +19,9 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
+import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewMediaItemDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewProductItemDTO;
@@ -29,6 +31,8 @@ import com.example.vex360.features.booth.entities.BoothReviewRequest;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
+import com.example.vex360.features.booth.enums.BoothReviewChangeScope;
+import com.example.vex360.features.booth.enums.BoothReviewChangeType;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotType;
@@ -110,6 +114,74 @@ class BoothReviewServiceUnitTest {
         assertEquals(0, response.getContentOverview().getPanoramas().size());
         assertEquals(0, response.getContentOverview().getProducts().size());
         assertEquals(0, response.getContentOverview().getMediaAssets().size());
+        assertNotNull(response.getChangeSummary());
+        assertEquals(true, response.getChangeSummary().isInitialSubmission());
+        assertEquals(0, response.getChangeSummary().getTotalCount());
+        assertEquals(true, response.getRequest().getChangeSummary().isInitialSubmission());
+    }
+
+    @Test
+    void resubmittedReviewIncludesChangesFromPreviousSnapshot() {
+        UUID panoramaId = UUID.randomUUID();
+        UUID removedHotspotId = UUID.randomUUID();
+        UUID addedHotspotId = UUID.randomUUID();
+
+        booth.setName("Updated Booth");
+        booth.setDescription("Updated description");
+        Panorama panorama = panorama("Entrance Updated", 0, true);
+        panorama.setId(panoramaId);
+        Product product = Product.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .name("VR Headset")
+                .sku("VR-001")
+                .description("Lightweight headset")
+                .thumbnailUrl("https://cdn.example.com/vr.png")
+                .price(BigDecimal.valueOf(1200000))
+                .currency("VND")
+                .status(ProductStatus.ACTIVE)
+                .build();
+        Hotspot addedHotspot = hotspot("New product hotspot", panorama, HotspotType.PRODUCT, product, null);
+        addedHotspot.setId(addedHotspotId);
+        panorama.setHotspots(List.of(addedHotspot));
+        booth.setPanoramas(List.of(panorama));
+
+        BoothReviewRequest previousRequest = BoothReviewRequest.builder()
+                .booth(booth)
+                .contentSnapshotJson(previousSnapshotJson(panoramaId, removedHotspotId))
+                .build();
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId())).thenReturn(Optional.of(booth));
+        when(boothReviewRequestRepository.findTopByBoothIdOrderBySubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(previousRequest));
+        when(boothReviewRequestRepository.save(org.mockito.ArgumentMatchers.any(BoothReviewRequest.class)))
+                .thenAnswer(invocation -> {
+                    BoothReviewRequest request = invocation.getArgument(0);
+                    request.setId(UUID.randomUUID());
+                    return request;
+                });
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothReviewRequestDetailDTO response = boothReviewService.submitReview(exhibitorUser, booth.getId());
+
+        BoothReviewChangeSummaryDTO changeSummary = response.getChangeSummary();
+        assertNotNull(changeSummary);
+        assertEquals(false, changeSummary.isInitialSubmission());
+        assertEquals(2, changeSummary.getAddedCount());
+        assertEquals(2, changeSummary.getModifiedCount());
+        assertEquals(1, changeSummary.getRemovedCount());
+        assertEquals(5, changeSummary.getTotalCount());
+        assertEquals(true, changeSummary.getItems().stream().anyMatch(item ->
+                item.getType() == BoothReviewChangeType.MODIFIED
+                        && item.getScope() == BoothReviewChangeScope.BOOTH
+                        && item.getFields().contains("name")));
+        assertEquals(true, changeSummary.getItems().stream().anyMatch(item ->
+                item.getType() == BoothReviewChangeType.ADDED
+                        && item.getScope() == BoothReviewChangeScope.PRODUCT_PLACEMENT));
+        assertEquals(true, changeSummary.getItems().stream().anyMatch(item ->
+                item.getType() == BoothReviewChangeType.REMOVED
+                        && item.getScope() == BoothReviewChangeScope.HOTSPOT));
     }
 
     @Test
@@ -248,6 +320,43 @@ class BoothReviewServiceUnitTest {
                 .status(status)
                 .submittedBy(exhibitorUser)
                 .build();
+    }
+
+    private String previousSnapshotJson(UUID panoramaId, UUID removedHotspotId) {
+        return """
+                {
+                  "booth": {
+                    "name": "Booth",
+                    "description": "Old description",
+                    "thumbnailUrl": null,
+                    "displayTemplateKey": "classic"
+                  },
+                  "panoramas": [
+                    {
+                      "id": "%s",
+                      "name": "Entrance",
+                      "imageUrl": "https://cdn.example.com/old.jpg",
+                      "imageKey": "panoramas/old",
+                      "orderIndex": 0,
+                      "isDefault": true
+                    }
+                  ],
+                  "hotspots": [
+                    {
+                      "id": "%s",
+                      "name": "Old info hotspot",
+                      "type": "INFO",
+                      "sourcePanoramaId": "%s",
+                      "sourcePanoramaName": "Entrance",
+                      "xPosition": 1.0,
+                      "yPosition": 2.0,
+                      "zPosition": 3.0
+                    }
+                  ],
+                  "productPlacements": [],
+                  "mediaPlacements": []
+                }
+                """.formatted(panoramaId, removedHotspotId, panoramaId);
     }
 
     private Booth booth(BoothStatus status) {

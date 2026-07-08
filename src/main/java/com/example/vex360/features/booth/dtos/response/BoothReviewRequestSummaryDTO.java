@@ -26,4 +26,5 @@ public class BoothReviewRequestSummaryDTO {
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
     private String rejectedReason;
+    private BoothReviewChangeSummaryDTO changeSummary;
 }

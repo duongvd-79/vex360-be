@@ -13,4 +13,5 @@ public class BoothReviewRequestDetailDTO {
     private BoothReviewRequestSummaryDTO request;
     private BoothResponseDTO booth;
     private BoothReviewContentOverviewDTO contentOverview;
+    private BoothReviewChangeSummaryDTO changeSummary;
 }

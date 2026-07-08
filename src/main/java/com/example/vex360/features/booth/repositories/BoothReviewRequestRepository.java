@@ -17,6 +17,8 @@ import com.example.vex360.features.booth.enums.BoothReviewStatus;
 public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewRequest, UUID> {
     boolean existsByBoothIdAndStatus(UUID boothId, BoothReviewStatus status);
 
+    Optional<BoothReviewRequest> findTopByBoothIdOrderBySubmittedAtDesc(UUID boothId);
+
     Page<BoothReviewRequest> findByBoothIdOrderBySubmittedAtDesc(UUID boothId, Pageable pageable);
 
     @Query("""

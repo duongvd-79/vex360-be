@@ -71,4 +71,10 @@ public class BoothReviewRequest {
 
     @Column(name = "rejected_reason", columnDefinition = "TEXT")
     String rejectedReason;
+
+    @Column(name = "content_snapshot_json", columnDefinition = "TEXT")
+    String contentSnapshotJson;
+
+    @Column(name = "change_summary_json", columnDefinition = "TEXT")
+    String changeSummaryJson;
 }
