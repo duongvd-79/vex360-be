@@ -25,6 +25,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,9 +47,16 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.booth.dtos.request.CreateBoothTemplateRequest;
+import com.example.vex360.features.booth.dtos.request.UpdateBoothTemplateRequest;
 import com.example.vex360.features.booth.dtos.request.CreateHotspotRequest;
 import com.example.vex360.features.booth.dtos.request.CreatePanoramaRequest;
+import com.example.vex360.features.booth.dtos.request.CreateExhibitorPanoramaRequest;
+import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
+import com.example.vex360.features.booth.dtos.request.CreateBoothTemplateHotspotRequest;
+import com.example.vex360.features.booth.dtos.request.UpdateBoothTemplateHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateResponseDTO;
+import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
@@ -556,6 +578,334 @@ class BoothTemplateServiceUnitTest {
 
     private MockMultipartFile image(String name) {
         return new MockMultipartFile(name, name + ".jpg", "image/jpeg", "image".getBytes());
+    }
+
+    @Test
+    void createTemplateWithThumbnailSucceeds() {
+        mockSaveFlow();
+        MockMultipartFile thumbnail = new MockMultipartFile("thumbnail", "thumb.jpg", "image/jpeg", "thumbnail-data".getBytes());
+        CloudinaryResponse cloudResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/thumb.jpg")
+                .publicId("template/thumb")
+                .fileName("image")
+                .fileSize(1234L)
+                .fileType("jpg")
+                .build();
+        when(cloudService.upload(thumbnail)).thenReturn(cloudResponse);
+
+        CreateBoothTemplateRequest request = new CreateBoothTemplateRequest(
+                "Template A",
+                "Demo",
+                null,
+                List.of(new CreatePanoramaRequest("pano_1", "file_1", "Entrance", null, null, null)));
+
+        BoothTemplateResponseDTO response = boothTemplateService.createBoothTemplate(
+                admin,
+                request,
+                thumbnail,
+                Map.of("file_1", image("file_1")));
+
+        assertNotNull(response);
+        assertEquals("Template A", response.getName());
+        assertEquals("https://res.cloudinary.com/thumb.jpg", response.getThumbnailUrl());
+        verify(cloudService).upload(thumbnail);
+    }
+
+    @Test
+    void updateBoothTemplate_DraftStatus_MetadataAndThumbnailSucceeds() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        booth.setThumbnailPublicId("template/old_thumb");
+        
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+        when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg", "new-thumbnail-data".getBytes());
+        CloudinaryResponse uploadResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/new_thumb.jpg")
+                .publicId("template/new_thumb")
+                .fileName("image")
+                .fileSize(1234L)
+                .fileType("jpg")
+                .build();
+        when(cloudService.upload(newThumbnail)).thenReturn(uploadResponse);
+
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("Updated Name", "Updated Desc", BoothStatus.PUBLISHED);
+
+        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest, newThumbnail);
+
+        assertNotNull(response);
+        assertEquals("Updated Name", response.getName());
+        assertEquals("Updated Desc", response.getDescription());
+        assertEquals(BoothStatus.PUBLISHED, response.getStatus());
+        assertEquals("https://res.cloudinary.com/new_thumb.jpg", response.getThumbnailUrl());
+        verify(cloudService).delete("template/old_thumb", "image"); // Xóa vì đang ở trạng thái DRAFT
+    }
+
+    @Test
+    void updateBoothTemplate_PublishedStatus_TransitionToArchivedSucceeds() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.PUBLISHED);
+
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+        when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest(null, null, BoothStatus.ARCHIVED);
+
+        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null);
+
+        assertNotNull(response);
+        assertEquals(BoothStatus.ARCHIVED, response.getStatus());
+    }
+
+    @Test
+    void updateBoothTemplate_PublishedStatus_EditFieldsThrowsException() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.PUBLISHED);
+
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("New Name", null, null);
+
+        assertThrows(AppException.class, () -> 
+            boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null)
+        );
+    }
+
+    @Test
+    void updateBoothTemplate_ArchivedStatus_EditFieldsAndThumbnailSucceedsWithoutDeletingOld() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.ARCHIVED);
+        booth.setThumbnailPublicId("template/old_thumb");
+
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+        when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg", "new-thumbnail-data".getBytes());
+        CloudinaryResponse uploadResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/new_thumb.jpg")
+                .publicId("template/new_thumb")
+                .fileName("image")
+                .fileSize(1234L)
+                .fileType("jpg")
+                .build();
+        when(cloudService.upload(newThumbnail)).thenReturn(uploadResponse);
+
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("New Name", "New Desc", BoothStatus.PUBLISHED);
+
+        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest, newThumbnail);
+
+        assertNotNull(response);
+        assertEquals("New Name", response.getName());
+        assertEquals("New Desc", response.getDescription());
+        assertEquals(BoothStatus.PUBLISHED, response.getStatus());
+        assertEquals("https://res.cloudinary.com/new_thumb.jpg", response.getThumbnailUrl());
+        verify(cloudService, never()).delete("template/old_thumb", "image"); // Không xóa khi ở trạng thái ARCHIVED
+    }
+
+    @Test
+    void updateBoothTemplate_ArchivedStatus_TransitionToDraftThrowsException() {
+        UUID id = UUID.randomUUID();
+        Booth booth = templateBooth(BoothStatus.ARCHIVED);
+
+        when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(booth));
+
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest(null, null, BoothStatus.DRAFT);
+
+        assertThrows(AppException.class, () ->
+            boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null)
+        );
+    }
+
+    @Test
+    void createPanorama_DraftStatus_Succeeds() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+
+        MockMultipartFile image = new MockMultipartFile("image", "pano.jpg", "image/jpeg", "data".getBytes());
+        CloudinaryResponse cloudResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/pano.jpg")
+                .publicId("template/pano_1")
+                .build();
+        when(cloudService.uploadToFolder(any(), any())).thenReturn(cloudResponse);
+        when(panoramaRepository.save(any(Panorama.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CreateExhibitorPanoramaRequest request = new CreateExhibitorPanoramaRequest("Pano Entrance", 1, true);
+        PanoramaResponseDTO response = boothTemplateService.createPanorama(admin, boothId, request, image);
+
+        assertNotNull(response);
+        assertEquals("Pano Entrance", response.getName());
+        assertEquals("https://res.cloudinary.com/pano.jpg", response.getImageUrl());
+        verify(cloudService).uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
+    }
+
+    @Test
+    void createPanorama_PublishedStatus_ThrowsException() {
+        Booth booth = templateBooth(BoothStatus.PUBLISHED);
+        UUID boothId = booth.getId();
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+
+        CreateExhibitorPanoramaRequest request = new CreateExhibitorPanoramaRequest("Pano Entrance", 1, true);
+        assertThrows(AppException.class, () ->
+            boothTemplateService.createPanorama(admin, boothId, request, null)
+        );
+    }
+
+    @Test
+    void updatePanorama_DraftStatus_DeletesOldImage() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        UUID panoId = UUID.randomUUID();
+        Panorama panorama = panorama(booth, "Entrance", "template/old_pano");
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(panoId, boothId)).thenReturn(Optional.of(panorama));
+        when(panoramaRepository.save(any(Panorama.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile newImage = new MockMultipartFile("image", "new_pano.jpg", "image/jpeg", "new_data".getBytes());
+        CloudinaryResponse cloudResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/new_pano.jpg")
+                .publicId("template/new_pano")
+                .build();
+        when(cloudService.uploadToFolder(any(), any())).thenReturn(cloudResponse);
+
+        UpdateExhibitorPanoramaRequest request = new UpdateExhibitorPanoramaRequest("New Entrance", 1, false);
+        PanoramaResponseDTO response = boothTemplateService.updatePanorama(admin, boothId, panoId, request, newImage);
+
+        assertNotNull(response);
+        assertEquals("New Entrance", response.getName());
+        verify(cloudService).delete("template/old_pano", "image"); // Xóa vì đang là DRAFT
+    }
+
+    @Test
+    void updatePanorama_ArchivedStatus_DoesNotDeleteOldImage() {
+        Booth booth = templateBooth(BoothStatus.ARCHIVED);
+        UUID boothId = booth.getId();
+        UUID panoId = UUID.randomUUID();
+        Panorama panorama = panorama(booth, "Entrance", "template/old_pano");
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(panoId, boothId)).thenReturn(Optional.of(panorama));
+        when(panoramaRepository.save(any(Panorama.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile newImage = new MockMultipartFile("image", "new_pano.jpg", "image/jpeg", "new_data".getBytes());
+        CloudinaryResponse cloudResponse = CloudinaryResponse.builder()
+                .url("https://res.cloudinary.com/new_pano.jpg")
+                .publicId("template/new_pano")
+                .build();
+        when(cloudService.uploadToFolder(any(), any())).thenReturn(cloudResponse);
+
+        UpdateExhibitorPanoramaRequest request = new UpdateExhibitorPanoramaRequest("New Entrance", 1, false);
+        PanoramaResponseDTO response = boothTemplateService.updatePanorama(admin, boothId, panoId, request, newImage);
+
+        assertNotNull(response);
+        assertEquals("New Entrance", response.getName());
+        verify(cloudService, never()).delete("template/old_pano", "image"); // Không xóa vì đang là ARCHIVED
+    }
+
+    @Test
+    void deletePanorama_DraftStatus_DeletesImage() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        UUID panoId = UUID.randomUUID();
+        Panorama panorama = panorama(booth, "Entrance", "template/old_pano");
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(panoId, boothId)).thenReturn(Optional.of(panorama));
+
+        PanoramaResponseDTO response = boothTemplateService.deletePanorama(admin, boothId, panoId);
+
+        assertNotNull(response);
+        verify(panoramaRepository).delete(panorama);
+        verify(cloudService).delete("template/old_pano", "image"); // Xóa vì đang là DRAFT
+    }
+
+    @Test
+    void deletePanorama_ArchivedStatus_DoesNotDeleteImage() {
+        Booth booth = templateBooth(BoothStatus.ARCHIVED);
+        UUID boothId = booth.getId();
+        UUID panoId = UUID.randomUUID();
+        Panorama panorama = panorama(booth, "Entrance", "template/old_pano");
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(panoId, boothId)).thenReturn(Optional.of(panorama));
+
+        PanoramaResponseDTO response = boothTemplateService.deletePanorama(admin, boothId, panoId);
+
+        assertNotNull(response);
+        verify(panoramaRepository).delete(panorama);
+        verify(cloudService, never()).delete("template/old_pano", "image"); // Không xóa vì đang là ARCHIVED
+    }
+
+    @Test
+    void createHotspot_DraftStatus_Succeeds() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        Panorama sourcePano = panorama(booth, "Source", "template/source");
+        UUID sourcePanoId = sourcePano.getId();
+        Panorama targetPano = panorama(booth, "Target", "template/target");
+        UUID targetPanoId = targetPano.getId();
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(sourcePanoId, boothId)).thenReturn(Optional.of(sourcePano));
+        when(panoramaRepository.findByIdAndBoothId(targetPanoId, boothId)).thenReturn(Optional.of(targetPano));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CreateBoothTemplateHotspotRequest request = new CreateBoothTemplateHotspotRequest("Go to Target", targetPanoId, 1.0, 2.0, 3.0);
+        HotspotResponseDTO response = boothTemplateService.createHotspot(admin, boothId, sourcePanoId, request);
+
+        assertNotNull(response);
+        assertEquals("Go to Target", response.getName());
+    }
+
+    @Test
+    void updateHotspot_DraftStatus_Succeeds() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        Panorama sourcePano = panorama(booth, "Source", "template/source");
+        UUID sourcePanoId = sourcePano.getId();
+        UUID hotspotId = UUID.randomUUID();
+        Hotspot hotspot = Hotspot.builder()
+                .id(hotspotId)
+                .name("Old Hotspot")
+                .sourcePanorama(sourcePano)
+                .build();
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(sourcePanoId, boothId)).thenReturn(Optional.of(sourcePano));
+        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanoId)).thenReturn(Optional.of(hotspot));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateBoothTemplateHotspotRequest request = new UpdateBoothTemplateHotspotRequest("New Hotspot", null, 4.0, 5.0, 6.0);
+        HotspotResponseDTO response = boothTemplateService.updateHotspot(admin, boothId, sourcePanoId, hotspotId, request);
+
+        assertNotNull(response);
+        assertEquals("New Hotspot", response.getName());
+        assertEquals(4.0, response.getXPosition());
+    }
+
+    @Test
+    void deleteHotspot_DraftStatus_Succeeds() {
+        Booth booth = templateBooth(BoothStatus.DRAFT);
+        UUID boothId = booth.getId();
+        Panorama sourcePano = panorama(booth, "Source", "template/source");
+        UUID sourcePanoId = sourcePano.getId();
+        UUID hotspotId = UUID.randomUUID();
+        Hotspot hotspot = Hotspot.builder()
+                .id(hotspotId)
+                .name("Hotspot")
+                .sourcePanorama(sourcePano)
+                .build();
+
+        when(boothRepository.findTemplateById(boothId)).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(sourcePanoId, boothId)).thenReturn(Optional.of(sourcePano));
+        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanoId)).thenReturn(Optional.of(hotspot));
+
+        HotspotResponseDTO response = boothTemplateService.deleteHotspot(admin, boothId, sourcePanoId, hotspotId);
+
+        assertNotNull(response);
+        verify(hotspotRepository).delete(hotspot);
     }
 
     private Booth templateBooth(BoothStatus status) {

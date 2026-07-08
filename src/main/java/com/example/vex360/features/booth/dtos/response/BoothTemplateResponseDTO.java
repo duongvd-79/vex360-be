@@ -19,9 +19,11 @@ public class BoothTemplateResponseDTO {
     private String description;
     private BoothStatus status;
     private Boolean isTemplate;
+    private String thumbnailUrl;
     private UUID createdById;
     private String createdByEmail;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<PanoramaResponseDTO> panoramas;
 }
+
