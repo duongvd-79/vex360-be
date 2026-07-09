@@ -42,4 +42,23 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             @Param("status") ExhibitorRegistrationStatus status,
             @Param("keyword") String keyword,
             Pageable pageable);
+
+    @Query(value = "SELECT r FROM ExhibitorRegistration r " +
+            "LEFT JOIN FETCH r.company " +
+            "LEFT JOIN FETCH r.exhibitionPackage p " +
+            "LEFT JOIN FETCH p.template " +
+            "LEFT JOIN FETCH p.exhibition e " +
+            "LEFT JOIN FETCH r.reviewedBy " +
+            "WHERE r.company.id = :companyId " +
+            "AND (:status IS NULL OR r.status = :status) " +
+            "AND (:keyword IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
+                    +
+                    "WHERE r.company.id = :companyId " +
+                    "AND (:status IS NULL OR r.status = :status) " +
+                    "AND (:keyword IS NULL OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<ExhibitorRegistration> searchForExhibitor(
+            @Param("companyId") UUID companyId,
+            @Param("status") ExhibitorRegistrationStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }
