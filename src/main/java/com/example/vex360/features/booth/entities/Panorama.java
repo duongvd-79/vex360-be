@@ -1,9 +1,9 @@
 package com.example.vex360.features.booth.entities;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -64,11 +64,11 @@ public class Panorama {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    java.time.LocalDateTime createdAt;
+    LocalDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    java.time.LocalDateTime updatedAt;
+    LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "sourcePanorama", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("name ASC")

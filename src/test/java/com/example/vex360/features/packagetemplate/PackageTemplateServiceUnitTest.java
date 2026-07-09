@@ -115,7 +115,7 @@ class PackageTemplateServiceUnitTest {
 
     @Test
     void getPackageTemplatesSearchesAdminPackagesWithFilters() {
-        Pageable pageable = PageRequest.of(0, 10, Sort.by("name"));
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(PackageTemplate::getName));
         PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
         when(packageTemplateRepository.searchPackageTemplates("pro", PackageTemplateStatus.ACTIVE, pageable))
                 .thenReturn(new PageImpl<>(List.of(template), pageable, 1));
@@ -140,7 +140,7 @@ class PackageTemplateServiceUnitTest {
         assertEquals(PackageTemplateStatus.ACTIVE, response.get(0).getStatus());
         verify(packageTemplateRepository).findByStatus(
                 eq(PackageTemplateStatus.ACTIVE),
-                eq(Sort.by(Sort.Order.asc("price"), Sort.Order.asc("name"))));
+                eq(Sort.by(Sort.Order.asc(PackageTemplate::getPrice), Sort.Order.asc(PackageTemplate::getName))));
     }
 
     @Test
