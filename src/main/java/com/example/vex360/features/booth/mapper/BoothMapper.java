@@ -39,6 +39,7 @@ public interface BoothMapper {
                 booth.getDescription(),
                 booth.getStatus(),
                 booth.getIsTemplate(),
+                booth.getThumbnailUrl(),
                 booth.getPanoramas() == null ? 0 : booth.getPanoramas().size(),
                 booth.getCreatedAt(),
                 booth.getUpdatedAt());
@@ -52,6 +53,7 @@ public interface BoothMapper {
                 booth.getDescription(),
                 booth.getStatus(),
                 booth.getIsTemplate(),
+                booth.getThumbnailUrl(),
                 createdBy == null ? null : createdBy.getId(),
                 createdBy == null ? null : createdBy.getEmail(),
                 booth.getCreatedAt(),

@@ -44,6 +44,7 @@ public class ExhibitorHotspotService {
     private final CompanyService companyService;
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
+    private final BoothReviewPolicyService boothReviewPolicyService;
 
     @Transactional(readOnly = true)
     public List<HotspotResponseDTO> getHotspots(User currentUser, UUID boothId, UUID panoramaId) {
@@ -59,6 +60,7 @@ public class ExhibitorHotspotService {
             UUID panoramaId,
             UpsertHotspotRequest request) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
+        boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
         Company company = sourcePanorama.getBooth().getCompany();
         Hotspot hotspot = Hotspot.builder()
                 .sourcePanorama(sourcePanorama)
@@ -76,6 +78,7 @@ public class ExhibitorHotspotService {
             UUID hotspotId,
             UpsertHotspotRequest request) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
+        boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         applyRequest(hotspot, request, sourcePanorama.getBooth(), sourcePanorama.getBooth().getCompany());
@@ -86,6 +89,7 @@ public class ExhibitorHotspotService {
     @Transactional
     public HotspotResponseDTO deleteHotspot(User currentUser, UUID boothId, UUID panoramaId, UUID hotspotId) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
+        boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         HotspotResponseDTO response = boothMapper.toHotspotResponseDTO(hotspot);
@@ -158,6 +162,13 @@ public class ExhibitorHotspotService {
                 hotspot.setMediaAsset(null);
                 hotspot.setProduct(null);
             }
+            case TEXT -> {
+                String infoText = trimToNull(request.getInfoText());
+                if (infoText == null) {
+                    throw new AppException(ErrorCode.INVALID_HOTSPOT);
+                }
+                hotspot.setInfoText(infoText);
+            }
             case IMAGE -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
                     MediaAssetType.IMAGE));
             case VIDEO -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
@@ -189,6 +200,9 @@ public class ExhibitorHotspotService {
         }
         if (request.getMediaAssetId() != null) {
             return HotspotInfoContentType.IMAGE;
+        }
+        if (trimToNull(request.getInfoText()) != null) {
+            return HotspotInfoContentType.TEXT;
         }
         return HotspotInfoContentType.NONE;
     }

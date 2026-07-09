@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -28,11 +29,14 @@ import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
 import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.services.ExhibitorBoothService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
+import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -48,6 +52,7 @@ public class ExhibitorBoothController extends BaseController {
     private final ExhibitorBoothService exhibitorBoothService;
     private final ExhibitorPanoramaService exhibitorPanoramaService;
     private final ExhibitorHotspotService exhibitorHotspotService;
+    private final BoothReviewService boothReviewService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<BoothResponseDTO>>> getBooths(
@@ -81,6 +86,32 @@ public class ExhibitorBoothController extends BaseController {
                 request,
                 thumbnail);
         return ok(booth);
+    }
+
+    @PutMapping("/{boothId}/start-edit")
+    public ResponseEntity<ApiResponse<BoothResponseDTO>> startEdit(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        return ok(boothReviewService.startEdit(userDetails.getUser(), boothId));
+    }
+
+    @PutMapping("/{boothId}/submit-review")
+    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> submitReview(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        return ok(boothReviewService.submitReview(userDetails.getUser(), boothId));
+    }
+
+    @GetMapping("/{boothId}/review-requests")
+    public ResponseEntity<ApiResponse<PageResponse<BoothReviewRequestSummaryDTO>>> getReviewRequests(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId,
+            @ParameterObject @PageableDefault(
+                    page = 0,
+                    size = 10,
+                    sort = "submittedAt",
+                    direction = Sort.Direction.DESC) Pageable pageable) {
+        return ok(boothReviewService.getReviewHistory(userDetails.getUser(), boothId, pageable));
     }
 
     @GetMapping("/{boothId}/panoramas")
