@@ -4,9 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -25,6 +32,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
@@ -659,5 +668,46 @@ class ExhibitorRegistrationServiceTest {
             registrationService.rejectRegistration(organizer, registrationUuid, "reason");
         });
         assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+    }
+
+    @Test
+    void testGetRegistrationsForExhibitor_Success() {
+        Pageable pageable = PageRequest.of(0, 10);
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .company(companyUser)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .build();
+        Page<ExhibitorRegistration> page = new PageImpl<>(List.of(registration), pageable, 1);
+
+        when(registrationRepository.searchForExhibitor(
+                eq(companyUser.getId()), eq(ExhibitorRegistrationStatus.PENDING), eq("Expo"), eq(pageable)))
+                .thenReturn(page);
+
+        PageResponse<ExhibitorRegistrationResponseDTO> result = registrationService.getRegistrationsForExhibitor(
+                companyUser, ExhibitorRegistrationStatus.PENDING, "Expo", pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals("PENDING", result.getContent().get(0).getStatus());
+    }
+
+    @Test
+    void testGetRegistrationsForExhibitor_Unauthenticated_ThrowsException() {
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // exhibitor is null
+        AppException ex1 = assertThrows(AppException.class, () -> {
+            registrationService.getRegistrationsForExhibitor(null, null, null, pageable);
+        });
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex1.getErrorCode());
+
+        // exhibitor ID is null
+        User userNoId = User.builder().id(null).build();
+        AppException ex2 = assertThrows(AppException.class, () -> {
+            registrationService.getRegistrationsForExhibitor(userNoId, null, null, pageable);
+        });
+        assertEquals(ErrorCode.UNAUTHENTICATED, ex2.getErrorCode());
     }
 }

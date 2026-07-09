@@ -1,5 +1,9 @@
 package com.example.vex360.features.exhibition.controllers;
 
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -8,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -18,9 +23,12 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistratio
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
+import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +54,29 @@ public class ExhibitorRegistrationController extends BaseController {
                 registration.getUuid(),
                 userDetails.getUser().getId());
         return created(response);
+    }
+
+    @GetMapping
+    @Operation(summary = "Xem danh sách các đơn đăng ký triển lãm của tôi", description = "Lấy danh sách các triển lãm đã đăng ký tham gia, có phân trang, lọc và tìm kiếm.")
+    public ResponseEntity<ApiResponse<PageResponse<ExhibitorRegistrationResponseDTO>>> getMyRegistrations(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "Lọc theo trạng thái") @RequestParam(required = false) ExhibitorRegistrationStatus status,
+            @Parameter(description = "Từ khoá tìm kiếm theo tên triển lãm") @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        PageResponse<ExhibitorRegistrationResponseDTO> response = exhibitorRegistrationService
+                .getRegistrationsForExhibitor(userDetails.getUser(), status, keyword, pageable);
+        return ok(response);
+    }
+
+    @GetMapping("/{uuid}")
+    @Operation(summary = "Xem chi tiết đăng ký triển lãm theo UUID", description = "Lấy thông tin chi tiết và trạng thái thanh toán của đơn đăng ký.")
+    public ResponseEntity<ApiResponse<ExhibitorRegistrationResponseDTO>> getRegistrationDetails(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("uuid") UUID registrationUuid) {
+        ExhibitorRegistrationResponseDTO response = exhibitorRegistrationService.getRegistrationDetails(
+                registrationUuid,
+                userDetails.getUser().getId());
+        return ok(response);
     }
 
     @GetMapping("/{uuid}/payment-status")

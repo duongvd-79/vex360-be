@@ -193,6 +193,45 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExhibitorRegistrationResponseDTO> getRegistrationsForExhibitor(
+            User exhibitor, ExhibitorRegistrationStatus status, String keyword, Pageable pageable) {
+        if (exhibitor == null || exhibitor.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
+                exhibitor.getId(), status, keyword, pageable);
+
+        List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
+
+        Map<Integer, Payment> paymentMap = new HashMap<>();
+        if (!registrationIds.isEmpty()) {
+            List<Payment> payments = paymentRepository.findByExhibitorRegistrationIdIn(registrationIds);
+            for (Payment p : payments) {
+                Payment existing = paymentMap.get(p.getExhibitorRegistration().getId());
+                if (existing == null || p.getCreatedAt().isAfter(existing.getCreatedAt())) {
+                    paymentMap.put(p.getExhibitorRegistration().getId(), p);
+                }
+            }
+        }
+
+        List<ExhibitorRegistrationResponseDTO> dtoList = page.getContent().stream()
+                .map(r -> mapToResponse(r, paymentMap.get(r.getId())))
+                .toList();
+
+        return PageResponse.<ExhibitorRegistrationResponseDTO>builder()
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalPages(page.getTotalPages())
+                .totalElements(page.getTotalElements())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .content(dtoList)
+                .build();
+    }
+
+    @Override
     @Transactional
     public ExhibitorRegistrationResponseDTO approveRegistration(User organizer, UUID registrationUuid) {
         if (organizer == null || organizer.getId() == null) {
