@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth.controllers;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -108,6 +109,18 @@ public class BoothTemplateController extends BaseController {
 
     // --- Admin Panorama Endpoints ---
 
+    @GetMapping("/{boothId}/panoramas")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<List<PanoramaResponseDTO>>> getPanoramas(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        List<PanoramaResponseDTO> panoramas = boothTemplateService.getPanoramas(
+                userDetails.getUser(),
+                boothId);
+        return ok(panoramas);
+    }
+
+
     @PostMapping(path = "/{boothId}/panoramas", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<PanoramaResponseDTO>> createPanorama(
@@ -154,6 +167,19 @@ public class BoothTemplateController extends BaseController {
     }
 
     // --- Admin Hotspot Endpoints ---
+
+    @GetMapping("/{boothId}/panoramas/{panoramaId}/hotspots")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<List<HotspotResponseDTO>>> getHotspots(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId,
+            @PathVariable UUID panoramaId) {
+        List<HotspotResponseDTO> hotspots = boothTemplateService.getHotspots(
+                userDetails.getUser(),
+                boothId,
+                panoramaId);
+        return ok(hotspots);
+    }
 
     @PostMapping("/{boothId}/panoramas/{panoramaId}/hotspots")
     @PreAuthorize("hasAuthority('ADMIN')")

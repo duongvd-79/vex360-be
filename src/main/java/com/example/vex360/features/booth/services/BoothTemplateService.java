@@ -471,6 +471,28 @@ public class BoothTemplateService {
 
     // --- Admin Panorama Service Logic ---
 
+    @Transactional(readOnly = true)
+    public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
+        if (currentUser == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Booth booth = boothRepository.findTemplateById(boothId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
+        return boothMapper.toPanoramaResponseDTOs(panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<HotspotResponseDTO> getHotspots(User currentUser, UUID boothId, UUID panoramaId) {
+        if (currentUser == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Booth booth = boothRepository.findTemplateById(boothId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
+        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
+        return boothMapper.toHotspotResponseDTOs(hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId()));
+    }
+
     @Transactional
     public PanoramaResponseDTO createPanorama(
             User currentUser,
