@@ -137,7 +137,7 @@ public class BoothTemplateService {
     public BoothTemplateResponseDTO deleteBoothTemplate(UUID id) {
         Booth booth = boothRepository.findTemplateById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        if (booth.getStatus() != BoothStatus.DRAFT) {
+        if (booth.getStatus() != BoothStatus.DRAFT && booth.getStatus() != BoothStatus.ARCHIVED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
 
@@ -145,7 +145,9 @@ public class BoothTemplateService {
         List<String> imageKeys = collectOwnedImageKeys(booth);
 
         boothRepository.delete(booth);
-        cleanupUploadedImages(imageKeys);
+        if (booth.getStatus() == BoothStatus.DRAFT) {
+            cleanupUploadedImages(imageKeys);
+        }
         return response;
     }
 
@@ -404,22 +406,15 @@ public class BoothTemplateService {
         BoothStatus currentStatus = booth.getStatus();
 
         if (currentStatus == BoothStatus.PUBLISHED) {
-            if (request == null) {
-                throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-            }
-            if (thumbnail != null && !thumbnail.isEmpty()) {
-                throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-            }
-            if (request.getName() != null || request.getDescription() != null) {
-                throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-            }
-            if (request.getStatus() != null) {
-                if (request.getStatus() != BoothStatus.ARCHIVED) {
-                    throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
-                }
+            if (request != null && request.getStatus() == BoothStatus.ARCHIVED) {
                 booth.setStatus(BoothStatus.ARCHIVED);
+                currentStatus = BoothStatus.ARCHIVED;
+            } else {
+                throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
             }
-        } else if (currentStatus == BoothStatus.ARCHIVED) {
+        }
+
+        if (currentStatus == BoothStatus.ARCHIVED) {
             if (request != null) {
                 if (request.getName() != null) {
                     if (request.getName().isBlank()) {
@@ -490,7 +485,8 @@ public class BoothTemplateService {
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
         Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-        return boothMapper.toHotspotResponseDTOs(hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId()));
+        return boothMapper
+                .toHotspotResponseDTOs(hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId()));
     }
 
     @Transactional
@@ -504,7 +500,7 @@ public class BoothTemplateService {
         }
         Booth booth = boothRepository.findTemplateById(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        
+
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
@@ -543,11 +539,11 @@ public class BoothTemplateService {
         }
         Booth booth = boothRepository.findTemplateById(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        
+
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
-        
+
         Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
 
@@ -588,7 +584,7 @@ public class BoothTemplateService {
         }
         Booth booth = boothRepository.findTemplateById(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        
+
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
@@ -602,11 +598,11 @@ public class BoothTemplateService {
 
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
         panoramaRepository.delete(panorama);
-        
+
         if (booth.getStatus() == BoothStatus.DRAFT) {
             cloudService.delete(panorama.getImageKey(), IMAGE_RESOURCE_TYPE);
         }
-        
+
         return response;
     }
 
@@ -678,7 +674,8 @@ public class BoothTemplateService {
                 hotspot.setName(request.getName().trim());
             }
             if (request.getTargetPanoramaId() != null) {
-                Panorama targetPanorama = panoramaRepository.findByIdAndBoothId(request.getTargetPanoramaId(), booth.getId())
+                Panorama targetPanorama = panoramaRepository
+                        .findByIdAndBoothId(request.getTargetPanoramaId(), booth.getId())
                         .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
                 hotspot.setTargetPanorama(targetPanorama);
             }
