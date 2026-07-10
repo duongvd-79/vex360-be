@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.dtos.response;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -30,7 +31,11 @@ public class ExhibitorRegistrationResponseDTO {
     private String companyName;
     private String companyEmail;
     private String packageName;
+    private BigDecimal priceSnapshot;
+    private BigDecimal finalPriceSnapshot;
+    private String currencySnapshot;
     private String exhibitionName;
+    private String participationReason;
     private String rejectedReason;
     private String reviewedByName;
 }

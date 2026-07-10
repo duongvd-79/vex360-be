@@ -50,7 +50,8 @@ public class ExhibitorRegistrationController extends BaseController {
             @Valid @RequestBody ExhibitorRegistrationRequestDTO request) {
         ExhibitorRegistration registration = exhibitorRegistrationService.initializeRegistration(
                 userDetails.getUser().getId(),
-                request.getExhibitionPackageId());
+                request.getExhibitionPackageId(),
+                request.getParticipationReason());
         ExhibitorRegistrationResponseDTO response = exhibitorRegistrationService.getRegistrationDetails(
                 registration.getUuid(),
                 userDetails.getUser().getId());

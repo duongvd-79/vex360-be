@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import com.example.vex360.shared.dtos.PageResponse;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
+import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -49,6 +51,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final UserService userService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final ApplicationEventPublisher eventPublisher;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
@@ -59,7 +62,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
     @Override
     @Transactional
-    public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId) {
+    public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
+            String participationReason) {
         User company = userService.getUserEntityById(companyUserId);
 
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
@@ -72,6 +76,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
+        boolean hasActiveRegistration = registrationRepository.existsActiveRegistration(
+                companyUserId,
+                exhibition.getId(),
+                List.of(
+                        ExhibitorRegistrationStatus.PENDING,
+                        ExhibitorRegistrationStatus.PENDING_PAYMENT,
+                        ExhibitorRegistrationStatus.APPROVED));
+        if (hasActiveRegistration) {
+            throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
+        }
+
         PackageTemplate template = expPackage.getTemplate();
 
         // Create registration record in PENDING status with template snapshot values
@@ -79,6 +94,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .company(company)
                 .exhibitionPackage(expPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
+                .participationReason(participationReason.trim())
                 .packageNameSnapshot(template.getName())
                 .priceSnapshot(template.getPrice())
                 .finalPriceSnapshot(expPackage.getFinalPrice())
@@ -277,6 +293,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     .paidAt(LocalDateTime.now())
                     .build();
             paymentRepository.save(payment);
+            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
         }
 
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
@@ -306,9 +323,14 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
+        String normalizedReason = rejectedReason == null ? null : rejectedReason.trim();
+        if (normalizedReason == null || normalizedReason.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         registration.setStatus(ExhibitorRegistrationStatus.REJECTED);
         registration.setReviewedBy(organizer);
-        registration.setRejectedReason(rejectedReason);
+        registration.setRejectedReason(normalizedReason);
         registration = registrationRepository.save(registration);
 
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
@@ -369,7 +391,11 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .companyEmail(registration.getCompany().getEmail())
                 .packageName(registration.getPackageNameSnapshot() != null ? registration.getPackageNameSnapshot()
                         : registration.getExhibitionPackage().getTemplate().getName())
+                .priceSnapshot(registration.getPriceSnapshot())
+                .finalPriceSnapshot(registration.getFinalPriceSnapshot())
+                .currencySnapshot(registration.getCurrencySnapshot())
                 .exhibitionName(registration.getExhibitionPackage().getExhibition().getName())
+                .participationReason(registration.getParticipationReason())
                 .rejectedReason(registration.getRejectedReason())
                 .reviewedByName(
                         registration.getReviewedBy() != null ? registration.getReviewedBy().getFullName() : null)

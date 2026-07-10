@@ -12,6 +12,8 @@ public enum ErrorCode {
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
     METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
+    REGISTRATION_ALREADY_EXISTS("REGISTRATION-002", "Exhibitor already has an active registration for this exhibition",
+            HttpStatus.CONFLICT),
 
     // AUTH ERRORS
     UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),

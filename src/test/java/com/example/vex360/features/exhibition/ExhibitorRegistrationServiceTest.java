@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
@@ -41,6 +42,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
+import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
@@ -70,6 +72,9 @@ class ExhibitorRegistrationServiceTest {
 
     @Mock
     private BoothProvisioningService boothProvisioningService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ExhibitorRegistrationServiceImpl registrationService;
@@ -123,10 +128,13 @@ class ExhibitorRegistrationServiceTest {
     void testInitializeRegistration_Success() {
         when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+                .thenReturn(false);
         when(registrationRepository.save(any(ExhibitorRegistration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10);
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "Join to meet buyers");
 
         assertNotNull(registration);
         assertEquals(ExhibitorRegistrationStatus.PENDING, registration.getStatus());
@@ -139,12 +147,57 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void initializeRegistration_savesTrimmedParticipationReason() {
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "  Meet partners and launch products  ");
+
+        assertEquals("Meet partners and launch products", registration.getParticipationReason());
+    }
+
+    @Test
+    void initializeRegistration_duplicateActiveRegistration_throwsRegistrationAlreadyExists() {
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+                .thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
+
+        assertEquals(ErrorCode.REGISTRATION_ALREADY_EXISTS, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void initializeRegistration_rejectedOrCanceledExistingRegistration_allowsNewRegistration() {
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "Register again after previous request ended");
+
+        assertNotNull(registration);
+        assertEquals(ExhibitorRegistrationStatus.PENDING, registration.getStatus());
+    }
+
+    @Test
     void testInitializeRegistration_PackageNotFound_ThrowsException() {
         when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
         when(packageRepository.findById(999)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
-            registrationService.initializeRegistration(companyUser.getId(), 999);
+            registrationService.initializeRegistration(companyUser.getId(), 999, "Join expo");
         });
 
         assertEquals(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND, exception.getErrorCode());
@@ -168,7 +221,7 @@ class ExhibitorRegistrationServiceTest {
         when(packageRepository.findById(12)).thenReturn(Optional.of(pendingPackage));
 
         AppException exception = assertThrows(AppException.class, () -> {
-            registrationService.initializeRegistration(companyUser.getId(), 12);
+            registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo");
         });
 
         assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
@@ -476,6 +529,7 @@ class ExhibitorRegistrationServiceTest {
         assertNotNull(dto);
         assertEquals("APPROVED", dto.getStatus());
         verify(paymentRepository).save(any(Payment.class));
+        verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test
@@ -497,6 +551,50 @@ class ExhibitorRegistrationServiceTest {
         assertNotNull(dto);
         assertEquals("REJECTED", dto.getStatus());
         assertEquals("Invalid docs", dto.getRejectedReason());
+    }
+
+    @Test
+    void rejectRegistration_blankReason_throwsValidationFailed() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID registrationUuid = UUID.randomUUID();
+        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
+        ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
+                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING).build();
+
+        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.rejectRegistration(organizer, registrationUuid, "   "));
+
+        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void mapToResponse_includesParticipationReasonAndPackageSnapshots() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(companyUser)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .participationReason("Meet buyers")
+                .priceSnapshot(BigDecimal.valueOf(1000000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1500000))
+                .currencySnapshot("VND")
+                .build();
+
+        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
+
+        var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
+
+        assertEquals("Meet buyers", dto.getParticipationReason());
+        assertEquals(BigDecimal.valueOf(1000000), dto.getPriceSnapshot());
+        assertEquals(BigDecimal.valueOf(1500000), dto.getFinalPriceSnapshot());
+        assertEquals("VND", dto.getCurrencySnapshot());
     }
 
     @Test

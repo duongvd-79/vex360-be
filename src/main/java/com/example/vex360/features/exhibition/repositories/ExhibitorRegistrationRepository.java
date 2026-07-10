@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,15 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
     boolean existsByExhibitionPackageExhibitionId(Integer exhibitionId);
 
     boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
+
+    @Query("SELECT COUNT(r) > 0 FROM ExhibitorRegistration r " +
+            "WHERE r.company.id = :companyId " +
+            "AND r.exhibitionPackage.exhibition.id = :exhibitionId " +
+            "AND r.status IN :statuses")
+    boolean existsActiveRegistration(
+            @Param("companyId") UUID companyId,
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("statuses") Collection<ExhibitorRegistrationStatus> statuses);
 
     @Query(value = "SELECT r FROM ExhibitorRegistration r " +
             "LEFT JOIN FETCH r.company " +

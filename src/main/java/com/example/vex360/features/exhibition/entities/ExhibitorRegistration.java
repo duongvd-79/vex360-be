@@ -70,6 +70,9 @@ public class ExhibitorRegistration {
     @Column(name = "rejected_reason", columnDefinition = "TEXT")
     String rejectedReason;
 
+    @Column(name = "participation_reason", columnDefinition = "TEXT")
+    String participationReason;
+
     // Snapshot fields to preserve template state at registration time
     @Column(name = "package_name_snapshot")
     String packageNameSnapshot;
