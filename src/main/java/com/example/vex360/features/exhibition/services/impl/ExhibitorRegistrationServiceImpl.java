@@ -317,6 +317,43 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         return mapToResponse(registration, payment);
     }
 
+    @Override
+    @Transactional
+    public ExhibitorRegistrationResponseDTO cancelRegistration(User exhibitor, UUID registrationUuid) {
+        if (exhibitor == null || exhibitor.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
+                .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+
+        if (!registration.getCompany().getId().equals(exhibitor.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
+                && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        registration.setStatus(ExhibitorRegistrationStatus.CANCELED);
+        registration = registrationRepository.save(registration);
+
+        List<Payment> pendingPayments = paymentRepository
+                .findByExhibitorRegistrationIdIn(List.of(registration.getId()));
+        for (Payment p : pendingPayments) {
+            if (p.getStatus() == PaymentStatus.PENDING) {
+                p.setStatus(PaymentStatus.FAILED);
+                paymentRepository.save(p);
+            }
+        }
+
+        Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
+                .orElse(null);
+
+        return mapToResponse(registration, payment);
+    }
+
     private ExhibitorRegistrationResponseDTO mapToResponse(ExhibitorRegistration registration, Payment payment) {
         return ExhibitorRegistrationResponseDTO.builder()
                 .id(registration.getId())

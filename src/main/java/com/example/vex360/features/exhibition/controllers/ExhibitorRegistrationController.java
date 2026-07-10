@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -87,6 +88,16 @@ public class ExhibitorRegistrationController extends BaseController {
         ExhibitorRegistrationResponseDTO response = exhibitorRegistrationService.getRegistrationDetails(
                 registrationUuid,
                 userDetails.getUser().getId());
+        return ok(response);
+    }
+
+    @PutMapping("/{uuid}/cancel")
+    @Operation(summary = "Hủy đơn đăng ký triển lãm", description = "Chuyển trạng thái đơn đăng ký thành CANCELED và hủy bỏ các thanh toán liên quan. Chỉ cho phép khi đơn ở trạng thái PENDING hoặc PENDING_PAYMENT.")
+    public ResponseEntity<ApiResponse<ExhibitorRegistrationResponseDTO>> cancelRegistration(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("uuid") UUID registrationUuid) {
+        ExhibitorRegistrationResponseDTO response = exhibitorRegistrationService.cancelRegistration(
+                userDetails.getUser(), registrationUuid);
         return ok(response);
     }
 }

@@ -710,4 +710,71 @@ class ExhibitorRegistrationServiceTest {
         });
         assertEquals(ErrorCode.UNAUTHENTICATED, ex2.getErrorCode());
     }
+
+    @Test
+    void testCancelRegistration_Success() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(companyUser)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+
+        Payment pendingPayment = Payment.builder()
+                .id(10)
+                .exhibitorRegistration(registration)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentRepository.findByExhibitorRegistrationIdIn(List.of(1))).thenReturn(List.of(pendingPayment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(pendingPayment));
+
+        ExhibitorRegistrationResponseDTO result = registrationService.cancelRegistration(companyUser, registrationUuid);
+
+        assertNotNull(result);
+        assertEquals("CANCELED", result.getStatus());
+        assertEquals("FAILED", result.getPaymentStatus());
+    }
+
+    @Test
+    void testCancelRegistration_Unauthorized_ThrowsException() {
+        UUID registrationUuid = UUID.randomUUID();
+        User differentUser = User.builder().id(UUID.randomUUID()).build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(differentUser)
+                .build();
+
+        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            registrationService.cancelRegistration(companyUser, registrationUuid);
+        });
+        assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+    }
+
+    @Test
+    void testCancelRegistration_InvalidStatus_ThrowsException() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(companyUser)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+
+        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+
+        AppException exception = assertThrows(AppException.class, () -> {
+            registrationService.cancelRegistration(companyUser, registrationUuid);
+        });
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+    }
 }
