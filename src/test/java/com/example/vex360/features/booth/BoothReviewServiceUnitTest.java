@@ -19,7 +19,6 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
