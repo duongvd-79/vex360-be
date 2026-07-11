@@ -79,13 +79,22 @@ public class ExhibitorBoothController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @Valid @RequestPart(value = "metadata", required = false) UpdateBoothRequest request,
-            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail) {
+            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail,
+            @RequestPart(value = "backgroundMusic", required = false) MultipartFile backgroundMusic) {
         BoothResponseDTO booth = exhibitorBoothService.updateBooth(
                 userDetails.getUser(),
                 boothId,
                 request,
-                thumbnail);
+                thumbnail,
+                backgroundMusic);
         return ok(booth);
+    }
+
+    @DeleteMapping("/{boothId}/background-music")
+    public ResponseEntity<ApiResponse<BoothResponseDTO>> deleteBackgroundMusic(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        return ok(exhibitorBoothService.deleteBackgroundMusic(userDetails.getUser(), boothId));
     }
 
     @PutMapping("/{boothId}/start-edit")

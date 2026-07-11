@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -111,7 +112,8 @@ class ExhibitorBoothServiceUnitTest {
                 exhibitorUser,
                 boothId,
                 new UpdateBoothRequest("New Booth", "", null),
-                thumbnail);
+                thumbnail,
+                null);
 
         assertEquals("New Booth", response.getName());
         assertEquals("https://new.example/thumbnail.png", response.getThumbnailUrl());
@@ -170,7 +172,7 @@ class ExhibitorBoothServiceUnitTest {
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
         when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null);
+        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null, null);
 
         assertEquals("New Name", response.getName());
         assertEquals("New Desc", response.getDescription());
@@ -187,7 +189,7 @@ class ExhibitorBoothServiceUnitTest {
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null));
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null, null));
         assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
     }
 
@@ -201,7 +203,7 @@ class ExhibitorBoothServiceUnitTest {
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, textFile));
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, textFile, null));
         assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
     }
 
@@ -215,7 +217,7 @@ class ExhibitorBoothServiceUnitTest {
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
         when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, emptyFile);
+        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, emptyFile, null);
 
         assertNotNull(response);
         assertEquals("Old Booth", response.getName());
@@ -233,10 +235,189 @@ class ExhibitorBoothServiceUnitTest {
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
         when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null);
+        BoothResponseDTO response = exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null, null);
 
         assertEquals("New Name", response.getName());
         assertNull(booth.getDescription());
         assertEquals("classic", booth.getDisplayTemplateKey());
+    }
+
+    @Test
+    void updateBooth_ReplacesBackgroundMusicAndDeletesOldCloudinaryFile() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder()
+                .id(boothId)
+                .name("Booth")
+                .company(company)
+                .backgroundMusicUrl("https://old.example/music.mp3")
+                .backgroundMusicPublicId("old_music_id")
+                .backgroundMusicFileName("old.mp3")
+                .backgroundMusicFileSize(100L)
+                .build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic",
+                "ambient.mp3",
+                "audio/mpeg",
+                "music".getBytes());
+        CloudinaryResponse upload = CloudinaryResponse.builder()
+                .url("https://new.example/ambient.mp3")
+                .publicId("new_music_id")
+                .fileName("ambient.mp3")
+                .fileSize(5L)
+                .fileType("audio/mpeg")
+                .build();
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        when(cloudService.uploadToFolder(music, "booth-background-music")).thenReturn(upload);
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothResponseDTO response = exhibitorBoothService.updateBooth(
+                exhibitorUser, boothId, null, null, music);
+
+        assertEquals("https://new.example/ambient.mp3", response.getBackgroundMusicUrl());
+        assertEquals("ambient.mp3", response.getBackgroundMusicFileName());
+        assertEquals(5L, response.getBackgroundMusicFileSize());
+        verify(cloudService).delete("old_music_id", "video");
+    }
+
+    @Test
+    void updateBooth_BackgroundMusicWithInvalidExtension_ThrowsException() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic", "ambient.wav", "audio/mpeg", "music".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        assertSame(ErrorCode.FILE_TYPE_NOT_SUPPORTED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void updateBooth_BackgroundMusicWithInvalidMimeType_ThrowsException() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic", "ambient.mp3", "text/plain", "music".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        assertSame(ErrorCode.FILE_TYPE_NOT_SUPPORTED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void updateBooth_EmptyBackgroundMusic_ThrowsException() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic", "ambient.mp3", "audio/mpeg", new byte[0]);
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        assertSame(ErrorCode.FILE_TYPE_NOT_SUPPORTED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void updateBooth_BackgroundMusicOverTenMegabytes_ThrowsException() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic",
+                "ambient.mp3",
+                "audio/mpeg",
+                new byte[10 * 1024 * 1024 + 1]);
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        assertSame(ErrorCode.FILE_SIZE_EXCEEDED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void updateBooth_WhenSaveFails_DeletesNewBackgroundMusic() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic", "ambient.mp3", "audio/mp3", "music".getBytes());
+        CloudinaryResponse upload = CloudinaryResponse.builder()
+                .url("https://new.example/ambient.mp3")
+                .publicId("new_music_id")
+                .fileSize(5L)
+                .build();
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        when(cloudService.uploadToFolder(music, "booth-background-music")).thenReturn(upload);
+        when(boothRepository.save(booth)).thenThrow(new RuntimeException("database failure"));
+
+        assertThrows(RuntimeException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        verify(cloudService).delete("new_music_id", "video");
+    }
+
+    @Test
+    void updateBooth_WhenNotEditable_DoesNotUploadBackgroundMusic() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder().id(boothId).name("Booth").company(company).build();
+        MockMultipartFile music = new MockMultipartFile(
+                "backgroundMusic", "ambient.mp3", "audio/mpeg", "music".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
+                .when(boothReviewPolicyService).assertEditable(booth);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));
+
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+        verify(boothRepository, never()).save(any());
+    }
+
+    @Test
+    void deleteBackgroundMusic_ClearsMetadataAndDeletesCloudinaryFile() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder()
+                .id(boothId)
+                .name("Booth")
+                .company(company)
+                .backgroundMusicUrl("https://cdn.example/music.mp3")
+                .backgroundMusicPublicId("music_id")
+                .backgroundMusicFileName("music.mp3")
+                .backgroundMusicFileSize(100L)
+                .build();
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothResponseDTO response = exhibitorBoothService.deleteBackgroundMusic(exhibitorUser, boothId);
+
+        assertNull(response.getBackgroundMusicUrl());
+        assertNull(response.getBackgroundMusicFileName());
+        assertNull(response.getBackgroundMusicFileSize());
+        assertNull(booth.getBackgroundMusicPublicId());
+        verify(cloudService).delete("music_id", "video");
     }
 }

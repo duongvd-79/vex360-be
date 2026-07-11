@@ -397,6 +397,8 @@ public class BoothReviewService {
                 fieldChange("name", previousBooth.getName(), currentBooth.getName()),
                 fieldChange("description", previousBooth.getDescription(), currentBooth.getDescription()),
                 fieldChange("thumbnailUrl", previousBooth.getThumbnailUrl(), currentBooth.getThumbnailUrl()),
+                fieldChange("backgroundMusicUrl", previousBooth.getBackgroundMusicUrl(),
+                        currentBooth.getBackgroundMusicUrl()),
                 fieldChange("displayTemplateKey", previousBooth.getDisplayTemplateKey(),
                         currentBooth.getDisplayTemplateKey()));
         if (!fields.isEmpty()) {
@@ -691,6 +693,7 @@ public class BoothReviewService {
                         .name(booth.getName())
                         .description(booth.getDescription())
                         .thumbnailUrl(booth.getThumbnailUrl())
+                        .backgroundMusicUrl(booth.getBackgroundMusicUrl())
                         .displayTemplateKey(booth.getDisplayTemplateKey())
                         .build())
                 .panoramas(panoramaSnapshots)
@@ -930,6 +933,7 @@ public class BoothReviewService {
         private String name;
         private String description;
         private String thumbnailUrl;
+        private String backgroundMusicUrl;
         private String displayTemplateKey;
     }
 

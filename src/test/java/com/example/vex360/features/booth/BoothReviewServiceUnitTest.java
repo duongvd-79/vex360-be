@@ -127,6 +127,7 @@ class BoothReviewServiceUnitTest {
 
         booth.setName("Updated Booth");
         booth.setDescription("Updated description");
+        booth.setBackgroundMusicUrl("https://cdn.example.com/ambient.mp3");
         Panorama panorama = panorama("Entrance Updated", 0, true);
         panorama.setId(panoramaId);
         Product product = Product.builder()
@@ -174,7 +175,8 @@ class BoothReviewServiceUnitTest {
         assertEquals(true, changeSummary.getItems().stream().anyMatch(item ->
                 item.getType() == BoothReviewChangeType.MODIFIED
                         && item.getScope() == BoothReviewChangeScope.BOOTH
-                        && item.getFields().contains("name")));
+                        && item.getFields().contains("name")
+                        && item.getFields().contains("backgroundMusicUrl")));
         assertEquals(true, changeSummary.getItems().stream().anyMatch(item ->
                 item.getType() == BoothReviewChangeType.ADDED
                         && item.getScope() == BoothReviewChangeScope.PRODUCT_PLACEMENT));
