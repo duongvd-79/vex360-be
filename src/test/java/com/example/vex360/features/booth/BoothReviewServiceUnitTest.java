@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -20,6 +22,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
+import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewMediaItemDTO;
@@ -39,6 +44,7 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.services.BoothReviewPolicyService;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.features.company.entities.Company;
@@ -61,6 +67,9 @@ class BoothReviewServiceUnitTest {
     private BoothReviewRequestRepository boothReviewRequestRepository;
 
     @Mock
+    private PanoramaRepository panoramaRepository;
+
+    @Mock
     private CompanyService companyService;
 
     @Mock
@@ -78,6 +87,7 @@ class BoothReviewServiceUnitTest {
         boothReviewService = new BoothReviewService(
                 boothRepository,
                 boothReviewRequestRepository,
+                panoramaRepository,
                 companyService,
                 Mappers.getMapper(BoothMapper.class),
                 boothReviewPolicyService);
@@ -416,5 +426,83 @@ class BoothReviewServiceUnitTest {
                 .yPosition(2.0)
                 .zPosition(3.0)
                 .build();
+    }
+
+    @Test
+    void getBoothForOrganizer_SuccessWhenNotDraft() {
+        booth.setStatus(BoothStatus.PENDING);
+        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+                .thenReturn(Optional.of(booth));
+
+        BoothResponseDTO response = boothReviewService.getBoothForOrganizer(
+                organizer, exhibitionUuid, booth.getId());
+
+        assertNotNull(response);
+        assertEquals(booth.getId(), response.getId());
+        assertEquals(BoothStatus.PENDING, response.getStatus());
+        verify(panoramaRepository).findDetailsByBoothId(booth.getId());
+    }
+
+    @Test
+    void getBoothForOrganizer_ThrowsForbiddenWhenDraft() {
+        booth.setStatus(BoothStatus.DRAFT);
+        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+                .thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> boothReviewService.getBoothForOrganizer(organizer, exhibitionUuid, booth.getId()));
+
+        assertEquals(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE, exception.getErrorCode());
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, exception.getErrorCode().getHttpStatus());
+        verify(panoramaRepository, never()).findDetailsByBoothId(booth.getId());
+    }
+
+    @Test
+    void getBoothForOrganizer_ThrowsNotFoundWhenNotExists() {
+        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+                .thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> boothReviewService.getBoothForOrganizer(organizer, exhibitionUuid, booth.getId()));
+
+        assertEquals(ErrorCode.BOOTH_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void getReviewHistoryForOrganizer_Success() {
+        BoothReviewRequest request = reviewRequest(BoothReviewStatus.PENDING);
+        org.springframework.data.domain.Page<BoothReviewRequest> page =
+                new org.springframework.data.domain.PageImpl<>(List.of(request));
+
+        when(boothRepository.findForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+                .thenReturn(Optional.of(booth));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(boothReviewRequestRepository.findByBoothIdOrderBySubmittedAtDesc(booth.getId(), pageable))
+                .thenReturn(page);
+
+        PageResponse<BoothReviewRequestSummaryDTO> response = boothReviewService.getReviewHistoryForOrganizer(
+                organizer, exhibitionUuid, booth.getId(), pageable);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals(request.getId(), response.getContent().get(0).getId());
+    }
+
+    @Test
+    void getBoothsForOrganizer_Success() {
+        org.springframework.data.domain.Page<Booth> page =
+                new org.springframework.data.domain.PageImpl<>(List.of(booth));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(boothRepository.searchForOrganizer(exhibitionUuid, organizer.getId(), "Booth", BoothStatus.PENDING, pageable))
+                .thenReturn(page);
+
+        PageResponse<BoothResponseDTO> response = boothReviewService.getBoothsForOrganizer(
+                organizer, exhibitionUuid, "Booth", BoothStatus.PENDING, pageable);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals(booth.getId(), response.getContent().get(0).getId());
     }
 }

@@ -46,6 +46,7 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -69,6 +70,7 @@ import lombok.RequiredArgsConstructor;
 public class BoothReviewService {
     private final BoothRepository boothRepository;
     private final BoothReviewRequestRepository boothReviewRequestRepository;
+    private final PanoramaRepository panoramaRepository;
     private final CompanyService companyService;
     private final BoothMapper boothMapper;
     private final BoothReviewPolicyService boothReviewPolicyService;
@@ -909,6 +911,54 @@ public class BoothReviewService {
 
     private String normalizeKeyword(String keyword) {
         return keyword == null || keyword.isBlank() ? null : keyword.trim();
+    }
+
+    @Transactional(readOnly = true)
+    public BoothResponseDTO getBoothForOrganizer(User organizer, UUID exhibitionUuid, UUID boothId) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Booth booth = boothRepository.findDetailForOrganizer(boothId, exhibitionUuid, organizer.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        if (booth.getStatus() == BoothStatus.DRAFT) {
+            throw new AppException(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE);
+        }
+        // Initialize hotspot collections and their DTO dependencies for the managed panoramas.
+        panoramaRepository.findDetailsByBoothId(booth.getId());
+        return boothMapper.toBoothResponseDTO(booth);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<BoothReviewRequestSummaryDTO> getReviewHistoryForOrganizer(
+            User organizer,
+            UUID exhibitionUuid,
+            UUID boothId,
+            Pageable pageable) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Booth booth = boothRepository.findForOrganizer(boothId, exhibitionUuid, organizer.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        Page<BoothReviewRequestSummaryDTO> page = boothReviewRequestRepository
+                .findByBoothIdOrderBySubmittedAtDesc(booth.getId(), pageable)
+                .map(this::toSummary);
+        return PageResponse.from(page);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<BoothResponseDTO> getBoothsForOrganizer(
+            User organizer,
+            UUID exhibitionUuid,
+            String keyword,
+            BoothStatus status,
+            Pageable pageable) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Page<BoothResponseDTO> page = boothRepository
+                .searchForOrganizer(exhibitionUuid, organizer.getId(), normalizeKeyword(keyword), status, pageable)
+                .map(boothMapper::toBoothResponseDTO);
+        return PageResponse.from(page);
     }
 
     @Data

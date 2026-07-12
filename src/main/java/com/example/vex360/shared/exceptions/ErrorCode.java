@@ -87,6 +87,7 @@ public enum ErrorCode {
     BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_REQUEST_NOT_FOUND("BOOTH-019", "Booth review request not found", HttpStatus.NOT_FOUND),
+    BOOTH_DRAFT_NOT_REVIEWABLE("BOOTH-020", "Draft booth content is not available for review", HttpStatus.FORBIDDEN),
 
     // DESIGN REQUEST ERRORS
     DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Design request not found", HttpStatus.NOT_FOUND),
