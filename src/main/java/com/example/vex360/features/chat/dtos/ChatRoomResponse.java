@@ -21,4 +21,5 @@ public class ChatRoomResponse {
     private LocalDateTime lastMessageAt;
     private String lastMessagePreview;
     private List<ChatMessagePayload> messages;
+    private int unreadCount;
 }

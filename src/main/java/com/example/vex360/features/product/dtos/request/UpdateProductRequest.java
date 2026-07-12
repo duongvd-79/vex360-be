@@ -41,6 +41,7 @@ public class UpdateProductRequest {
 
     private String thumbnailUrl;
     private String thumbnailPublicId;
+    private Long thumbnailFileSize;
 
     private List<UUID> existingContentIds;
 

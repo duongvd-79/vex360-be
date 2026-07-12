@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductContentPreUploadedRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
@@ -43,6 +44,7 @@ public class ProductService {
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
 
     private final CompanyService companyService;
+    private final CompanyStorageService companyStorageService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
     private final CloudService cloudService;
@@ -50,11 +52,13 @@ public class ProductService {
 
     public ProductService(
             CompanyService companyService,
+            CompanyStorageService companyStorageService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
             ProductMapper productMapper) {
         this.companyService = companyService;
+        this.companyStorageService = companyStorageService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
@@ -107,6 +111,7 @@ public class ProductService {
                 .currency(normalizeCurrency(request.getCurrency()))
                 .thumbnailUrl(request.getThumbnailUrl())
                 .thumbnailPublicId(request.getThumbnailPublicId())
+                .thumbnailFileSize(request.getThumbnailFileSize())
                 .status(status)
                 .build();
         product.setContents(createContentsFromUploaded(product, contentRequests));
@@ -143,10 +148,18 @@ public class ProductService {
         product.setCurrency(normalizeCurrency(request.getCurrency()));
         product.setStatus(status);
         if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
+            companyStorageService.deductUsage(company, product.getThumbnailFileSize());
             deleteCloudFile(product.getThumbnailPublicId(), "image");
             product.setThumbnailUrl(request.getThumbnailUrl());
             product.setThumbnailPublicId(request.getThumbnailPublicId());
+            product.setThumbnailFileSize(request.getThumbnailFileSize() != null ? request.getThumbnailFileSize() : 0L);
         }
+
+        Set<UUID> keptIds = new HashSet<>(existingContentIds);
+        product.getContents().stream()
+                .filter(content -> !keptIds.contains(content.getId()))
+                .forEach(content -> companyStorageService.deductUsage(company, content.getFileSize()));
+
         synchronizeContents(product, existingContentIds, createContentsFromUploaded(product, newContentRequests));
 
         return productMapper.toResponse(productRepository.save(product));
@@ -156,9 +169,12 @@ public class ProductService {
     public ProductResponseDTO deleteProduct(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
+        companyStorageService.deductUsage(company, product.getThumbnailFileSize());
         deleteCloudFile(product.getThumbnailPublicId(), "image");
-        product.getContents()
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+        product.getContents().forEach(content -> {
+            companyStorageService.deductUsage(company, content.getFileSize());
+            deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
+        });
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }

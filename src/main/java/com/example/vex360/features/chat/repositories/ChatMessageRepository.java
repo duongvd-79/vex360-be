@@ -15,4 +15,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @Modifying
     @Query("UPDATE ChatMessage m SET m.readAt = CURRENT_TIMESTAMP WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")
     void markMessagesAsRead(UUID roomId, UUID userId);
+
+    @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")
+    long countUnreadByRoomIdAndUserId(UUID roomId, UUID userId);
+
 }

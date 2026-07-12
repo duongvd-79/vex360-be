@@ -24,127 +24,157 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChatService {
 
-    private final ChatRoomRepository chatRoomRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final UserRepository userRepository;
-    private final ExhibitionRepository exhibitionRepository;
+        private final ChatRoomRepository chatRoomRepository;
+        private final ChatMessageRepository chatMessageRepository;
+        private final UserRepository userRepository;
+        private final ExhibitionRepository exhibitionRepository;
 
-    // ── 1. Tạo hoặc lấy phòng chat ──────────────────────────────
-    @Transactional
-    public ChatRoomResponse getOrCreateRoom(UUID visitorId, GetOrCreateRoomRequest request) {
+        // ── 1. Tạo hoặc lấy phòng chat ──────────────────────────────
+        @Transactional
+        public ChatRoomResponse getOrCreateRoom(UUID visitorId, GetOrCreateRoomRequest request) {
 
-        var exhibition = exhibitionRepository.findById(request.getExhibitionId())
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                var exhibition = exhibitionRepository.findById(request.getExhibitionId())
+                                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
-        var exhibitorUser = userRepository.findById(request.getExhibitorUserId())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                var exhibitorUser = userRepository.findById(request.getExhibitorUserId())
+                                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        var visitorUser = userRepository.findById(visitorId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                var visitorUser = userRepository.findById(visitorId)
+                                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Tìm phòng đã có, nếu chưa có thì tạo mới
-        ChatRoom room = chatRoomRepository
-                .findByExhibitionIdAndExhibitorUserIdAndVisitorUserId(
-                        exhibition.getId(),
-                        exhibitorUser.getId(),
-                        visitorUser.getId())
-                .orElseGet(() -> chatRoomRepository.save(
-                        ChatRoom.builder()
-                                .exhibition(exhibition)
-                                .exhibitorUser(exhibitorUser)
-                                .visitorUser(visitorUser)
-                                .build()));
+                // Tìm phòng đã có, nếu chưa có thì tạo mới
+                ChatRoom room = chatRoomRepository
+                                .findByExhibitionIdAndExhibitorUserIdAndVisitorUserId(
+                                                exhibition.getId(),
+                                                exhibitorUser.getId(),
+                                                visitorUser.getId())
+                                .orElseGet(() -> chatRoomRepository.save(
+                                                ChatRoom.builder()
+                                                                .exhibition(exhibition)
+                                                                .exhibitorUser(exhibitorUser)
+                                                                .visitorUser(visitorUser)
+                                                                .build()));
 
-        // Lấy lịch sử tin nhắn
-        List<ChatMessagePayload> messages = chatMessageRepository
-                .findByRoomIdOrderBySentAtAsc(room.getId())
-                .stream()
-                .map(this::toPayload)
-                .toList();
+                // Lấy lịch sử tin nhắn
+                List<ChatMessagePayload> messages = chatMessageRepository
+                                .findByRoomIdOrderBySentAtAsc(room.getId())
+                                .stream()
+                                .map(this::toPayload)
+                                .toList();
 
-        return ChatRoomResponse.builder()
-                .roomId(room.getId())
-                .exhibitorName(exhibitorUser.getFullName())
-                .exhibitorAvatar(exhibitorUser.getAvatarUrl())
-                .visitorName(visitorUser.getFullName())
-                .visitorAvatar(visitorUser.getAvatarUrl())
-                .lastMessageAt(room.getLastMessageAt())
-                .lastMessagePreview(room.getLastMessagePreview())
-                .messages(messages)
-                .build();
-    }
+                return ChatRoomResponse.builder()
+                                .roomId(room.getId())
+                                .exhibitorName(exhibitorUser.getFullName())
+                                .exhibitorAvatar(exhibitorUser.getAvatarUrl())
+                                .visitorName(visitorUser.getFullName())
+                                .visitorAvatar(visitorUser.getAvatarUrl())
+                                .lastMessageAt(room.getLastMessageAt())
+                                .lastMessagePreview(room.getLastMessagePreview())
+                                .messages(messages)
+                                .build();
+        }
 
-    // ── 2. Lưu tin nhắn mới ─────────────────────────────────────
-    @Transactional
-    public ChatMessagePayload saveMessage(UUID roomId, UUID senderId, String content) {
+        // ── 2. Lưu tin nhắn mới ─────────────────────────────────────
+        @Transactional
+        public ChatMessagePayload saveMessage(UUID roomId, UUID senderId, String content) {
 
-        var room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                var room = chatRoomRepository.findById(roomId)
+                                .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        var sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                var sender = userRepository.findById(senderId)
+                                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Xác định role của người gửi
-        String senderRole = sender.getId().equals(room.getExhibitorUser().getId())
-                ? "EXHIBITOR"
-                : "VISITOR";
+                // Xác định role của người gửi
+                String senderRole = sender.getId().equals(room.getExhibitorUser().getId())
+                                ? "EXHIBITOR"
+                                : "VISITOR";
 
-        ChatMessage message = chatMessageRepository.save(
-                ChatMessage.builder()
-                        .room(room)
-                        .sender(sender)
-                        .senderRole(senderRole)
-                        .content(content)
-                        .build());
+                ChatMessage message = chatMessageRepository.save(
+                                ChatMessage.builder()
+                                                .room(room)
+                                                .sender(sender)
+                                                .senderRole(senderRole)
+                                                .content(content)
+                                                .build());
 
-        // Cập nhật preview ở chat_rooms
-        room.setLastMessageAt(LocalDateTime.now());
-        room.setLastMessagePreview(content.length() > 50
-                ? content.substring(0, 50) + "..."
-                : content);
-        chatRoomRepository.save(room);
+                // Cập nhật preview ở chat_rooms
+                room.setLastMessageAt(LocalDateTime.now());
+                room.setLastMessagePreview(content.length() > 50
+                                ? content.substring(0, 50) + "..."
+                                : content);
+                chatRoomRepository.save(room);
 
-        return toPayload(message);
-    }
+                return toPayload(message);
+        }
 
-    // ── 3. Đánh dấu đã đọc ──────────────────────────────────────
-    @Transactional
-    public void markAsRead(UUID roomId, UUID userId) {
-        chatMessageRepository.markMessagesAsRead(roomId, userId);
-    }
+        // ── 3. Đánh dấu đã đọc ──────────────────────────────────────
+        @Transactional
+        public void markAsRead(UUID roomId, UUID userId) {
+                chatMessageRepository.markMessagesAsRead(roomId, userId);
+        }
 
-    // ── 4. Danh sách phòng chat của 1 user ───────────────────────
-    public List<ChatRoomResponse> getRoomsForUser(User user) {
-        String role = user.getRole().name();
+        // ── 4. Chi tiết 1 phòng chat (kèm lịch sử tin nhắn) ─────────
+        public ChatRoomResponse getRoomById(UUID roomId, UUID userId) {
+                var room = chatRoomRepository.findById(roomId)
+                                .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        List<ChatRoom> rooms = role.equals("EXHIBITOR")
-                ? chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(user.getId())
-                : chatRoomRepository.findByVisitorUserIdOrderByLastMessageAtDesc(user.getId());
+                if (!room.getExhibitorUser().getId().equals(userId)
+                                && !room.getVisitorUser().getId().equals(userId)) {
+                        throw new AppException(ErrorCode.UNAUTHORIZED);
+                }
 
-        return rooms.stream().map(room -> ChatRoomResponse.builder()
-                .roomId(room.getId())
-                .exhibitorName(room.getExhibitorUser().getFullName())
-                .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
-                .visitorName(room.getVisitorUser().getFullName())
-                .visitorAvatar(room.getVisitorUser().getAvatarUrl())
-                .lastMessageAt(room.getLastMessageAt())
-                .lastMessagePreview(room.getLastMessagePreview())
-                .messages(List.of())
-                .build()).toList();
-    }
+                List<ChatMessagePayload> messages = chatMessageRepository
+                                .findByRoomIdOrderBySentAtAsc(room.getId())
+                                .stream()
+                                .map(this::toPayload)
+                                .toList();
 
-    // ── Helper: Entity → DTO ─────────────────────────────────────
-    private ChatMessagePayload toPayload(ChatMessage msg) {
-        return ChatMessagePayload.builder()
-                .messageId(msg.getId())
-                .roomId(msg.getRoom().getId())
-                .senderId(msg.getSender().getId())
-                .senderName(msg.getSender().getFullName())
-                .senderAvatar(msg.getSender().getAvatarUrl())
-                .senderRole(msg.getSenderRole())
-                .content(msg.getContent())
-                .sentAt(msg.getSentAt())
-                .type("CHAT_MESSAGE")
-                .build();
-    }
+                return ChatRoomResponse.builder()
+                                .roomId(room.getId())
+                                .exhibitorName(room.getExhibitorUser().getFullName())
+                                .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
+                                .visitorName(room.getVisitorUser().getFullName())
+                                .visitorAvatar(room.getVisitorUser().getAvatarUrl())
+                                .lastMessageAt(room.getLastMessageAt())
+                                .lastMessagePreview(room.getLastMessagePreview())
+                                .messages(messages)
+                                .build();
+        }
+
+        // ── 5. Danh sách phòng chat của 1 user ───────────────────────
+        public List<ChatRoomResponse> getRoomsForUser(User user) {
+                String role = user.getRole().name();
+
+                List<ChatRoom> rooms = role.equals("EXHIBITOR")
+                                ? chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(user.getId())
+                                : chatRoomRepository.findByVisitorUserIdOrderByLastMessageAtDesc(user.getId());
+
+                return rooms.stream().map(room -> ChatRoomResponse.builder()
+                                .roomId(room.getId())
+                                .exhibitorName(room.getExhibitorUser().getFullName())
+                                .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
+                                .visitorName(room.getVisitorUser().getFullName())
+                                .visitorAvatar(room.getVisitorUser().getAvatarUrl())
+                                .lastMessageAt(room.getLastMessageAt())
+                                .lastMessagePreview(room.getLastMessagePreview())
+                                .unreadCount((int) chatMessageRepository.countUnreadByRoomIdAndUserId(room.getId(),
+                                                user.getId()))
+                                .messages(List.of())
+                                .build()).toList();
+        }
+
+        // ── Helper: Entity → DTO ─────────────────────────────────────
+        private ChatMessagePayload toPayload(ChatMessage msg) {
+                return ChatMessagePayload.builder()
+                                .messageId(msg.getId())
+                                .roomId(msg.getRoom().getId())
+                                .senderId(msg.getSender().getId())
+                                .senderName(msg.getSender().getFullName())
+                                .senderAvatar(msg.getSender().getAvatarUrl())
+                                .senderRole(msg.getSenderRole())
+                                .content(msg.getContent())
+                                .sentAt(msg.getSentAt())
+                                .type("CHAT_MESSAGE")
+                                .build();
+        }
 }

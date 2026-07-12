@@ -3,8 +3,8 @@ package com.example.vex360.features.chat.controllers;
 import com.example.vex360.features.chat.dtos.ChatMessagePayload;
 import com.example.vex360.features.chat.dtos.ChatRoomResponse;
 import com.example.vex360.features.chat.dtos.GetOrCreateRoomRequest;
+import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.chat.services.ChatService;
-import com.example.vex360.features.user.entities.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,20 +29,31 @@ public class ChatController {
     @PostMapping("/api/v1/chats/rooms")
     @ResponseBody
     public ResponseEntity<ChatRoomResponse> getOrCreateRoom(
-            @AuthenticationPrincipal User currentUser,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody GetOrCreateRoomRequest request) {
 
         return ResponseEntity.ok(
-                chatService.getOrCreateRoom(currentUser.getId(), request));
+                chatService.getOrCreateRoom(userDetails.getUser().getId(), request));
     }
 
     // ── REST: Lấy danh sách phòng chat của user hiện tại ────────
     @GetMapping("/api/v1/chats/rooms")
     @ResponseBody
     public ResponseEntity<List<ChatRoomResponse>> getMyRooms(
-            @AuthenticationPrincipal User currentUser) {
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        return ResponseEntity.ok(chatService.getRoomsForUser(currentUser));
+        return ResponseEntity.ok(chatService.getRoomsForUser(userDetails.getUser()));
+    }
+
+    // ── REST: Lấy chi tiết 1 phòng chat kèm lịch sử tin nhắn ───
+    @GetMapping("/api/v1/chats/rooms/{roomId}")
+    @ResponseBody
+    public ResponseEntity<ChatRoomResponse> getRoomById(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID roomId) {
+
+        return ResponseEntity.ok(
+                chatService.getRoomById(roomId, userDetails.getUser().getId()));
     }
 
     // ── WebSocket: Gửi tin nhắn ──────────────────────────────────
