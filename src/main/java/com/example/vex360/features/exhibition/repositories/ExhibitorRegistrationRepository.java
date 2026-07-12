@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,15 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
     boolean existsByExhibitionPackageExhibitionId(Integer exhibitionId);
 
     boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
+
+    @Query("SELECT COUNT(r) > 0 FROM ExhibitorRegistration r " +
+            "WHERE r.company.id = :companyId " +
+            "AND r.exhibitionPackage.exhibition.id = :exhibitionId " +
+            "AND r.status IN :statuses")
+    boolean existsActiveRegistration(
+            @Param("companyId") UUID companyId,
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("statuses") Collection<ExhibitorRegistrationStatus> statuses);
 
     @Query(value = "SELECT r FROM ExhibitorRegistration r " +
             "LEFT JOIN FETCH r.company " +
@@ -39,6 +49,25 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
     Page<ExhibitorRegistration> searchForOrganizer(
             @Param("organizerId") UUID organizerId,
             @Param("exhibitionUuid") UUID exhibitionUuid,
+            @Param("status") ExhibitorRegistrationStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    @Query(value = "SELECT r FROM ExhibitorRegistration r " +
+            "LEFT JOIN FETCH r.company " +
+            "LEFT JOIN FETCH r.exhibitionPackage p " +
+            "LEFT JOIN FETCH p.template " +
+            "LEFT JOIN FETCH p.exhibition e " +
+            "LEFT JOIN FETCH r.reviewedBy " +
+            "WHERE r.company.id = :companyId " +
+            "AND (:status IS NULL OR r.status = :status) " +
+            "AND (:keyword IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
+                    +
+                    "WHERE r.company.id = :companyId " +
+                    "AND (:status IS NULL OR r.status = :status) " +
+                    "AND (:keyword IS NULL OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<ExhibitorRegistration> searchForExhibitor(
+            @Param("companyId") UUID companyId,
             @Param("status") ExhibitorRegistrationStatus status,
             @Param("keyword") String keyword,
             Pageable pageable);

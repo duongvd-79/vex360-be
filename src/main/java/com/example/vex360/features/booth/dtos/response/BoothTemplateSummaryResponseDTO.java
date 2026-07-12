@@ -18,7 +18,9 @@ public class BoothTemplateSummaryResponseDTO {
     private String description;
     private BoothStatus status;
     private Boolean isTemplate;
+    private String thumbnailUrl;
     private Integer panoramaCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
+

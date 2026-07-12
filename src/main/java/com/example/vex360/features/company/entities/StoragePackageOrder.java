@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 
 import jakarta.persistence.Column;

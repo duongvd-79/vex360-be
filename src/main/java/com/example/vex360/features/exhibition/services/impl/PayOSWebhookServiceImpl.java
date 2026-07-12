@@ -76,11 +76,15 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                             order.getStoragePackage().getQuotaBytes());
                 } else {
                     ExhibitorRegistration registration = payment.getExhibitorRegistration();
-                    registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-                    registrationRepository.save(registration);
-                    eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
-
-                    log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
+                    if (registration.getStatus() == ExhibitorRegistrationStatus.CANCELED) {
+                        log.warn("Payment PAID for a CANCELED registration ID: {}. Refusing to approve.",
+                                registration.getId());
+                    } else {
+                        registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+                        registrationRepository.save(registration);
+                        eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                        log.info("Payment PAID. Registration ID: {} approved successfully.", registration.getId());
+                    }
                 }
             } else {
                 payment.setStatus(PaymentStatus.FAILED);

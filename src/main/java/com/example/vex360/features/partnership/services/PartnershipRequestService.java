@@ -17,7 +17,7 @@ import com.example.vex360.features.partnership.dtos.response.PartnershipRequestS
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
+import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
 import com.example.vex360.features.user.entities.User;
@@ -144,14 +144,14 @@ public class PartnershipRequestService {
         }
 
         String temporaryPassword = RandomPasswordGenerator.generate();
-        UserRequestDTO userRequest = new UserRequestDTO(
-                email,
-                temporaryPassword,
-                normalize(request.getRequesterName()),
-                normalize(request.getRequesterPhoneNumber()),
-                request.getRequestedRole().name(),
-                null
-        );
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .email(email)
+                .password(temporaryPassword)
+                .fullName(normalize(request.getRequesterName()))
+                .phoneNumber(normalize(request.getRequesterPhoneNumber()))
+                .role(request.getRequestedRole())
+                .avatarUrl(null)
+                .build();
 
         User savedUser = userService.createUser(userRequest, UserStatus.ACTIVE);
         companyService.createCompany(savedUser, normalize(request.getOrganizationName()), normalize(request.getRequesterEmail()));

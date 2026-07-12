@@ -16,7 +16,6 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
 import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
@@ -54,7 +53,8 @@ public class UserService {
                 request.getFullName(),
                 request.getPhoneNumber(),
                 request.getRole(),
-                null);
+                request.getAvatarUrl(),
+                UserStatus.ACTIVE);
 
         mailService.sendNewUserCredentialsEmail(user.getEmail(), user.getFullName(), generatedPassword);
 
@@ -62,19 +62,13 @@ public class UserService {
     }
 
     @Transactional
-    public User createUser(UserRequestDTO request) {
-        return createUser(request, UserStatus.ACTIVE);
-    }
-
-    @Transactional
-    public User createUser(UserRequestDTO request, UserStatus status) {
-        Role userRole = parseRoleOrDefault(request.getRole());
+    public User createUser(CreateUserRequest request, UserStatus status) {
         return createAndSaveUser(
                 request.getEmail(),
                 request.getPassword(),
                 request.getFullName(),
                 request.getPhoneNumber(),
-                userRole,
+                request.getRole(),
                 request.getAvatarUrl(),
                 status);
     }
@@ -201,16 +195,6 @@ public class UserService {
             String fullName,
             String phoneNumber,
             Role role,
-            String avatarUrl) {
-        return createAndSaveUser(email, password, fullName, phoneNumber, role, avatarUrl, UserStatus.ACTIVE);
-    }
-
-    private User createAndSaveUser(
-            String email,
-            String password,
-            String fullName,
-            String phoneNumber,
-            Role role,
             String avatarUrl,
             UserStatus status) {
         if (userRepository.existsByEmail(email)) {
@@ -222,24 +206,12 @@ public class UserService {
                 .password(passwordEncoder.encode(password))
                 .fullName(fullName)
                 .phoneNumber(phoneNumber)
-                .role(role)
+                .role(role != null ? role : Role.VISITOR)
                 .avatarUrl(avatarUrl)
                 .status(status != null ? status : UserStatus.ACTIVE)
                 .build();
 
         return userRepository.save(user);
-    }
-
-    private Role parseRoleOrDefault(String role) {
-        if (role == null || role.isBlank()) {
-            return Role.VISITOR;
-        }
-
-        try {
-            return Role.valueOf(role);
-        } catch (IllegalArgumentException e) {
-            throw new AppException(ErrorCode.ROLE_NOT_FOUND);
-        }
     }
 
     private String normalizeKeyword(String keyword) {

@@ -41,7 +41,7 @@ import com.example.vex360.features.auth.repositories.RegistrationTokenRepository
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
+import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.config.jwt.TokenBlacklistService;
 import com.example.vex360.features.user.entities.User;
@@ -271,9 +271,10 @@ class AuthServiceImplUnitTest {
         request.setEmail("register@example.com");
         request.setPassword("password");
 
-        UserRequestDTO userRequest = new UserRequestDTO();
-        userRequest.setEmail("register@example.com");
-        userRequest.setPassword("password");
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .email("register@example.com")
+                .password("password")
+                .build();
 
         User pendingUser = User.builder()
                 .id(UUID.randomUUID())
@@ -281,7 +282,7 @@ class AuthServiceImplUnitTest {
                 .status(UserStatus.PENDING)
                 .build();
 
-        when(authMapper.toUserRequestDTO(request)).thenReturn(userRequest);
+        when(authMapper.toCreateUserRequest(request)).thenReturn(userRequest);
         when(userService.createUser(userRequest, UserStatus.PENDING)).thenReturn(pendingUser);
 
         authService.register(request);
@@ -297,11 +298,12 @@ class AuthServiceImplUnitTest {
         request.setEmail("register@example.com");
         request.setPassword("password");
 
-        UserRequestDTO userRequest = new UserRequestDTO();
-        userRequest.setEmail("register@example.com");
-        userRequest.setPassword("password");
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .email("register@example.com")
+                .password("password")
+                .build();
 
-        when(authMapper.toUserRequestDTO(request)).thenReturn(userRequest);
+        when(authMapper.toCreateUserRequest(request)).thenReturn(userRequest);
         when(userService.createUser(userRequest, UserStatus.PENDING))
                 .thenThrow(new AppException(ErrorCode.EMAIL_ALREADY_EXISTS));
 

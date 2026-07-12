@@ -4,16 +4,20 @@ import com.example.vex360.shared.enums.Role;
 
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class CreateUserRequest {
     @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không hợp lệ")
     private String email;
+
+    private String password;
 
     @NotBlank(message = "Họ và tên không được để trống")
     private String fullName;
@@ -24,4 +28,6 @@ public class CreateUserRequest {
 
     @NotNull(message = "Role không được để trống")
     private Role role;
+
+    private String avatarUrl;
 }

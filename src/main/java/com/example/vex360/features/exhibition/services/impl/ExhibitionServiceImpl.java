@@ -194,6 +194,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
+        if (exhibition.getStatus() != ExhibitionStatus.PUBLISHED
+                && exhibition.getStatus() != ExhibitionStatus.ACTIVE
+                && exhibition.getStatus() != ExhibitionStatus.COMPLETED) {
+            throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+        }
+
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toPublicResponse(exhibition, packages);
     }
@@ -206,8 +212,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
         String normalizedCategory = (category == null || category.isBlank()) ? null : category.trim();
 
+        List<ExhibitionStatus> statuses = (status != null)
+                ? List.of(status)
+                : List.of(ExhibitionStatus.values());
+
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
-                normalizedKeyword, status, normalizedCategory, startDate, endDate, pageable)
+                normalizedKeyword, statuses, normalizedCategory, startDate, endDate, pageable)
                 .map(exhibitionMapper::toResponse);
 
         return PageResponse.from(exhibitions);
@@ -223,9 +233,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         // Initialize statusCounts with expected statuses to ensure they are always
         // present
         statusCounts.put("PENDING", 0L);
-        statusCounts.put("APPROVED", 0L);
         statusCounts.put("REJECTED", 0L);
+        statusCounts.put("REGISTRATION", 0L);
+        statusCounts.put("PUBLISHED", 0L);
         statusCounts.put("ACTIVE", 0L);
+        statusCounts.put("COMPLETED", 0L);
 
         for (Object[] row : statusCountsRaw) {
             ExhibitionStatus status = (ExhibitionStatus) row[0];
@@ -238,7 +250,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         return ExhibitionSummaryResponseDTO.builder()
                 .totalExhibitions(total)
                 .pendingExhibitions(statusCounts.getOrDefault("PENDING", 0L))
-                .approvedExhibitions(statusCounts.getOrDefault("APPROVED", 0L))
+                .approvedExhibitions(statusCounts.getOrDefault("REGISTRATION", 0L))
                 .rejectedExhibitions(statusCounts.getOrDefault("REJECTED", 0L))
                 .activeExhibitions(statusCounts.getOrDefault("ACTIVE", 0L))
                 .statusCounts(statusCounts)
@@ -512,7 +524,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
-        exhibition.setStatus(ExhibitionStatus.APPROVED);
+        exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         exhibition.setReviewedBy(admin);
         exhibition.setReviewedAt(LocalDateTime.now());
 
@@ -863,6 +875,91 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         exhibitionPackageRepository.delete(exhibitionPackage);
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExhibitionResponseDTO> searchExhibitionsForVisitor(
+            String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        String normalizedCategory = (category == null || category.isBlank()) ? null : category.trim();
+
+        List<ExhibitionStatus> visitorStatuses = List.of(
+                ExhibitionStatus.PUBLISHED,
+                ExhibitionStatus.ACTIVE,
+                ExhibitionStatus.COMPLETED);
+
+        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
+                normalizedKeyword, visitorStatuses, normalizedCategory, startDate, endDate, pageable)
+                .map(e -> {
+                    ExhibitionResponseDTO dto = exhibitionMapper.toResponse(e);
+                    if (dto != null) {
+                        dto.setId(null);
+                    }
+                    return dto;
+                });
+
+        return PageResponse.from(exhibitions);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExhibitionResponseDTO> searchExhibitionsForExhibitor(
+            String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        String normalizedCategory = (category == null || category.isBlank()) ? null : category.trim();
+
+        List<ExhibitionStatus> exhibitorStatuses = List.of(
+                ExhibitionStatus.REGISTRATION,
+                ExhibitionStatus.PUBLISHED,
+                ExhibitionStatus.ACTIVE);
+
+        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
+                normalizedKeyword, exhibitorStatuses, normalizedCategory, startDate, endDate, pageable)
+                .map(exhibitionMapper::toResponse);
+
+        return PageResponse.from(exhibitions);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ExhibitionResponseDTO getExhibitionDetailForExhibitor(UUID uuid) {
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
+                && exhibition.getStatus() != ExhibitionStatus.PUBLISHED
+                && exhibition.getStatus() != ExhibitionStatus.ACTIVE) {
+            throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+        }
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional
+    public ExhibitionResponseDTO publishExhibition(User organizer, UUID uuid) {
+        if (organizer == null || organizer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        exhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        exhibition = exhibitionRepository.save(exhibition);
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);

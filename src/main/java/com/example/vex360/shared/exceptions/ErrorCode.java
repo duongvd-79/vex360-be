@@ -12,6 +12,9 @@ public enum ErrorCode {
         VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
         METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
+        REGISTRATION_ALREADY_EXISTS("REGISTRATION-002",
+                        "Exhibitor already has an active registration for this exhibition",
+                        HttpStatus.CONFLICT),
 
         // AUTH ERRORS
         UNAUTHENTICATED("AUTH-001", "Lỗi xác thực hoặc token hết hạn", HttpStatus.UNAUTHORIZED),
@@ -29,9 +32,9 @@ public enum ErrorCode {
         FILE_TYPE_NOT_SUPPORTED("FILE-002", "File type not supported", HttpStatus.BAD_REQUEST),
         NOT_A_PANORAMA("FILE-003", "Not a panorama", HttpStatus.BAD_REQUEST),
         UPLOAD_FAILED("FILE-004", "File upload failed", HttpStatus.INTERNAL_SERVER_ERROR),
-        FILE_TOO_LARGE("FILE-005", "File vượt quá dung lượng cho phép (tối đa 10MB)", HttpStatus.PAYLOAD_TOO_LARGE),
+        FILE_TOO_LARGE("FILE-005", "File vượt quá dung lượng cho phép (tối đa 10MB)", HttpStatus.CONTENT_TOO_LARGE),
         STORAGE_QUOTA_EXCEEDED("FILE-006", "Dung lượng lưu trữ của công ty đã đầy. Vui lòng nâng cấp gói dịch vụ.",
-                        HttpStatus.PAYLOAD_TOO_LARGE),
+                        HttpStatus.CONTENT_TOO_LARGE),
         STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói dịch vụ lưu trữ.", HttpStatus.NOT_FOUND),
         STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
         INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
@@ -79,6 +82,22 @@ public enum ErrorCode {
         MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
         INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
         BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
+        BOOTH_DESIGN_LOCKED("BOOTH-014", "Booth is locked while a design request is in progress",
+                        HttpStatus.BAD_REQUEST),
+        BOOTH_NOT_EDITABLE("BOOTH-015", "Booth template is not editable in its current status", HttpStatus.BAD_REQUEST),
+        INVALID_BOOTH_REVIEW_STATUS("BOOTH-016", "Invalid booth review status", HttpStatus.BAD_REQUEST),
+        BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
+        BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),
+        BOOTH_REVIEW_REQUEST_NOT_FOUND("BOOTH-019", "Booth review request not found", HttpStatus.NOT_FOUND),
+
+        // DESIGN REQUEST ERRORS
+        DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Design request not found", HttpStatus.NOT_FOUND),
+        INVALID_DESIGN_REQUEST_STATUS("DESIGN-002", "Design request status is invalid for this action",
+                        HttpStatus.BAD_REQUEST),
+        DESIGN_REQUEST_QUOTA_EXCEEDED("DESIGN-003", "Booth design request quota exceeded", HttpStatus.BAD_REQUEST),
+        DESIGNER_WORKLOAD_EXCEEDED("DESIGN-004", "Designer workload exceeded", HttpStatus.BAD_REQUEST),
+        INVALID_DESIGNER("DESIGN-005", "Assigned user must be a designer", HttpStatus.BAD_REQUEST),
+        INVALID_DESIGN_DRAFT("DESIGN-006", "Invalid design draft", HttpStatus.BAD_REQUEST),
 
         // PACKAGE TEMPLATE ERRORS
         PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
