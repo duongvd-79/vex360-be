@@ -19,7 +19,6 @@ spring:
   flyway:
     enabled: false
     baseline-on-migrate: true
-    baseline-version: 4
 
   # Mail Server Configuration
   mail:
