@@ -6,10 +6,10 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    // SYSTEM ERRORS
-    UNCATCHED_EXCEPTION("SYS-001", "Lỗi hệ thống", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
-    VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
+        // SYSTEM ERRORS
+        UNCATCHED_EXCEPTION("SYS-001", "Lỗi hệ thống", HttpStatus.INTERNAL_SERVER_ERROR),
+        INVALID_KEY("SYS-002", "Lỗi cấu hình ErrorCode", HttpStatus.BAD_REQUEST),
+        VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
         METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
 
@@ -21,83 +21,86 @@ public enum ErrorCode {
         ACCOUNT_DISABLED("AUTH-005", "Tài khoản bị vô hiệu hóa", HttpStatus.UNAUTHORIZED),
         ACCOUNT_PENDING("AUTH-006", "Tài khoản chưa được kích hoạt", HttpStatus.UNAUTHORIZED),
 
-    // BUSINESS ERRORS
-    USER_NOT_FOUND("USER-001", "User not found", HttpStatus.NOT_FOUND),
-    EMAIL_ALREADY_EXISTS("USER-002", "The email already exists", HttpStatus.CONFLICT),
-    ROLE_NOT_FOUND("USER-003", "Role not found", HttpStatus.NOT_FOUND),
-    FILE_SIZE_EXCEEDED("FILE-001", "File size exceeded", HttpStatus.BAD_REQUEST),
-    FILE_TYPE_NOT_SUPPORTED("FILE-002", "File type not supported", HttpStatus.BAD_REQUEST),
-    NOT_A_PANORAMA("FILE-003", "Not a panorama", HttpStatus.BAD_REQUEST),
-    UPLOAD_FAILED("FILE-004", "File upload failed", HttpStatus.INTERNAL_SERVER_ERROR),
-    FILE_TOO_LARGE("FILE-005", "File vượt quá dung lượng cho phép (tối đa 10MB)", HttpStatus.PAYLOAD_TOO_LARGE),
-    STORAGE_QUOTA_EXCEEDED("FILE-006", "Dung lượng lưu trữ của công ty đã đầy. Vui lòng nâng cấp gói dịch vụ.",
-            HttpStatus.PAYLOAD_TOO_LARGE),
-    STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói dịch vụ lưu trữ.", HttpStatus.NOT_FOUND),
-    STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
-    INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
-    OLDPASSWORD_FAILED("USER-005", "Old Password is failed", HttpStatus.BAD_REQUEST),
+        // BUSINESS ERRORS
+        USER_NOT_FOUND("USER-001", "User not found", HttpStatus.NOT_FOUND),
+        EMAIL_ALREADY_EXISTS("USER-002", "The email already exists", HttpStatus.CONFLICT),
+        ROLE_NOT_FOUND("USER-003", "Role not found", HttpStatus.NOT_FOUND),
+        FILE_SIZE_EXCEEDED("FILE-001", "File size exceeded", HttpStatus.BAD_REQUEST),
+        FILE_TYPE_NOT_SUPPORTED("FILE-002", "File type not supported", HttpStatus.BAD_REQUEST),
+        NOT_A_PANORAMA("FILE-003", "Not a panorama", HttpStatus.BAD_REQUEST),
+        UPLOAD_FAILED("FILE-004", "File upload failed", HttpStatus.INTERNAL_SERVER_ERROR),
+        FILE_TOO_LARGE("FILE-005", "File vượt quá dung lượng cho phép (tối đa 10MB)", HttpStatus.PAYLOAD_TOO_LARGE),
+        STORAGE_QUOTA_EXCEEDED("FILE-006", "Dung lượng lưu trữ của công ty đã đầy. Vui lòng nâng cấp gói dịch vụ.",
+                        HttpStatus.PAYLOAD_TOO_LARGE),
+        STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói dịch vụ lưu trữ.", HttpStatus.NOT_FOUND),
+        STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
+        INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
+        OLDPASSWORD_FAILED("USER-005", "Old Password is failed", HttpStatus.BAD_REQUEST),
 
-    // PARTNERSHIP ERRORS
-    PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
-            "Email này đã có tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.",
-            HttpStatus.BAD_REQUEST),
-    PARTNERSHIP_REQUEST_NOT_FOUND("PARTNER-002", "Partnership request not found", HttpStatus.NOT_FOUND),
-    INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER",
-            HttpStatus.BAD_REQUEST),
-    INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action",
-            HttpStatus.BAD_REQUEST),
-    PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.",
-            HttpStatus.BAD_REQUEST),
-    PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006",
-            "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
-            HttpStatus.BAD_REQUEST),
+        // PARTNERSHIP ERRORS
+        PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
+                        "Email này đã có tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.",
+                        HttpStatus.BAD_REQUEST),
+        PARTNERSHIP_REQUEST_NOT_FOUND("PARTNER-002", "Partnership request not found", HttpStatus.NOT_FOUND),
+        INVALID_PARTNERSHIP_ROLE("PARTNER-003", "Requested role must be EXHIBITOR or ORGANIZER",
+                        HttpStatus.BAD_REQUEST),
+        INVALID_PARTNERSHIP_REQUEST_STATUS("PARTNER-004", "Partnership request status is invalid for this action",
+                        HttpStatus.BAD_REQUEST),
+        PARTNERSHIP_REQUEST_ALREADY_PENDING("PARTNER-005", "Yêu cầu hợp tác đang chờ duyệt. Vui lòng chờ admin xử lý.",
+                        HttpStatus.BAD_REQUEST),
+        PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006",
+                        "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
+                        HttpStatus.BAD_REQUEST),
 
         // COMPANY ERRORS
         COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
 
-    // PRODUCT ERRORS
-    PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),
-    PRODUCT_CATEGORY_NOT_FOUND("PRODUCT-002", "Không tìm thấy danh mục sản phẩm", HttpStatus.NOT_FOUND),
-    PRODUCT_SKU_DUPLICATED("PRODUCT-003", "Mã sản phẩm đã tồn tại", HttpStatus.CONFLICT),
-    PRODUCT_CATEGORY_NAME_DUPLICATED("PRODUCT-004", "Tên danh mục sản phẩm đã tồn tại", HttpStatus.CONFLICT),
-    INVALID_PRODUCT_MEDIA("PRODUCT-005", "Hình ảnh hoặc video sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
-    INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ",
-            HttpStatus.BAD_REQUEST),
-    INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
+        // PRODUCT ERRORS
+        PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),
+        PRODUCT_CATEGORY_NOT_FOUND("PRODUCT-002", "Không tìm thấy danh mục sản phẩm", HttpStatus.NOT_FOUND),
+        PRODUCT_SKU_DUPLICATED("PRODUCT-003", "Mã sản phẩm đã tồn tại", HttpStatus.CONFLICT),
+        PRODUCT_CATEGORY_NAME_DUPLICATED("PRODUCT-004", "Tên danh mục sản phẩm đã tồn tại", HttpStatus.CONFLICT),
+        INVALID_PRODUCT_MEDIA("PRODUCT-005", "Hình ảnh hoặc video sản phẩm không hợp lệ", HttpStatus.BAD_REQUEST),
+        INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ",
+                        HttpStatus.BAD_REQUEST),
+        INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
 
-    // BOOTH ERRORS
-    BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
-    INVALID_BOOTH_TEMPLATE("BOOTH-002", "Invalid booth template", HttpStatus.BAD_REQUEST),
-    INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
-    PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
-    PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
-    BOOTH_NOT_FOUND("BOOTH-006", "Booth not found", HttpStatus.NOT_FOUND),
-    INVALID_BOOTH("BOOTH-007", "Invalid booth", HttpStatus.BAD_REQUEST),
-    PANORAMA_NOT_FOUND("BOOTH-008", "Panorama not found", HttpStatus.NOT_FOUND),
-    HOTSPOT_NOT_FOUND("BOOTH-009", "Hotspot not found", HttpStatus.NOT_FOUND),
-    INVALID_HOTSPOT("BOOTH-010", "Invalid hotspot", HttpStatus.BAD_REQUEST),
-    MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
-    INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
-    BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
+        // BOOTH ERRORS
+        BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
+        INVALID_BOOTH_TEMPLATE("BOOTH-002", "Invalid booth template", HttpStatus.BAD_REQUEST),
+        INVALID_PANORAMA_HOTSPOT("BOOTH-003", "Invalid panorama hotspot", HttpStatus.BAD_REQUEST),
+        PANORAMA_FILE_INVALID("BOOTH-004", "Invalid panorama file", HttpStatus.BAD_REQUEST),
+        PANORAMA_FILE_SAVE_FAILED("BOOTH-005", "Cannot save panorama file", HttpStatus.INTERNAL_SERVER_ERROR),
+        BOOTH_NOT_FOUND("BOOTH-006", "Booth not found", HttpStatus.NOT_FOUND),
+        INVALID_BOOTH("BOOTH-007", "Invalid booth", HttpStatus.BAD_REQUEST),
+        PANORAMA_NOT_FOUND("BOOTH-008", "Panorama not found", HttpStatus.NOT_FOUND),
+        HOTSPOT_NOT_FOUND("BOOTH-009", "Hotspot not found", HttpStatus.NOT_FOUND),
+        INVALID_HOTSPOT("BOOTH-010", "Invalid hotspot", HttpStatus.BAD_REQUEST),
+        MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
+        INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
+        BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
 
         // PACKAGE TEMPLATE ERRORS
         PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Package template not found", HttpStatus.NOT_FOUND),
         PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Package template name already exists", HttpStatus.CONFLICT),
 
-    // EXHIBITION ERRORS
-    EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
-    EXHIBITION_PACKAGE_NOT_FOUND("EXHIBITION-002", "Không tìm thấy gói triển lãm", HttpStatus.NOT_FOUND),
-    EXHIBITION_LIMIT_EXCEEDED("EXHIBITION-003",
-            "Mỗi nhà tổ chức chỉ được có tối đa 3 đơn đăng ký ở trạng thái PENDING đồng thời",
-            HttpStatus.BAD_REQUEST),
-    EXHIBITION_CANNOT_CANCEL("EXHIBITION-004", "Không được quyền huỷ đơn đăng ký triển lãm sau khi đăng ký",
-            HttpStatus.BAD_REQUEST),
-    EXHIBITION_INVALID_STATUS("EXHIBITION-005", "Trạng thái đơn đăng ký triển lãm không hợp lệ cho thao tác này",
-            HttpStatus.BAD_REQUEST),
-    EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó",
-            HttpStatus.BAD_REQUEST),
-    EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
-    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
+        // EXHIBITION ERRORS
+        EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy triển lãm", HttpStatus.NOT_FOUND),
+        EXHIBITION_PACKAGE_NOT_FOUND("EXHIBITION-002", "Không tìm thấy gói triển lãm", HttpStatus.NOT_FOUND),
+        EXHIBITION_LIMIT_EXCEEDED("EXHIBITION-003",
+                        "Mỗi nhà tổ chức chỉ được có tối đa 3 đơn đăng ký ở trạng thái PENDING đồng thời",
+                        HttpStatus.BAD_REQUEST),
+        EXHIBITION_CANNOT_CANCEL("EXHIBITION-004", "Không được quyền huỷ đơn đăng ký triển lãm sau khi đăng ký",
+                        HttpStatus.BAD_REQUEST),
+        EXHIBITION_INVALID_STATUS("EXHIBITION-005", "Trạng thái đơn đăng ký triển lãm không hợp lệ cho thao tác này",
+                        HttpStatus.BAD_REQUEST),
+        EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó",
+                        HttpStatus.BAD_REQUEST),
+        EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
+        REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND),
+
+        // CHAT ERRORS
+        CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng chat", HttpStatus.NOT_FOUND);
 
         private final String code;
         private final String message;
