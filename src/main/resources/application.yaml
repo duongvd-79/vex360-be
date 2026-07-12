@@ -42,7 +42,7 @@ spring:
 # Custom Application Settings
 app:
   cors:
-    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5175,http://localhost:3000}
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5175}
   cloudinary:
     cloud-name: ${CLOUDINARY_CLOUD_NAME}
     api-key: ${CLOUDINARY_API_KEY}
