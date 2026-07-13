@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -188,6 +189,31 @@ class ExhibitionServiceUnitTest {
         });
 
         assertEquals(ErrorCode.EXHIBITION_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
+    void testGetExhibitionByUuid_Visitor_Success() {
+        Exhibition publishedExhibition = Exhibition.builder()
+                .id(2)
+                .uuid(exhibitionUuid)
+                .name("Public Expo")
+                .status(ExhibitionStatus.PUBLISHED)
+                .build();
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(publishedExhibition));
+
+        ExhibitionResponseDTO mockResponse = ExhibitionResponseDTO.builder()
+                .id(2)
+                .uuid(exhibitionUuid)
+                .name("Public Expo")
+                .build();
+        when(exhibitionMapper.toResponse(publishedExhibition)).thenReturn(mockResponse);
+
+        ExhibitionResponseDTO result = exhibitionService.getExhibitionByUuid(exhibitionUuid);
+
+        assertNotNull(result);
+        assertEquals(exhibitionUuid, result.getUuid());
+        assertNull(result.getId()); // Should hide ID
+        verify(exhibitionPackageRepository, never()).findByExhibition(any());
     }
 
     @Test
