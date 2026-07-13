@@ -27,6 +27,7 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.product.entities.Product;
@@ -47,18 +48,21 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
+    private final BoothReviewRequestRepository boothReviewRequestRepository;
 
     public ProductService(
             CompanyService companyService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
-            ProductMapper productMapper) {
+            ProductMapper productMapper,
+            BoothReviewRequestRepository boothReviewRequestRepository) {
         this.companyService = companyService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
+        this.boothReviewRequestRepository = boothReviewRequestRepository;
     }
 
     @Transactional(readOnly = true)
@@ -143,7 +147,7 @@ public class ProductService {
         product.setCurrency(normalizeCurrency(request.getCurrency()));
         product.setStatus(status);
         if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
-            deleteCloudFile(product.getThumbnailPublicId(), "image");
+            deleteCloudFile(product.getThumbnailPublicId(), "image", company.getId(), product.getId());
             product.setThumbnailUrl(request.getThumbnailUrl());
             product.setThumbnailPublicId(request.getThumbnailPublicId());
         }
@@ -156,9 +160,9 @@ public class ProductService {
     public ProductResponseDTO deleteProduct(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
-        deleteCloudFile(product.getThumbnailPublicId(), "image");
+        deleteCloudFile(product.getThumbnailPublicId(), "image", company.getId(), product.getId());
         product.getContents()
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType()), company.getId(), product.getId()));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -200,13 +204,13 @@ public class ProductService {
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
             if (content == null)
-                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                    throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
             nextContents.add(content);
         }
 
         product.getContents().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType()), product.getCompany().getId(), product.getId()));
 
         nextContents.addAll(newContents);
         for (int i = 0; i < nextContents.size(); i++) {
@@ -268,8 +272,10 @@ public class ProductService {
         }
     }
 
-    private void deleteCloudFile(String publicId, String resourceType) {
-        cloudService.delete(publicId, resourceType);
+    private void deleteCloudFile(String publicId, String resourceType, UUID companyId, UUID productId) {
+        if (companyId == null || productId == null || !boothReviewRequestRepository.isAssetReferencedInSnapshots(companyId, productId.toString())) {
+            cloudService.delete(publicId, resourceType);
+        }
     }
 
     private ProductContentType resolveContentType(String mimeType) {

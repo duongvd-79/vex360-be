@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.controllers.OrganizerBoothController;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothReviewService;
@@ -50,16 +51,16 @@ class OrganizerBoothControllerUnitTest {
     }
 
     @Test
-    void getBooth_DelegatesToService() {
-        BoothResponseDTO responseDTO = new BoothResponseDTO();
-        when(boothReviewService.getBoothForOrganizer(organizer, exhibitionUuid, boothId)).thenReturn(responseDTO);
+    void getLatestReviewRequest_DelegatesToService() {
+        BoothReviewRequestDetailDTO responseDTO = new BoothReviewRequestDetailDTO();
+        when(boothReviewService.getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, boothId)).thenReturn(responseDTO);
 
-        ResponseEntity<ApiResponse<BoothResponseDTO>> result = controller.getBooth(userDetails, exhibitionUuid, boothId);
+        ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> result = controller.getLatestReviewRequest(userDetails, exhibitionUuid, boothId);
 
         assertNotNull(result);
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertEquals(responseDTO, result.getBody().data());
-        verify(boothReviewService).getBoothForOrganizer(organizer, exhibitionUuid, boothId);
+        verify(boothReviewService).getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, boothId);
     }
 
     @Test

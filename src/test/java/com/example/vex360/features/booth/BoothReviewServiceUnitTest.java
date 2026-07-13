@@ -429,45 +429,46 @@ class BoothReviewServiceUnitTest {
     }
 
     @Test
-    void getBoothForOrganizer_SuccessWhenNotDraft() {
-        booth.setStatus(BoothStatus.PENDING);
-        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+    void getLatestReviewRequestForOrganizer_Success() {
+        BoothReviewRequest request = reviewRequest(BoothReviewStatus.PENDING);
+        request.setContentSnapshotJson("{\"booth\":{\"name\":\"Samsung Booth\"}}");
+        when(boothRepository.findForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
                 .thenReturn(Optional.of(booth));
+        when(boothReviewRequestRepository.findTopByBoothIdOrderBySubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(request));
 
-        BoothResponseDTO response = boothReviewService.getBoothForOrganizer(
+        BoothReviewRequestDetailDTO response = boothReviewService.getLatestReviewRequestForOrganizer(
                 organizer, exhibitionUuid, booth.getId());
 
         assertNotNull(response);
-        assertEquals(booth.getId(), response.getId());
-        assertEquals(BoothStatus.PENDING, response.getStatus());
-        verify(panoramaRepository).findDetailsByBoothId(booth.getId());
+        assertEquals(booth.getId(), response.getBooth().getId());
+        verify(boothReviewRequestRepository).findTopByBoothIdOrderBySubmittedAtDesc(booth.getId());
     }
 
     @Test
-    void getBoothForOrganizer_ThrowsForbiddenWhenDraft() {
-        booth.setStatus(BoothStatus.DRAFT);
-        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
-                .thenReturn(Optional.of(booth));
-
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> boothReviewService.getBoothForOrganizer(organizer, exhibitionUuid, booth.getId()));
-
-        assertEquals(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE, exception.getErrorCode());
-        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, exception.getErrorCode().getHttpStatus());
-        verify(panoramaRepository, never()).findDetailsByBoothId(booth.getId());
-    }
-
-    @Test
-    void getBoothForOrganizer_ThrowsNotFoundWhenNotExists() {
-        when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+    void getLatestReviewRequestForOrganizer_ThrowsNotFoundWhenBoothNotExists() {
+        when(boothRepository.findForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
                 .thenReturn(Optional.empty());
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> boothReviewService.getBoothForOrganizer(organizer, exhibitionUuid, booth.getId()));
+                () -> boothReviewService.getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, booth.getId()));
 
         assertEquals(ErrorCode.BOOTH_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void getLatestReviewRequestForOrganizer_ThrowsNotFoundWhenRequestNotExists() {
+        when(boothRepository.findForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
+                .thenReturn(Optional.of(booth));
+        when(boothReviewRequestRepository.findTopByBoothIdOrderBySubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> boothReviewService.getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, booth.getId()));
+
+        assertEquals(ErrorCode.BOOTH_REVIEW_REQUEST_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test

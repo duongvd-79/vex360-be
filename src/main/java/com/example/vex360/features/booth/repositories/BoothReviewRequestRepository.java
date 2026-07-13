@@ -15,6 +15,16 @@ import com.example.vex360.features.booth.enums.BoothReviewStatus;
 
 @Repository
 public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewRequest, UUID> {
+    boolean existsByBoothId(UUID boothId);
+
+    @Query("""
+            SELECT COUNT(r) > 0
+            FROM BoothReviewRequest r
+            WHERE r.booth.company.id = :companyId
+              AND r.contentSnapshotJson LIKE %:idString%
+            """)
+    boolean isAssetReferencedInSnapshots(@Param("companyId") UUID companyId, @Param("idString") String idString);
+
     boolean existsByBoothIdAndStatus(UUID boothId, BoothReviewStatus status);
 
     Optional<BoothReviewRequest> findTopByBoothIdOrderBySubmittedAtDesc(UUID boothId);

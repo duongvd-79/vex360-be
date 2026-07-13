@@ -15,6 +15,7 @@ import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -41,6 +42,7 @@ public class ExhibitorBoothService {
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
     private final BoothReviewPolicyService boothReviewPolicyService;
+    private final BoothReviewRequestRepository boothReviewRequestRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<BoothResponseDTO> getBooths(User currentUser, Pageable pageable) {
@@ -93,7 +95,9 @@ public class ExhibitorBoothService {
 
         if (backgroundMusicUpload != null && hasText(oldBackgroundMusicPublicId)) {
             try {
-                cloudService.delete(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+                if (!boothReviewRequestRepository.existsByBoothId(booth.getId())) {
+                    cloudService.delete(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+                }
             } catch (RuntimeException exception) {
                 cleanupUploadedBackgroundMusic(backgroundMusicUpload.getPublicId(), exception);
                 throw exception;
@@ -120,7 +124,9 @@ public class ExhibitorBoothService {
         booth.setBackgroundMusicFileSize(null);
         Booth savedBooth = boothRepository.save(booth);
         boothRepository.flush();
-        cloudService.delete(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        if (!boothReviewRequestRepository.existsByBoothId(booth.getId())) {
+            cloudService.delete(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        }
         return boothMapper.toBoothResponseDTO(savedBooth);
     }
 
@@ -145,7 +151,9 @@ public class ExhibitorBoothService {
         validateThumbnail(thumbnail);
         CloudinaryResponse upload = cloudService.upload(thumbnail);
         if (hasText(booth.getThumbnailPublicId())) {
-            cloudService.delete(booth.getThumbnailPublicId(), "image");
+            if (!boothReviewRequestRepository.existsByBoothId(booth.getId())) {
+                cloudService.delete(booth.getThumbnailPublicId(), "image");
+            }
         }
         booth.setThumbnailUrl(upload.getUrl());
         booth.setThumbnailPublicId(upload.getPublicId());

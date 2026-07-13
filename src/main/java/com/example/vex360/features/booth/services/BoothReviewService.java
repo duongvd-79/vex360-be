@@ -21,6 +21,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotPanoramaSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotProductSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
+import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewChangeItemDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
@@ -199,10 +205,171 @@ public class BoothReviewService {
         BoothReviewChangeSummaryDTO changeSummary = readChangeSummary(request.getChangeSummaryJson());
         return BoothReviewRequestDetailDTO.builder()
                 .request(toSummary(request))
-                .booth(boothMapper.toBoothResponseDTO(booth))
+                .booth(toBoothResponseDTO(request, booth))
                 .contentOverview(toContentOverview(request, booth))
                 .changeSummary(changeSummary)
                 .build();
+    }
+
+    private BoothResponseDTO toBoothResponseDTO(BoothReviewRequest request, Booth booth) {
+        BoothReviewSnapshot snapshot = readSnapshot(request.getContentSnapshotJson());
+        if (snapshot == null) {
+            return boothMapper.toBoothResponseDTO(booth);
+        }
+        BoothSnapshot bs = snapshot.getBooth();
+
+        List<PanoramaResponseDTO> panoramaDTOs = new ArrayList<>();
+        List<PanoramaSnapshot> sortedPanoramas = safeList(snapshot.getPanoramas()).stream()
+                .sorted(Comparator.comparing(
+                        PanoramaSnapshot::getOrderIndex,
+                        Comparator.nullsLast(Integer::compareTo)))
+                .toList();
+
+        for (PanoramaSnapshot ps : sortedPanoramas) {
+            List<HotspotResponseDTO> hotspotDTOs = new ArrayList<>();
+            List<HotspotSnapshot> matchingHotspots = safeList(snapshot.getHotspots()).stream()
+                    .filter(h -> Objects.equals(h.getSourcePanoramaId(), ps.getId()))
+                    .sorted(Comparator.comparing(
+                            HotspotSnapshot::getName,
+                            Comparator.nullsLast(String::compareToIgnoreCase)))
+                    .toList();
+
+            for (HotspotSnapshot hs : matchingHotspots) {
+                String targetPanoramaName = null;
+                HotspotPanoramaSummaryDTO targetPanoramaSummary = null;
+                if (hs.getTargetPanoramaId() != null) {
+                    targetPanoramaName = safeList(snapshot.getPanoramas()).stream()
+                            .filter(p -> Objects.equals(p.getId(), hs.getTargetPanoramaId()))
+                            .map(PanoramaSnapshot::getName)
+                            .findFirst()
+                            .orElse(null);
+                    targetPanoramaSummary = new HotspotPanoramaSummaryDTO(hs.getTargetPanoramaId(), targetPanoramaName);
+                }
+
+                HotspotProductSummaryDTO productSummary = hs.getProductId() == null ? null
+                        : new HotspotProductSummaryDTO(
+                                hs.getProductId(),
+                                hs.getProductName(),
+                                hs.getProductSku(),
+                                safeList(snapshot.getProductPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getProductId()))
+                                        .map(PlacementSnapshot::getThumbnailUrl)
+                                        .findFirst()
+                                        .orElse(null),
+                                safeList(snapshot.getProductPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getProductId()))
+                                        .map(PlacementSnapshot::getPrice)
+                                        .findFirst()
+                                        .orElse(null),
+                                safeList(snapshot.getProductPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getProductId()))
+                                        .map(PlacementSnapshot::getCurrency)
+                                        .findFirst()
+                                        .orElse(null),
+                                safeList(snapshot.getProductPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getProductId()))
+                                        .map(PlacementSnapshot::getProductStatus)
+                                        .findFirst()
+                                        .orElse(null)
+                        );
+
+                MediaAssetResponseDTO mediaAssetDTO = hs.getMediaAssetId() == null ? null
+                        : new MediaAssetResponseDTO(
+                                hs.getMediaAssetId(),
+                                booth.getCompany() == null ? null : booth.getCompany().getId(),
+                                hs.getMediaAssetName(),
+                                hs.getMediaAssetType(),
+                                hs.getMediaAssetUrl(),
+                                null,
+                                safeList(snapshot.getMediaPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getMediaAssetId()))
+                                        .map(PlacementSnapshot::getMimeType)
+                                        .findFirst()
+                                        .orElse(null),
+                                safeList(snapshot.getMediaPlacements()).stream()
+                                        .filter(p -> Objects.equals(p.getItemId(), hs.getMediaAssetId()))
+                                        .map(PlacementSnapshot::getFileSize)
+                                        .findFirst()
+                                        .orElse(null),
+                                null
+                        );
+
+                HotspotCornersDTO cornersDTO = null;
+                if (hs.getCornerTlX() != null && hs.getCornerTlY() != null && hs.getCornerTlZ() != null
+                        && hs.getCornerTrX() != null && hs.getCornerTrY() != null && hs.getCornerTrZ() != null
+                        && hs.getCornerBlX() != null && hs.getCornerBlY() != null && hs.getCornerBlZ() != null
+                        && hs.getCornerBrX() != null && hs.getCornerBrY() != null && hs.getCornerBrZ() != null) {
+                    cornersDTO = new HotspotCornersDTO(
+                            List.of(hs.getCornerTlX(), hs.getCornerTlY(), hs.getCornerTlZ()),
+                            List.of(hs.getCornerTrX(), hs.getCornerTrY(), hs.getCornerTrZ()),
+                            List.of(hs.getCornerBlX(), hs.getCornerBlY(), hs.getCornerBlZ()),
+                            List.of(hs.getCornerBrX(), hs.getCornerBrY(), hs.getCornerBrZ())
+                    );
+                }
+
+                HotspotResponseDTO hDTO = new HotspotResponseDTO(
+                        hs.getId(),
+                        hs.getType(),
+                        hs.getName(),
+                        ps.getId(),
+                        hs.getTargetPanoramaId(),
+                        targetPanoramaName,
+                        targetPanoramaSummary,
+                        productSummary,
+                        mediaAssetDTO,
+                        hs.getInfoText(),
+                        hs.getXPosition(),
+                        hs.getYPosition(),
+                        hs.getZPosition(),
+                        hs.getIconStyle(),
+                        hs.getScale(),
+                        hs.getZIndex(),
+                        hs.getMediaClickAction(),
+                        hs.getInfoContentType(),
+                        cornersDTO
+                );
+                hotspotDTOs.add(hDTO);
+            }
+
+            panoramaDTOs.add(new PanoramaResponseDTO(
+                    ps.getId(),
+                    ps.getName(),
+                    ps.getImageUrl(),
+                    ps.getImageKey(),
+                    ps.getOrderIndex(),
+                    ps.getIsDefault(),
+                    hotspotDTOs
+            ));
+        }
+
+        com.example.vex360.features.company.entities.Company company = booth.getCompany();
+        com.example.vex360.features.exhibition.entities.ExhibitorRegistration registration = booth.getExhibitorRegistration();
+
+        UUID exhibitionUuid = null;
+        String exhibitionName = null;
+        if (registration != null && registration.getExhibitionPackage() != null && registration.getExhibitionPackage().getExhibition() != null) {
+            exhibitionUuid = registration.getExhibitionPackage().getExhibition().getUuid();
+            exhibitionName = registration.getExhibitionPackage().getExhibition().getName();
+        }
+
+        return new BoothResponseDTO(
+                booth.getId(),
+                company == null ? null : company.getId(),
+                registration == null ? null : registration.getUuid(),
+                exhibitionUuid,
+                exhibitionName,
+                bs.getName(),
+                bs.getDescription(),
+                bs.getThumbnailUrl(),
+                bs.getBackgroundMusicUrl(),
+                null,
+                null,
+                bs.getDisplayTemplateKey(),
+                request.getBooth().getStatus(),
+                booth.getCreatedAt(),
+                booth.getUpdatedAt(),
+                panoramaDTOs
+        );
     }
 
     private BoothReviewContentOverviewDTO toContentOverview(BoothReviewRequest request, Booth booth) {
@@ -914,18 +1081,15 @@ public class BoothReviewService {
     }
 
     @Transactional(readOnly = true)
-    public BoothResponseDTO getBoothForOrganizer(User organizer, UUID exhibitionUuid, UUID boothId) {
+    public BoothReviewRequestDetailDTO getLatestReviewRequestForOrganizer(User organizer, UUID exhibitionUuid, UUID boothId) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findDetailForOrganizer(boothId, exhibitionUuid, organizer.getId())
+        Booth booth = boothRepository.findForOrganizer(boothId, exhibitionUuid, organizer.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
-        if (booth.getStatus() == BoothStatus.DRAFT) {
-            throw new AppException(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE);
-        }
-        // Initialize hotspot collections and their DTO dependencies for the managed panoramas.
-        panoramaRepository.findDetailsByBoothId(booth.getId());
-        return boothMapper.toBoothResponseDTO(booth);
+        BoothReviewRequest request = boothReviewRequestRepository.findTopByBoothIdOrderBySubmittedAtDesc(booth.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_REVIEW_REQUEST_NOT_FOUND));
+        return toDetail(request, booth);
     }
 
     @Transactional(readOnly = true)
