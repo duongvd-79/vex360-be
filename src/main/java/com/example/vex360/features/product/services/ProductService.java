@@ -16,6 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.booth.entities.Hotspot;
+import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
@@ -49,6 +51,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
+    private final HotspotRepository hotspotRepository;
 
     public ProductService(
             CompanyService companyService,
@@ -56,13 +59,15 @@ public class ProductService {
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
-            ProductMapper productMapper) {
+            ProductMapper productMapper,
+            HotspotRepository hotspotRepository) {
         this.companyService = companyService;
         this.companyStorageService = companyStorageService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
+        this.hotspotRepository = hotspotRepository;
     }
 
     @Transactional(readOnly = true)
@@ -175,6 +180,10 @@ public class ProductService {
             companyStorageService.deductUsage(company, content.getFileSize());
             deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
         });
+        List<Hotspot> affectedHotspots = hotspotRepository.findByProduct(product);
+        if (!affectedHotspots.isEmpty()) {
+            hotspotRepository.deleteAll(affectedHotspots);
+        }
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
