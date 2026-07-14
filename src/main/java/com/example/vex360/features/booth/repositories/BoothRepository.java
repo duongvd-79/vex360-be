@@ -6,12 +6,15 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
@@ -50,6 +53,17 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
               AND b.company.id = :companyId
             """)
     Optional<Booth> findCompanyBoothById(
+            @Param("id") UUID id,
+            @Param("companyId") UUID companyId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT b FROM Booth b
+            WHERE b.id = :id
+              AND b.isTemplate = false
+              AND b.company.id = :companyId
+            """)
+    Optional<Booth> findCompanyBoothByIdForUpdate(
             @Param("id") UUID id,
             @Param("companyId") UUID companyId);
 

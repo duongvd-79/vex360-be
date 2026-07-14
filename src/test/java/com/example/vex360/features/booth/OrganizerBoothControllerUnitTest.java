@@ -22,8 +22,8 @@ import org.springframework.http.ResponseEntity;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.controllers.OrganizerBoothController;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
-import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.OrganizerBoothContentOverviewDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.features.user.entities.User;
@@ -51,16 +51,29 @@ class OrganizerBoothControllerUnitTest {
     }
 
     @Test
-    void getLatestReviewRequest_DelegatesToService() {
-        BoothReviewRequestDetailDTO responseDTO = new BoothReviewRequestDetailDTO();
-        when(boothReviewService.getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, boothId)).thenReturn(responseDTO);
+    void getContentOverview_DelegatesToService() {
+        OrganizerBoothContentOverviewDTO responseDTO = new OrganizerBoothContentOverviewDTO();
+        when(boothReviewService.getContentOverviewForOrganizer(organizer, exhibitionUuid, boothId)).thenReturn(responseDTO);
 
-        ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> result = controller.getLatestReviewRequest(userDetails, exhibitionUuid, boothId);
+        ResponseEntity<ApiResponse<OrganizerBoothContentOverviewDTO>> result =
+                controller.getContentOverview(userDetails, exhibitionUuid, boothId);
 
         assertNotNull(result);
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertEquals(responseDTO, result.getBody().data());
-        verify(boothReviewService).getLatestReviewRequestForOrganizer(organizer, exhibitionUuid, boothId);
+        verify(boothReviewService).getContentOverviewForOrganizer(organizer, exhibitionUuid, boothId);
+    }
+
+    @Test
+    void getTourPreview_DelegatesToService() {
+        BoothResponseDTO responseDTO = new BoothResponseDTO();
+        when(boothReviewService.getTourPreviewForOrganizer(organizer, exhibitionUuid, boothId)).thenReturn(responseDTO);
+
+        ResponseEntity<ApiResponse<BoothResponseDTO>> result =
+                controller.getTourPreview(userDetails, exhibitionUuid, boothId);
+
+        assertEquals(responseDTO, result.getBody().data());
+        verify(boothReviewService).getTourPreviewForOrganizer(organizer, exhibitionUuid, boothId);
     }
 
     @Test

@@ -9,9 +9,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BoothReviewRequestDetailDTO {
-    private BoothReviewRequestSummaryDTO request;
-    private BoothResponseDTO booth;
+public class OrganizerBoothContentOverviewDTO {
+    private OrganizerBoothSummaryDTO booth;
+    private OrganizerBoothReviewContextDTO reviewContext;
     private BoothReviewContentOverviewDTO contentOverview;
-    private BoothReviewChangeSummaryDTO changeSummary;
 }

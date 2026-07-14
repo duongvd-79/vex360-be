@@ -29,7 +29,6 @@ import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
 import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
-import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
@@ -105,7 +104,7 @@ public class ExhibitorBoothController extends BaseController {
     }
 
     @PutMapping("/{boothId}/submit-review")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> submitReview(
+    public ResponseEntity<ApiResponse<BoothReviewRequestSummaryDTO>> submitReview(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
         return ok(boothReviewService.submitReview(userDetails.getUser(), boothId));

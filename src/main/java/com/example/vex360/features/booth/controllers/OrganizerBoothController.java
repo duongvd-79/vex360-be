@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
-import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.OrganizerBoothContentOverviewDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.shared.controllers.BaseController;
@@ -52,15 +52,24 @@ public class OrganizerBoothController extends BaseController {
                 pageable));
     }
 
-    @GetMapping("/{boothId}/latest-review-request")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> getLatestReviewRequest(
+    @GetMapping("/{boothId}/content-overview")
+    public ResponseEntity<ApiResponse<OrganizerBoothContentOverviewDTO>> getContentOverview(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID exhibitionUuid,
             @PathVariable UUID boothId) {
-        return ok(boothReviewService.getLatestReviewRequestForOrganizer(
+        return ok(boothReviewService.getContentOverviewForOrganizer(
                 userDetails.getUser(),
                 exhibitionUuid,
                 boothId));
+    }
+
+    @GetMapping("/{boothId}/tour-preview")
+    public ResponseEntity<ApiResponse<BoothResponseDTO>> getTourPreview(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID exhibitionUuid,
+            @PathVariable UUID boothId) {
+        return ok(boothReviewService.getTourPreviewForOrganizer(
+                userDetails.getUser(), exhibitionUuid, boothId));
     }
 
     @GetMapping("/{boothId}/review-requests")

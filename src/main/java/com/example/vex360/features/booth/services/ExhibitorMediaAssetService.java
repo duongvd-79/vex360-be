@@ -15,7 +15,6 @@ import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
-import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyService;
@@ -39,7 +38,6 @@ public class ExhibitorMediaAssetService {
     private final CompanyService companyService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
-    private final BoothReviewRequestRepository boothReviewRequestRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<MediaAssetResponseDTO> getMediaAssets(User currentUser, Pageable pageable) {
@@ -87,9 +85,7 @@ public class ExhibitorMediaAssetService {
 
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);
         mediaAssetRepository.delete(mediaAsset);
-        if (!boothReviewRequestRepository.isAssetReferencedInSnapshots(company.getId(), assetId.toString())) {
-            cloudService.delete(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
-        }
+        cloudService.delete(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
         return response;
     }
 

@@ -14,7 +14,6 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.company.services.CompanyService;
@@ -38,7 +37,6 @@ public class ExhibitorPanoramaService {
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
     private final BoothReviewPolicyService boothReviewPolicyService;
-    private final BoothReviewRequestRepository boothReviewRequestRepository;
 
     @Transactional(readOnly = true)
     public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
@@ -115,9 +113,7 @@ public class ExhibitorPanoramaService {
 
         if (image != null && !image.isEmpty()) {
             CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
-            if (!boothReviewRequestRepository.existsByBoothId(booth.getId())) {
-                cloudService.delete(panorama.getImageKey(), "image");
-            }
+            cloudService.delete(panorama.getImageKey(), "image");
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
         }
@@ -136,9 +132,7 @@ public class ExhibitorPanoramaService {
 
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
         panoramaRepository.delete(panorama);
-        if (!boothReviewRequestRepository.existsByBoothId(booth.getId())) {
-            cloudService.delete(panorama.getImageKey(), "image");
-        }
+        cloudService.delete(panorama.getImageKey(), "image");
         return response;
     }
 

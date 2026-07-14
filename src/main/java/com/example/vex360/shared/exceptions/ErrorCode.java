@@ -66,6 +66,7 @@ public enum ErrorCode {
     INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ",
             HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
+    PRODUCT_USED_BY_PENDING_BOOTH("PRODUCT-008", "Product is used by a booth pending review", HttpStatus.CONFLICT),
 
     // BOOTH ERRORS
     BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),

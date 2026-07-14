@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class BoothReviewRequestSummaryDTO {
     private UUID id;
+    private Integer versionNumber;
     private UUID boothId;
     private String boothName;
     private UUID companyId;

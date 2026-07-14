@@ -27,7 +27,6 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
-import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.product.entities.Product;
@@ -48,21 +47,18 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
-    private final BoothReviewRequestRepository boothReviewRequestRepository;
 
     public ProductService(
             CompanyService companyService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
-            ProductMapper productMapper,
-            BoothReviewRequestRepository boothReviewRequestRepository) {
+            ProductMapper productMapper) {
         this.companyService = companyService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
-        this.boothReviewRequestRepository = boothReviewRequestRepository;
     }
 
     @Transactional(readOnly = true)
@@ -125,6 +121,7 @@ public class ProductService {
             UpdateProductRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
+        assertNotUsedByPendingBooth(productId);
         String sku = request.getSku().trim();
         if (productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), sku, productId)) {
             throw new AppException(ErrorCode.PRODUCT_SKU_DUPLICATED);
@@ -147,7 +144,7 @@ public class ProductService {
         product.setCurrency(normalizeCurrency(request.getCurrency()));
         product.setStatus(status);
         if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
-            deleteCloudFile(product.getThumbnailPublicId(), "image", company.getId(), product.getId());
+            deleteCloudFile(product.getThumbnailPublicId(), "image");
             product.setThumbnailUrl(request.getThumbnailUrl());
             product.setThumbnailPublicId(request.getThumbnailPublicId());
         }
@@ -160,9 +157,10 @@ public class ProductService {
     public ProductResponseDTO deleteProduct(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
-        deleteCloudFile(product.getThumbnailPublicId(), "image", company.getId(), product.getId());
+        assertNotUsedByPendingBooth(productId);
+        deleteCloudFile(product.getThumbnailPublicId(), "image");
         product.getContents()
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType()), company.getId(), product.getId()));
+                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -210,7 +208,7 @@ public class ProductService {
 
         product.getContents().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType()), product.getCompany().getId(), product.getId()));
+                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
 
         nextContents.addAll(newContents);
         for (int i = 0; i < nextContents.size(); i++) {
@@ -272,9 +270,13 @@ public class ProductService {
         }
     }
 
-    private void deleteCloudFile(String publicId, String resourceType, UUID companyId, UUID productId) {
-        if (companyId == null || productId == null || !boothReviewRequestRepository.isAssetReferencedInSnapshots(companyId, productId.toString())) {
-            cloudService.delete(publicId, resourceType);
+    private void deleteCloudFile(String publicId, String resourceType) {
+        cloudService.delete(publicId, resourceType);
+    }
+
+    private void assertNotUsedByPendingBooth(UUID productId) {
+        if (productRepository.existsInBoothWithStatus(productId, "PENDING")) {
+            throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
         }
     }
 
