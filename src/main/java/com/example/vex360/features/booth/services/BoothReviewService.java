@@ -284,7 +284,8 @@ public class BoothReviewService {
             BoothReviewContentPlacementDTO placement) {
         BoothReviewProductItemDTO item = products.computeIfAbsent(product.getId(), ignored -> {
             List<BoothReviewProductContentItemDTO> contents = safeContents(product).stream()
-                    .sorted(Comparator.comparing(ProductContent::getOrderIndex, Comparator.nullsLast(Integer::compareTo)))
+                    .sorted(Comparator.comparing(ProductContent::getOrderIndex,
+                            Comparator.nullsLast(Integer::compareTo)))
                     .map(this::toProductContentItem)
                     .toList();
             contents.forEach(content -> allContents.putIfAbsent(content.getId(), content));
@@ -309,8 +310,8 @@ public class BoothReviewService {
             Map<UUID, BoothReviewMediaItemDTO> mediaAssets,
             MediaAsset media,
             BoothReviewContentPlacementDTO placement) {
-        BoothReviewMediaItemDTO item = mediaAssets.computeIfAbsent(media.getId(), ignored ->
-                BoothReviewMediaItemDTO.builder()
+        BoothReviewMediaItemDTO item = mediaAssets.computeIfAbsent(media.getId(),
+                ignored -> BoothReviewMediaItemDTO.builder()
                         .id(media.getId()).name(media.getName()).type(media.getType()).url(media.getUrl())
                         .mimeType(media.getMimeType()).fileSize(media.getFileSize())
                         .usageCount(0).placements(new ArrayList<>()).build());
@@ -342,10 +343,24 @@ public class BoothReviewService {
     }
 
     private OrganizerBoothSummaryDTO toOrganizerBoothSummary(Booth booth) {
+        Company company = booth.getCompany();
+        ExhibitorRegistration registration = booth.getExhibitorRegistration();
+        ExhibitionPackage exhibitionPackage = registration == null ? null : registration.getExhibitionPackage();
+        String packageName = registration == null ? null : registration.getPackageNameSnapshot();
+        if (packageName == null && exhibitionPackage != null && exhibitionPackage.getTemplate() != null) {
+            packageName = exhibitionPackage.getTemplate().getName();
+        }
         return OrganizerBoothSummaryDTO.builder()
-                .id(booth.getId()).companyId(booth.getCompany() == null ? null : booth.getCompany().getId())
+                .id(booth.getId()).companyId(company == null ? null : company.getId())
+                .ownerName(company == null || company.getOwnerUser() == null
+                        ? null : company.getOwnerUser().getFullName())
+                .packageName(packageName)
+                .contactEmail(company == null ? null : company.getEmail())
+                .contactPhone(company == null ? null : company.getPhone())
                 .name(booth.getName()).description(booth.getDescription())
                 .thumbnailUrl(booth.getThumbnailUrl()).backgroundMusicUrl(booth.getBackgroundMusicUrl())
+                .backgroundMusicFileName(booth.getBackgroundMusicFileName())
+                .backgroundMusicFileSize(booth.getBackgroundMusicFileSize())
                 .displayTemplateKey(booth.getDisplayTemplateKey()).status(booth.getStatus())
                 .updatedAt(booth.getUpdatedAt()).build();
     }
@@ -378,7 +393,8 @@ public class BoothReviewService {
     }
 
     private List<Panorama> sortedPanoramas(Booth booth) {
-        if (booth.getPanoramas() == null) return List.of();
+        if (booth.getPanoramas() == null)
+            return List.of();
         return booth.getPanoramas().stream()
                 .sorted(Comparator.comparing(Panorama::getOrderIndex, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
@@ -394,7 +410,8 @@ public class BoothReviewService {
 
     private Exhibition getExhibition(Booth booth) {
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
-        if (registration == null) return null;
+        if (registration == null)
+            return null;
         ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
         return exhibitionPackage == null ? null : exhibitionPackage.getExhibition();
     }
