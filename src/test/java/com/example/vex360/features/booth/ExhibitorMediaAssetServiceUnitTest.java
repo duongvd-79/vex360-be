@@ -35,6 +35,7 @@ import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -57,6 +58,9 @@ class ExhibitorMediaAssetServiceUnitTest {
     @Mock
     private CloudService cloudService;
 
+    @Mock
+    private CompanyStorageService companyStorageService;
+
     private ExhibitorMediaAssetService mediaAssetService;
 
     private User currentUser;
@@ -70,6 +74,7 @@ class ExhibitorMediaAssetServiceUnitTest {
                 mediaAssetRepository,
                 hotspotRepository,
                 companyService,
+                companyStorageService,
                 cloudService,
                 boothMapper
         );
