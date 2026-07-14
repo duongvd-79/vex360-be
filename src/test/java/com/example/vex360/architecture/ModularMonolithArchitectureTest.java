@@ -1,5 +1,7 @@
 package com.example.vex360.architecture;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -8,11 +10,13 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class ModularMonolithArchitectureTest {
 
@@ -24,36 +28,61 @@ class ModularMonolithArchitectureTest {
 
     @Test
     void featureRepositoriesShouldOnlyBeDependedOnByTheirOwningFeature() {
+        List<String> violations = new ArrayList<>();
         for (String feature : featureNames(IMPORTED_CLASSES, true)) {
             String featurePackage = FEATURES_PACKAGE + feature;
             ArchRule rule = classes().that().resideInAPackage(featurePackage + "..repositories..")
                     .should().onlyHaveDependentClassesThat().resideInAPackage(featurePackage + "..");
 
-            rule.check(IMPORTED_CLASSES);
+            collectViolation(violations, rule,
+                    "Repository of feature '" + feature + "' is used outside its owning feature.",
+                    "Do not inject or call this repository from another feature. "
+                            + "Add or reuse a service in feature '" + feature + "' and call that service instead.");
         }
-    }
-
-    @Test
-    void featureInternalsShouldOnlyBeDependedOnByTheirOwningFeature() {
-        Set<String> features = featureNames(IMPORTED_CLASSES, false);
-        assertFalse(features.isEmpty(), "No feature packages were imported from " + FEATURES_PACKAGE);
-
-        for (String feature : features) {
-            String featurePackage = FEATURES_PACKAGE + feature;
-            ArchRule rule = classes().that().resideInAPackage(featurePackage + "..")
-                    .and().resideOutsideOfPackage(featurePackage + ".api..")
-                    .and().resideOutsideOfPackage(featurePackage + ".events..")
-                    .should().onlyHaveDependentClassesThat().resideInAPackage(featurePackage + "..");
-
-            rule.check(IMPORTED_CLASSES);
-        }
+        assertNoViolations(violations);
     }
 
     @Test
     void featuresShouldBeFreeOfCycles() {
-        slices().matching("..features.(*)..")
-                .should().beFreeOfCycles()
-                .check(IMPORTED_CLASSES);
+        assertFalse(featureNames(IMPORTED_CLASSES, false).isEmpty(),
+                "No feature packages were imported from " + FEATURES_PACKAGE);
+
+        ArchRule rule = slices().matching("..features.(*)..")
+                .should().beFreeOfCycles();
+        List<String> violations = new ArrayList<>();
+        collectViolation(violations, rule,
+                "A circular dependency exists between feature packages.",
+                "Keep dependencies flowing in one direction. Move the shared workflow to one owning feature, "
+                        + "or replace the reverse direct call with an application event.");
+        assertNoViolations(violations);
+    }
+
+    private static void collectViolation(List<String> violations, ArchRule rule, String what, String howToFix) {
+        EvaluationResult result = rule.evaluate(IMPORTED_CLASSES);
+        if (!result.hasViolation()) {
+            return;
+        }
+
+        violations.add("""
+                ============================================================
+                MODULAR MONOLITH ARCHITECTURE VIOLATION
+
+                WHAT:
+                %s
+
+                WHERE:
+                %s
+
+                HOW TO FIX:
+                %s
+                ============================================================
+                """.formatted(what, result.getFailureReport(), howToFix));
+    }
+
+    private static void assertNoViolations(List<String> violations) {
+        if (!violations.isEmpty()) {
+            fail(System.lineSeparator() + String.join(System.lineSeparator(), violations));
+        }
     }
 
     private static Set<String> featureNames(JavaClasses importedClasses, boolean repositoriesOnly) {

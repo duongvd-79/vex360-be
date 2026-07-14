@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
+import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSWebhookService;
@@ -16,12 +17,7 @@ import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
-import com.example.vex360.features.company.entities.StoragePackageOrder;
-import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
-import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.shared.enums.PaymentType;
-import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +33,6 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PayOS payOS;
-    private final StoragePackageOrderRepository storagePackageOrderRepository;
-    private final CompanyRepository companyRepository;
 
     @Override
     @Transactional
@@ -62,18 +56,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 paymentRepository.save(payment);
 
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
-                    StoragePackageOrder order = payment.getStoragePackageOrder();
-                    order.setStatus(StoragePackageOrderStatus.PAID);
-                    order.setPaidAt(LocalDateTime.now());
-                    storagePackageOrderRepository.save(order);
-
-                    Company company = order.getCompany();
-                    company.setStorageQuotaBytes(
-                            company.getStorageQuotaBytes() + order.getStoragePackage().getQuotaBytes());
-                    companyRepository.save(company);
-
-                    log.info("Storage package PAID. Company {} quota increased by {}B", company.getId(),
-                            order.getStoragePackage().getQuotaBytes());
+                    eventPublisher.publishEvent(new StoragePackagePaymentCompletedEvent(
+                            this, payment.getStoragePackageOrderId()));
                 } else {
                     ExhibitorRegistration registration = payment.getExhibitorRegistration();
                     if (registration.getStatus() == ExhibitorRegistrationStatus.CANCELED) {

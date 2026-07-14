@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.example.vex360.shared.enums.PaymentStatus;
-import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.shared.enums.PaymentType;
 
 import jakarta.persistence.Column;
@@ -45,9 +44,8 @@ public class Payment {
     @JoinColumn(name = "exhibitor_registration_id", nullable = true)
     ExhibitorRegistration exhibitorRegistration;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = true)
-    @JoinColumn(name = "storage_package_order_id", nullable = true)
-    StoragePackageOrder storagePackageOrder;
+    @Column(name = "storage_package_order_id")
+    Integer storagePackageOrderId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_type", nullable = false)

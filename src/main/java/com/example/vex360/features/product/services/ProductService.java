@@ -13,11 +13,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.entities.Hotspot;
-import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
@@ -27,6 +26,7 @@ import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.features.product.events.ProductDeletedEvent;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
@@ -51,7 +51,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
-    private final HotspotRepository hotspotRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             CompanyService companyService,
@@ -60,14 +60,14 @@ public class ProductService {
             ProductRepository productRepository,
             CloudService cloudService,
             ProductMapper productMapper,
-            HotspotRepository hotspotRepository) {
+            ApplicationEventPublisher eventPublisher) {
         this.companyService = companyService;
         this.companyStorageService = companyStorageService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
-        this.hotspotRepository = hotspotRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -182,10 +182,7 @@ public class ProductService {
             companyStorageService.deductUsage(company, content.getFileSize());
             deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
         });
-        List<Hotspot> affectedHotspots = hotspotRepository.findByProduct(product);
-        if (!affectedHotspots.isEmpty()) {
-            hotspotRepository.deleteAll(affectedHotspots);
-        }
+        eventPublisher.publishEvent(new ProductDeletedEvent(this, product));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -227,7 +224,7 @@ public class ProductService {
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
             if (content == null)
-                    throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
             nextContents.add(content);
         }
 

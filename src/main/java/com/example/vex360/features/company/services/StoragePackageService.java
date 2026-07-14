@@ -1,10 +1,11 @@
 package com.example.vex360.features.company.services;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,19 +18,16 @@ import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
-import com.example.vex360.features.exhibition.entities.Payment;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
+import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
+import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.shared.enums.PaymentStatus;
-import com.example.vex360.shared.enums.PaymentType;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -38,8 +36,8 @@ public class StoragePackageService {
 
     private final StoragePackageRepository storagePackageRepository;
     private final StoragePackageOrderRepository storagePackageOrderRepository;
-    private final PaymentRepository paymentRepository;
-    private final PayOSIntegrationService payOSIntegrationService;
+    private final CompanyRepository companyRepository;
+    private final StoragePaymentService storagePaymentService;
     private final CompanyService companyService;
 
     @Value("${app.payos.storage-return-url:http://localhost:5175/storage/payment/success}")
@@ -81,38 +79,40 @@ public class StoragePackageService {
                 .build();
         order = storagePackageOrderRepository.save(order);
 
-        Payment payment = Payment.builder()
-                .storagePackageOrder(order)
-                .paymentType(PaymentType.STORAGE_PACKAGE)
-                .orderCode(orderCode)
-                .amount(BigDecimal.valueOf(pkg.getPriceVnd()))
-                .systemFee(BigDecimal.valueOf(pkg.getPriceVnd()))
-                .organizerPayout(BigDecimal.ZERO)
-                .paymentProvider("PAYOS")
-                .status(PaymentStatus.PENDING)
-                .build();
-        payment = paymentRepository.save(payment);
-
         String description = "Nang cap luu tru";
-        CreatePaymentLinkResponse response = payOSIntegrationService.createPaymentLink(
-                orderCode, pkg.getPriceVnd(), description, returnUrl, cancelUrl);
+        String checkoutUrl = storagePaymentService.createPayment(
+                order.getId(), orderCode, pkg.getPriceVnd(), description, returnUrl, cancelUrl);
 
-        order.setCheckoutUrl(response.getCheckoutUrl());
-        payment.setCheckoutUrl(response.getCheckoutUrl());
+        order.setCheckoutUrl(checkoutUrl);
         storagePackageOrderRepository.save(order);
-        paymentRepository.save(payment);
 
         log.info("Created storage package order {} for company {}", orderCode, company.getId());
 
         return StoragePackageOrderResponseDTO.builder()
                 .orderId(order.getId())
                 .orderCode(orderCode)
-                .checkoutUrl(response.getCheckoutUrl())
+                .checkoutUrl(checkoutUrl)
                 .packageName(pkg.getName())
                 .quotaBytes(pkg.getQuotaBytes())
                 .amountVnd(pkg.getPriceVnd())
                 .status(order.getStatus().name())
                 .build();
+    }
+
+    @EventListener
+    @Transactional
+    public void handleStoragePackagePaymentCompleted(StoragePackagePaymentCompletedEvent event) {
+        StoragePackageOrder order = storagePackageOrderRepository.findById(event.getStoragePackageOrderId())
+                .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
+        order.setStatus(StoragePackageOrderStatus.PAID);
+        order.setPaidAt(LocalDateTime.now());
+        storagePackageOrderRepository.save(order);
+
+        Company company = order.getCompany();
+        company.setStorageQuotaBytes(company.getStorageQuotaBytes() + order.getStoragePackage().getQuotaBytes());
+        companyRepository.save(company);
+        log.info("Storage package PAID. Company {} quota increased by {}B", company.getId(),
+                order.getStoragePackage().getQuotaBytes());
     }
 
     public StorageUsageResponseDTO getUsage(User currentUser) {
