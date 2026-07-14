@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
@@ -73,10 +74,12 @@ public class DesignRequestService {
     @Transactional
     public DesignRequestResponseDTO createRequest(User currentUser, CreateDesignRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
-        Booth booth = getCompanyBooth(request.getBoothId(), company);
-        assertBoothHasNoOpenDesignRequest(booth);
+        Booth booth = getCompanyBoothForUpdate(request.getBoothId(), company);
+        if (booth.getStatus() != BoothStatus.DRAFT) {
+            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
+        }
         assertBoothDesignQuotaAvailable(booth);
-        booth.setDesignLocked(true);
+        booth.setStatus(BoothStatus.DESIGNING);
 
         DesignRequest designRequest = DesignRequest.builder()
                 .booth(booth)
@@ -129,7 +132,7 @@ public class DesignRequestService {
         }
         request.setStatus(DesignRequestStatus.CANCELED);
         request.setCanceledAt(LocalDateTime.now());
-        request.getBooth().setDesignLocked(false);
+        request.getBooth().setStatus(BoothStatus.DRAFT);
         return toResponse(designRequestRepository.save(request));
     }
 
@@ -205,7 +208,7 @@ public class DesignRequestService {
         applyDraftToBooth(request, draft);
         request.setStatus(DesignRequestStatus.APPROVED);
         request.setApprovedAt(LocalDateTime.now());
-        request.getBooth().setDesignLocked(false);
+        request.getBooth().setStatus(BoothStatus.DRAFT);
         return toResponse(designRequestRepository.save(request));
     }
 
@@ -445,15 +448,6 @@ public class DesignRequestService {
         }
     }
 
-    private void assertBoothHasNoOpenDesignRequest(Booth booth) {
-        if (Boolean.TRUE.equals(booth.getDesignLocked())
-                || designRequestRepository.existsByBoothIdAndStatusIn(
-                        booth.getId(),
-                        DesignRequestRepository.OPEN_STATUSES)) {
-            throw new AppException(ErrorCode.BOOTH_DESIGN_LOCKED);
-        }
-    }
-
     private MediaAsset getMediaAsset(UUID mediaAssetId, Company company, MediaAssetType expectedType) {
         if (mediaAssetId == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
@@ -517,8 +511,8 @@ public class DesignRequestService {
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
     }
 
-    private Booth getCompanyBooth(UUID boothId, Company company) {
-        return boothDesignService.getCompanyBooth(boothId, company.getId());
+    private Booth getCompanyBoothForUpdate(UUID boothId, Company company) {
+        return boothDesignService.getCompanyBoothForUpdate(boothId, company.getId());
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {

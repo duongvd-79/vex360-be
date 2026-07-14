@@ -103,10 +103,6 @@ public class Booth {
     @Builder.Default
     String displayTemplateKey = "classic";
 
-    @Column(name = "design_locked")
-    @Builder.Default
-    Boolean designLocked = false;
-
     @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude

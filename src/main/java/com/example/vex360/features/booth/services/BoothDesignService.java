@@ -35,9 +35,9 @@ public class BoothDesignService {
     private final HotspotRepository hotspotRepository;
     private final MediaAssetRepository mediaAssetRepository;
 
-    @Transactional(readOnly = true)
-    public Booth getCompanyBooth(UUID boothId, UUID companyId) {
-        return boothRepository.findCompanyBoothById(boothId, companyId)
+    @Transactional
+    public Booth getCompanyBoothForUpdate(UUID boothId, UUID companyId) {
+        return boothRepository.findCompanyBoothByIdForUpdate(boothId, companyId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
     }
 

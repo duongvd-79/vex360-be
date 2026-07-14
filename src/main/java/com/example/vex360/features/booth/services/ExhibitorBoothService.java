@@ -66,7 +66,6 @@ public class ExhibitorBoothService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
         boothReviewPolicyService.assertEditable(booth);
-        assertBoothEditable(booth);
 
         if (request != null) {
             updateMetadata(booth, request);
@@ -167,12 +166,6 @@ public class ExhibitorBoothService {
     private Booth getBoothForCompany(UUID boothId, Company company) {
         return boothRepository.findCompanyBoothById(boothId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
-    }
-
-    private void assertBoothEditable(Booth booth) {
-        if (Boolean.TRUE.equals(booth.getDesignLocked())) {
-            throw new AppException(ErrorCode.BOOTH_DESIGN_LOCKED);
-        }
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {

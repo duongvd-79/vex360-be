@@ -20,12 +20,6 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             DesignRequestStatus.DRAFT_SUBMITTED,
             DesignRequestStatus.REVISION_REQUESTED);
 
-    List<DesignRequestStatus> OPEN_STATUSES = List.of(
-            DesignRequestStatus.PENDING,
-            DesignRequestStatus.ASSIGNED,
-            DesignRequestStatus.DRAFT_SUBMITTED,
-            DesignRequestStatus.REVISION_REQUESTED);
-
     @Query("""
             SELECT dr FROM DesignRequest dr
             WHERE dr.company.id = :companyId
@@ -57,8 +51,6 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             Pageable pageable);
 
     long countByBoothId(UUID boothId);
-
-    boolean existsByBoothIdAndStatusIn(UUID boothId, List<DesignRequestStatus> statuses);
 
     @Query("""
             SELECT COALESCE(SUM(dr.reviewCount), 0)

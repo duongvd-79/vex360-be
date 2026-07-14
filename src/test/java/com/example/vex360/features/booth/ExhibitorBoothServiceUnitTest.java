@@ -121,13 +121,13 @@ class ExhibitorBoothServiceUnitTest {
     }
 
     @Test
-    void updateBooth_WhenDesignLocked_ThrowsExceptionBeforeUpload() {
+    void updateBooth_WhenDesigning_ThrowsExceptionBeforeUpload() {
         UUID boothId = UUID.randomUUID();
         Booth booth = Booth.builder()
                 .id(boothId)
                 .name("Locked Booth")
                 .company(company)
-                .designLocked(true)
+                .status(BoothStatus.DESIGNING)
                 .build();
         MockMultipartFile thumbnail = new MockMultipartFile(
                 "thumbnail",
@@ -137,15 +137,18 @@ class ExhibitorBoothServiceUnitTest {
 
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
+                .when(boothReviewPolicyService).assertEditable(booth);
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(
                         exhibitorUser,
                         boothId,
                         new UpdateBoothRequest("New Booth", null, null),
-                        thumbnail));
+                        thumbnail,
+                        null));
 
-        assertSame(ErrorCode.BOOTH_DESIGN_LOCKED, ex.getErrorCode());
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, ex.getErrorCode());
         verify(cloudService, never()).upload(any());
         verify(boothRepository, never()).save(any());
     }

@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.services.BoothDesignService;
@@ -106,12 +107,9 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void createRequestLocksBoothUntilRequestIsFinished() {
+    void createRequestMovesDraftBoothToDesigning() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(boothDesignService.getCompanyBooth(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.existsByBoothIdAndStatusIn(
-                booth.getId(),
-                DesignRequestRepository.OPEN_STATUSES)).thenReturn(false);
+        when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
         when(designRequestRepository.countByBoothId(booth.getId())).thenReturn(0L);
         when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
         when(designRequestRepository.save(any(DesignRequest.class)))
@@ -119,31 +117,26 @@ class DesignRequestServiceUnitTest {
 
         service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design"));
 
-        assertEquals(true, booth.getDesignLocked());
+        assertEquals(BoothStatus.DESIGNING, booth.getStatus());
     }
 
     @Test
-    void createRequestThrowsWhenBoothAlreadyHasOpenDesignRequest() {
+    void createRequestRejectsBoothAlreadyBeingDesigned() {
+        booth.setStatus(BoothStatus.DESIGNING);
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(boothDesignService.getCompanyBooth(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.existsByBoothIdAndStatusIn(
-                booth.getId(),
-                DesignRequestRepository.OPEN_STATUSES)).thenReturn(true);
+        when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design")));
 
-        assertSame(ErrorCode.BOOTH_DESIGN_LOCKED, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
     }
 
     @Test
     void createRequestThrowsWhenBoothActionQuotaIsFull() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(boothDesignService.getCompanyBooth(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.existsByBoothIdAndStatusIn(
-                booth.getId(),
-                DesignRequestRepository.OPEN_STATUSES)).thenReturn(false);
+        when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
         when(designRequestRepository.countByBoothId(booth.getId())).thenReturn(2L);
         when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(1L);
 
@@ -155,10 +148,10 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void cancelPendingRequestUnlocksBooth() {
+    void cancelPendingRequestMovesBoothBackToDraft() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = pendingRequest(requestId);
-        booth.setDesignLocked(true);
+        booth.setStatus(BoothStatus.DESIGNING);
 
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
@@ -167,7 +160,7 @@ class DesignRequestServiceUnitTest {
 
         service.cancelRequest(exhibitor, requestId);
 
-        assertEquals(false, booth.getDesignLocked());
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertEquals(DesignRequestStatus.CANCELED, request.getStatus());
     }
 
@@ -299,7 +292,7 @@ class DesignRequestServiceUnitTest {
         assertEquals(HotspotType.MEDIA, appliedPanorama.hotspots().get(0).type());
         assertSame(mediaAsset, appliedPanorama.hotspots().get(0).mediaAsset());
         assertEquals(DesignRequestStatus.APPROVED, request.getStatus());
-        assertEquals(false, booth.getDesignLocked());
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
     }
 
     private DesignRequest pendingRequest(UUID id) {

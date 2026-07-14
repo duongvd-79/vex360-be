@@ -58,7 +58,6 @@ public class ExhibitorPanoramaService {
             MultipartFile image) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
-        assertBoothEditable(booth);
         if (request == null || isBlank(request.getName())) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }
@@ -92,7 +91,6 @@ public class ExhibitorPanoramaService {
             MultipartFile image) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
-        assertBoothEditable(booth);
         Panorama panorama = getPanoramaForBooth(panoramaId, booth);
 
         if (request != null) {
@@ -127,7 +125,6 @@ public class ExhibitorPanoramaService {
     public PanoramaResponseDTO deletePanorama(User currentUser, UUID boothId, UUID panoramaId) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
-        assertBoothEditable(booth);
         Panorama panorama = getPanoramaForBooth(panoramaId, booth);
         if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
             throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
@@ -156,12 +153,6 @@ public class ExhibitorPanoramaService {
 
     private Company getCompanyForCurrentUser(User currentUser) {
         return companyService.getCompanyEntityForCurrentUser(currentUser);
-    }
-
-    private void assertBoothEditable(Booth booth) {
-        if (Boolean.TRUE.equals(booth.getDesignLocked())) {
-            throw new AppException(ErrorCode.BOOTH_DESIGN_LOCKED);
-        }
     }
 
     private boolean isBlank(String value) {
