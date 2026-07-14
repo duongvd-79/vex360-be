@@ -13,10 +13,12 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.CreateProductContentPreUploadedRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
@@ -24,6 +26,7 @@ import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.features.product.events.ProductDeletedEvent;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.product.repositories.ProductCategoryRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
@@ -43,22 +46,28 @@ public class ProductService {
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
 
     private final CompanyService companyService;
+    private final CompanyStorageService companyStorageService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
     private final CloudService cloudService;
     private final ProductMapper productMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             CompanyService companyService,
+            CompanyStorageService companyStorageService,
             ProductCategoryRepository productCategoryRepository,
             ProductRepository productRepository,
             CloudService cloudService,
-            ProductMapper productMapper) {
+            ProductMapper productMapper,
+            ApplicationEventPublisher eventPublisher) {
         this.companyService = companyService;
+        this.companyStorageService = companyStorageService;
         this.productCategoryRepository = productCategoryRepository;
         this.productRepository = productRepository;
         this.cloudService = cloudService;
         this.productMapper = productMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -107,6 +116,7 @@ public class ProductService {
                 .currency(normalizeCurrency(request.getCurrency()))
                 .thumbnailUrl(request.getThumbnailUrl())
                 .thumbnailPublicId(request.getThumbnailPublicId())
+                .thumbnailFileSize(request.getThumbnailFileSize())
                 .status(status)
                 .build();
         product.setContents(createContentsFromUploaded(product, contentRequests));
@@ -144,10 +154,18 @@ public class ProductService {
         product.setCurrency(normalizeCurrency(request.getCurrency()));
         product.setStatus(status);
         if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
+            companyStorageService.deductUsage(company, product.getThumbnailFileSize());
             deleteCloudFile(product.getThumbnailPublicId(), "image");
             product.setThumbnailUrl(request.getThumbnailUrl());
             product.setThumbnailPublicId(request.getThumbnailPublicId());
+            product.setThumbnailFileSize(request.getThumbnailFileSize() != null ? request.getThumbnailFileSize() : 0L);
         }
+
+        Set<UUID> keptIds = new HashSet<>(existingContentIds);
+        product.getContents().stream()
+                .filter(content -> !keptIds.contains(content.getId()))
+                .forEach(content -> companyStorageService.deductUsage(company, content.getFileSize()));
+
         synchronizeContents(product, existingContentIds, createContentsFromUploaded(product, newContentRequests));
 
         return productMapper.toResponse(productRepository.save(product));
@@ -158,9 +176,13 @@ public class ProductService {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
         assertNotUsedByPendingBooth(productId);
+        companyStorageService.deductUsage(company, product.getThumbnailFileSize());
         deleteCloudFile(product.getThumbnailPublicId(), "image");
-        product.getContents()
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+        product.getContents().forEach(content -> {
+            companyStorageService.deductUsage(company, content.getFileSize());
+            deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
+        });
+        eventPublisher.publishEvent(new ProductDeletedEvent(this, product));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -202,7 +224,7 @@ public class ProductService {
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
             if (content == null)
-                    throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
             nextContents.add(content);
         }
 

@@ -142,6 +142,23 @@ class ExhibitorHotspotServiceUnitTest {
     }
 
     @Test
+    void createHotspot_WhenBoothIsDesigning_DoesNotSaveHotspot() {
+        booth.setStatus(BoothStatus.DESIGNING);
+        mockBoothAndPanorama();
+        doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
+                .when(boothReviewPolicyService).assertEditable(booth);
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(UUID.randomUUID())));
+
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
+    }
+
+    @Test
     void createProductHotspotRejectsInactiveProduct() {
         Product product = product(ProductStatus.INACTIVE);
         mockBoothAndPanorama();

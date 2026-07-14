@@ -209,6 +209,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Exhibition getExhibitionEntityById(Integer id) {
+        return exhibitionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
             String keyword, ExhibitionStatus status, String category,
             LocalDate startDate, LocalDate endDate, Pageable pageable) {

@@ -18,6 +18,7 @@ import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
@@ -36,6 +37,7 @@ public class ExhibitorMediaAssetService {
     private final MediaAssetRepository mediaAssetRepository;
     private final HotspotRepository hotspotRepository;
     private final CompanyService companyService;
+    private final CompanyStorageService companyStorageService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
 
@@ -58,6 +60,8 @@ public class ExhibitorMediaAssetService {
         }
         validateMediaFile(file);
 
+        companyStorageService.checkQuota(company, file.getSize());
+
         CloudinaryResponse upload = cloudService.upload(file);
         String mimeType = upload.getFileType() == null ? normalizeMimeType(file) : upload.getFileType();
         Long fileSize = upload.getFileSize() == null ? file.getSize() : upload.getFileSize();
@@ -71,7 +75,10 @@ public class ExhibitorMediaAssetService {
                 .fileSize(fileSize)
                 .build();
 
-        return boothMapper.toMediaAssetResponseDTO(mediaAssetRepository.save(mediaAsset));
+        MediaAssetResponseDTO result = boothMapper.toMediaAssetResponseDTO(mediaAssetRepository.save(mediaAsset));
+        companyStorageService.addUsage(company, fileSize); // ← thêm dòng này SAU khi lưu
+        return result;
+
     }
 
     @Transactional
@@ -85,6 +92,7 @@ public class ExhibitorMediaAssetService {
 
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);
         mediaAssetRepository.delete(mediaAsset);
+        companyStorageService.deductUsage(company, mediaAsset.getFileSize() != null ? mediaAsset.getFileSize() : 0L);
         cloudService.delete(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
         return response;
     }

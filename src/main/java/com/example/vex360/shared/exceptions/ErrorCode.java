@@ -12,7 +12,8 @@ public enum ErrorCode {
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
     METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
-    REGISTRATION_ALREADY_EXISTS("REGISTRATION-002", "Exhibitor already has an active registration for this exhibition",
+    REGISTRATION_ALREADY_EXISTS("REGISTRATION-002",
+            "Exhibitor already has an active registration for this exhibition",
             HttpStatus.CONFLICT),
 
     // AUTH ERRORS
@@ -82,8 +83,7 @@ public enum ErrorCode {
     MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
     BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
-    BOOTH_DESIGN_LOCKED("BOOTH-014", "Booth is locked while a design request is in progress", HttpStatus.BAD_REQUEST),
-    BOOTH_NOT_EDITABLE("BOOTH-015", "Booth template is not editable in its current status", HttpStatus.BAD_REQUEST),
+    BOOTH_NOT_EDITABLE("BOOTH-015", "Booth is not editable in its current status", HttpStatus.BAD_REQUEST),
     INVALID_BOOTH_REVIEW_STATUS("BOOTH-016", "Invalid booth review status", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),
@@ -116,7 +116,10 @@ public enum ErrorCode {
     EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó",
             HttpStatus.BAD_REQUEST),
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
-    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
+    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND),
+
+    // CHAT ERRORS
+    CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng chat", HttpStatus.NOT_FOUND);
 
     private final String code;
     private final String message;

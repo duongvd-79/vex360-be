@@ -45,5 +45,7 @@ public class CreateProductRequest {
     @NotBlank(message = "Public ID Cloudinary không được để trống")
     private String thumbnailPublicId;
 
+    private long thumbnailFileSize;
+
     private List<@Valid CreateProductContentPreUploadedRequest> contents;
 }

@@ -24,6 +24,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import com.example.vex360.shared.dtos.DeleteUploadRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/uploads")
@@ -65,4 +69,18 @@ public class UploadController extends BaseController {
 
         return ok(response, "Tải lên tệp tin thành công!");
     }
+
+    @DeleteMapping
+    @Operation(summary = "Xóa file đã upload (orphan cleanup)", description = "Xóa file khỏi Cloudinary và deduct storage khi user cancel form.")
+    public ResponseEntity<ApiResponse<Void>> deleteFile(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody DeleteUploadRequest request) {
+        Company company = companyService.getCompanyEntityForCurrentUser(userDetails.getUser());
+        cloudService.delete(request.getPublicId(), request.getResourceType());
+        if (request.getFileSize() > 0) {
+            companyStorageService.deductUsage(company, request.getFileSize());
+        }
+        return ok(null, "Đã xóa file.");
+    }
+
 }
