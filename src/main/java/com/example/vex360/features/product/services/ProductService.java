@@ -121,6 +121,7 @@ public class ProductService {
             UpdateProductRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
+        assertNotUsedByPendingBooth(productId);
         String sku = request.getSku().trim();
         if (productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), sku, productId)) {
             throw new AppException(ErrorCode.PRODUCT_SKU_DUPLICATED);
@@ -156,6 +157,7 @@ public class ProductService {
     public ProductResponseDTO deleteProduct(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Product product = getProductForCompany(productId, company);
+        assertNotUsedByPendingBooth(productId);
         deleteCloudFile(product.getThumbnailPublicId(), "image");
         product.getContents()
                 .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
@@ -200,7 +202,7 @@ public class ProductService {
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
             if (content == null)
-                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                    throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
             nextContents.add(content);
         }
 
@@ -270,6 +272,12 @@ public class ProductService {
 
     private void deleteCloudFile(String publicId, String resourceType) {
         cloudService.delete(publicId, resourceType);
+    }
+
+    private void assertNotUsedByPendingBooth(UUID productId) {
+        if (productRepository.existsInBoothWithStatus(productId, "PENDING")) {
+            throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
+        }
     }
 
     private ProductContentType resolveContentType(String mimeType) {

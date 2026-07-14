@@ -22,6 +22,7 @@ public class FileUploadUtils {
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
             "image/jpeg", "image/png", "image/gif", "image/bmp",
             "image/webp", "image/svg+xml", "image/tiff",
+            "audio/mpeg", "audio/mp3",
             "video/mp4", "video/quicktime", "video/x-msvideo",
             "video/x-matroska", "video/x-ms-wmv", "video/x-flv",
             "video/webm");
@@ -84,6 +85,9 @@ public class FileUploadUtils {
         }
         if (Arrays.asList("mp4", "mov", "avi", "mkv", "wmv", "flv", "webm").contains(extension)) {
             return "video";
+        }
+        if ("mp3".equals(extension)) {
+            return "audio";
         }
         return "other";
     }

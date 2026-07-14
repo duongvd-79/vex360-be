@@ -15,8 +15,10 @@ public class BoothReviewContentOverviewDTO {
     private Integer panoramaCount;
     private Integer hotspotCount;
     private Integer productCount;
+    private Integer productContentCount;
     private Integer mediaAssetCount;
     private List<BoothReviewPanoramaItemDTO> panoramas;
+    private List<BoothReviewHotspotItemDTO> hotspots;
     private List<BoothReviewProductItemDTO> products;
     private List<BoothReviewMediaItemDTO> mediaAssets;
 }

@@ -66,6 +66,7 @@ public enum ErrorCode {
     INVALID_PRODUCT_CATEGORY_STATUS("PRODUCT-006", "Trạng thái danh mục sản phẩm không hợp lệ",
             HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trang thai san pham khong hop le", HttpStatus.BAD_REQUEST),
+    PRODUCT_USED_BY_PENDING_BOOTH("PRODUCT-008", "Product is used by a booth pending review", HttpStatus.CONFLICT),
 
     // BOOTH ERRORS
     BOOTH_TEMPLATE_NOT_FOUND("BOOTH-001", "Booth template not found", HttpStatus.NOT_FOUND),
@@ -87,6 +88,7 @@ public enum ErrorCode {
     BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_REQUEST_NOT_FOUND("BOOTH-019", "Booth review request not found", HttpStatus.NOT_FOUND),
+    BOOTH_DRAFT_NOT_REVIEWABLE("BOOTH-020", "Draft booth content is not available for review", HttpStatus.FORBIDDEN),
 
     // DESIGN REQUEST ERRORS
     DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Design request not found", HttpStatus.NOT_FOUND),

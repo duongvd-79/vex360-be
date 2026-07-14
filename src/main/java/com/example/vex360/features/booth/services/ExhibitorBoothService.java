@@ -23,6 +23,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.utils.FileUploadUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +31,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ExhibitorBoothService {
     private static final Set<String> ALLOWED_THUMBNAIL_TYPES = Set.of("image/jpeg", "image/png");
+    private static final Set<String> ALLOWED_BACKGROUND_MUSIC_TYPES = Set.of("audio/mpeg", "audio/mp3");
+    private static final String BACKGROUND_MUSIC_FOLDER = "booth-background-music";
+    private static final long BACKGROUND_MUSIC_MAX_SIZE_MB = 10;
+    private static final String CLOUDINARY_AUDIO_RESOURCE_TYPE = "video";
 
     private final BoothRepository boothRepository;
     private final CompanyService companyService;
@@ -56,7 +61,8 @@ public class ExhibitorBoothService {
             User currentUser,
             UUID boothId,
             UpdateBoothRequest request,
-            MultipartFile thumbnail) {
+            MultipartFile thumbnail,
+            MultipartFile backgroundMusic) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
         boothReviewPolicyService.assertEditable(booth);
@@ -68,7 +74,54 @@ public class ExhibitorBoothService {
             replaceThumbnail(booth, thumbnail);
         }
 
-        return boothMapper.toBoothResponseDTO(boothRepository.save(booth));
+        String oldBackgroundMusicPublicId = booth.getBackgroundMusicPublicId();
+        CloudinaryResponse backgroundMusicUpload = null;
+        if (backgroundMusic != null) {
+            backgroundMusicUpload = replaceBackgroundMusic(booth, backgroundMusic);
+        }
+
+        Booth savedBooth;
+        try {
+            savedBooth = boothRepository.save(booth);
+            boothRepository.flush();
+        } catch (RuntimeException exception) {
+            if (backgroundMusicUpload != null) {
+                cleanupUploadedBackgroundMusic(backgroundMusicUpload.getPublicId(), exception);
+            }
+            throw exception;
+        }
+
+        if (backgroundMusicUpload != null && hasText(oldBackgroundMusicPublicId)) {
+            try {
+                cloudService.delete(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+            } catch (RuntimeException exception) {
+                cleanupUploadedBackgroundMusic(backgroundMusicUpload.getPublicId(), exception);
+                throw exception;
+            }
+        }
+
+        return boothMapper.toBoothResponseDTO(savedBooth);
+    }
+
+    @Transactional
+    public BoothResponseDTO deleteBackgroundMusic(User currentUser, UUID boothId) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        Booth booth = getBoothForCompany(boothId, company);
+        boothReviewPolicyService.assertEditable(booth);
+
+        String publicId = booth.getBackgroundMusicPublicId();
+        if (!hasText(publicId)) {
+            return boothMapper.toBoothResponseDTO(booth);
+        }
+
+        booth.setBackgroundMusicUrl(null);
+        booth.setBackgroundMusicPublicId(null);
+        booth.setBackgroundMusicFileName(null);
+        booth.setBackgroundMusicFileSize(null);
+        Booth savedBooth = boothRepository.save(booth);
+        boothRepository.flush();
+        cloudService.delete(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        return boothMapper.toBoothResponseDTO(savedBooth);
     }
 
     private void updateMetadata(Booth booth, UpdateBoothRequest request) {
@@ -98,6 +151,18 @@ public class ExhibitorBoothService {
         booth.setThumbnailPublicId(upload.getPublicId());
     }
 
+    private CloudinaryResponse replaceBackgroundMusic(Booth booth, MultipartFile backgroundMusic) {
+        validateBackgroundMusic(backgroundMusic);
+        CloudinaryResponse upload = cloudService.uploadToFolder(backgroundMusic, BACKGROUND_MUSIC_FOLDER);
+        booth.setBackgroundMusicUrl(upload.getUrl());
+        booth.setBackgroundMusicPublicId(upload.getPublicId());
+        booth.setBackgroundMusicFileName(backgroundMusic.getOriginalFilename());
+        booth.setBackgroundMusicFileSize(upload.getFileSize() == null
+                ? backgroundMusic.getSize()
+                : upload.getFileSize());
+        return upload;
+    }
+
     private Booth getBoothForCompany(UUID boothId, Company company) {
         return boothRepository.findCompanyBoothById(boothId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
@@ -111,6 +176,26 @@ public class ExhibitorBoothService {
         if (thumbnail == null || thumbnail.isEmpty()
                 || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
             throw new AppException(ErrorCode.INVALID_BOOTH);
+        }
+    }
+
+    private void validateBackgroundMusic(MultipartFile backgroundMusic) {
+        String extension = FileUploadUtils.getFileExtension(backgroundMusic == null
+                ? null
+                : backgroundMusic.getOriginalFilename());
+        if (backgroundMusic == null || backgroundMusic.isEmpty()
+                || extension == null || !"mp3".equalsIgnoreCase(extension)
+                || !ALLOWED_BACKGROUND_MUSIC_TYPES.contains(normalizeMimeType(backgroundMusic))) {
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+        FileUploadUtils.validateFileSize(backgroundMusic, BACKGROUND_MUSIC_MAX_SIZE_MB);
+    }
+
+    private void cleanupUploadedBackgroundMusic(String publicId, RuntimeException originalException) {
+        try {
+            cloudService.delete(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        } catch (RuntimeException cleanupException) {
+            originalException.addSuppressed(cleanupException);
         }
     }
 

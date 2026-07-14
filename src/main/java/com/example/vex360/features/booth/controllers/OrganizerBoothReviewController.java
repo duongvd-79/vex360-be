@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
-import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
 import com.example.vex360.features.booth.services.BoothReviewService;
@@ -56,16 +55,8 @@ public class OrganizerBoothReviewController extends BaseController {
                 pageable));
     }
 
-    @GetMapping("/{requestId}")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> getReviewRequest(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID exhibitionUuid,
-            @PathVariable UUID requestId) {
-        return ok(boothReviewService.getRequestForOrganizer(userDetails.getUser(), exhibitionUuid, requestId));
-    }
-
     @PutMapping("/{requestId}/approve")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> approve(
+    public ResponseEntity<ApiResponse<BoothReviewRequestSummaryDTO>> approve(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID exhibitionUuid,
             @PathVariable UUID requestId) {
@@ -73,7 +64,7 @@ public class OrganizerBoothReviewController extends BaseController {
     }
 
     @PutMapping("/{requestId}/reject")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> reject(
+    public ResponseEntity<ApiResponse<BoothReviewRequestSummaryDTO>> reject(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID exhibitionUuid,
             @PathVariable UUID requestId,

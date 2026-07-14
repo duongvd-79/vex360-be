@@ -87,6 +87,18 @@ public class Booth {
     @Column(name = "thumbnail_public_id", length = 500)
     String thumbnailPublicId;
 
+    @Column(name = "background_music_url", length = 1000)
+    String backgroundMusicUrl;
+
+    @Column(name = "background_music_public_id", length = 500)
+    String backgroundMusicPublicId;
+
+    @Column(name = "background_music_file_name", length = 255)
+    String backgroundMusicFileName;
+
+    @Column(name = "background_music_file_size")
+    Long backgroundMusicFileSize;
+
     @Column(name = "display_template_key", length = 100)
     @Builder.Default
     String displayTemplateKey = "classic";

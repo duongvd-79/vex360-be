@@ -84,13 +84,17 @@ public class ProductCategoryService {
             UpdateProductCategoryStatusRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         ProductCategory category = getCategoryForCompany(categoryId, company);
-        category.setStatus(request.getStatus());
         if (request.getStatus() == ProductCategoryStatus.INACTIVE) {
+            if (productRepository.existsCategoryProductInBoothWithStatus(
+                    categoryId, company.getId(), "PENDING")) {
+                throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
+            }
             productRepository.updateStatusByCategoryIdAndCompanyId(
                     categoryId,
                     company.getId(),
                     ProductStatus.INACTIVE);
         }
+        category.setStatus(request.getStatus());
         return productCategoryMapper.toResponse(productCategoryRepository.save(category));
     }
 
