@@ -121,6 +121,36 @@ class ExhibitorBoothServiceUnitTest {
     }
 
     @Test
+    void updateBooth_WhenDesignLocked_ThrowsExceptionBeforeUpload() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder()
+                .id(boothId)
+                .name("Locked Booth")
+                .company(company)
+                .designLocked(true)
+                .build();
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnail",
+                "thumbnail.png",
+                "image/png",
+                "image".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(
+                        exhibitorUser,
+                        boothId,
+                        new UpdateBoothRequest("New Booth", null, null),
+                        thumbnail));
+
+        assertSame(ErrorCode.BOOTH_DESIGN_LOCKED, ex.getErrorCode());
+        verify(cloudService, never()).upload(any());
+        verify(boothRepository, never()).save(any());
+    }
+
+    @Test
     void getBooths_ReturnsPageOfBoothResponseDTO() {
         PageRequest pageable = PageRequest.of(0, 10);
         Booth booth = Booth.builder().id(UUID.randomUUID()).name("Booth A").company(company).build();

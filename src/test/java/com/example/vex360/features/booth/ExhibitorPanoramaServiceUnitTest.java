@@ -88,6 +88,28 @@ class ExhibitorPanoramaServiceUnitTest {
     }
 
     @Test
+    void createPanorama_WhenBoothDesignLocked_DoesNotUploadImage() {
+        booth.setDesignLocked(true);
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "panorama.jpg",
+                "image/jpeg",
+                "image".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId())).thenReturn(Optional.of(booth));
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorPanoramaService.createPanorama(
+                exhibitorUser,
+                booth.getId(),
+                new CreateExhibitorPanoramaRequest("Entrance", null, true),
+                image));
+
+        assertSame(ErrorCode.BOOTH_DESIGN_LOCKED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
     void createPanorama_WhenQuotaExceeded_DoesNotUploadImage() {
         MockMultipartFile image = new MockMultipartFile(
                 "image",

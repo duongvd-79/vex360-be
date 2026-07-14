@@ -142,6 +142,21 @@ class ExhibitorHotspotServiceUnitTest {
     }
 
     @Test
+    void createHotspot_WhenBoothDesignLocked_DoesNotSaveHotspot() {
+        booth.setDesignLocked(true);
+        mockBoothAndPanorama();
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(UUID.randomUUID())));
+
+        assertSame(ErrorCode.BOOTH_DESIGN_LOCKED, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
+    }
+
+    @Test
     void createProductHotspotRejectsInactiveProduct() {
         Product product = product(ProductStatus.INACTIVE);
         mockBoothAndPanorama();

@@ -61,6 +61,7 @@ public class ExhibitorHotspotService {
             UpsertHotspotRequest request) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
         boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
+        assertBoothEditable(sourcePanorama.getBooth());
         Company company = sourcePanorama.getBooth().getCompany();
         Hotspot hotspot = Hotspot.builder()
                 .sourcePanorama(sourcePanorama)
@@ -79,6 +80,7 @@ public class ExhibitorHotspotService {
             UpsertHotspotRequest request) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
         boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
+        assertBoothEditable(sourcePanorama.getBooth());
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         applyRequest(hotspot, request, sourcePanorama.getBooth(), sourcePanorama.getBooth().getCompany());
@@ -90,6 +92,7 @@ public class ExhibitorHotspotService {
     public HotspotResponseDTO deleteHotspot(User currentUser, UUID boothId, UUID panoramaId, UUID hotspotId) {
         Panorama sourcePanorama = getPanoramaForCurrentUser(currentUser, boothId, panoramaId);
         boothReviewPolicyService.assertEditable(sourcePanorama.getBooth());
+        assertBoothEditable(sourcePanorama.getBooth());
         Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
         HotspotResponseDTO response = boothMapper.toHotspotResponseDTO(hotspot);
@@ -275,6 +278,12 @@ public class ExhibitorHotspotService {
 
     private Company getCompanyForCurrentUser(User currentUser) {
         return companyService.getCompanyEntityForCurrentUser(currentUser);
+    }
+
+    private void assertBoothEditable(Booth booth) {
+        if (Boolean.TRUE.equals(booth.getDesignLocked())) {
+            throw new AppException(ErrorCode.BOOTH_DESIGN_LOCKED);
+        }
     }
 
     private String resolveName(String requestedName, String fallbackName) {
