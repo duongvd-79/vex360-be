@@ -12,7 +12,8 @@ public enum ErrorCode {
     VALIDATION_FAILED("SYS-003", "Lỗi validation", HttpStatus.UNPROCESSABLE_CONTENT),
 
     METHOD_NOT_ALLOWED("SYS-004", "HTTP method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
-    REGISTRATION_ALREADY_EXISTS("REGISTRATION-002", "Exhibitor already has an active registration for this exhibition",
+    REGISTRATION_ALREADY_EXISTS("REGISTRATION-002",
+            "Exhibitor already has an active registration for this exhibition",
             HttpStatus.CONFLICT),
 
     // AUTH ERRORS
@@ -116,7 +117,10 @@ public enum ErrorCode {
     EXHIBITION_ALREADY_REVIEWED("EXHIBITION-006", "Đơn đăng ký triển lãm đã được duyệt hoặc từ chối trước đó",
             HttpStatus.BAD_REQUEST),
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã tồn tại", HttpStatus.CONFLICT),
-    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND);
+    REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy lượt đăng ký", HttpStatus.NOT_FOUND),
+
+    // CHAT ERRORS
+    CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng chat", HttpStatus.NOT_FOUND);
 
     private final String code;
     private final String message;
