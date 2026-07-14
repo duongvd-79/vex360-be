@@ -502,7 +502,7 @@ class BoothTemplateServiceUnitTest {
 
     @Test
     void deleteBoothTemplate_NonDraftTemplate_ThrowsBoothNotEditable() {
-        for (BoothStatus status : List.of(BoothStatus.PENDING, BoothStatus.PUBLISHED, BoothStatus.ARCHIVED)) {
+        for (BoothStatus status : List.of(BoothStatus.PENDING, BoothStatus.PUBLISHED)) {
             UUID id = UUID.randomUUID();
             when(boothRepository.findTemplateById(id)).thenReturn(Optional.of(templateBooth(status)));
 

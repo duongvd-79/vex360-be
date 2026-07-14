@@ -20,7 +20,10 @@ public class BoothReviewChangeItemDTO {
     private BoothReviewChangeScope scope;
     private UUID itemId;
     private String itemName;
+    private UUID parentId;
+    private String parentName;
     private UUID panoramaId;
     private String panoramaName;
     private List<String> fields;
+    private List<BoothReviewFieldChangeDTO> fieldChanges;
 }

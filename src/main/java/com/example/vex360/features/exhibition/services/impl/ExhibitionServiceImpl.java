@@ -200,8 +200,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
-        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toPublicResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition);
+        if (response != null) {
+            response.setId(null);
+        }
+        return response;
     }
 
     @Override

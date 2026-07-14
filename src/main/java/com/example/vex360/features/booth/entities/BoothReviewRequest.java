@@ -77,4 +77,7 @@ public class BoothReviewRequest {
 
     @Column(name = "change_summary_json", columnDefinition = "TEXT")
     String changeSummaryJson;
+
+    @Column(name = "version_number")
+    Integer versionNumber;
 }

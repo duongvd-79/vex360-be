@@ -172,6 +172,26 @@ class ProductCategoryServiceUnitTest {
     }
 
     @Test
+    void updateCategoryStatusDoesNotMutateProductsUsedByPendingBooth() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder()
+                .id(categoryId).company(company).name("Pending products")
+                .status(ProductCategoryStatus.ACTIVE).build();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productRepository.existsCategoryProductInBoothWithStatus(categoryId, company.getId(), "PENDING"))
+                .thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
+                user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));
+
+        assertSame(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH, exception.getErrorCode());
+        verify(productRepository, never()).updateStatusByCategoryIdAndCompanyId(
+                categoryId, company.getId(), ProductStatus.INACTIVE);
+    }
+
+    @Test
     void getCategories_StatusNull_ReturnsAllCategories() {
         ProductCategory category = ProductCategory.builder().id(UUID.randomUUID()).name("Electronics").company(company)
                 .build();

@@ -17,6 +17,18 @@ import com.example.vex360.features.booth.entities.Panorama;
 public interface PanoramaRepository extends JpaRepository<Panorama, UUID> {
     List<Panorama> findByBoothIdOrderByOrderIndexAsc(UUID boothId);
 
+    @Query("""
+            SELECT DISTINCT p FROM Panorama p
+            LEFT JOIN FETCH p.hotspots hotspot
+            LEFT JOIN FETCH hotspot.targetPanorama
+            LEFT JOIN FETCH hotspot.product
+            LEFT JOIN FETCH hotspot.mediaAsset mediaAsset
+            LEFT JOIN FETCH mediaAsset.company
+            WHERE p.booth.id = :boothId
+            ORDER BY p.orderIndex ASC
+            """)
+    List<Panorama> findDetailsByBoothId(@Param("boothId") UUID boothId);
+
     long countByBoothId(UUID boothId);
 
     Optional<Panorama> findByIdAndBoothId(UUID id, UUID boothId);

@@ -29,7 +29,6 @@ import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
 import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
-import com.example.vex360.features.booth.dtos.response.BoothReviewRequestDetailDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
@@ -79,13 +78,22 @@ public class ExhibitorBoothController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @Valid @RequestPart(value = "metadata", required = false) UpdateBoothRequest request,
-            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail) {
+            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail,
+            @RequestPart(value = "backgroundMusic", required = false) MultipartFile backgroundMusic) {
         BoothResponseDTO booth = exhibitorBoothService.updateBooth(
                 userDetails.getUser(),
                 boothId,
                 request,
-                thumbnail);
+                thumbnail,
+                backgroundMusic);
         return ok(booth);
+    }
+
+    @DeleteMapping("/{boothId}/background-music")
+    public ResponseEntity<ApiResponse<BoothResponseDTO>> deleteBackgroundMusic(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        return ok(exhibitorBoothService.deleteBackgroundMusic(userDetails.getUser(), boothId));
     }
 
     @PutMapping("/{boothId}/start-edit")
@@ -96,7 +104,7 @@ public class ExhibitorBoothController extends BaseController {
     }
 
     @PutMapping("/{boothId}/submit-review")
-    public ResponseEntity<ApiResponse<BoothReviewRequestDetailDTO>> submitReview(
+    public ResponseEntity<ApiResponse<BoothReviewRequestSummaryDTO>> submitReview(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
         return ok(boothReviewService.submitReview(userDetails.getUser(), boothId));

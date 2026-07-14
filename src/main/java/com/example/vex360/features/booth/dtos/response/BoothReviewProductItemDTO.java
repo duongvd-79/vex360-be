@@ -26,4 +26,5 @@ public class BoothReviewProductItemDTO {
     private ProductStatus status;
     private Integer usageCount;
     private List<BoothReviewContentPlacementDTO> placements;
+    private List<BoothReviewProductContentItemDTO> contents;
 }

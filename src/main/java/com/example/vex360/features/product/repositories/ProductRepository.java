@@ -47,4 +47,35 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     boolean existsByCompanyIdAndSkuIgnoreCase(UUID companyId, String sku);
 
     boolean existsByCompanyIdAndSkuIgnoreCaseAndIdNot(UUID companyId, String sku, UUID id);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM hotspots h
+                JOIN panoramas p ON p.id = h.source_panorama_id
+                JOIN booths b ON b.id = p.booth_id
+                WHERE h.product_id = :productId
+                  AND b.status = :boothStatus
+            )
+            """, nativeQuery = true)
+    boolean existsInBoothWithStatus(
+            @Param("productId") UUID productId,
+            @Param("boothStatus") String boothStatus);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM products product
+                JOIN hotspots h ON h.product_id = product.id
+                JOIN panoramas p ON p.id = h.source_panorama_id
+                JOIN booths b ON b.id = p.booth_id
+                WHERE product.category_id = :categoryId
+                  AND product.company_id = :companyId
+                  AND b.status = :boothStatus
+            )
+            """, nativeQuery = true)
+    boolean existsCategoryProductInBoothWithStatus(
+            @Param("categoryId") UUID categoryId,
+            @Param("companyId") UUID companyId,
+            @Param("boothStatus") String boothStatus);
 }

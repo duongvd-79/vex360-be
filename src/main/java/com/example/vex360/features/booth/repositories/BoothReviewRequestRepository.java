@@ -17,7 +17,13 @@ import com.example.vex360.features.booth.enums.BoothReviewStatus;
 public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewRequest, UUID> {
     boolean existsByBoothIdAndStatus(UUID boothId, BoothReviewStatus status);
 
-    Optional<BoothReviewRequest> findTopByBoothIdOrderBySubmittedAtDesc(UUID boothId);
+    long countByBoothId(UUID boothId);
+
+    Optional<BoothReviewRequest> findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(UUID boothId);
+
+    Optional<BoothReviewRequest> findTopByBoothIdAndStatusOrderBySubmittedAtDesc(
+            UUID boothId,
+            BoothReviewStatus status);
 
     Page<BoothReviewRequest> findByBoothIdOrderBySubmittedAtDesc(UUID boothId, Pageable pageable);
 
