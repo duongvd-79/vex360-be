@@ -81,9 +81,10 @@ class BoothReviewServiceUnitTest {
                 policyService,
                 new BoothReviewSnapshotFactory(),
                 new BoothReviewDiffService());
-        exhibitor = User.builder().id(UUID.randomUUID()).build();
+        exhibitor = User.builder().id(UUID.randomUUID()).fullName("Exhibitor Owner").build();
         organizer = User.builder().id(UUID.randomUUID()).build();
-        company = Company.builder().id(UUID.randomUUID()).name("VEX").ownerUser(exhibitor).build();
+        company = Company.builder().id(UUID.randomUUID()).name("VEX").ownerUser(exhibitor)
+                .email("contact@vex.com").phone("0901234567").build();
         exhibitionUuid = UUID.randomUUID();
         booth = booth(BoothStatus.DRAFT);
     }
@@ -137,6 +138,12 @@ class BoothReviewServiceUnitTest {
         assertEquals(1, pendingResult.getContentOverview().getMediaAssetCount());
         assertEquals(2, pendingResult.getContentOverview().getHotspots().size());
         assertEquals(1, pendingResult.getContentOverview().getProducts().get(0).getContents().size());
+        assertEquals("Exhibitor Owner", pendingResult.getBooth().getOwnerName());
+        assertEquals("Premium", pendingResult.getBooth().getPackageName());
+        assertEquals("contact@vex.com", pendingResult.getBooth().getContactEmail());
+        assertEquals("0901234567", pendingResult.getBooth().getContactPhone());
+        assertEquals("music.mp3", pendingResult.getBooth().getBackgroundMusicFileName());
+        assertEquals(1024L, pendingResult.getBooth().getBackgroundMusicFileSize());
 
         booth.setStatus(BoothStatus.PUBLISHED);
         OrganizerBoothContentOverviewDTO published =
@@ -279,8 +286,9 @@ class BoothReviewServiceUnitTest {
                 .organizer(organizer).startDate(LocalDate.now()).endDate(LocalDate.now().plusDays(1)).build();
         ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder().exhibition(exhibition).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
-                .exhibitionPackage(exhibitionPackage).build();
+                .exhibitionPackage(exhibitionPackage).packageNameSnapshot("Premium").build();
         return Booth.builder().id(UUID.randomUUID()).name("Booth").company(company).status(status)
-                .isTemplate(false).exhibitorRegistration(registration).build();
+                .isTemplate(false).exhibitorRegistration(registration)
+                .backgroundMusicFileName("music.mp3").backgroundMusicFileSize(1024L).build();
     }
 }
