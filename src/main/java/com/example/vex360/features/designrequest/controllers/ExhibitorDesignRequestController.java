@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequest;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
@@ -26,6 +27,7 @@ import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.DesignRequestStatus;
+import com.example.vex360.shared.enums.Role;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/exhibitor/design-requests")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 @Tag(name = "Exhibitor - Design Requests", description = "Exhibitor gửi và review yêu cầu thiết kế booth")
 public class ExhibitorDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;

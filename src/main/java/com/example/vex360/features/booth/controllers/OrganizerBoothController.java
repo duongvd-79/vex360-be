@@ -22,9 +22,11 @@ import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummary
 import com.example.vex360.features.booth.dtos.response.OrganizerBoothContentOverviewDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.BoothReviewService;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.Role;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/organizer/exhibitions/{exhibitionUuid}/booths")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ORGANIZER')")
+@RequireActiveCompany(roles = Role.ORGANIZER)
 public class OrganizerBoothController extends BaseController {
     private final BoothReviewService boothReviewService;
 

@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitorRegistrationRequest;
@@ -39,6 +40,7 @@ import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.Role;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -50,6 +52,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/organizer/exhibitions")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ORGANIZER')")
+@RequireActiveCompany(roles = Role.ORGANIZER)
 @Tag(name = "Organizer Exhibitions", description = "Quản lý triển lãm và thiết lập gói dịch vụ dành cho Nhà tổ chức (Organizer)")
 public class OrganizerExhibitionController extends BaseController {
 

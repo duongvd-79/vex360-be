@@ -57,6 +57,10 @@ public enum ErrorCode {
 
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
+    COMPANY_PROFILE_INCOMPLETE("COMPANY-002",
+            "Company profile must be completed before using this feature",
+            HttpStatus.FORBIDDEN),
+    COMPANY_ARCHIVED("COMPANY-003", "Archived company cannot use this feature", HttpStatus.FORBIDDEN),
 
     // PRODUCT ERRORS
     PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),

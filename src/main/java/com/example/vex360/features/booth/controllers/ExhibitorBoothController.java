@@ -36,9 +36,11 @@ import com.example.vex360.features.booth.services.ExhibitorBoothService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.booth.services.BoothReviewService;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.Role;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/exhibitor/booths")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorBoothController extends BaseController {
     private final ExhibitorBoothService exhibitorBoothService;
     private final ExhibitorPanoramaService exhibitorPanoramaService;
