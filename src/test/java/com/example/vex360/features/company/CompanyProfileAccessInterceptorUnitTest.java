@@ -66,7 +66,7 @@ class CompanyProfileAccessInterceptorUnitTest {
     }
 
     @Test
-    void protectedControllerRequiresAuthentication() throws Exception {
+    void protectedControllerRequiresAuthentication() {
         AppException exception = assertThrows(AppException.class,
                 () -> interceptor.preHandle(
                         request,

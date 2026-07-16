@@ -1,12 +1,7 @@
 package com.example.vex360.features.mail;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +9,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
@@ -97,7 +91,7 @@ class MailServiceUnitTest {
         mailService.sendNewUserCredentialsEmail("credentials@example.com", null, "pass&<'\"_val");
         mailService.sendNewUserCredentialsEmail("credentials@example.com", "   ", "pass");
 
-        verify(mailSender, org.mockito.Mockito.times(3)).send(mimeMessage);
+        verify(mailSender, times(3)).send(mimeMessage);
     }
 
     @Test
@@ -110,7 +104,7 @@ class MailServiceUnitTest {
         mailService.sendPartnershipApprovedEmail("approved@example.com", null, Role.ORGANIZER, "My Org");
         mailService.sendPartnershipApprovedEmail("approved@example.com", "   ", Role.ORGANIZER, "My Org");
 
-        verify(mailSender, org.mockito.Mockito.times(3)).send(mimeMessage);
+        verify(mailSender, times(3)).send(mimeMessage);
     }
 
     @Test
@@ -123,7 +117,7 @@ class MailServiceUnitTest {
         mailService.sendPartnershipRejectedEmail("rejected@example.com", null, "My Org", null);
         mailService.sendPartnershipRejectedEmail("rejected@example.com", "   ", "My Org", "   ");
 
-        verify(mailSender, org.mockito.Mockito.times(3)).send(mimeMessage);
+        verify(mailSender, times(3)).send(mimeMessage);
     }
 
     @Test
