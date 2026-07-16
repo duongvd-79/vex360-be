@@ -12,6 +12,6 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface AuthMapper {
     @Mapping(target = "avatarUrl", ignore = true)
-    @Mapping(target = "role", ignore = true)
+    @Mapping(target = "role", constant = "VISITOR")
     CreateUserRequest toCreateUserRequest(RegisterRequest registerRequest);
 }

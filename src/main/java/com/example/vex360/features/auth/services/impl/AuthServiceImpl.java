@@ -43,7 +43,6 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.shared.config.jwt.JwtService;
 import com.example.vex360.shared.config.jwt.TokenBlacklistService;
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -184,7 +183,6 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         CreateUserRequest userRequest = authMapper.toCreateUserRequest(request);
-        userRequest.setRole(Role.VISITOR);
         // Create user with PENDING status
         User user = userService.createUser(userRequest, UserStatus.PENDING);
 

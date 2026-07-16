@@ -200,11 +200,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
-        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition);
-        if (response != null) {
-            response.setId(null);
-        }
-        return response;
+        return exhibitionMapper.toPublicResponse(exhibition, null);
     }
 
     @Override
@@ -904,13 +900,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
                 normalizedKeyword, visitorStatuses, normalizedCategory, startDate, endDate, pageable)
-                .map(e -> {
-                    ExhibitionResponseDTO dto = exhibitionMapper.toResponse(e);
-                    if (dto != null) {
-                        dto.setId(null);
-                    }
-                    return dto;
-                });
+                .map(e -> exhibitionMapper.toPublicResponse(e, null));
 
         return PageResponse.from(exhibitions);
     }

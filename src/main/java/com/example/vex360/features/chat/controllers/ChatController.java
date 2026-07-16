@@ -22,64 +22,69 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChatController {
 
-    private final ChatService chatService;
-    private final SimpMessagingTemplate messagingTemplate;
+        private final ChatService chatService;
+        private final SimpMessagingTemplate messagingTemplate;
 
-    // ── REST: Tạo hoặc lấy phòng chat ───────────────────────────
-    @PostMapping("/api/v1/chats/rooms")
-    @ResponseBody
-    public ResponseEntity<ChatRoomResponse> getOrCreateRoom(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Valid @RequestBody GetOrCreateRoomRequest request) {
+        // ── REST: Tạo hoặc lấy phòng chat ───────────────────────────
+        @PostMapping("/api/v1/chats/rooms")
+        @ResponseBody
+        public ResponseEntity<ChatRoomResponse> getOrCreateRoom(
+                        @AuthenticationPrincipal CustomUserDetails userDetails,
+                        @Valid @RequestBody GetOrCreateRoomRequest request) {
 
-        return ResponseEntity.ok(
-                chatService.getOrCreateRoom(userDetails.getUser().getId(), request));
-    }
+                return ResponseEntity.ok(
+                                chatService.getOrCreateRoom(userDetails.getUser().getId(), request));
+        }
 
-    // ── REST: Lấy danh sách phòng chat của user hiện tại ────────
-    @GetMapping("/api/v1/chats/rooms")
-    @ResponseBody
-    public ResponseEntity<List<ChatRoomResponse>> getMyRooms(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        // ── REST: Lấy danh sách phòng chat của user hiện tại ────────
+        @GetMapping("/api/v1/chats/rooms")
+        @ResponseBody
+        public ResponseEntity<List<ChatRoomResponse>> getMyRooms(
+                        @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        return ResponseEntity.ok(chatService.getRoomsForUser(userDetails.getUser()));
-    }
+                return ResponseEntity.ok(chatService.getRoomsForUser(userDetails.getUser()));
+        }
 
-    // ── REST: Lấy chi tiết 1 phòng chat kèm lịch sử tin nhắn ───
-    @GetMapping("/api/v1/chats/rooms/{roomId}")
-    @ResponseBody
-    public ResponseEntity<ChatRoomResponse> getRoomById(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID roomId) {
+        // ── REST: Lấy chi tiết 1 phòng chat kèm lịch sử tin nhắn ───
+        @GetMapping("/api/v1/chats/rooms/{roomId}")
+        @ResponseBody
+        public ResponseEntity<ChatRoomResponse> getRoomById(
+                        @AuthenticationPrincipal CustomUserDetails userDetails,
+                        @PathVariable UUID roomId) {
 
-        return ResponseEntity.ok(
-                chatService.getRoomById(roomId, userDetails.getUser().getId()));
-    }
+                return ResponseEntity.ok(
+                                chatService.getRoomById(roomId, userDetails.getUser().getId()));
+        }
 
-    // ── WebSocket: Gửi tin nhắn ──────────────────────────────────
-    @MessageMapping("/chat.send")
-    public void sendMessage(ChatMessagePayload payload, Principal principal) {
+        // ── WebSocket: Gửi tin nhắn ──────────────────────────────────
+        @MessageMapping("/chat.send")
+        public void sendMessage(ChatMessagePayload payload, Principal principal) {
 
-        UUID senderId = UUID.fromString(principal.getName());
+                UUID senderId = UUID.fromString(principal.getName());
 
-        ChatMessagePayload saved = chatService.saveMessage(
-                payload.getRoomId(), senderId, payload.getContent());
+                ChatMessagePayload saved = chatService.saveMessage(
+                                payload.getRoomId(), senderId, payload.getContent());
 
-        // Broadcast tin nhắn đến tất cả người đang subscribe phòng này
-        messagingTemplate.convertAndSend(
-                "/topic/chat/" + payload.getRoomId(), saved);
-    }
+                // Broadcast tin nhắn đến tất cả người đang subscribe phòng này
+                messagingTemplate.convertAndSend(
+                                "/topic/chat/" + payload.getRoomId(), saved);
+        }
 
-    // ── WebSocket: Đánh dấu đã đọc ──────────────────────────────
-    @MessageMapping("/chat.read")
-    public void markAsRead(ChatMessagePayload payload, Principal principal) {
+        // ── WebSocket: Đánh dấu đã đọc ──────────────────────────────
+        @MessageMapping("/chat.read")
+        public void markAsRead(ChatMessagePayload payload, Principal principal) {
 
-        UUID userId = UUID.fromString(principal.getName());
-        chatService.markAsRead(payload.getRoomId(), userId);
+                UUID roomId = payload.getRoomId();
+                UUID userId = UUID.fromString(principal.getName());
+                chatService.markAsRead(roomId, userId);
 
-        // Thông báo cho người kia biết tin đã được đọc
-        payload.setType("READ_RECEIPT");
-        messagingTemplate.convertAndSend(
-                "/topic/chat/" + payload.getRoomId(), payload);
-    }
+                // Thông báo cho người kia biết tin đã được đọc
+                ChatMessagePayload receipt = ChatMessagePayload.builder()
+                                .roomId(roomId)
+                                .senderId(userId)
+                                .type("READ_RECEIPT")
+                                .build();
+                messagingTemplate.convertAndSend(
+                                "/topic/chat/" + roomId, receipt);
+        }
 }
