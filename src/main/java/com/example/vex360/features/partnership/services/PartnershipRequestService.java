@@ -1,6 +1,7 @@
 package com.example.vex360.features.partnership.services;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -27,17 +28,28 @@ import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.RandomPasswordGenerator;
+import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PartnershipRequestService {
     private final PartnershipRequestRepository partnershipRequestRepository;
     private final UserService userService;
     private final CompanyService companyService;
     private final MailService mailService;
     private final PartnershipRequestMapper partnershipRequestMapper;
+
+    @Value("${app.backend.base-url}")
+    private String backendBaseUrl;
+
+    @Value("${app.registration.frontend-url}")
+    private String registrationFrontendUrl;
 
     @Transactional
     public PartnershipRequestResponseDTO submitGuestRequest(SubmitPartnershipRequest request) {
@@ -52,9 +64,17 @@ public class PartnershipRequestService {
                 PartnershipRequestStatus.PENDING)) {
             throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
         }
+        if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
+                requesterEmail,
+                PartnershipRequestStatus.AWAITING_VERIFICATION)) {
+            throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
+        }
 
         PartnershipRequest partnershipRequest = buildRequest(request, null);
-        return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
+        partnershipRequest.setStatus(PartnershipRequestStatus.AWAITING_VERIFICATION);
+        PartnershipRequest savedRequest = partnershipRequestRepository.save(partnershipRequest);
+        sendVerificationEmail(savedRequest);
+        return partnershipRequestMapper.toResponse(savedRequest);
     }
 
     @Transactional
@@ -62,21 +82,55 @@ public class PartnershipRequestService {
         validateSubmission(request);
         User submittedByUser = getCurrentUser(currentUser);
         String requesterEmail = normalize(request.getRequesterEmail());
-        validateRequesterEmailMatchesAuthenticatedUser(requesterEmail, submittedByUser);
 
-        if (partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
-                submittedByUser.getId(),
-                PartnershipRequestStatus.PENDING)) {
-            throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
-        }
-        if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
-                requesterEmail,
-                PartnershipRequestStatus.PENDING)) {
-            throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
-        }
+        // Nếu email trùng với tài khoản đang đăng nhập
+        if (requesterEmail != null && submittedByUser.getEmail() != null && requesterEmail.equalsIgnoreCase(submittedByUser.getEmail())) {
+            if (partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
+                    submittedByUser.getId(),
+                    PartnershipRequestStatus.PENDING)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
+            }
+            if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
+                    requesterEmail,
+                    PartnershipRequestStatus.PENDING)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
+            }
+            if (partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
+                    submittedByUser.getId(),
+                    PartnershipRequestStatus.AWAITING_VERIFICATION)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
+            }
+            if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
+                    requesterEmail,
+                    PartnershipRequestStatus.AWAITING_VERIFICATION)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
+            }
 
-        PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
-        return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
+            PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
+            partnershipRequest.setStatus(PartnershipRequestStatus.PENDING); // Gửi thẳng trực tiếp lên Admin
+            return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
+        } else {
+            // Nếu email khác với tài khoản đang đăng nhập, hành xử như Guest (yêu cầu xác thực qua email)
+            if (userService.existsByEmail(requesterEmail)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_EMAIL_ALREADY_REGISTERED);
+            }
+            if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
+                    requesterEmail,
+                    PartnershipRequestStatus.PENDING)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_ALREADY_PENDING);
+            }
+            if (partnershipRequestRepository.existsByRequesterEmailAndStatus(
+                    requesterEmail,
+                    PartnershipRequestStatus.AWAITING_VERIFICATION)) {
+                throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
+            }
+
+            PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
+            partnershipRequest.setStatus(PartnershipRequestStatus.AWAITING_VERIFICATION);
+            PartnershipRequest savedRequest = partnershipRequestRepository.save(partnershipRequest);
+            sendVerificationEmail(savedRequest);
+            return partnershipRequestMapper.toResponse(savedRequest);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -102,6 +156,7 @@ public class PartnershipRequestService {
     @Transactional(readOnly = true)
     public PartnershipRequestSummaryResponseDTO getRequestSummary() {
         return new PartnershipRequestSummaryResponseDTO(
+                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.AWAITING_VERIFICATION),
                 partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING),
                 partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED),
                 partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED));
@@ -154,7 +209,12 @@ public class PartnershipRequestService {
                 .build();
 
         User savedUser = userService.createUser(userRequest, UserStatus.ACTIVE);
-        companyService.createCompany(savedUser, normalize(request.getOrganizationName()), normalize(request.getRequesterEmail()));
+        companyService.createCompany(
+                savedUser,
+                normalize(request.getOrganizationName()),
+                normalize(request.getRequesterEmail()),
+                normalize(request.getRequesterPhoneNumber())
+        );
         mailService.sendNewUserCredentialsEmail(savedUser.getEmail(), savedUser.getFullName(), temporaryPassword);
     }
 
@@ -166,7 +226,12 @@ public class PartnershipRequestService {
         User savedUser = userService.saveUserEntity(user);
 
         if (!companyService.existsByOwnerUserId(savedUser.getId())) {
-            companyService.createCompany(savedUser, normalize(request.getOrganizationName()), normalize(request.getRequesterEmail()));
+            companyService.createCompany(
+                    savedUser,
+                    normalize(request.getOrganizationName()),
+                    normalize(request.getRequesterEmail()),
+                    normalize(request.getRequesterPhoneNumber())
+            );
         }
 
         mailService.sendPartnershipApprovedEmail(
@@ -200,14 +265,6 @@ public class PartnershipRequestService {
     private void validateRequestedRole(Role requestedRole) {
         if (requestedRole != Role.EXHIBITOR && requestedRole != Role.ORGANIZER) {
             throw new AppException(ErrorCode.INVALID_PARTNERSHIP_ROLE);
-        }
-    }
-
-    private void validateRequesterEmailMatchesAuthenticatedUser(String requesterEmail, User submittedByUser) {
-        if (requesterEmail == null
-                || submittedByUser.getEmail() == null
-                || !requesterEmail.equalsIgnoreCase(submittedByUser.getEmail())) {
-            throw new AppException(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER);
         }
     }
 
@@ -267,7 +324,6 @@ public class PartnershipRequestService {
         }
         return request;
     }
-
     private String normalize(String value) {
         if (value == null) {
             return null;
@@ -276,4 +332,72 @@ public class PartnershipRequestService {
         return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 
+    @Transactional
+    public String verifyRequest(String encryptedToken) {
+        String rawToken;
+        try {
+            rawToken = TokenEncryptionUtils.decrypt(encryptedToken);
+        } catch (Exception e) {
+            return registrationFrontendUrl + "?partnership_error=invalid_token";
+        }
+
+        UUID requestId;
+        try {
+            requestId = UUID.fromString(rawToken);
+        } catch (Exception e) {
+            return registrationFrontendUrl + "?partnership_error=invalid_token";
+        }
+
+        Optional<PartnershipRequest> requestOpt = partnershipRequestRepository.findById(requestId);
+        if (requestOpt.isEmpty()) {
+            return registrationFrontendUrl + "?partnership_error=not_found";
+        }
+
+        PartnershipRequest request = requestOpt.get();
+        if (request.getStatus() != PartnershipRequestStatus.AWAITING_VERIFICATION) {
+            return registrationFrontendUrl + "?partnership_error=already_processed";
+        }
+
+        // Check if expired (24 hours)
+        if (request.getCreatedAt() != null &&
+                java.time.Duration.between(request.getCreatedAt(), LocalDateTime.now()).toHours() >= 24) {
+            partnershipRequestRepository.delete(request);
+            return registrationFrontendUrl + "?partnership_error=expired";
+        }
+
+        request.setStatus(PartnershipRequestStatus.PENDING);
+        partnershipRequestRepository.save(request);
+        return registrationFrontendUrl + "?partnership_confirmed=true";
+    }
+
+    @Scheduled(cron = "0 0/30 * * * *") // Run every 30 minutes
+    @Transactional
+    public void cleanExpiredAndOldRejectedRequests() {
+        LocalDateTime verificationCutoff = LocalDateTime.now().minusHours(24);
+        int deletedVerification = partnershipRequestRepository.deleteByStatusAndCreatedAtBefore(
+                PartnershipRequestStatus.AWAITING_VERIFICATION,
+                verificationCutoff);
+
+        LocalDateTime rejectedCutoff = LocalDateTime.now().minusDays(30);
+        int deletedRejected = partnershipRequestRepository.deleteByStatusAndReviewedAtBefore(
+                PartnershipRequestStatus.REJECTED,
+                rejectedCutoff);
+
+        if (deletedVerification > 0 || deletedRejected > 0) {
+            log.info("Cleanup Scheduler: Deleted {} expired verification requests and {} old rejected requests",
+                    deletedVerification, deletedRejected);
+        }
+    }
+
+    private void sendVerificationEmail(PartnershipRequest request) {
+        String encryptedToken = TokenEncryptionUtils.encrypt(request.getId().toString());
+        String confirmUrl = backendBaseUrl + "/api/v1/partnership-requests/verify?token=" + encryptedToken;
+
+        mailService.sendPartnershipVerificationEmail(
+                request.getRequesterEmail(),
+                request.getRequesterName(),
+                request.getOrganizationName(),
+                confirmUrl
+        );
+    }
 }

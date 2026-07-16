@@ -32,16 +32,12 @@ import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
-import com.example.vex360.features.exhibition.entities.Payment;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
+import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
-
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 @ExtendWith(MockitoExtension.class)
 class StoragePackageServiceUnitTest {
@@ -53,10 +49,7 @@ class StoragePackageServiceUnitTest {
     private StoragePackageOrderRepository storagePackageOrderRepository;
 
     @Mock
-    private PaymentRepository paymentRepository;
-
-    @Mock
-    private PayOSIntegrationService payOSIntegrationService;
+    private StoragePaymentService storagePaymentService;
 
     @Mock
     private CompanyService companyService;
@@ -128,18 +121,9 @@ class StoragePackageServiceUnitTest {
             return o;
         });
 
-        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
-            Payment p = invocation.getArgument(0);
-            p.setId(20);
-            return p;
-        });
-
-        CreatePaymentLinkResponse payOSResponse = Mockito.mock(CreatePaymentLinkResponse.class);
-        when(payOSResponse.getCheckoutUrl()).thenReturn("https://checkout.url");
-
-        when(payOSIntegrationService.createPaymentLink(
-                anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel")))
-                .thenReturn(payOSResponse);
+        when(storagePaymentService.createPayment(
+                eq(10), anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel")))
+                .thenReturn("https://checkout.url");
 
         CreateStoragePackageOrderRequest request = new CreateStoragePackageOrderRequest();
         request.setPackageId(1);
@@ -154,7 +138,8 @@ class StoragePackageServiceUnitTest {
         assertEquals("PENDING", dto.getStatus());
 
         verify(storagePackageOrderRepository, Mockito.times(2)).save(any(StoragePackageOrder.class));
-        verify(paymentRepository, Mockito.times(2)).save(any(Payment.class));
+        verify(storagePaymentService).createPayment(
+                eq(10), anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel"));
     }
 
     @Test

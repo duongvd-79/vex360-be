@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.product.dtos.request.CreateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductCategoryStatusRequest;
@@ -23,6 +25,7 @@ import com.example.vex360.features.product.enums.ProductCategoryStatus;
 import com.example.vex360.features.product.services.ProductCategoryService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
+import com.example.vex360.shared.enums.Role;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/product-categories")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ProductCategoryController extends BaseController {
     private final ProductCategoryService productCategoryService;
 

@@ -52,11 +52,12 @@ public class CompanyService {
     }
 
     @Transactional
-    public Company createCompany(User ownerUser, String name, String email) {
+    public Company createCompany(User ownerUser, String name, String email, String phone) {
         Company company = Company.builder()
                 .ownerUser(ownerUser)
                 .name(name)
                 .email(email)
+                .phone(phone)
                 .status(CompanyStatus.INCOMPLETE_PROFILE)
                 .build();
         return companyRepository.save(company);

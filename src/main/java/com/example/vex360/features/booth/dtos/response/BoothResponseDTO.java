@@ -29,5 +29,8 @@ public class BoothResponseDTO {
     private BoothStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String companyName;
+    private String companyIndustry;
+    private String companyEmail;
     private List<PanoramaResponseDTO> panoramas;
 }

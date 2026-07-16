@@ -102,20 +102,44 @@ class MailServiceUnitTest {
 
     @Test
     void testSendPartnershipApprovedEmail_Success() {
+        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
+        MimeMessage mimeMessage = dummySender.createMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
         mailService.sendPartnershipApprovedEmail("approved@example.com", "Owner", Role.EXHIBITOR, "My Org");
         mailService.sendPartnershipApprovedEmail("approved@example.com", null, Role.ORGANIZER, "My Org");
         mailService.sendPartnershipApprovedEmail("approved@example.com", "   ", Role.ORGANIZER, "My Org");
 
-        verify(mailSender, org.mockito.Mockito.times(3)).send(any(SimpleMailMessage.class));
+        verify(mailSender, org.mockito.Mockito.times(3)).send(mimeMessage);
     }
 
     @Test
     void testSendPartnershipRejectedEmail_Success() {
+        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
+        MimeMessage mimeMessage = dummySender.createMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
         mailService.sendPartnershipRejectedEmail("rejected@example.com", "Owner", "My Org", "Bad documents");
         mailService.sendPartnershipRejectedEmail("rejected@example.com", null, "My Org", null);
         mailService.sendPartnershipRejectedEmail("rejected@example.com", "   ", "My Org", "   ");
 
-        verify(mailSender, org.mockito.Mockito.times(3)).send(any(SimpleMailMessage.class));
+        verify(mailSender, org.mockito.Mockito.times(3)).send(mimeMessage);
+    }
+
+    @Test
+    void testSendPartnershipVerificationEmail_Success() {
+        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
+        MimeMessage mimeMessage = dummySender.createMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        mailService.sendPartnershipVerificationEmail(
+                "verify@example.com",
+                "John Owner",
+                "Vex Org",
+                "http://confirm"
+        );
+
+        verify(mailSender).send(mimeMessage);
     }
 
     @Test
@@ -139,16 +163,6 @@ class MailServiceUnitTest {
         // Exception should be caught and not thrown
         assertDoesNotThrow(() -> {
             mailService.sendForgotPasswordEmail("test@example.com", "http://reset");
-        });
-    }
-
-    @Test
-    void testSendSimpleMail_ThrowsException_ExceptionCaught() {
-        doThrow(new RuntimeException("SMTP failed")).when(mailSender).send(any(SimpleMailMessage.class));
-
-        // Exception should be caught and not thrown
-        assertDoesNotThrow(() -> {
-            mailService.sendPartnershipApprovedEmail("approved@example.com", "Owner", Role.EXHIBITOR, "My Org");
         });
     }
 }
