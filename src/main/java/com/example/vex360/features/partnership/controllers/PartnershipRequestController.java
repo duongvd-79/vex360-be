@@ -58,11 +58,10 @@ public class PartnershipRequestController extends BaseController {
     @GetMapping("/verify")
     @Operation(
             summary = "Xác thực yêu cầu hợp tác",
-            description = "Xác nhận hoặc từ chối yêu cầu hợp tác thông qua link trong email.")
+            description = "Xác nhận yêu cầu hợp tác thông qua link trong email.")
     public ResponseEntity<Void> verifyRequest(
-            @RequestParam("token") String token,
-            @RequestParam("action") String action) {
-        String redirectUrl = partnershipRequestService.verifyRequest(token, action);
+            @RequestParam("token") String token) {
+        String redirectUrl = partnershipRequestService.verifyRequest(token);
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(redirectUrl))
                 .build();

@@ -136,8 +136,7 @@ class MailServiceUnitTest {
                 "verify@example.com",
                 "John Owner",
                 "Vex Org",
-                "http://confirm",
-                "http://decline"
+                "http://confirm"
         );
 
         verify(mailSender).send(mimeMessage);

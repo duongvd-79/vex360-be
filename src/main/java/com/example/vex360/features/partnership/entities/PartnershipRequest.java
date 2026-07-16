@@ -99,15 +99,6 @@ public class PartnershipRequest {
     @Column(name = "reviewed_at")
     LocalDateTime reviewedAt;
 
-    @Column(name = "verification_token_hash", length = 64, unique = true)
-    String verificationTokenHash;
-
-    @Column(name = "verification_expires_at")
-    LocalDateTime verificationExpiresAt;
-
-    @Column(name = "verification_consumed_at")
-    LocalDateTime verificationConsumedAt;
-
     @Column(name = "active_requester_email", unique = true)
     String activeRequesterEmail;
 

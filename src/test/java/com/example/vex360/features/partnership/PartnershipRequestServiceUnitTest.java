@@ -110,7 +110,7 @@ class PartnershipRequestServiceUnitTest {
         assertEquals(Role.EXHIBITOR, savedRequest.getRequestedRole());
         assertEquals("guest@example.com", response.getRequesterEmail());
         assertEquals("AWAITING_VERIFICATION", response.getStatus());
-        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -180,7 +180,7 @@ class PartnershipRequestServiceUnitTest {
         assertEquals("company@example.com", response.getRequesterEmail());
         assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, savedRequest.getStatus());
         assertEquals("AWAITING_VERIFICATION", response.getStatus());
-        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -513,7 +513,7 @@ class PartnershipRequestServiceUnitTest {
 
         PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(user, request);
         assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION.name(), response.getStatus());
-        verify(mailService).sendPartnershipVerificationEmail(eq(null), anyString(), anyString(), anyString(), anyString());
+        verify(mailService).sendPartnershipVerificationEmail(eq(null), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -531,7 +531,7 @@ class PartnershipRequestServiceUnitTest {
 
         PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(userWithNullEmail, request);
         assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION.name(), response.getStatus());
-        verify(mailService).sendPartnershipVerificationEmail(eq("user@example.com"), anyString(), anyString(), anyString(), anyString());
+        verify(mailService).sendPartnershipVerificationEmail(eq("user@example.com"), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -758,29 +758,11 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(inv -> inv.getArgument(0));
 
         String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
-        String result = partnershipRequestService.verifyRequest(encryptedToken, "confirm");
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertEquals(PartnershipRequestStatus.PENDING, request.getStatus());
         assertTrue(result.contains("partnership_confirmed=true"));
         verify(partnershipRequestRepository).save(request);
-    }
-
-    @Test
-    void verifyRequest_Decline_Success() {
-        UUID requestId = UUID.randomUUID();
-        PartnershipRequest request = PartnershipRequest.builder()
-                .id(requestId)
-                .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
-
-        String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
-        String result = partnershipRequestService.verifyRequest(encryptedToken, "decline");
-
-        assertTrue(result.contains("partnership_declined=true"));
-        verify(partnershipRequestRepository).delete(request);
     }
 
     @Test
@@ -795,7 +777,7 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
 
         String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
-        String result = partnershipRequestService.verifyRequest(encryptedToken, "confirm");
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertTrue(result.contains("partnership_error=expired"));
         verify(partnershipRequestRepository).delete(request);
@@ -812,7 +794,7 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
 
         String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
-        String result = partnershipRequestService.verifyRequest(encryptedToken, "confirm");
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertTrue(result.contains("partnership_error=already_processed"));
     }

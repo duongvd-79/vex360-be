@@ -683,8 +683,7 @@ public class MailServiceImpl implements MailService {
             String toEmail,
             String fullName,
             String organizationName,
-            String confirmUrl,
-            String declineUrl) {
+            String confirmUrl) {
         String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
         String subject = "Xác nhận yêu cầu hợp tác - Vex360";
         String htmlContent = "<!DOCTYPE html>\n" +
@@ -754,18 +753,6 @@ public class MailServiceImpl implements MailService {
                 "            border-radius: 8px;\n" +
                 "            font-size: 15px;\n" +
                 "            box-shadow: 0 2px 8px rgba(204, 120, 92, 0.2);\n" +
-                "            margin-right: 12px;\n" +
-                "        }\n" +
-                "        .btn-decline {\n" +
-                "            display: inline-block;\n" +
-                "            background-color: #8e8b82;\n" +
-                "            color: #ffffff !important;\n" +
-                "            text-decoration: none;\n" +
-                "            padding: 12px 24px;\n" +
-                "            font-weight: 500;\n" +
-                "            border-radius: 8px;\n" +
-                "            font-size: 15px;\n" +
-                "            box-shadow: 0 2px 8px rgba(142, 139, 130, 0.2);\n" +
                 "        }\n" +
                 "        .footer {\n" +
                 "            margin-top: 40px;\n" +
@@ -788,9 +775,8 @@ public class MailServiceImpl implements MailService {
                 "        <p>Chúng tôi nhận được yêu cầu hợp tác cho tổ chức <strong>" + escapeHtml(organizationName) + "</strong> của bạn trên hệ thống VEX360. Vui lòng xác thực yêu cầu này bằng cách lựa chọn hành động bên dưới (liên kết này có hiệu lực trong vòng 24 giờ):</p>\n" +
                 "        <div class=\"btn-group\">\n" +
                 "            <a href=\"" + confirmUrl + "\" class=\"btn-confirm\">Xác nhận gửi yêu cầu</a>\n" +
-                "            <a href=\"" + declineUrl + "\" class=\"btn-decline\">Hủy bỏ yêu cầu</a>\n" +
                 "        </div>\n" +
-                "        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bấm vào nút \"Hủy bỏ yêu cầu\" hoặc bỏ qua email này.</p>\n" +
+                "        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>\n" +
                 "        <div class=\"footer\">\n" +
                 "            <p>Đây là email tự động từ hệ thống VEX360. Vui lòng không phản hồi email này.</p>\n" +
                 "        </div>\n" +

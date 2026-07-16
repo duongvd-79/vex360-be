@@ -333,7 +333,7 @@ public class PartnershipRequestService {
     }
 
     @Transactional
-    public String verifyRequest(String encryptedToken, String action) {
+    public String verifyRequest(String encryptedToken) {
         String rawToken;
         try {
             rawToken = TokenEncryptionUtils.decrypt(encryptedToken);
@@ -365,16 +365,9 @@ public class PartnershipRequestService {
             return registrationFrontendUrl + "?partnership_error=expired";
         }
 
-        if ("confirm".equalsIgnoreCase(action)) {
-            request.setStatus(PartnershipRequestStatus.PENDING);
-            partnershipRequestRepository.save(request);
-            return registrationFrontendUrl + "?partnership_confirmed=true";
-        } else if ("decline".equalsIgnoreCase(action)) {
-            partnershipRequestRepository.delete(request);
-            return registrationFrontendUrl + "?partnership_declined=true";
-        }
-
-        return registrationFrontendUrl + "?partnership_error=invalid_action";
+        request.setStatus(PartnershipRequestStatus.PENDING);
+        partnershipRequestRepository.save(request);
+        return registrationFrontendUrl + "?partnership_confirmed=true";
     }
 
     @Scheduled(cron = "0 0/30 * * * *") // Run every 30 minutes
@@ -398,15 +391,13 @@ public class PartnershipRequestService {
 
     private void sendVerificationEmail(PartnershipRequest request) {
         String encryptedToken = TokenEncryptionUtils.encrypt(request.getId().toString());
-        String confirmUrl = backendBaseUrl + "/api/v1/partnership-requests/verify?token=" + encryptedToken + "&action=confirm";
-        String declineUrl = backendBaseUrl + "/api/v1/partnership-requests/verify?token=" + encryptedToken + "&action=decline";
+        String confirmUrl = backendBaseUrl + "/api/v1/partnership-requests/verify?token=" + encryptedToken;
 
         mailService.sendPartnershipVerificationEmail(
                 request.getRequesterEmail(),
                 request.getRequesterName(),
                 request.getOrganizationName(),
-                confirmUrl,
-                declineUrl
+                confirmUrl
         );
     }
 }

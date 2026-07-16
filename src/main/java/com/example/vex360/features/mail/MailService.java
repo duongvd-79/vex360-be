@@ -21,6 +21,5 @@ public interface MailService {
             String toEmail,
             String fullName,
             String organizationName,
-            String confirmUrl,
-            String declineUrl);
+            String confirmUrl);
 }

@@ -30,10 +30,6 @@ public interface PartnershipRequestRepository extends JpaRepository<PartnershipR
     @Query("SELECT pr FROM PartnershipRequest pr WHERE pr.id = :id")
     java.util.Optional<PartnershipRequest> findByIdForUpdate(@Param("id") UUID id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT pr FROM PartnershipRequest pr WHERE pr.verificationTokenHash = :tokenHash")
-    java.util.Optional<PartnershipRequest> findByVerificationTokenHashForUpdate(@Param("tokenHash") String tokenHash);
-
     long countByStatus(PartnershipRequestStatus status);
 
     int deleteByStatusAndCreatedAtBefore(PartnershipRequestStatus status, java.time.LocalDateTime dateTime);
