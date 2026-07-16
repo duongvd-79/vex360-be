@@ -54,6 +54,9 @@ public enum ErrorCode {
     PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006",
             "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
             HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUEST_AWAITING_VERIFICATION("PARTNER-007",
+            "Yêu cầu hợp tác đang chờ xác thực qua email. Vui lòng kiểm tra hộp thư của bạn.",
+            HttpStatus.BAD_REQUEST),
 
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),

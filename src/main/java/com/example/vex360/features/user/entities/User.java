@@ -73,6 +73,10 @@ public class User {
     @Column(name = "lockout_end", nullable = true)
     Instant lockoutEnd;
 
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    long tokenVersion = 0L;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;

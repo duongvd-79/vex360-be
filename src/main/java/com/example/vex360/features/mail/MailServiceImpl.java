@@ -1,7 +1,6 @@
 package com.example.vex360.features.mail;
 
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -457,14 +456,104 @@ public class MailServiceImpl implements MailService {
             String fullName,
             Role role,
             String organizationName) {
-        String displayName = fullName == null || fullName.isBlank() ? "ban" : fullName;
-        String subject = "Yeu cau hop tac da duoc duyet - Vex360";
-        String content = "Xin chao " + displayName + ",\n\n"
-                + "Yeu cau hop tac cho " + organizationName + " da duoc duyet. "
-                + "Tai khoan cua ban hien co role " + role.name() + ".\n\n"
-                + "Vui long dang nhap Vex360 de hoan thien ho so cong ty neu can.\n\n"
-                + "Day la email tu dong tu he thong Vex360.";
-        sendMail(toEmail, subject, content);
+        String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
+        String subject = "Yêu cầu hợp tác đã được phê duyệt - Vex360";
+        String htmlContent = "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <meta charset=\"utf-8\">\n" +
+                "    <title>Yêu cầu hợp tác đã được phê duyệt</title>\n" +
+                "    <style>\n" +
+                "        body {\n" +
+                "            font-family: 'Outfit', 'Inter', sans-serif;\n" +
+                "            background-color: #0d0e12;\n" +
+                "            color: #e2e8f0;\n" +
+                "            margin: 0;\n" +
+                "            padding: 40px 20px;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            max-width: 600px;\n" +
+                "            margin: 0 auto;\n" +
+                "            background: #1e2028;\n" +
+                "            border: 1px solid rgba(255, 255, 255, 0.08);\n" +
+                "            border-radius: 16px;\n" +
+                "            padding: 32px;\n" +
+                "            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);\n" +
+                "        }\n" +
+                "        .header {\n" +
+                "            text-align: center;\n" +
+                "            margin-bottom: 32px;\n" +
+                "        }\n" +
+                "        .logo {\n" +
+                "            font-size: 28px;\n" +
+                "            font-weight: 800;\n" +
+                "            letter-spacing: -0.5px;\n" +
+                "            background: linear-gradient(135deg, #a78bfa, #3b82f6);\n" +
+                "            -webkit-background-clip: text;\n" +
+                "            -webkit-text-fill-color: transparent;\n" +
+                "            color: #3b82f6;\n" +
+                "        }\n" +
+                "        h2 {\n" +
+                "            font-size: 22px;\n" +
+                "            font-weight: 600;\n" +
+                "            color: #ffffff;\n" +
+                "            margin-top: 0;\n" +
+                "        }\n" +
+                "        p {\n" +
+                "            font-size: 15px;\n" +
+                "            line-height: 1.6;\n" +
+                "            color: #94a3b8;\n" +
+                "        }\n" +
+                "        .info-box {\n" +
+                "            background: rgba(15, 23, 42, 0.72);\n" +
+                "            border: 1px solid rgba(148, 163, 184, 0.18);\n" +
+                "            border-radius: 12px;\n" +
+                "            padding: 20px;\n" +
+                "            margin: 28px 0;\n" +
+                "        }\n" +
+                "        .label {\n" +
+                "            color: #64748b;\n" +
+                "            font-size: 13px;\n" +
+                "            margin-bottom: 6px;\n" +
+                "        }\n" +
+                "        .value {\n" +
+                "            color: #ffffff;\n" +
+                "            font-size: 16px;\n" +
+                "            font-weight: 600;\n" +
+                "            margin-bottom: 16px;\n" +
+                "        }\n" +
+                "        .footer {\n" +
+                "            margin-top: 40px;\n" +
+                "            border-top: 1px solid rgba(255, 255, 255, 0.06);\n" +
+                "            padding-top: 20px;\n" +
+                "            font-size: 12px;\n" +
+                "            color: #64748b;\n" +
+                "            text-align: center;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class=\"container\">\n" +
+                "        <div class=\"header\">\n" +
+                "            <span class=\"logo\">VEX360</span>\n" +
+                "        </div>\n" +
+                "        <h2>Yêu cầu hợp tác đã được phê duyệt!</h2>\n" +
+                "        <p>Xin chào " + escapeHtml(displayName) + ",</p>\n" +
+                "        <p>Chúc mừng bạn! Yêu cầu hợp tác cho tổ chức <strong>" + escapeHtml(organizationName) + "</strong> đã được phê duyệt thành công.</p>\n" +
+                "        <div class=\"info-box\">\n" +
+                "            <div class=\"label\">Tên tổ chức</div>\n" +
+                "            <div class=\"value\">" + escapeHtml(organizationName) + "</div>\n" +
+                "            <div class=\"label\">Vai trò được cấp</div>\n" +
+                "            <div class=\"value\">" + role.name() + "</div>\n" +
+                "        </div>\n" +
+                "        <p>Vui lòng đăng nhập vào hệ thống VEX360 để hoàn thiện hồ sơ công ty và bắt đầu sử dụng dịch vụ dành riêng cho đối tác.</p>\n" +
+                "        <div class=\"footer\">\n" +
+                "            <p>Đây là email tự động từ hệ thống VEX360. Vui lòng không phản hồi email này.</p>\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+        sendHtmlMail(toEmail, subject, htmlContent);
     }
 
     @Async
@@ -474,17 +563,241 @@ public class MailServiceImpl implements MailService {
             String fullName,
             String organizationName,
             String reviewNote) {
-        String displayName = fullName == null || fullName.isBlank() ? "ban" : fullName;
+        String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
         String reason = reviewNote == null || reviewNote.isBlank()
-                ? "Admin chua cung cap ly do cu the."
+                ? "Ban quản trị chưa cung cấp lý do cụ thể."
                 : reviewNote;
-        String subject = "Yeu cau hop tac chua duoc duyet - Vex360";
-        String content = "Xin chao " + displayName + ",\n\n"
-                + "Yeu cau hop tac cho " + organizationName + " chua duoc duyet.\n\n"
-                + "Ly do: " + reason + "\n\n"
-                + "Ban co the dieu chinh thong tin va gui lai yeu cau sau.\n\n"
-                + "Day la email tu dong tu he thong Vex360.";
-        sendMail(toEmail, subject, content);
+        String subject = "Yêu cầu hợp tác chưa được phê duyệt - Vex360";
+        String htmlContent = "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <meta charset=\"utf-8\">\n" +
+                "    <title>Yêu cầu hợp tác chưa được phê duyệt</title>\n" +
+                "    <style>\n" +
+                "        body {\n" +
+                "            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n" +
+                "            background-color: #faf9f5;\n" +
+                "            color: #3d3d3a;\n" +
+                "            margin: 0;\n" +
+                "            padding: 40px 20px;\n" +
+                "            -webkit-font-smoothing: antialiased;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            max-width: 600px;\n" +
+                "            margin: 0 auto;\n" +
+                "            background-color: #efe9de;\n" +
+                "            border: 1px solid #e6dfd8;\n" +
+                "            border-radius: 12px;\n" +
+                "            padding: 32px;\n" +
+                "            box-shadow: 0 4px 20px rgba(20, 20, 19, 0.04);\n" +
+                "        }\n" +
+                "        .header {\n" +
+                "            text-align: center;\n" +
+                "            margin-bottom: 32px;\n" +
+                "        }\n" +
+                "        .logo {\n" +
+                "            font-family: 'Inter', -apple-system, sans-serif;\n" +
+                "            font-size: 24px;\n" +
+                "            font-weight: 600;\n" +
+                "            letter-spacing: 0.5px;\n" +
+                "            color: #141413;\n" +
+                "        }\n" +
+                "        .logo-spike {\n" +
+                "            color: #cc785c;\n" +
+                "            margin-right: 6px;\n" +
+                "        }\n" +
+                "        h2 {\n" +
+                "            font-family: 'Cormorant Garamond', 'EB Garamond', 'Georgia', serif;\n" +
+                "            font-size: 26px;\n" +
+                "            font-weight: 400;\n" +
+                "            line-height: 1.25;\n" +
+                "            color: #141413;\n" +
+                "            margin-top: 0;\n" +
+                "            margin-bottom: 20px;\n" +
+                "            letter-spacing: -0.3px;\n" +
+                "        }\n" +
+                "        p {\n" +
+                "            font-size: 15px;\n" +
+                "            line-height: 1.6;\n" +
+                "            color: #3d3d3a;\n" +
+                "        }\n" +
+                "        .reason-box {\n" +
+                "            background-color: #f5f0e8;\n" +
+                "            border-left: 4px solid #cc785c;\n" +
+                "            border-top: 1px solid #e6dfd8;\n" +
+                "            border-right: 1px solid #e6dfd8;\n" +
+                "            border-bottom: 1px solid #e6dfd8;\n" +
+                "            border-radius: 8px;\n" +
+                "            padding: 16px;\n" +
+                "            margin: 24px 0;\n" +
+                "        }\n" +
+                "        .reason-title {\n" +
+                "            font-weight: 600;\n" +
+                "            font-size: 14px;\n" +
+                "            color: #cc785c;\n" +
+                "            margin: 0 0 8px 0;\n" +
+                "        }\n" +
+                "        .reason-text {\n" +
+                "            font-size: 15px;\n" +
+                "            margin: 0;\n" +
+                "            color: #3d3d3a;\n" +
+                "            line-height: 1.5;\n" +
+                "        }\n" +
+                "        .footer {\n" +
+                "            margin-top: 40px;\n" +
+                "            border-top: 1px solid #e6dfd8;\n" +
+                "            padding-top: 20px;\n" +
+                "            font-size: 12px;\n" +
+                "            color: #8e8b82;\n" +
+                "            text-align: center;\n" +
+                "            line-height: 1.5;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class=\"container\">\n" +
+                "        <div class=\"header\">\n" +
+                "            <span class=\"logo\"><span class=\"logo-spike\">✦</span>VEX360</span>\n" +
+                "        </div>\n" +
+                "        <h2>Yêu cầu hợp tác chưa được phê duyệt</h2>\n" +
+                "        <p>Xin chào " + escapeHtml(displayName) + ",</p>\n" +
+                "        <p>Cảm ơn bạn đã quan tâm và gửi yêu cầu hợp tác cho tổ chức <strong>" + escapeHtml(organizationName) + "</strong> trên hệ thống VEX360.</p>\n" +
+                "        <p>Rất tiếc, sau khi xem xét kỹ lưỡng, chúng tôi chưa thể phê duyệt yêu cầu hợp tác của bạn vào lúc này.</p>\n" +
+                "        <div class=\"reason-box\">\n" +
+                "            <p class=\"reason-title\">Lý do từ chối:</p>\n" +
+                "            <p class=\"reason-text\">" + escapeHtml(reason) + "</p>\n" +
+                "        </div>\n" +
+                "        <p>Bạn có thể điều chỉnh thông tin cần thiết và thực hiện gửi lại yêu cầu hợp tác sau.</p>\n" +
+                "        <div class=\"footer\">\n" +
+                "            <p>Đây là email tự động từ hệ thống VEX360. Vui lòng không phản hồi email này.</p>\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+        sendHtmlMail(toEmail, subject, htmlContent);
+    }
+
+    @Async
+    @Override
+    public void sendPartnershipVerificationEmail(
+            String toEmail,
+            String fullName,
+            String organizationName,
+            String confirmUrl,
+            String declineUrl) {
+        String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
+        String subject = "Xác nhận yêu cầu hợp tác - Vex360";
+        String htmlContent = "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <meta charset=\"utf-8\">\n" +
+                "    <title>Xác minh yêu cầu hợp tác</title>\n" +
+                "    <style>\n" +
+                "        body {\n" +
+                "            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n" +
+                "            background-color: #faf9f5;\n" +
+                "            color: #3d3d3a;\n" +
+                "            margin: 0;\n" +
+                "            padding: 40px 20px;\n" +
+                "            -webkit-font-smoothing: antialiased;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            max-width: 600px;\n" +
+                "            margin: 0 auto;\n" +
+                "            background-color: #efe9de;\n" +
+                "            border: 1px solid #e6dfd8;\n" +
+                "            border-radius: 12px;\n" +
+                "            padding: 32px;\n" +
+                "            box-shadow: 0 4px 20px rgba(20, 20, 19, 0.04);\n" +
+                "        }\n" +
+                "        .header {\n" +
+                "            text-align: center;\n" +
+                "            margin-bottom: 32px;\n" +
+                "        }\n" +
+                "        .logo {\n" +
+                "            font-family: 'Inter', -apple-system, sans-serif;\n" +
+                "            font-size: 24px;\n" +
+                "            font-weight: 600;\n" +
+                "            letter-spacing: 0.5px;\n" +
+                "            color: #141413;\n" +
+                "        }\n" +
+                "        .logo-spike {\n" +
+                "            color: #cc785c;\n" +
+                "            margin-right: 6px;\n" +
+                "        }\n" +
+                "        h2 {\n" +
+                "            font-family: 'Cormorant Garamond', 'EB Garamond', 'Georgia', serif;\n" +
+                "            font-size: 26px;\n" +
+                "            font-weight: 400;\n" +
+                "            line-height: 1.25;\n" +
+                "            color: #141413;\n" +
+                "            margin-top: 0;\n" +
+                "            margin-bottom: 20px;\n" +
+                "            letter-spacing: -0.3px;\n" +
+                "        }\n" +
+                "        p {\n" +
+                "            font-size: 15px;\n" +
+                "            line-height: 1.6;\n" +
+                "            color: #3d3d3a;\n" +
+                "        }\n" +
+                "        .btn-group {\n" +
+                "            text-align: center;\n" +
+                "            margin: 32px 0;\n" +
+                "        }\n" +
+                "        .btn-confirm {\n" +
+                "            display: inline-block;\n" +
+                "            background-color: #cc785c;\n" +
+                "            color: #ffffff !important;\n" +
+                "            text-decoration: none;\n" +
+                "            padding: 12px 24px;\n" +
+                "            font-weight: 500;\n" +
+                "            border-radius: 8px;\n" +
+                "            font-size: 15px;\n" +
+                "            box-shadow: 0 2px 8px rgba(204, 120, 92, 0.2);\n" +
+                "            margin-right: 12px;\n" +
+                "        }\n" +
+                "        .btn-decline {\n" +
+                "            display: inline-block;\n" +
+                "            background-color: #8e8b82;\n" +
+                "            color: #ffffff !important;\n" +
+                "            text-decoration: none;\n" +
+                "            padding: 12px 24px;\n" +
+                "            font-weight: 500;\n" +
+                "            border-radius: 8px;\n" +
+                "            font-size: 15px;\n" +
+                "            box-shadow: 0 2px 8px rgba(142, 139, 130, 0.2);\n" +
+                "        }\n" +
+                "        .footer {\n" +
+                "            margin-top: 40px;\n" +
+                "            border-top: 1px solid #e6dfd8;\n" +
+                "            padding-top: 20px;\n" +
+                "            font-size: 12px;\n" +
+                "            color: #8e8b82;\n" +
+                "            text-align: center;\n" +
+                "            line-height: 1.5;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class=\"container\">\n" +
+                "        <div class=\"header\">\n" +
+                "            <span class=\"logo\"><span class=\"logo-spike\">✦</span>VEX360</span>\n" +
+                "        </div>\n" +
+                "        <h2>Xác nhận yêu cầu hợp tác</h2>\n" +
+                "        <p>Xin chào " + escapeHtml(displayName) + ",</p>\n" +
+                "        <p>Chúng tôi nhận được yêu cầu hợp tác cho tổ chức <strong>" + escapeHtml(organizationName) + "</strong> của bạn trên hệ thống VEX360. Vui lòng xác thực yêu cầu này bằng cách lựa chọn hành động bên dưới (liên kết này có hiệu lực trong vòng 24 giờ):</p>\n" +
+                "        <div class=\"btn-group\">\n" +
+                "            <a href=\"" + confirmUrl + "\" class=\"btn-confirm\">Xác nhận gửi yêu cầu</a>\n" +
+                "            <a href=\"" + declineUrl + "\" class=\"btn-decline\">Hủy bỏ yêu cầu</a>\n" +
+                "        </div>\n" +
+                "        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bấm vào nút \"Hủy bỏ yêu cầu\" hoặc bỏ qua email này.</p>\n" +
+                "        <div class=\"footer\">\n" +
+                "            <p>Đây là email tự động từ hệ thống VEX360. Vui lòng không phản hồi email này.</p>\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+        sendHtmlMail(toEmail, subject, htmlContent);
     }
 
     private void sendHtmlMail(String toEmail, String subject, String htmlContent) {
@@ -507,23 +820,6 @@ public class MailServiceImpl implements MailService {
         }
     }
 
-    private void sendMail(String toEmail, String subject, String content) {
-        log.info("Sending email - To: {}, Subject: {}, Content: {}", toEmail, subject, content);
-        if (mailSender == null) {
-            log.warn("JavaMailSender is not configured. Email has been logged but not sent via SMTP.");
-            return;
-        }
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(content);
-            mailSender.send(message);
-            log.info("Email sent successfully via SMTP to {}", toEmail);
-        } catch (Exception e) {
-            log.error("Failed to send email via SMTP to {}: {}", toEmail, e.getMessage());
-        }
-    }
 
     private String escapeHtml(String value) {
         if (value == null) {
