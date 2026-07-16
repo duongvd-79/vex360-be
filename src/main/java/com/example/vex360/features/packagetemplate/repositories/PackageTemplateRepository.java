@@ -10,12 +10,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.PackageTemplateStatus;
 
-@Repository
 public interface PackageTemplateRepository extends JpaRepository<PackageTemplate, UUID> {
     @Query("""
             SELECT p FROM PackageTemplate p

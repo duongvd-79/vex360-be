@@ -8,15 +8,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import jakarta.persistence.LockModeType;
 
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
 
-@Repository
 public interface PartnershipRequestRepository extends JpaRepository<PartnershipRequest, UUID> {
     boolean existsByRequesterEmailAndStatus(String requesterEmail, PartnershipRequestStatus status);
 

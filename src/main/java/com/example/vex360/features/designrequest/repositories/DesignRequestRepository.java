@@ -8,12 +8,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
-@Repository
 public interface DesignRequestRepository extends JpaRepository<DesignRequest, UUID> {
     List<DesignRequestStatus> ACTIVE_STATUSES = List.of(
             DesignRequestStatus.ASSIGNED,

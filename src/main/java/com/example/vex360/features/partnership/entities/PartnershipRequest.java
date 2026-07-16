@@ -54,8 +54,6 @@ public class PartnershipRequest {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_user_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     User approvedUser;
 
     @Column(name = "requester_name", nullable = false)

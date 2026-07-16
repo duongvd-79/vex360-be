@@ -5,12 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.product.enums.ProductCategoryStatus;
 import com.example.vex360.features.product.entities.ProductCategory;
 
-@Repository
 public interface ProductCategoryRepository extends JpaRepository<ProductCategory, UUID> {
     List<ProductCategory> findByCompanyIdOrderByNameAsc(UUID companyId);
 

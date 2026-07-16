@@ -9,12 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
-@Repository
 public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer> {
     Optional<Exhibition> findByUuid(UUID uuid);
 
