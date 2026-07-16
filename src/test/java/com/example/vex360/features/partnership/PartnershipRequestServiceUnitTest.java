@@ -766,7 +766,7 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void verifyRequest_Expired_DeletesAndReturnsExpired() {
+    void verifyRequest_Expired_RetainsAndReturnsExpired() {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = PartnershipRequest.builder()
                 .id(requestId)
@@ -780,7 +780,9 @@ class PartnershipRequestServiceUnitTest {
         String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertTrue(result.contains("partnership_error=expired"));
-        verify(partnershipRequestRepository).delete(request);
+        assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, request.getStatus());
+        verify(partnershipRequestRepository, never()).delete(request);
+        verify(partnershipRequestRepository, never()).save(any(PartnershipRequest.class));
     }
 
     @Test
@@ -797,19 +799,5 @@ class PartnershipRequestServiceUnitTest {
         String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertTrue(result.contains("partnership_error=already_processed"));
-    }
-
-    @Test
-    void cleanExpiredAndOldRejectedRequests_DeletesCorrectRequests() {
-        partnershipRequestService.cleanExpiredAndOldRejectedRequests();
-
-        verify(partnershipRequestRepository).deleteByStatusAndCreatedAtBefore(
-                eq(PartnershipRequestStatus.AWAITING_VERIFICATION),
-                any(LocalDateTime.class)
-        );
-        verify(partnershipRequestRepository).deleteByStatusAndReviewedAtBefore(
-                eq(PartnershipRequestStatus.REJECTED),
-                any(LocalDateTime.class)
-        );
     }
 }

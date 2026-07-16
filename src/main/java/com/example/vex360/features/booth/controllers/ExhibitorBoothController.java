@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -30,9 +31,12 @@ import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaReq
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateResponseDTO;
+import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.services.ExhibitorBoothService;
+import com.example.vex360.features.booth.services.ExhibitorBoothTemplateService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.booth.services.BoothReviewService;
@@ -52,6 +56,7 @@ import lombok.RequiredArgsConstructor;
 @RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorBoothController extends BaseController {
     private final ExhibitorBoothService exhibitorBoothService;
+    private final ExhibitorBoothTemplateService exhibitorBoothTemplateService;
     private final ExhibitorPanoramaService exhibitorPanoramaService;
     private final ExhibitorHotspotService exhibitorHotspotService;
     private final BoothReviewService boothReviewService;
@@ -74,6 +79,38 @@ public class ExhibitorBoothController extends BaseController {
             @PathVariable UUID boothId) {
         BoothResponseDTO booth = exhibitorBoothService.getBoothById(userDetails.getUser(), boothId);
         return ok(booth);
+    }
+
+    @GetMapping("/{boothId}/templates")
+    public ResponseEntity<ApiResponse<PageResponse<ExhibitorBoothTemplateSummaryResponseDTO>>> getCompatibleTemplates(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId,
+            @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(
+                    page = 0,
+                    size = 10,
+                    sort = "name",
+                    direction = Sort.Direction.ASC) Pageable pageable) {
+        return ok(exhibitorBoothTemplateService.getCompatibleTemplates(
+                userDetails.getUser(), boothId, keyword, pageable));
+    }
+
+    @GetMapping("/{boothId}/templates/{templateId}")
+    public ResponseEntity<ApiResponse<ExhibitorBoothTemplateResponseDTO>> getCompatibleTemplate(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId,
+            @PathVariable UUID templateId) {
+        return ok(exhibitorBoothTemplateService.getCompatibleTemplate(
+                userDetails.getUser(), boothId, templateId));
+    }
+
+    @PostMapping("/{boothId}/templates/{templateId}/apply")
+    public ResponseEntity<ApiResponse<BoothResponseDTO>> applyTemplate(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId,
+            @PathVariable UUID templateId) {
+        return ok(exhibitorBoothTemplateService.applyTemplate(
+                userDetails.getUser(), boothId, templateId));
     }
 
     @PatchMapping(path = "/{boothId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

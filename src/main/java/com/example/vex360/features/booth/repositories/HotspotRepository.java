@@ -31,6 +31,14 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     long countBySourcePanoramaBoothId(@Param("boothId") UUID boothId);
 
     @Query("""
+            SELECT h.sourcePanorama.booth.id AS boothId, COUNT(h.id) AS contentCount
+            FROM Hotspot h
+            WHERE h.sourcePanorama.booth.id IN :boothIds
+            GROUP BY h.sourcePanorama.booth.id
+            """)
+    List<BoothContentCountProjection> countByBoothIds(@Param("boothIds") List<UUID> boothIds);
+
+    @Query("""
             SELECT DISTINCT h.product.id
             FROM Hotspot h
             WHERE h.sourcePanorama.booth.id = :boothId

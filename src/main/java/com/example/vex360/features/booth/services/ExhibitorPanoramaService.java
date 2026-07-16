@@ -34,6 +34,7 @@ public class ExhibitorPanoramaService {
     private final HotspotRepository hotspotRepository;
     private final CompanyService companyService;
     private final CloudService cloudService;
+    private final PanoramaImageCleanupService panoramaImageCleanupService;
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
     private final BoothReviewPolicyService boothReviewPolicyService;
@@ -71,6 +72,7 @@ public class ExhibitorPanoramaService {
                 .imageKey(uploaded.getPublicId())
                 .orderIndex(request.getOrderIndex() == null ? nextOrderIndex(booth.getId()) : request.getOrderIndex())
                 .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
+                .isTemplateDerived(false)
                 .build();
 
         if (Boolean.TRUE.equals(panorama.getIsDefault())) {
@@ -79,7 +81,12 @@ public class ExhibitorPanoramaService {
             panorama.setIsDefault(true);
         }
 
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
+        try {
+            return boothMapper.toPanoramaResponseDTO(panoramaRepository.saveAndFlush(panorama));
+        } catch (RuntimeException exception) {
+            cleanupNewUpload(uploaded.getPublicId(), exception);
+            throw exception;
+        }
     }
 
     @Transactional
@@ -91,7 +98,9 @@ public class ExhibitorPanoramaService {
             MultipartFile image) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
-        Panorama panorama = getPanoramaForBooth(panoramaId, booth);
+        Panorama panorama = getPanoramaForBoothForUpdate(panoramaId, booth);
+        CloudinaryResponse uploaded = null;
+        String oldImageKey = null;
 
         if (request != null) {
             if (request.getName() != null) {
@@ -112,27 +121,41 @@ public class ExhibitorPanoramaService {
         }
 
         if (image != null && !image.isEmpty()) {
-            CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
-            cloudService.delete(panorama.getImageKey(), "image");
+            uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
+            oldImageKey = panorama.getImageKey();
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
+            panorama.setIsTemplateDerived(false);
         }
 
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
+        try {
+            Panorama saved = panoramaRepository.saveAndFlush(panorama);
+            if (oldImageKey != null) {
+                panoramaImageCleanupService.scheduleCleanup(oldImageKey);
+            }
+            return boothMapper.toPanoramaResponseDTO(saved);
+        } catch (RuntimeException exception) {
+            if (uploaded != null) {
+                cleanupNewUpload(uploaded.getPublicId(), exception);
+            }
+            throw exception;
+        }
     }
 
     @Transactional
     public PanoramaResponseDTO deletePanorama(User currentUser, UUID boothId, UUID panoramaId) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
-        Panorama panorama = getPanoramaForBooth(panoramaId, booth);
+        Panorama panorama = getPanoramaForBoothForUpdate(panoramaId, booth);
         if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
             throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
         }
 
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
+        String oldImageKey = panorama.getImageKey();
         panoramaRepository.delete(panorama);
-        cloudService.delete(panorama.getImageKey(), "image");
+        panoramaRepository.flush();
+        panoramaImageCleanupService.scheduleCleanup(oldImageKey);
         return response;
     }
 
@@ -143,6 +166,19 @@ public class ExhibitorPanoramaService {
     private Panorama getPanoramaForBooth(UUID panoramaId, Booth booth) {
         return panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
+    }
+
+    private Panorama getPanoramaForBoothForUpdate(UUID panoramaId, Booth booth) {
+        return panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
+    }
+
+    private void cleanupNewUpload(String imageKey, RuntimeException originalException) {
+        try {
+            cloudService.delete(imageKey, "image");
+        } catch (RuntimeException cleanupException) {
+            originalException.addSuppressed(cleanupException);
+        }
     }
 
     private Booth getBoothForCurrentUser(User currentUser, UUID boothId) {

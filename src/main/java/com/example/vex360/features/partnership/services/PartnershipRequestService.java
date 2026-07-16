@@ -31,13 +31,10 @@ import com.example.vex360.shared.utils.RandomPasswordGenerator;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class PartnershipRequestService {
     private final PartnershipRequestRepository partnershipRequestRepository;
     private final UserService userService;
@@ -361,32 +358,12 @@ public class PartnershipRequestService {
         // Check if expired (24 hours)
         if (request.getCreatedAt() != null &&
                 java.time.Duration.between(request.getCreatedAt(), LocalDateTime.now()).toHours() >= 24) {
-            partnershipRequestRepository.delete(request);
             return registrationFrontendUrl + "?partnership_error=expired";
         }
 
         request.setStatus(PartnershipRequestStatus.PENDING);
         partnershipRequestRepository.save(request);
         return registrationFrontendUrl + "?partnership_confirmed=true";
-    }
-
-    @Scheduled(cron = "0 0/30 * * * *") // Run every 30 minutes
-    @Transactional
-    public void cleanExpiredAndOldRejectedRequests() {
-        LocalDateTime verificationCutoff = LocalDateTime.now().minusHours(24);
-        int deletedVerification = partnershipRequestRepository.deleteByStatusAndCreatedAtBefore(
-                PartnershipRequestStatus.AWAITING_VERIFICATION,
-                verificationCutoff);
-
-        LocalDateTime rejectedCutoff = LocalDateTime.now().minusDays(30);
-        int deletedRejected = partnershipRequestRepository.deleteByStatusAndReviewedAtBefore(
-                PartnershipRequestStatus.REJECTED,
-                rejectedCutoff);
-
-        if (deletedVerification > 0 || deletedRejected > 0) {
-            log.info("Cleanup Scheduler: Deleted {} expired verification requests and {} old rejected requests",
-                    deletedVerification, deletedRejected);
-        }
     }
 
     private void sendVerificationEmail(PartnershipRequest request) {

@@ -4,27 +4,35 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.UUID;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.controllers.ExhibitorBoothController;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateResponseDTO;
+import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.features.booth.services.ExhibitorBoothService;
+import com.example.vex360.features.booth.services.ExhibitorBoothTemplateService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.dtos.PageResponse;
 
 @ExtendWith(MockitoExtension.class)
 class ExhibitorBoothControllerUnitTest {
     @Mock
     private ExhibitorBoothService exhibitorBoothService;
+    @Mock
+    private ExhibitorBoothTemplateService exhibitorBoothTemplateService;
     @Mock
     private ExhibitorPanoramaService exhibitorPanoramaService;
     @Mock
@@ -40,6 +48,7 @@ class ExhibitorBoothControllerUnitTest {
     void setup() {
         controller = new ExhibitorBoothController(
                 exhibitorBoothService,
+                exhibitorBoothTemplateService,
                 exhibitorPanoramaService,
                 exhibitorHotspotService,
                 boothReviewService);
@@ -68,5 +77,29 @@ class ExhibitorBoothControllerUnitTest {
         controller.deleteBackgroundMusic(userDetails, boothId);
 
         verify(exhibitorBoothService).deleteBackgroundMusic(user, boothId);
+    }
+
+    @Test
+    void templateEndpointsDelegateToExhibitorTemplateService() {
+        UUID boothId = UUID.randomUUID();
+        UUID templateId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 10);
+        PageResponse<ExhibitorBoothTemplateSummaryResponseDTO> page = PageResponse.<ExhibitorBoothTemplateSummaryResponseDTO>builder()
+                .content(List.of())
+                .build();
+        ExhibitorBoothTemplateResponseDTO detail = new ExhibitorBoothTemplateResponseDTO();
+        BoothResponseDTO applied = new BoothResponseDTO();
+        when(exhibitorBoothTemplateService.getCompatibleTemplates(user, boothId, "modern", pageable))
+                .thenReturn(page);
+        when(exhibitorBoothTemplateService.getCompatibleTemplate(user, boothId, templateId)).thenReturn(detail);
+        when(exhibitorBoothTemplateService.applyTemplate(user, boothId, templateId)).thenReturn(applied);
+
+        controller.getCompatibleTemplates(userDetails, boothId, "modern", pageable);
+        controller.getCompatibleTemplate(userDetails, boothId, templateId);
+        controller.applyTemplate(userDetails, boothId, templateId);
+
+        verify(exhibitorBoothTemplateService).getCompatibleTemplates(user, boothId, "modern", pageable);
+        verify(exhibitorBoothTemplateService).getCompatibleTemplate(user, boothId, templateId);
+        verify(exhibitorBoothTemplateService).applyTemplate(user, boothId, templateId);
     }
 }

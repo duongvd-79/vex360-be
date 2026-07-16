@@ -29,10 +29,6 @@ public interface PartnershipRequestRepository extends JpaRepository<PartnershipR
 
     long countByStatus(PartnershipRequestStatus status);
 
-    int deleteByStatusAndCreatedAtBefore(PartnershipRequestStatus status, java.time.LocalDateTime dateTime);
-
-    int deleteByStatusAndReviewedAtBefore(PartnershipRequestStatus status, java.time.LocalDateTime dateTime);
-
     @Query("""
             SELECT pr FROM PartnershipRequest pr
             WHERE (:status IS NULL OR pr.status = :status)

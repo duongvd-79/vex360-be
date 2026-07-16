@@ -58,6 +58,7 @@ public class BoothTemplateService {
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
     private final CloudService cloudService;
+    private final PanoramaImageCleanupService panoramaImageCleanupService;
     private final BoothMapper boothMapper;
 
     @Transactional
@@ -135,7 +136,7 @@ public class BoothTemplateService {
 
     @Transactional
     public BoothTemplateResponseDTO deleteBoothTemplate(UUID id) {
-        Booth booth = boothRepository.findTemplateById(id)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
         if (booth.getStatus() != BoothStatus.DRAFT && booth.getStatus() != BoothStatus.ARCHIVED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
@@ -145,9 +146,8 @@ public class BoothTemplateService {
         List<String> imageKeys = collectOwnedImageKeys(booth);
 
         boothRepository.delete(booth);
-        if (booth.getStatus() == BoothStatus.DRAFT) {
-            cleanupUploadedImages(imageKeys);
-        }
+        boothRepository.flush();
+        panoramaImageCleanupService.scheduleCleanup(imageKeys);
         return response;
     }
 
@@ -172,6 +172,7 @@ public class BoothTemplateService {
                     .imageKey(uploaded.getPublicId())
                     .orderIndex(panoramaRequest.getOrderIndex() == null ? i : panoramaRequest.getOrderIndex())
                     .isDefault(Boolean.TRUE.equals(panoramaRequest.getIsDefault()))
+                    .isTemplateDerived(false)
                     .build());
         }
 
@@ -400,7 +401,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(id)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         BoothStatus currentStatus = booth.getStatus();
@@ -498,7 +499,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
@@ -516,6 +517,7 @@ public class BoothTemplateService {
                 .imageKey(uploaded.getPublicId())
                 .orderIndex(request.getOrderIndex() == null ? nextOrderIndex(booth.getId()) : request.getOrderIndex())
                 .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
+                .isTemplateDerived(false)
                 .build();
 
         if (Boolean.TRUE.equals(panorama.getIsDefault())) {
@@ -524,7 +526,12 @@ public class BoothTemplateService {
             panorama.setIsDefault(true);
         }
 
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
+        try {
+            return boothMapper.toPanoramaResponseDTO(panoramaRepository.saveAndFlush(panorama));
+        } catch (RuntimeException exception) {
+            cleanupUploadedImages(List.of(uploaded.getPublicId()));
+            throw exception;
+        }
     }
 
     @Transactional
@@ -537,15 +544,18 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
 
-        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
+        Panorama panorama = panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
+
+        CloudinaryResponse uploaded = null;
+        String oldImageKey = null;
 
         if (request != null) {
             if (request.getName() != null) {
@@ -566,15 +576,23 @@ public class BoothTemplateService {
         }
 
         if (image != null && !image.isEmpty()) {
-            CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
-            if (booth.getStatus() == BoothStatus.DRAFT) {
-                cloudService.delete(panorama.getImageKey(), IMAGE_RESOURCE_TYPE);
-            }
+            uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
+            oldImageKey = panorama.getImageKey();
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
+            panorama.setIsTemplateDerived(false);
         }
 
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
+        try {
+            Panorama saved = panoramaRepository.saveAndFlush(panorama);
+            panoramaImageCleanupService.scheduleCleanup(oldImageKey);
+            return boothMapper.toPanoramaResponseDTO(saved);
+        } catch (RuntimeException exception) {
+            if (uploaded != null) {
+                cleanupUploadedImages(List.of(uploaded.getPublicId()));
+            }
+            throw exception;
+        }
     }
 
     @Transactional
@@ -582,14 +600,14 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
         }
 
-        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
+        Panorama panorama = panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
 
         if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
@@ -597,11 +615,10 @@ public class BoothTemplateService {
         }
 
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
+        String oldImageKey = panorama.getImageKey();
         panoramaRepository.delete(panorama);
-
-        if (booth.getStatus() == BoothStatus.DRAFT) {
-            cloudService.delete(panorama.getImageKey(), IMAGE_RESOURCE_TYPE);
-        }
+        panoramaRepository.flush();
+        panoramaImageCleanupService.scheduleCleanup(oldImageKey);
 
         return response;
     }
@@ -617,7 +634,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
@@ -653,7 +670,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
@@ -698,7 +715,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(boothId)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         if (booth.getStatus() == BoothStatus.PUBLISHED) {
