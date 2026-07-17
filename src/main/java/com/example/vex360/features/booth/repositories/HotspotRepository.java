@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.repositories;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +18,7 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
 
     Optional<Hotspot> findByIdAndSourcePanoramaId(UUID id, UUID sourcePanoramaId);
 
-    boolean existsByTargetPanoramaId(UUID targetPanoramaId);
+    List<Hotspot> findAllByTargetPanoramaIdIn(Collection<UUID> targetPanoramaIds);
 
     boolean existsByMediaAssetId(UUID mediaAssetId);
 

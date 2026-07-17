@@ -1,7 +1,9 @@
 package com.example.vex360.features.booth.services;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -147,16 +149,43 @@ public class ExhibitorPanoramaService {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);
         boothReviewPolicyService.assertEditable(booth);
         Panorama panorama = getPanoramaForBoothForUpdate(panoramaId, booth);
-        if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
-            throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
-        }
 
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
         String oldImageKey = panorama.getImageKey();
+        deleteIncomingHotspots(List.of(panoramaId));
         panoramaRepository.delete(panorama);
         panoramaRepository.flush();
         panoramaImageCleanupService.scheduleCleanup(oldImageKey);
         return response;
+    }
+
+    @Transactional
+    public void deleteAllPanoramas(User currentUser, UUID boothId) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        Booth booth = boothRepository.findCompanyBoothByIdForUpdate(boothId, company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        boothReviewPolicyService.assertEditable(booth);
+
+        List<Panorama> panoramas = panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId());
+        if (panoramas.isEmpty()) {
+            throw new AppException(ErrorCode.PANORAMA_NOT_FOUND);
+        }
+
+        List<UUID> panoramaIds = panoramas.stream().map(Panorama::getId).toList();
+        Set<String> imageKeys = panoramas.stream()
+                .map(Panorama::getImageKey)
+                .filter(key -> key != null && !key.isBlank())
+                .collect(Collectors.toSet());
+
+        deleteIncomingHotspots(panoramaIds);
+        panoramaRepository.deleteAll(panoramas);
+        panoramaRepository.flush();
+        panoramaImageCleanupService.scheduleCleanup(imageKeys);
+    }
+
+    private void deleteIncomingHotspots(List<UUID> panoramaIds) {
+        hotspotRepository.deleteAll(hotspotRepository.findAllByTargetPanoramaIdIn(panoramaIds));
+        hotspotRepository.flush();
     }
 
     private int nextOrderIndex(UUID boothId) {

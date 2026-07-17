@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,13 +50,19 @@ class BoothReviewPolicyServiceUnitTest {
         booth = booth(LocalDate.now(clock).plusDays(10));
     }
 
-    @Test
-    void assertEditableRejectsPublishedBooth() {
-        booth.setStatus(BoothStatus.PUBLISHED);
+    @ParameterizedTest
+    @EnumSource(value = BoothStatus.class, names = { "DESIGNING", "PENDING", "PUBLISHED", "ARCHIVED" })
+    void assertEditableRejectsEveryNonDraftStatus(BoothStatus status) {
+        booth.setStatus(status);
 
         AppException exception = assertThrows(AppException.class, () -> policyService.assertEditable(booth));
 
         assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+    }
+
+    @Test
+    void assertEditableAllowsDraftRegardlessOfReviewHistory() {
+        assertDoesNotThrow(() -> policyService.assertEditable(booth));
     }
 
     @Test

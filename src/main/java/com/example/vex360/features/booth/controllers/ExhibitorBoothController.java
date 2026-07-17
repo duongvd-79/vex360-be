@@ -204,6 +204,14 @@ public class ExhibitorBoothController extends BaseController {
         return ok(exhibitorPanoramaService.deletePanorama(userDetails.getUser(), boothId, panoramaId));
     }
 
+    @DeleteMapping("/{boothId}/panoramas")
+    public ResponseEntity<ApiResponse<Void>> deleteAllPanoramas(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID boothId) {
+        exhibitorPanoramaService.deleteAllPanoramas(userDetails.getUser(), boothId);
+        return ok(null);
+    }
+
     @GetMapping("/{boothId}/panoramas/{panoramaId}/hotspots")
     public ResponseEntity<ApiResponse<List<HotspotResponseDTO>>> getHotspots(
             @AuthenticationPrincipal CustomUserDetails userDetails,

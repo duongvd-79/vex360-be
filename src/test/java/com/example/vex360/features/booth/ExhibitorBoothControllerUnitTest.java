@@ -1,5 +1,7 @@
 package com.example.vex360.features.booth;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.http.ResponseEntity;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.controllers.ExhibitorBoothController;
@@ -26,6 +29,7 @@ import com.example.vex360.features.booth.services.ExhibitorHotspotService;
 import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.dtos.ApiResponse;
 
 @ExtendWith(MockitoExtension.class)
 class ExhibitorBoothControllerUnitTest {
@@ -77,6 +81,17 @@ class ExhibitorBoothControllerUnitTest {
         controller.deleteBackgroundMusic(userDetails, boothId);
 
         verify(exhibitorBoothService).deleteBackgroundMusic(user, boothId);
+    }
+
+    @Test
+    void deleteAllPanoramas_DelegatesAndReturnsNullData() {
+        UUID boothId = UUID.randomUUID();
+
+        ResponseEntity<ApiResponse<Void>> response = controller.deleteAllPanoramas(userDetails, boothId);
+
+        verify(exhibitorPanoramaService).deleteAllPanoramas(user, boothId);
+        assertEquals(200, response.getStatusCode().value());
+        assertNull(response.getBody().data());
     }
 
     @Test

@@ -2,13 +2,13 @@ package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -24,6 +25,7 @@ import com.example.vex360.features.booth.dtos.request.CreateExhibitorPanoramaReq
 import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
@@ -37,7 +39,6 @@ import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.utils.FileUploadUtils;
 
@@ -199,22 +200,23 @@ class BoothTemplatePanoramaServiceUnitTest {
     }
 
     @Test
-    void deletePanorama_WhenTargetedByHotspot_RejectsWithoutDeleting() {
+    void deletePanorama_WhenTargetedByHotspot_DeletesHotspotBeforePanorama() {
         Booth booth = templateBooth(BoothStatus.DRAFT);
         UUID panoramaId = UUID.randomUUID();
         Panorama panorama = panorama(booth, "Entrance", "template/old_pano");
+        Hotspot incoming = Hotspot.builder().id(UUID.randomUUID()).name("Go entrance").build();
         when(boothRepository.findTemplateByIdForUpdate(booth.getId())).thenReturn(Optional.of(booth));
         when(panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId()))
                 .thenReturn(Optional.of(panorama));
-        when(hotspotRepository.existsByTargetPanoramaId(panoramaId)).thenReturn(true);
+        when(hotspotRepository.findAllByTargetPanoramaIdIn(List.of(panoramaId))).thenReturn(List.of(incoming));
 
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> service.deletePanorama(admin, booth.getId(), panoramaId));
+        service.deletePanorama(admin, booth.getId(), panoramaId);
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
-        verify(panoramaRepository, never()).delete(any());
-        verify(panoramaImageCleanupService, never()).scheduleCleanup(any(String.class));
+        InOrder order = inOrder(hotspotRepository, panoramaRepository);
+        order.verify(hotspotRepository).deleteAll(List.of(incoming));
+        order.verify(hotspotRepository).flush();
+        order.verify(panoramaRepository).delete(panorama);
+        order.verify(panoramaRepository).flush();
     }
 
     private void assertPanoramaDeletion(BoothStatus status) {

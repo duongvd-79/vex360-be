@@ -168,12 +168,10 @@ public class BoothTemplatePanoramaService {
         Panorama panorama = panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
 
-        if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
-            throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
-        }
-
         PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
         String oldImageKey = panorama.getImageKey();
+        hotspotRepository.deleteAll(hotspotRepository.findAllByTargetPanoramaIdIn(List.of(panoramaId)));
+        hotspotRepository.flush();
         panoramaRepository.delete(panorama);
         panoramaRepository.flush();
         panoramaImageCleanupService.scheduleCleanup(oldImageKey);
