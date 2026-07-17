@@ -55,6 +55,7 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
 
         response.setStatus(errorCode.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
         response.getWriter().write(OBJECT_MAPPER.writeValueAsString(errorResponse));
     }
 }
