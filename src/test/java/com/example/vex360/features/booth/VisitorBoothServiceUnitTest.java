@@ -26,6 +26,7 @@ import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.services.impl.VisitorBoothServiceImpl;
+import com.example.vex360.features.booth.services.VisitorBoothService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -43,7 +44,7 @@ class VisitorBoothServiceUnitTest {
     @Mock
     private BoothMapper boothMapper;
 
-    private VisitorBoothServiceImpl service;
+    private VisitorBoothService service;
 
     private UUID exhibitionUuid;
     private ExhibitionResponseDTO exhibition;

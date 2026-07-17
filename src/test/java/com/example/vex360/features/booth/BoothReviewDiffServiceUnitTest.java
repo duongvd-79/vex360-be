@@ -2,7 +2,12 @@ package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,9 +28,20 @@ import com.example.vex360.features.booth.services.BoothReviewSnapshot;
 import com.example.vex360.features.booth.services.BoothReviewSnapshotFactory;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 class BoothReviewDiffServiceUnitTest {
-    private final BoothReviewDiffService service = new BoothReviewDiffService();
+    private static final UUID ITEM_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID PARENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final UUID PANORAMA_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
+    private static final UUID CHANGED_PANORAMA_ID = UUID.fromString("00000000-0000-0000-0000-000000000004");
+
+    private final BoothReviewDiffService service = new BoothReviewDiffService(
+            JsonMapper.builder().build());
 
     @Test
     void schema2DiffCoversEveryScopeAndDoesNotDuplicateProductMetadata() {
@@ -72,6 +88,33 @@ class BoothReviewDiffServiceUnitTest {
                         && removedContentId.equals(item.getItemId())));
         assertEquals(result.getAddedCount() + result.getModifiedCount() + result.getRemovedCount(),
                 result.getTotalCount());
+    }
+
+    @Test
+    void everyScopeReportsAddedItems() {
+        for (BoothReviewChangeScope scope : BoothReviewChangeScope.values()) {
+            assertScopeChange(scope, BoothReviewChangeType.ADDED,
+                    scopeSnapshot(scope, false, false),
+                    scopeSnapshot(scope, true, false));
+        }
+    }
+
+    @Test
+    void everyScopeReportsModifiedItems() {
+        for (BoothReviewChangeScope scope : BoothReviewChangeScope.values()) {
+            assertScopeChange(scope, BoothReviewChangeType.MODIFIED,
+                    scopeSnapshot(scope, true, false),
+                    scopeSnapshot(scope, true, true));
+        }
+    }
+
+    @Test
+    void everyScopeReportsRemovedItems() {
+        for (BoothReviewChangeScope scope : BoothReviewChangeScope.values()) {
+            assertScopeChange(scope, BoothReviewChangeType.REMOVED,
+                    scopeSnapshot(scope, true, false),
+                    scopeSnapshot(scope, false, false));
+        }
     }
 
     @Test
@@ -135,6 +178,91 @@ class BoothReviewDiffServiceUnitTest {
                 """);
         assertEquals(List.of("name"), result.getItems().get(0).getFields());
         assertNull(result.getItems().get(0).getFieldChanges());
+    }
+
+    @Test
+    void blankJsonReturnsNull() {
+        assertNull(service.readSummary("  "));
+        assertNull(service.readSnapshot(null));
+    }
+
+    @Test
+    void serializationFailureMapsToDomainError() throws Exception {
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        when(objectMapper.writeValueAsString(any())).thenThrow(new JacksonException("boom") { });
+        BoothReviewDiffService failingService = new BoothReviewDiffService(objectMapper);
+
+        AppException exception = assertThrows(AppException.class, () -> failingService.writeJson(new Object()));
+
+        assertSame(ErrorCode.UNCATCHED_EXCEPTION, exception.getErrorCode());
+    }
+
+    private void assertScopeChange(
+            BoothReviewChangeScope scope,
+            BoothReviewChangeType type,
+            BoothReviewSnapshot previous,
+            BoothReviewSnapshot current) {
+        BoothReviewRequest previousRequest = BoothReviewRequest.builder()
+                .id(UUID.randomUUID())
+                .versionNumber(1)
+                .contentSnapshotJson(service.writeJson(previous))
+                .build();
+
+        BoothReviewChangeSummaryDTO result = service.buildSummary(current, previousRequest, 2);
+
+        assertTrue(result.getItems().stream().anyMatch(item -> item.getScope() == scope && item.getType() == type),
+                () -> scope + " should report " + type);
+    }
+
+    private BoothReviewSnapshot scopeSnapshot(
+            BoothReviewChangeScope scope,
+            boolean include,
+            boolean changed) {
+        BoothReviewSnapshot snapshot = BoothReviewSnapshot.builder()
+                .snapshotSchemaVersion(BoothReviewSnapshotFactory.SCHEMA_VERSION)
+                .panoramas(List.of())
+                .hotspots(List.of())
+                .products(List.of())
+                .productContents(List.of())
+                .mediaAssets(List.of())
+                .productPlacements(List.of())
+                .mediaPlacements(List.of())
+                .build();
+        if (!include) {
+            return snapshot;
+        }
+
+        switch (scope) {
+            case BOOTH -> snapshot.setBooth(BoothReviewSnapshot.BoothItem.builder()
+                    .id(ITEM_ID).name(changed ? "Changed" : "Original").build());
+            case PANORAMA -> snapshot.setPanoramas(List.of(BoothReviewSnapshot.PanoramaItem.builder()
+                    .id(ITEM_ID).name(changed ? "Changed" : "Original").orderIndex(0).isDefault(true).build()));
+            case HOTSPOT -> snapshot.setHotspots(List.of(BoothReviewSnapshot.HotspotItem.builder()
+                    .id(ITEM_ID).name(changed ? "Changed" : "Original").type(HotspotType.INFO)
+                    .sourcePanoramaId(PANORAMA_ID).build()));
+            case PRODUCT -> snapshot.setProducts(List.of(BoothReviewSnapshot.ProductItem.builder()
+                    .id(ITEM_ID).name(changed ? "Changed" : "Original").status(ProductStatus.ACTIVE).build()));
+            case PRODUCT_CONTENT -> snapshot.setProductContents(List.of(
+                    BoothReviewSnapshot.ProductContentItem.builder()
+                            .id(ITEM_ID).productId(PARENT_ID).type(ProductContentType.IMAGE)
+                            .url(changed ? "changed.jpg" : "original.jpg").build()));
+            case MEDIA_ASSET -> snapshot.setMediaAssets(List.of(BoothReviewSnapshot.MediaAssetItem.builder()
+                    .id(ITEM_ID).name(changed ? "Changed" : "Original").type(MediaAssetType.IMAGE).build()));
+            case PRODUCT_PLACEMENT -> snapshot.setProductPlacements(List.of(placement(changed)));
+            case MEDIA_PLACEMENT -> snapshot.setMediaPlacements(List.of(placement(changed)));
+        }
+        return snapshot;
+    }
+
+    private BoothReviewSnapshot.PlacementItem placement(boolean changed) {
+        return BoothReviewSnapshot.PlacementItem.builder()
+                .itemId(ITEM_ID)
+                .itemName("Item")
+                .hotspotId(PARENT_ID)
+                .hotspotName("Hotspot")
+                .panoramaId(changed ? CHANGED_PANORAMA_ID : PANORAMA_ID)
+                .panoramaName("Panorama")
+                .build();
     }
 
     private BoothReviewSnapshot snapshot(

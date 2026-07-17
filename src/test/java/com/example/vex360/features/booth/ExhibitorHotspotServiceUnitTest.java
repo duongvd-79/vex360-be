@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,10 +25,13 @@ import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
+import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
@@ -214,12 +218,161 @@ class ExhibitorHotspotServiceUnitTest {
         assertEquals("Welcome to our booth", response.getInfoText());
     }
 
+    @Test
+    void createNavigationHotspotResolvesTargetPanorama() {
+        mockBoothAndPanorama();
+        Panorama target = Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Gallery").build();
+        when(panoramaRepository.findByIdAndBoothId(target.getId(), booth.getId())).thenReturn(Optional.of(target));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UpsertHotspotRequest request = baseRequest(HotspotType.NAV);
+        request.setTargetPanoramaId(target.getId());
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), request);
+
+        assertEquals(HotspotType.NAV, response.getType());
+        assertEquals(target.getId(), response.getTargetPanorama().getId());
+        assertEquals("Gallery", response.getName());
+    }
+
+    @Test
+    void createMediaHotspotResolvesCompanyMedia() {
+        mockBoothAndPanorama();
+        MediaAsset media = mediaAsset();
+        when(mediaAssetRepository.findByIdAndCompanyId(media.getId(), company.getId()))
+                .thenReturn(Optional.of(media));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
+        request.setMediaAssetId(media.getId());
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), request);
+
+        assertEquals(HotspotType.MEDIA, response.getType());
+        assertEquals(media.getId(), response.getMediaAsset().getId());
+        assertEquals(HotspotMediaClickAction.DEFAULT, response.getMediaClickAction());
+    }
+
+    @Test
+    void updateToNavigationClearsProductMediaAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        Panorama target = Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Gallery").build();
+        when(panoramaRepository.findByIdAndBoothId(target.getId(), booth.getId())).thenReturn(Optional.of(target));
+        UpsertHotspotRequest request = baseRequest(HotspotType.NAV);
+        request.setTargetPanoramaId(target.getId());
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(target, hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
+    @Test
+    void updateToProductClearsNavigationMediaAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        Product product = product(ProductStatus.ACTIVE);
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        UpsertHotspotRequest request = productHotspotRequest(product.getId());
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(product, hotspot.getProduct());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
+    @Test
+    void updateToInfoClearsNavigationProductAndMediaFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        UpsertHotspotRequest request = infoHotspotRequest("Information", " Updated info ", HotspotInfoContentType.TEXT);
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertEquals("Updated info", hotspot.getInfoText());
+        assertEquals(HotspotInfoContentType.TEXT, hotspot.getInfoContentType());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getMediaClickAction());
+    }
+
+    @Test
+    void updateToMediaClearsNavigationProductAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        MediaAsset media = mediaAsset();
+        when(mediaAssetRepository.findByIdAndCompanyId(media.getId(), company.getId()))
+                .thenReturn(Optional.of(media));
+        UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
+        request.setMediaAssetId(media.getId());
+        request.setMediaClickAction(HotspotMediaClickAction.NONE);
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(media, hotspot.getMediaAsset());
+        assertEquals(HotspotMediaClickAction.NONE, hotspot.getMediaClickAction());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
     private void mockBoothAndPanorama() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
                 .thenReturn(Optional.of(booth));
         when(panoramaRepository.findByIdAndBoothId(panorama.getId(), booth.getId()))
                 .thenReturn(Optional.of(panorama));
+    }
+
+    private void mockExistingHotspot(Hotspot hotspot) {
+        mockBoothAndPanorama();
+        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspot.getId(), panorama.getId()))
+                .thenReturn(Optional.of(hotspot));
+        when(hotspotRepository.save(hotspot)).thenReturn(hotspot);
+    }
+
+    private Hotspot existingHotspot() {
+        return Hotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .targetPanorama(Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Old target").build())
+                .product(product(ProductStatus.ACTIVE))
+                .mediaAsset(mediaAsset())
+                .infoText("Old info")
+                .infoContentType(HotspotInfoContentType.TEXT)
+                .mediaClickAction(HotspotMediaClickAction.DEFAULT)
+                .type(HotspotType.INFO)
+                .name("Old hotspot")
+                .xPosition(1.0)
+                .yPosition(2.0)
+                .zPosition(3.0)
+                .build();
+    }
+
+    private MediaAsset mediaAsset() {
+        return MediaAsset.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .name("Media")
+                .type(MediaAssetType.IMAGE)
+                .url("https://cdn.example/media.jpg")
+                .publicId("media_public_id")
+                .mimeType("image/jpeg")
+                .fileSize(1024L)
+                .build();
     }
 
         private Product product(ProductStatus status) {

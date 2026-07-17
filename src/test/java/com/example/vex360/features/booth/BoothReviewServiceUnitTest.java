@@ -1,7 +1,6 @@
 package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,7 +9,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.OrganizerBoothContentOverviewDTO;
 import com.example.vex360.features.booth.entities.Booth;
@@ -40,6 +44,7 @@ import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.booth.services.BoothReviewDiffService;
+import com.example.vex360.features.booth.services.BoothReviewContentAssembler;
 import com.example.vex360.features.booth.services.BoothReviewPolicyService;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.features.booth.services.BoothReviewSnapshotFactory;
@@ -55,6 +60,7 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
 class BoothReviewServiceUnitTest {
@@ -62,6 +68,7 @@ class BoothReviewServiceUnitTest {
     @Mock BoothReviewRequestRepository reviewRepository;
     @Mock CompanyService companyService;
     @Mock BoothReviewPolicyService policyService;
+    @Mock BoothReviewContentAssembler contentAssembler;
 
     private BoothReviewService service;
     private User exhibitor;
@@ -69,9 +76,11 @@ class BoothReviewServiceUnitTest {
     private Company company;
     private Booth booth;
     private UUID exhibitionUuid;
+    private Clock clock;
 
     @BeforeEach
     void setup() {
+        clock = Clock.fixed(Instant.parse("2026-01-10T08:00:00Z"), ZoneOffset.UTC);
         service = new BoothReviewService(
                 boothRepository,
                 reviewRepository,
@@ -79,7 +88,9 @@ class BoothReviewServiceUnitTest {
                 Mappers.getMapper(BoothMapper.class),
                 policyService,
                 new BoothReviewSnapshotFactory(),
-                new BoothReviewDiffService());
+                new BoothReviewDiffService(JsonMapper.builder().build()),
+                contentAssembler,
+                clock);
         exhibitor = User.builder().id(UUID.randomUUID()).fullName("Exhibitor Owner").build();
         organizer = User.builder().id(UUID.randomUUID()).build();
         company = Company.builder().id(UUID.randomUUID()).name("VEX").ownerUser(exhibitor)
@@ -90,6 +101,7 @@ class BoothReviewServiceUnitTest {
 
     @Test
     void submitReviewAllocatesVersionAndStoresSchema2Snapshot() {
+        stubRequestSummary();
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
                 .thenReturn(Optional.of(booth));
@@ -116,44 +128,46 @@ class BoothReviewServiceUnitTest {
     }
 
     @Test
+    void startEditTransitionsPublishedBoothToDraft() {
+        booth.setStatus(BoothStatus.PUBLISHED);
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothResponseDTO response = service.startEdit(exhibitor, booth.getId());
+
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        assertEquals(BoothStatus.DRAFT, response.getStatus());
+        verify(policyService).assertBeforeReviewDeadline(booth);
+    }
+
+    @Test
     void contentOverviewSupportsPendingPublishedAndArchived() {
-        addContentTree();
         BoothReviewRequest pending = reviewRequest(BoothReviewStatus.PENDING, 4);
+        OrganizerBoothContentOverviewDTO pendingOverview = OrganizerBoothContentOverviewDTO.builder().build();
+        OrganizerBoothContentOverviewDTO nonPendingOverview = OrganizerBoothContentOverviewDTO.builder().build();
         when(boothRepository.findDetailForOrganizer(booth.getId(), exhibitionUuid, organizer.getId()))
                 .thenReturn(Optional.of(booth));
         when(reviewRepository.findTopByBoothIdAndStatusOrderBySubmittedAtDesc(
                 booth.getId(), BoothReviewStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(contentAssembler.toOrganizerContentOverview(booth, pending)).thenReturn(pendingOverview);
+        when(contentAssembler.toOrganizerContentOverview(booth, null)).thenReturn(nonPendingOverview);
 
         booth.setStatus(BoothStatus.PENDING);
         OrganizerBoothContentOverviewDTO pendingResult =
                 service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
-        assertTrue(pendingResult.getReviewContext().isCanApprove());
-        assertTrue(pendingResult.getReviewContext().isCanReject());
-        assertEquals(pending.getId(), pendingResult.getReviewContext().getPendingReviewRequestId());
-        assertEquals(1, pendingResult.getContentOverview().getPanoramaCount());
-        assertEquals(2, pendingResult.getContentOverview().getHotspotCount());
-        assertEquals(1, pendingResult.getContentOverview().getProductCount());
-        assertEquals(1, pendingResult.getContentOverview().getProductContentCount());
-        assertEquals(1, pendingResult.getContentOverview().getMediaAssetCount());
-        assertEquals(2, pendingResult.getContentOverview().getHotspots().size());
-        assertEquals(1, pendingResult.getContentOverview().getProducts().get(0).getContents().size());
-        assertEquals("Exhibitor Owner", pendingResult.getBooth().getOwnerName());
-        assertEquals("Premium", pendingResult.getBooth().getPackageName());
-        assertEquals("contact@vex.com", pendingResult.getBooth().getContactEmail());
-        assertEquals("0901234567", pendingResult.getBooth().getContactPhone());
-        assertEquals("music.mp3", pendingResult.getBooth().getBackgroundMusicFileName());
-        assertEquals(1024L, pendingResult.getBooth().getBackgroundMusicFileSize());
+        assertSame(pendingOverview, pendingResult);
 
         booth.setStatus(BoothStatus.PUBLISHED);
         OrganizerBoothContentOverviewDTO published =
                 service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
-        assertFalse(published.getReviewContext().isCanApprove());
-        assertEquals(null, published.getReviewContext().getPendingReviewRequestId());
+        assertSame(nonPendingOverview, published);
 
         booth.setStatus(BoothStatus.ARCHIVED);
         OrganizerBoothContentOverviewDTO archived =
                 service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
-        assertFalse(archived.getReviewContext().isCanReject());
+        assertSame(nonPendingOverview, archived);
     }
 
     @Test
@@ -194,6 +208,7 @@ class BoothReviewServiceUnitTest {
 
     @Test
     void approveAndRejectReturnSummaryOnly() {
+        stubRequestSummary();
         booth.setStatus(BoothStatus.PENDING);
         BoothReviewRequest approveRequest = reviewRequest(BoothReviewStatus.PENDING, 1);
         when(policyService.getOrganizerReviewRequest(organizer, exhibitionUuid, approveRequest.getId()))
@@ -203,6 +218,7 @@ class BoothReviewServiceUnitTest {
         BoothReviewRequestSummaryDTO approved = service.approve(organizer, exhibitionUuid, approveRequest.getId());
         assertEquals(BoothReviewStatus.APPROVED, approved.getStatus());
         assertEquals(BoothStatus.PUBLISHED, booth.getStatus());
+        assertEquals(LocalDateTime.ofInstant(clock.instant(), clock.getZone()), approveRequest.getReviewedAt());
 
         booth.setStatus(BoothStatus.PENDING);
         BoothReviewRequest rejectRequest = reviewRequest(BoothReviewStatus.PENDING, 2);
@@ -270,6 +286,21 @@ class BoothReviewServiceUnitTest {
         booth.setPanoramas(List.of(panorama));
     }
 
+    private void stubRequestSummary() {
+        when(contentAssembler.toRequestSummary(any(BoothReviewRequest.class), any()))
+                .thenAnswer(invocation -> {
+                    BoothReviewRequest request = invocation.getArgument(0);
+                    BoothReviewChangeSummaryDTO changeSummary = invocation.getArgument(1);
+                    return BoothReviewRequestSummaryDTO.builder()
+                            .id(request.getId())
+                            .versionNumber(request.getVersionNumber())
+                            .status(request.getStatus())
+                            .rejectedReason(request.getRejectedReason())
+                            .changeSummary(changeSummary)
+                            .build();
+                });
+    }
+
     private Hotspot hotspot(Panorama panorama, String name, HotspotType type) {
         return Hotspot.builder().id(UUID.randomUUID()).sourcePanorama(panorama).name(name).type(type)
                 .xPosition(1.0).yPosition(2.0).zPosition(3.0).build();
@@ -282,7 +313,7 @@ class BoothReviewServiceUnitTest {
 
     private Booth booth(BoothStatus status) {
         Exhibition exhibition = Exhibition.builder().uuid(exhibitionUuid).name("Expo")
-                .organizer(organizer).startDate(LocalDate.now()).endDate(LocalDate.now().plusDays(1)).build();
+                .organizer(organizer).startDate(LocalDate.now(clock)).endDate(LocalDate.now(clock).plusDays(1)).build();
         ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder().exhibition(exhibition).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .exhibitionPackage(exhibitionPackage).packageNameSnapshot("Premium").build();

@@ -115,6 +115,7 @@ class ExhibitorBoothTemplateServiceUnitTest {
     void applyTemplateCopiesPanoramasAndNavigationHotspots() {
         Booth template = templateBooth();
         List<Panorama> templatePanoramas = templatePanoramas(template);
+        List<Panorama> managedCollection = booth.getPanoramas();
         UUID templateSourceId = templatePanoramas.get(0).getId();
         UUID templateTargetId = templatePanoramas.get(1).getId();
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
@@ -132,6 +133,7 @@ class ExhibitorBoothTemplateServiceUnitTest {
 
         BoothResponseDTO response = service.applyTemplate(exhibitor, booth.getId(), template.getId());
 
+        assertSame(managedCollection, booth.getPanoramas());
         assertEquals("Runtime Booth", response.getName());
         assertEquals(2, response.getPanoramas().size());
         assertTrue(response.getPanoramas().stream().allMatch(p -> {

@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +39,13 @@ class BoothReviewPolicyServiceUnitTest {
 
     private BoothReviewPolicyService policyService;
     private Booth booth;
+    private Clock clock;
 
     @BeforeEach
     void setup() {
-        policyService = new BoothReviewPolicyService(boothReviewRequestRepository, panoramaRepository);
-        booth = booth(LocalDate.now().plusDays(10));
+        clock = Clock.fixed(Instant.parse("2026-01-10T08:00:00Z"), ZoneOffset.UTC);
+        policyService = new BoothReviewPolicyService(boothReviewRequestRepository, panoramaRepository, clock);
+        booth = booth(LocalDate.now(clock).plusDays(10));
     }
 
     @Test
@@ -65,7 +70,7 @@ class BoothReviewPolicyServiceUnitTest {
 
     @Test
     void assertBeforeReviewDeadlineRejectsWhenWithinThreeDays() {
-        Booth deadlineBooth = booth(LocalDate.now().plusDays(3));
+        Booth deadlineBooth = booth(LocalDate.now(clock).plusDays(3));
 
         AppException exception = assertThrows(
                 AppException.class,

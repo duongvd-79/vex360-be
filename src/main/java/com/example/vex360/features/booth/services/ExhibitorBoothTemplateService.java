@@ -107,7 +107,7 @@ public class ExhibitorBoothTemplateService {
 
         List<Panorama> appliedPanoramas = copyPanoramas(booth, templatePanoramas);
         copyHotspots(templatePanoramas, appliedPanoramas);
-        booth.setPanoramas(appliedPanoramas);
+        booth.getPanoramas().addAll(appliedPanoramas);
         return boothMapper.toBoothResponseDTO(booth);
     }
 

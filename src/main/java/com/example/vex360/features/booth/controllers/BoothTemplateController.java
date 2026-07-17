@@ -37,6 +37,8 @@ import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryRespo
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.services.BoothTemplateHotspotService;
+import com.example.vex360.features.booth.services.BoothTemplatePanoramaService;
 import com.example.vex360.features.booth.services.BoothTemplateService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -50,6 +52,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BoothTemplateController extends BaseController {
     private final BoothTemplateService boothTemplateService;
+    private final BoothTemplatePanoramaService boothTemplatePanoramaService;
+    private final BoothTemplateHotspotService boothTemplateHotspotService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ADMIN')")
@@ -114,7 +118,7 @@ public class BoothTemplateController extends BaseController {
     public ResponseEntity<ApiResponse<List<PanoramaResponseDTO>>> getPanoramas(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
-        List<PanoramaResponseDTO> panoramas = boothTemplateService.getPanoramas(
+        List<PanoramaResponseDTO> panoramas = boothTemplatePanoramaService.getPanoramas(
                 userDetails.getUser(),
                 boothId);
         return ok(panoramas);
@@ -128,7 +132,7 @@ public class BoothTemplateController extends BaseController {
             @PathVariable UUID boothId,
             @Valid @RequestPart("metadata") CreateExhibitorPanoramaRequest request,
             @RequestPart("image") MultipartFile image) {
-        PanoramaResponseDTO panorama = boothTemplateService.createPanorama(
+        PanoramaResponseDTO panorama = boothTemplatePanoramaService.createPanorama(
                 userDetails.getUser(),
                 boothId,
                 request,
@@ -144,7 +148,7 @@ public class BoothTemplateController extends BaseController {
             @PathVariable UUID panoramaId,
             @Valid @RequestPart(value = "metadata", required = false) UpdateExhibitorPanoramaRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
-        PanoramaResponseDTO panorama = boothTemplateService.updatePanorama(
+        PanoramaResponseDTO panorama = boothTemplatePanoramaService.updatePanorama(
                 userDetails.getUser(),
                 boothId,
                 panoramaId,
@@ -159,7 +163,7 @@ public class BoothTemplateController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @PathVariable UUID panoramaId) {
-        PanoramaResponseDTO panorama = boothTemplateService.deletePanorama(
+        PanoramaResponseDTO panorama = boothTemplatePanoramaService.deletePanorama(
                 userDetails.getUser(),
                 boothId,
                 panoramaId);
@@ -174,7 +178,7 @@ public class BoothTemplateController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @PathVariable UUID panoramaId) {
-        List<HotspotResponseDTO> hotspots = boothTemplateService.getHotspots(
+        List<HotspotResponseDTO> hotspots = boothTemplateHotspotService.getHotspots(
                 userDetails.getUser(),
                 boothId,
                 panoramaId);
@@ -188,7 +192,7 @@ public class BoothTemplateController extends BaseController {
             @PathVariable UUID boothId,
             @PathVariable UUID panoramaId,
             @Valid @RequestBody CreateBoothTemplateHotspotRequest request) {
-        HotspotResponseDTO hotspot = boothTemplateService.createHotspot(
+        HotspotResponseDTO hotspot = boothTemplateHotspotService.createHotspot(
                 userDetails.getUser(),
                 boothId,
                 panoramaId,
@@ -204,7 +208,7 @@ public class BoothTemplateController extends BaseController {
             @PathVariable UUID panoramaId,
             @PathVariable UUID hotspotId,
             @Valid @RequestBody UpdateBoothTemplateHotspotRequest request) {
-        HotspotResponseDTO hotspot = boothTemplateService.updateHotspot(
+        HotspotResponseDTO hotspot = boothTemplateHotspotService.updateHotspot(
                 userDetails.getUser(),
                 boothId,
                 panoramaId,
@@ -220,7 +224,7 @@ public class BoothTemplateController extends BaseController {
             @PathVariable UUID boothId,
             @PathVariable UUID panoramaId,
             @PathVariable UUID hotspotId) {
-        HotspotResponseDTO hotspot = boothTemplateService.deleteHotspot(
+        HotspotResponseDTO hotspot = boothTemplateHotspotService.deleteHotspot(
                 userDetails.getUser(),
                 boothId,
                 panoramaId,
