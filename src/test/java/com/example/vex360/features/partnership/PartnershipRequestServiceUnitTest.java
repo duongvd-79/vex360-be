@@ -44,6 +44,7 @@ import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.CompanyStatus;
+import com.example.vex360.shared.enums.PartnershipAccountAction;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -106,9 +107,11 @@ class PartnershipRequestServiceUnitTest {
         PartnershipRequest savedRequest = captor.getValue();
 
         assertNull(savedRequest.getSubmittedByUser());
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT, savedRequest.getAccountAction());
         assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, savedRequest.getStatus());
         assertEquals(Role.EXHIBITOR, savedRequest.getRequestedRole());
         assertEquals("guest@example.com", response.getRequesterEmail());
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT.name(), response.getAccountAction());
         assertEquals("AWAITING_VERIFICATION", response.getStatus());
         verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
     }
@@ -155,6 +158,7 @@ class PartnershipRequestServiceUnitTest {
 
         assertEquals(user.getId(), response.getSubmittedByUserId());
         assertEquals("user@example.com", response.getRequesterEmail());
+        assertEquals(PartnershipAccountAction.UPGRADE_EXISTING_USER.name(), response.getAccountAction());
         assertEquals("PENDING", response.getStatus());
     }
 
@@ -176,8 +180,11 @@ class PartnershipRequestServiceUnitTest {
         verify(partnershipRequestRepository).save(captor.capture());
         PartnershipRequest savedRequest = captor.getValue();
 
-        assertEquals(user.getId(), response.getSubmittedByUserId());
+        assertNull(response.getSubmittedByUserId());
         assertEquals("company@example.com", response.getRequesterEmail());
+        assertNull(savedRequest.getSubmittedByUser());
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT, savedRequest.getAccountAction());
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT.name(), response.getAccountAction());
         assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, savedRequest.getStatus());
         assertEquals("AWAITING_VERIFICATION", response.getStatus());
         verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
@@ -275,6 +282,7 @@ class PartnershipRequestServiceUnitTest {
         assertEquals(Role.EXHIBITOR, savedUserReq.getRole());
         assertEquals("Vex360 Partner", savedCompanyName);
         assertEquals("0912345678", savedPhone);
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT.name(), response.getAccountAction());
         assertEquals("APPROVED", response.getStatus());
         assertNotNull(request.getReviewedAt());
         verify(mailService).sendNewUserCredentialsEmail(anyString(), anyString(), anyString());
@@ -298,6 +306,7 @@ class PartnershipRequestServiceUnitTest {
         PartnershipRequestResponseDTO response = partnershipRequestService.approveRequest(requestId);
 
         assertEquals(Role.ORGANIZER, user.getRole());
+        assertEquals(PartnershipAccountAction.UPGRADE_EXISTING_USER.name(), response.getAccountAction());
         assertEquals("APPROVED", response.getStatus());
         verify(companyService).createCompany(any(User.class), anyString(), anyString(), anyString());
         verify(mailService).sendPartnershipApprovedEmail(
@@ -739,6 +748,9 @@ class PartnershipRequestServiceUnitTest {
                 .requesterPhoneNumber("0912345678")
                 .organizationName("Vex360 Partner")
                 .requestedRole(requestedRole)
+                .accountAction(submittedByUser == null
+                        ? PartnershipAccountAction.CREATE_NEW_ACCOUNT
+                        : PartnershipAccountAction.UPGRADE_EXISTING_USER)
                 .message("We want to partner")
                 .acceptedPolicy(true)
                 .status(PartnershipRequestStatus.PENDING)
@@ -750,6 +762,7 @@ class PartnershipRequestServiceUnitTest {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = PartnershipRequest.builder()
                 .id(requestId)
+                .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                 .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -761,6 +774,7 @@ class PartnershipRequestServiceUnitTest {
         String result = partnershipRequestService.verifyRequest(encryptedToken);
 
         assertEquals(PartnershipRequestStatus.PENDING, request.getStatus());
+        assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT, request.getAccountAction());
         assertTrue(result.contains("partnership_confirmed=true"));
         verify(partnershipRequestRepository).save(request);
     }
@@ -770,6 +784,7 @@ class PartnershipRequestServiceUnitTest {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = PartnershipRequest.builder()
                 .id(requestId)
+                .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                 .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
                 .createdAt(LocalDateTime.now().minusHours(25))
                 .build();
@@ -790,6 +805,7 @@ class PartnershipRequestServiceUnitTest {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = PartnershipRequest.builder()
                 .id(requestId)
+                .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                 .status(PartnershipRequestStatus.PENDING)
                 .build();
 

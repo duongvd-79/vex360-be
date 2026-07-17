@@ -22,6 +22,7 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.PartnershipAccountAction;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -122,7 +123,7 @@ public class PartnershipRequestService {
                 throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
             }
 
-            PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
+            PartnershipRequest partnershipRequest = buildRequest(request, null);
             partnershipRequest.setStatus(PartnershipRequestStatus.AWAITING_VERIFICATION);
             PartnershipRequest savedRequest = partnershipRequestRepository.save(partnershipRequest);
             sendVerificationEmail(savedRequest);
@@ -246,6 +247,9 @@ public class PartnershipRequestService {
                 .requesterPhoneNumber(normalize(request.getRequesterPhoneNumber()))
                 .organizationName(normalize(request.getOrganizationName()))
                 .requestedRole(request.getRequestedRole())
+                .accountAction(submittedByUser == null
+                        ? PartnershipAccountAction.CREATE_NEW_ACCOUNT
+                        : PartnershipAccountAction.UPGRADE_EXISTING_USER)
                 .message(normalize(request.getMessage()))
                 .acceptedPolicy(Boolean.TRUE)
                 .status(PartnershipRequestStatus.PENDING)
