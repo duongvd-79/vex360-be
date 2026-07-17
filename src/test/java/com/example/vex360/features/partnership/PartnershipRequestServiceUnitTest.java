@@ -5,15 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +76,9 @@ class PartnershipRequestServiceUnitTest {
                 mailService,
                 Mappers.getMapper(PartnershipRequestMapper.class));
 
+        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "backendBaseUrl", "http://localhost:8080");
+        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "registrationFrontendUrl", "http://localhost:3000/register");
+
         user = User.builder()
                 .id(UUID.randomUUID())
                 .email("user@example.com")
@@ -83,7 +89,7 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void submitGuestRequestCreatesPendingRequest() {
+    void submitGuestRequestCreatesAwaitingVerificationRequest() {
         SubmitPartnershipRequest request = validRequest("guest@example.com", Role.EXHIBITOR);
 
         when(userService.existsByEmail("guest@example.com")).thenReturn(false);
@@ -100,10 +106,11 @@ class PartnershipRequestServiceUnitTest {
         PartnershipRequest savedRequest = captor.getValue();
 
         assertNull(savedRequest.getSubmittedByUser());
-        assertEquals(PartnershipRequestStatus.PENDING, savedRequest.getStatus());
+        assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, savedRequest.getStatus());
         assertEquals(Role.EXHIBITOR, savedRequest.getRequestedRole());
         assertEquals("guest@example.com", response.getRequesterEmail());
-        assertEquals("PENDING", response.getStatus());
+        assertEquals("AWAITING_VERIFICATION", response.getStatus());
+        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -152,17 +159,28 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void submitAuthenticatedRequestThrowsWhenRequesterEmailDiffersFromUserEmail() {
+    void submitAuthenticatedRequestCreatesAwaitingVerificationRequestWhenEmailDiffersFromUserEmail() {
         SubmitPartnershipRequest request = validRequest("company@example.com", Role.ORGANIZER);
 
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
+        when(userService.existsByEmail("company@example.com")).thenReturn(false);
+        when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> {
+            PartnershipRequest savedRequest = invocation.getArgument(0);
+            savedRequest.setId(UUID.randomUUID());
+            return savedRequest;
+        });
 
-        AppException exception = assertThrows(AppException.class,
-                () -> partnershipRequestService.submitAuthenticatedRequest(user, request));
+        PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(user, request);
 
-        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER,
-                exception.getErrorCode());
-        verify(partnershipRequestRepository, never()).save(any(PartnershipRequest.class));
+        ArgumentCaptor<PartnershipRequest> captor = ArgumentCaptor.forClass(PartnershipRequest.class);
+        verify(partnershipRequestRepository).save(captor.capture());
+        PartnershipRequest savedRequest = captor.getValue();
+
+        assertEquals(user.getId(), response.getSubmittedByUserId());
+        assertEquals("company@example.com", response.getRequesterEmail());
+        assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION, savedRequest.getStatus());
+        assertEquals("AWAITING_VERIFICATION", response.getStatus());
+        verify(mailService).sendPartnershipVerificationEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -221,15 +239,17 @@ class PartnershipRequestServiceUnitTest {
                             .status(status)
                             .build();
                 });
-        when(companyService.createCompany(any(User.class), anyString(), anyString())).thenAnswer(invocation -> {
+        when(companyService.createCompany(any(User.class), anyString(), anyString(), anyString())).thenAnswer(invocation -> {
             User owner = invocation.getArgument(0);
             String name = invocation.getArgument(1);
             String email = invocation.getArgument(2);
+            String phone = invocation.getArgument(3);
             return Company.builder()
                     .id(UUID.randomUUID())
                     .ownerUser(owner)
                     .name(name)
                     .email(email)
+                    .phone(phone)
                     .status(CompanyStatus.INCOMPLETE_PROFILE)
                     .build();
         });
@@ -242,16 +262,19 @@ class PartnershipRequestServiceUnitTest {
         ArgumentCaptor<User> ownerCaptor = ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> emailCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> phoneCaptor = ArgumentCaptor.forClass(String.class);
         verify(userService).createUser(userReqCaptor.capture(), eq(UserStatus.ACTIVE));
         verify(companyService).createCompany(ownerCaptor.capture(), nameCaptor.capture(),
-                emailCaptor.capture());
+                emailCaptor.capture(), phoneCaptor.capture());
 
         CreateUserRequest savedUserReq = userReqCaptor.getValue();
         String savedCompanyName = nameCaptor.getValue();
+        String savedPhone = phoneCaptor.getValue();
 
         assertEquals("requester@example.com", savedUserReq.getEmail());
         assertEquals(Role.EXHIBITOR, savedUserReq.getRole());
         assertEquals("Vex360 Partner", savedCompanyName);
+        assertEquals("0912345678", savedPhone);
         assertEquals("APPROVED", response.getStatus());
         assertNotNull(request.getReviewedAt());
         verify(mailService).sendNewUserCredentialsEmail(anyString(), anyString(), anyString());
@@ -267,7 +290,7 @@ class PartnershipRequestServiceUnitTest {
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
         when(userService.saveUserEntity(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(companyService.existsByOwnerUserId(user.getId())).thenReturn(false);
-        when(companyService.createCompany(any(User.class), anyString(), anyString()))
+        when(companyService.createCompany(any(User.class), anyString(), anyString(), anyString()))
                 .thenAnswer(invocation -> Company.builder().build());
         when(partnershipRequestRepository.save(any(PartnershipRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -276,7 +299,7 @@ class PartnershipRequestServiceUnitTest {
 
         assertEquals(Role.ORGANIZER, user.getRole());
         assertEquals("APPROVED", response.getStatus());
-        verify(companyService).createCompany(any(User.class), anyString(), anyString());
+        verify(companyService).createCompany(any(User.class), anyString(), anyString(), anyString());
         verify(mailService).sendPartnershipApprovedEmail(
                 "user@example.com",
                 "User Name",
@@ -299,7 +322,7 @@ class PartnershipRequestServiceUnitTest {
 
         partnershipRequestService.approveRequest(requestId);
 
-        verify(companyService, never()).createCompany(any(User.class), anyString(), anyString());
+        verify(companyService, never()).createCompany(any(User.class), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -399,12 +422,14 @@ class PartnershipRequestServiceUnitTest {
 
     @Test
     void getRequestSummaryCountsRequestsByStatus() {
+        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.AWAITING_VERIFICATION)).thenReturn(6L);
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING)).thenReturn(5L);
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED)).thenReturn(4L);
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED)).thenReturn(3L);
 
         PartnershipRequestSummaryResponseDTO response = partnershipRequestService.getRequestSummary();
 
+        assertEquals(6L, response.getAwaitingVerificationRequests());
         assertEquals(5L, response.getPendingRequests());
         assertEquals(4L, response.getApprovedRequests());
         assertEquals(3L, response.getRejectedRequests());
@@ -476,28 +501,37 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void submitAuthenticatedRequest_RequesterEmailNull_ThrowsException() {
+    void submitAuthenticatedRequest_RequesterEmailNull_CreatesAwaitingVerificationRequest() {
         SubmitPartnershipRequest request = validRequest(null, Role.EXHIBITOR);
 
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
+        when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> {
+            PartnershipRequest savedRequest = invocation.getArgument(0);
+            savedRequest.setId(UUID.randomUUID());
+            return savedRequest;
+        });
 
-        AppException exception = assertThrows(AppException.class,
-                () -> partnershipRequestService.submitAuthenticatedRequest(user, request));
-
-        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER, exception.getErrorCode());
+        PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(user, request);
+        assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION.name(), response.getStatus());
+        verify(mailService).sendPartnershipVerificationEmail(eq(null), anyString(), anyString(), anyString());
     }
 
     @Test
-    void submitAuthenticatedRequest_UserEmailNull_ThrowsException() {
+    void submitAuthenticatedRequest_UserEmailNull_CreatesAwaitingVerificationRequest() {
         SubmitPartnershipRequest request = validRequest("user@example.com", Role.EXHIBITOR);
         User userWithNullEmail = User.builder().id(UUID.randomUUID()).email(null).build();
 
         when(userService.getUserEntityById(userWithNullEmail.getId())).thenReturn(userWithNullEmail);
+        when(userService.existsByEmail("user@example.com")).thenReturn(false);
+        when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(invocation -> {
+            PartnershipRequest savedRequest = invocation.getArgument(0);
+            savedRequest.setId(UUID.randomUUID());
+            return savedRequest;
+        });
 
-        AppException exception = assertThrows(AppException.class,
-                () -> partnershipRequestService.submitAuthenticatedRequest(userWithNullEmail, request));
-
-        assertSame(ErrorCode.PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER, exception.getErrorCode());
+        PartnershipRequestResponseDTO response = partnershipRequestService.submitAuthenticatedRequest(userWithNullEmail, request);
+        assertEquals(PartnershipRequestStatus.AWAITING_VERIFICATION.name(), response.getStatus());
+        verify(mailService).sendPartnershipVerificationEmail(eq("user@example.com"), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -538,7 +572,11 @@ class PartnershipRequestServiceUnitTest {
                 "   ", "guest@example.com", "   ", "   ", Role.EXHIBITOR, "   ", true);
 
         when(userService.existsByEmail("guest@example.com")).thenReturn(false);
-        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(partnershipRequestRepository.save(any())).thenAnswer(inv -> {
+            PartnershipRequest r = inv.getArgument(0);
+            r.setId(UUID.randomUUID());
+            return r;
+        });
 
         partnershipRequestService.submitGuestRequest(request);
 
@@ -705,5 +743,73 @@ class PartnershipRequestServiceUnitTest {
                 .acceptedPolicy(true)
                 .status(PartnershipRequestStatus.PENDING)
                 .build();
+    }
+
+    @Test
+    void verifyRequest_Confirm_Success() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = PartnershipRequest.builder()
+                .id(requestId)
+                .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(partnershipRequestRepository.save(any(PartnershipRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
+
+        assertEquals(PartnershipRequestStatus.PENDING, request.getStatus());
+        assertTrue(result.contains("partnership_confirmed=true"));
+        verify(partnershipRequestRepository).save(request);
+    }
+
+    @Test
+    void verifyRequest_Expired_DeletesAndReturnsExpired() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = PartnershipRequest.builder()
+                .id(requestId)
+                .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
+                .createdAt(LocalDateTime.now().minusHours(25))
+                .build();
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+
+        String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
+
+        assertTrue(result.contains("partnership_error=expired"));
+        verify(partnershipRequestRepository).delete(request);
+    }
+
+    @Test
+    void verifyRequest_AlreadyProcessed_ReturnsAlreadyProcessed() {
+        UUID requestId = UUID.randomUUID();
+        PartnershipRequest request = PartnershipRequest.builder()
+                .id(requestId)
+                .status(PartnershipRequestStatus.PENDING)
+                .build();
+
+        when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+
+        String encryptedToken = TokenEncryptionUtils.encrypt(requestId.toString());
+        String result = partnershipRequestService.verifyRequest(encryptedToken);
+
+        assertTrue(result.contains("partnership_error=already_processed"));
+    }
+
+    @Test
+    void cleanExpiredAndOldRejectedRequests_DeletesCorrectRequests() {
+        partnershipRequestService.cleanExpiredAndOldRejectedRequests();
+
+        verify(partnershipRequestRepository).deleteByStatusAndCreatedAtBefore(
+                eq(PartnershipRequestStatus.AWAITING_VERIFICATION),
+                any(LocalDateTime.class)
+        );
+        verify(partnershipRequestRepository).deleteByStatusAndReviewedAtBefore(
+                eq(PartnershipRequestStatus.REJECTED),
+                any(LocalDateTime.class)
+        );
     }
 }

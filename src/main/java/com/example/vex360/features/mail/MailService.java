@@ -17,4 +17,9 @@ public interface MailService {
             String fullName,
             String organizationName,
             String reviewNote);
+    void sendPartnershipVerificationEmail(
+            String toEmail,
+            String fullName,
+            String organizationName,
+            String confirmUrl);
 }

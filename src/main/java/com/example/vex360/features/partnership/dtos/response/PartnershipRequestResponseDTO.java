@@ -22,6 +22,12 @@ public class PartnershipRequestResponseDTO {
     @Schema(description = "Email user đã login gửi request; null nếu là guest request", example = "user@example.com")
     private String submittedByUserEmail;
 
+    @Schema(description = "ID user duoc tao hoac nang cap sau khi approve")
+    private UUID approvedUserId;
+
+    @Schema(description = "Cach xu ly tai khoan khi approve", allowableValues = {"CREATE_NEW_ACCOUNT", "UPGRADE_EXISTING_USER"})
+    private String accountAction;
+
     @Schema(description = "Tên người đại diện gửi yêu cầu", example = "Nguyen Van An")
     private String requesterName;
 
@@ -49,7 +55,7 @@ public class PartnershipRequestResponseDTO {
     @Schema(
             description = "Trạng thái xét duyệt request",
             example = "PENDING",
-            allowableValues = {"PENDING", "APPROVED", "REJECTED"})
+            allowableValues = {"AWAITING_VERIFICATION", "PENDING", "APPROVED", "REJECTED", "SUPERSEDED"})
     private String status;
 
     @Schema(description = "Ghi chú xét duyệt của admin, thường dùng khi reject", example = "Thông tin công ty chưa đủ để xét duyệt.")

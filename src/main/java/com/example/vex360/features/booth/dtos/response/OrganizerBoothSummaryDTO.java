@@ -17,10 +17,16 @@ import lombok.NoArgsConstructor;
 public class OrganizerBoothSummaryDTO {
     private UUID id;
     private UUID companyId;
+    private String ownerName;
+    private String packageName;
+    private String contactEmail;
+    private String contactPhone;
     private String name;
     private String description;
     private String thumbnailUrl;
     private String backgroundMusicUrl;
+    private String backgroundMusicFileName;
+    private Long backgroundMusicFileSize;
     private String displayTemplateKey;
     private BoothStatus status;
     private LocalDateTime updatedAt;

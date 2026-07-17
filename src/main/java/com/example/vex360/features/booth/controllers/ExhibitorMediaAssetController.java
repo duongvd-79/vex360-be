@@ -23,9 +23,11 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.CreateMediaAssetRequest;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.Role;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/exhibitor/media-assets")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorMediaAssetController extends BaseController {
     private final ExhibitorMediaAssetService exhibitorMediaAssetService;
 

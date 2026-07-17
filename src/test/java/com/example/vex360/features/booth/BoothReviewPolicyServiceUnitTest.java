@@ -53,6 +53,17 @@ class BoothReviewPolicyServiceUnitTest {
     }
 
     @Test
+    void assertCanSubmitReviewRejectsDesigningBooth() {
+        booth.setStatus(BoothStatus.DESIGNING);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> policyService.assertCanSubmitReview(booth));
+
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+    }
+
+    @Test
     void assertBeforeReviewDeadlineRejectsWhenWithinThreeDays() {
         Booth deadlineBooth = booth(LocalDate.now().plusDays(3));
 

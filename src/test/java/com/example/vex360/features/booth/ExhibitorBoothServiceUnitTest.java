@@ -121,6 +121,39 @@ class ExhibitorBoothServiceUnitTest {
     }
 
     @Test
+    void updateBooth_WhenDesigning_ThrowsExceptionBeforeUpload() {
+        UUID boothId = UUID.randomUUID();
+        Booth booth = Booth.builder()
+                .id(boothId)
+                .name("Locked Booth")
+                .company(company)
+                .status(BoothStatus.DESIGNING)
+                .build();
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnail",
+                "thumbnail.png",
+                "image/png",
+                "image".getBytes());
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
+                .when(boothReviewPolicyService).assertEditable(booth);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitorBoothService.updateBooth(
+                        exhibitorUser,
+                        boothId,
+                        new UpdateBoothRequest("New Booth", null, null),
+                        thumbnail,
+                        null));
+
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, ex.getErrorCode());
+        verify(cloudService, never()).upload(any());
+        verify(boothRepository, never()).save(any());
+    }
+
+    @Test
     void getBooths_ReturnsPageOfBoothResponseDTO() {
         PageRequest pageable = PageRequest.of(0, 10);
         Booth booth = Booth.builder().id(UUID.randomUUID()).name("Booth A").company(company).build();

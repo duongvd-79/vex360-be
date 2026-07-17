@@ -10,7 +10,9 @@ import com.example.vex360.features.partnership.entities.PartnershipRequest;
 public interface PartnershipRequestMapper {
     @Mapping(target = "submittedByUserId", source = "submittedByUser.id")
     @Mapping(target = "submittedByUserEmail", source = "submittedByUser.email")
-    @Mapping(target = "requestedRole", expression = "java(request.getRequestedRole().name())")
-    @Mapping(target = "status", expression = "java(request.getStatus().name())")
+    @Mapping(target = "approvedUserId", source = "approvedUser.id")
+    @Mapping(target = "accountAction", expression = "java(request.getAccountAction() != null ? request.getAccountAction().name() : null)")
+    @Mapping(target = "requestedRole", expression = "java(request.getRequestedRole() != null ? request.getRequestedRole().name() : null)")
+    @Mapping(target = "status", expression = "java(request.getStatus() != null ? request.getStatus().name() : null)")
     PartnershipRequestResponseDTO toResponse(PartnershipRequest request);
 }

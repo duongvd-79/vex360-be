@@ -137,11 +137,10 @@ class ExhibitionServiceUnitTest {
                 eq("Expo"), eq(expectedStatuses), eq("Tech"), any(), any(), eq(pageable)))
                 .thenReturn(page);
 
-        ExhibitionResponseDTO mockResponse = ExhibitionResponseDTO.builder()
-                .id(2)
+        ExhibitionResponseDTO publicResponse = ExhibitionResponseDTO.builder()
                 .name("Public Expo")
                 .build();
-        when(exhibitionMapper.toResponse(publishedExhibition)).thenReturn(mockResponse);
+        when(exhibitionMapper.toPublicResponse(publishedExhibition, null)).thenReturn(publicResponse);
 
         PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForVisitor(
                 "Expo", "Tech", null, null, pageable);
@@ -201,12 +200,11 @@ class ExhibitionServiceUnitTest {
                 .build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(publishedExhibition));
 
-        ExhibitionResponseDTO mockResponse = ExhibitionResponseDTO.builder()
-                .id(2)
+        ExhibitionResponseDTO publicResponse = ExhibitionResponseDTO.builder()
                 .uuid(exhibitionUuid)
                 .name("Public Expo")
                 .build();
-        when(exhibitionMapper.toResponse(publishedExhibition)).thenReturn(mockResponse);
+        when(exhibitionMapper.toPublicResponse(publishedExhibition, null)).thenReturn(publicResponse);
 
         ExhibitionResponseDTO result = exhibitionService.getExhibitionByUuid(exhibitionUuid);
 

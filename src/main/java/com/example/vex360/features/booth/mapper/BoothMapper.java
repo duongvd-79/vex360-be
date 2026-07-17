@@ -80,6 +80,9 @@ public interface BoothMapper {
                 booth.getStatus(),
                 booth.getCreatedAt(),
                 booth.getUpdatedAt(),
+                company == null ? null : company.getName(),
+                company == null ? null : company.getIndustry(),
+                company == null ? null : company.getEmail(),
                 toPanoramaResponseDTOs(booth.getPanoramas()));
     }
 

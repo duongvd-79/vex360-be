@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.product.dtos.request.CreateProductRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
@@ -27,6 +29,7 @@ import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.Role;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ProductController extends BaseController {
     private final ProductService productService;
 

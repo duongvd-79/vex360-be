@@ -174,10 +174,11 @@ class CompanyServiceUnitTest {
     void createCompany_Success_WithIncompleteProfileStatus() {
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Company result = companyService.createCompany(owner, "New Company", "contact@company.com");
+        Company result = companyService.createCompany(owner, "New Company", "contact@company.com", "0912345678");
 
         assertEquals("New Company", result.getName());
         assertEquals("contact@company.com", result.getEmail());
+        assertEquals("0912345678", result.getPhone());
         assertEquals(CompanyStatus.INCOMPLETE_PROFILE, result.getStatus());
         assertSame(owner, result.getOwnerUser());
         verify(companyRepository).save(any(Company.class));

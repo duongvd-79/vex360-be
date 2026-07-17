@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.exhibition.dtos.request.ExhibitorRegistrationRequestDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
@@ -26,6 +27,7 @@ import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/exhibitor/registrations")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
 @Tag(name = "Exhibitor Registrations", description = "Đăng ký triển lãm và thanh toán dành cho Đơn vị triển lãm (Exhibitor)")
 public class ExhibitorRegistrationController extends BaseController {
 

@@ -48,10 +48,7 @@ public interface ExhibitionMapper {
 
     default ExhibitionResponseDTO toPublicResponse(Exhibition exhibition, List<ExhibitionPackage> packages) {
         ExhibitionResponseDTO response = toResponse(exhibition, packages);
-        if (response != null) {
-            response.setId(null); // Hide internal ID from public response
-        }
-        return response;
+        return response == null ? null : response.toBuilder().id(null).build();
     }
 
     @Mapping(target = "templateId", source = "template.id")

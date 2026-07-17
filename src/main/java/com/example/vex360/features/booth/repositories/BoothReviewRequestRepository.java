@@ -8,12 +8,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.booth.entities.BoothReviewRequest;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
 
-@Repository
 public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewRequest, UUID> {
     boolean existsByBoothIdAndStatus(UUID boothId, BoothReviewStatus status);
 

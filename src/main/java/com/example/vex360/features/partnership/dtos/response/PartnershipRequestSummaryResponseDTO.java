@@ -11,6 +11,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PartnershipRequestSummaryResponseDTO {
+    long awaitingVerificationRequests;
     long pendingRequests;
     long approvedRequests;
     long rejectedRequests;

@@ -3,6 +3,7 @@ package com.example.vex360.features.company.controllers;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,9 +16,11 @@ import com.example.vex360.features.company.dtos.request.CreateStoragePackageOrde
 import com.example.vex360.features.company.dtos.response.StoragePackageOrderResponseDTO;
 import com.example.vex360.features.company.dtos.response.StoragePackageResponseDTO;
 import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
+import com.example.vex360.shared.enums.Role;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,6 +42,8 @@ public class StoragePackageController extends BaseController {
     }
 
     @PostMapping("/orders")
+    @PreAuthorize("hasAuthority('EXHIBITOR')")
+    @RequireActiveCompany(roles = Role.EXHIBITOR)
     @Operation(summary = "Tạo đơn hàng nâng cấp lưu trữ", description = "Tạo đơn hàng và trả về checkout URL PayOS.")
     public ResponseEntity<ApiResponse<StoragePackageOrderResponseDTO>> createOrder(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -48,6 +53,8 @@ public class StoragePackageController extends BaseController {
     }
 
     @GetMapping("/usage")
+    @PreAuthorize("hasAuthority('EXHIBITOR')")
+    @RequireActiveCompany(roles = Role.EXHIBITOR)
     @Operation(summary = "Dung lượng lưu trữ hiện tại", description = "Trả về số byte đã dùng, tổng quota và % sử dụng.")
     public ResponseEntity<ApiResponse<StorageUsageResponseDTO>> getUsage(
             @AuthenticationPrincipal CustomUserDetails userDetails) {

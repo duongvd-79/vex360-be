@@ -54,9 +54,16 @@ public enum ErrorCode {
     PARTNERSHIP_REQUESTER_EMAIL_MUST_MATCH_AUTHENTICATED_USER("PARTNER-006",
             "Email liên hệ phải trùng với email tài khoản đang đăng nhập. Vui lòng đăng xuất và gửi yêu cầu với tư cách guest.",
             HttpStatus.BAD_REQUEST),
+    PARTNERSHIP_REQUEST_AWAITING_VERIFICATION("PARTNER-007",
+            "Yêu cầu hợp tác đang chờ xác thực qua email. Vui lòng kiểm tra hộp thư của bạn.",
+            HttpStatus.BAD_REQUEST),
 
     // COMPANY ERRORS
     COMPANY_NOT_FOUND("COMPANY-001", "Company not found", HttpStatus.NOT_FOUND),
+    COMPANY_PROFILE_INCOMPLETE("COMPANY-002",
+            "Company profile must be completed before using this feature",
+            HttpStatus.FORBIDDEN),
+    COMPANY_ARCHIVED("COMPANY-003", "Archived company cannot use this feature", HttpStatus.FORBIDDEN),
 
     // PRODUCT ERRORS
     PRODUCT_NOT_FOUND("PRODUCT-001", "Không tìm thấy sản phẩm", HttpStatus.NOT_FOUND),
@@ -83,8 +90,7 @@ public enum ErrorCode {
     MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
     BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
-    BOOTH_DESIGN_LOCKED("BOOTH-014", "Booth is locked while a design request is in progress", HttpStatus.BAD_REQUEST),
-    BOOTH_NOT_EDITABLE("BOOTH-015", "Booth template is not editable in its current status", HttpStatus.BAD_REQUEST),
+    BOOTH_NOT_EDITABLE("BOOTH-015", "Booth is not editable in its current status", HttpStatus.BAD_REQUEST),
     INVALID_BOOTH_REVIEW_STATUS("BOOTH-016", "Invalid booth review status", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),

@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
+import com.example.vex360.shared.enums.PartnershipAccountAction;
 import com.example.vex360.shared.enums.Role;
 
 import jakarta.persistence.Column;
@@ -21,6 +22,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -50,6 +52,10 @@ public class PartnershipRequest {
     @EqualsAndHashCode.Exclude
     User submittedByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_user_id")
+    User approvedUser;
+
     @Column(name = "requester_name", nullable = false)
     String requesterName;
 
@@ -65,6 +71,10 @@ public class PartnershipRequest {
     @Enumerated(EnumType.STRING)
     @Column(name = "requested_role", nullable = false)
     Role requestedRole;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_action", nullable = false)
+    PartnershipAccountAction accountAction;
 
     @Column(name = "message", columnDefinition = "TEXT")
     String message;
@@ -86,4 +96,15 @@ public class PartnershipRequest {
 
     @Column(name = "reviewed_at")
     LocalDateTime reviewedAt;
+
+    @Column(name = "active_requester_email", unique = true)
+    String activeRequesterEmail;
+
+    @Column(name = "active_submitted_by_user_id", unique = true)
+    UUID activeSubmittedByUserId;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    long version = 0L;
 }

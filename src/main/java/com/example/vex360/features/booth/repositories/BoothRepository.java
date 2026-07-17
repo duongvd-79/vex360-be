@@ -9,14 +9,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 
 import jakarta.persistence.LockModeType;
 
-@Repository
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
     @Query("""
             SELECT b FROM Booth b
