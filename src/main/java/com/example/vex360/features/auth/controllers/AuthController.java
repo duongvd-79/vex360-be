@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 
 import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.GoogleCallbackRequest;
@@ -22,6 +24,8 @@ import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.auth.services.AuthService;
+import com.example.vex360.features.auth.services.PasswordService;
+import com.example.vex360.features.auth.services.RegistrationService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -44,6 +48,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AuthController extends BaseController {
 
     private final AuthService authService;
+    private final RegistrationService registrationService;
+    private final PasswordService passwordService;
 
     @Value("${app.reset-password.frontend-url}")
     private String resetPasswordFrontendUrl;
@@ -60,7 +66,7 @@ public class AuthController extends BaseController {
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản", description = "Tạo một tài khoản người dùng mới trong hệ thống.")
     public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
-        authService.register(request);
+        registrationService.register(request);
         return ok(null, "Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
     }
 
@@ -73,7 +79,7 @@ public class AuthController extends BaseController {
     @GetMapping("/register/verify")
     @Operation(summary = "Xác thực tài khoản đăng ký mới", description = "Giải mã và kiểm tra token xác thực đăng ký. Nếu hợp lệ, kích hoạt tài khoản thành ACTIVE và chuyển hướng người dùng về trang đăng nhập ở frontend.")
     public ResponseEntity<Void> verifyRegistration(@RequestParam("token") String token) {
-        authService.verifyRegistration(token);
+        registrationService.verifyRegistration(token);
         String redirectUrl = registrationFrontendUrl + "?verified=true";
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(redirectUrl))
@@ -132,8 +138,10 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/logout")
     @Operation(summary = "Đăng xuất tài khoản", description = "Thu hồi Refresh Token hiện tại và đưa Access Token đang dùng vào danh sách đen (blacklist).")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestParam("token") String token) {
-        authService.logout(token);
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @RequestParam("token") String token,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        authService.logout(token, bearerToken(authorization));
         return ok(null, "Đăng xuất thành công!");
     }
 
@@ -148,7 +156,7 @@ public class AuthController extends BaseController {
     @PostMapping("/forgot-password")
     @Operation(summary = "Yêu cầu khôi phục mật khẩu", description = "Gửi một email chứa liên kết khôi phục mật khẩu đã được mã hóa AES. Áp dụng cơ chế chống dò quét email người dùng.")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        authService.forgotPassword(request);
+        passwordService.forgotPassword(request);
         return ok(null, "Nếu email tồn tại trong hệ thống, mã khôi phục mật khẩu đã được gửi!");
     }
 
@@ -162,7 +170,7 @@ public class AuthController extends BaseController {
     @GetMapping("/reset-password/validate")
     @Operation(summary = "Xác thực token khôi phục mật khẩu", description = "Giải mã và kiểm tra thời hạn sử dụng của token. Nếu hợp lệ, tự động chuyển hướng người dùng về trang nhập mật khẩu mới ở frontend.")
     public ResponseEntity<Void> validateResetToken(@RequestParam("token") String token) {
-        authService.validateResetToken(token);
+        passwordService.validateResetToken(token);
         String redirectUrl = resetPasswordFrontendUrl + "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(redirectUrl))
@@ -177,8 +185,10 @@ public class AuthController extends BaseController {
      */
     @PostMapping("/reset-password")
     @Operation(summary = "Đặt lại mật khẩu mới", description = "Sử dụng token khôi phục đã giải mã để lưu mật khẩu mới, hủy bỏ token khôi phục cũ và thu hồi toàn bộ các phiên làm việc hiện tại của tài khoản.")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        authService.resetPassword(request);
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        passwordService.resetPassword(request, bearerToken(authorization));
         return ok(null, "Đặt lại mật khẩu thành công!");
     }
 
@@ -194,8 +204,16 @@ public class AuthController extends BaseController {
     @Operation(summary = "Đổi mật khẩu trực tiếp", description = "Thay đổi mật khẩu mới trực tiếp cho người dùng hiện tại đang đăng nhập. Hệ thống sẽ cập nhật mật khẩu, hủy toàn bộ các phiên hoạt động khác và gửi email thông báo.")
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(userDetails.getUser(), request);
+            @Valid @RequestBody ChangePasswordRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        passwordService.changePassword(userDetails.getUser().getId(), request, bearerToken(authorization));
         return ok(null, "Thay đổi mật khẩu thành công!");
+    }
+
+    private String bearerToken(String authorization) {
+        if (StringUtils.hasText(authorization) && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+        return null;
     }
 }
