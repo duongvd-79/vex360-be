@@ -14,6 +14,7 @@ import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -55,6 +56,13 @@ class ModularMonolithArchitectureTest {
                 "Keep dependencies flowing in one direction. Move the shared workflow to one owning feature, "
                         + "or replace the reverse direct call with an application event.");
         assertNoViolations(violations);
+    }
+
+    @Test
+    void boothListenersShouldNotDependOnBoothRepositories() {
+        ArchRule rule = noClasses().that().resideInAPackage("..features.booth.listeners..")
+                .should().dependOnClassesThat().resideInAPackage("..features.booth.repositories..");
+        rule.check(IMPORTED_CLASSES);
     }
 
     private static void collectViolation(List<String> violations, ArchRule rule, String what, String howToFix) {

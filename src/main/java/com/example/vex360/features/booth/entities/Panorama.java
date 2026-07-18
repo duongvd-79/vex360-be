@@ -62,6 +62,10 @@ public class Panorama {
     @Builder.Default
     Boolean isDefault = false;
 
+    @Column(name = "is_template_derived", nullable = false)
+    @Builder.Default
+    Boolean isTemplateDerived = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;

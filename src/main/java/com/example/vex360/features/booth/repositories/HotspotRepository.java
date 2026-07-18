@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.repositories;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +18,7 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
 
     Optional<Hotspot> findByIdAndSourcePanoramaId(UUID id, UUID sourcePanoramaId);
 
-    boolean existsByTargetPanoramaId(UUID targetPanoramaId);
+    List<Hotspot> findAllByTargetPanoramaIdIn(Collection<UUID> targetPanoramaIds);
 
     boolean existsByMediaAssetId(UUID mediaAssetId);
 
@@ -29,6 +30,14 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             WHERE h.sourcePanorama.booth.id = :boothId
             """)
     long countBySourcePanoramaBoothId(@Param("boothId") UUID boothId);
+
+    @Query("""
+            SELECT h.sourcePanorama.booth.id AS boothId, COUNT(h.id) AS contentCount
+            FROM Hotspot h
+            WHERE h.sourcePanorama.booth.id IN :boothIds
+            GROUP BY h.sourcePanorama.booth.id
+            """)
+    List<BoothContentCountProjection> countByBoothIds(@Param("boothIds") List<UUID> boothIds);
 
     @Query("""
             SELECT DISTINCT h.product.id

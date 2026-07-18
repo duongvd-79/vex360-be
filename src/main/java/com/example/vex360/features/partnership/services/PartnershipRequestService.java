@@ -22,6 +22,7 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.PartnershipAccountAction;
 import com.example.vex360.shared.enums.PartnershipRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
@@ -31,13 +32,10 @@ import com.example.vex360.shared.utils.RandomPasswordGenerator;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class PartnershipRequestService {
     private final PartnershipRequestRepository partnershipRequestRepository;
     private final UserService userService;
@@ -125,7 +123,7 @@ public class PartnershipRequestService {
                 throw new AppException(ErrorCode.PARTNERSHIP_REQUEST_AWAITING_VERIFICATION);
             }
 
-            PartnershipRequest partnershipRequest = buildRequest(request, submittedByUser);
+            PartnershipRequest partnershipRequest = buildRequest(request, null);
             partnershipRequest.setStatus(PartnershipRequestStatus.AWAITING_VERIFICATION);
             PartnershipRequest savedRequest = partnershipRequestRepository.save(partnershipRequest);
             sendVerificationEmail(savedRequest);
@@ -249,6 +247,9 @@ public class PartnershipRequestService {
                 .requesterPhoneNumber(normalize(request.getRequesterPhoneNumber()))
                 .organizationName(normalize(request.getOrganizationName()))
                 .requestedRole(request.getRequestedRole())
+                .accountAction(submittedByUser == null
+                        ? PartnershipAccountAction.CREATE_NEW_ACCOUNT
+                        : PartnershipAccountAction.UPGRADE_EXISTING_USER)
                 .message(normalize(request.getMessage()))
                 .acceptedPolicy(Boolean.TRUE)
                 .status(PartnershipRequestStatus.PENDING)
@@ -361,32 +362,12 @@ public class PartnershipRequestService {
         // Check if expired (24 hours)
         if (request.getCreatedAt() != null &&
                 java.time.Duration.between(request.getCreatedAt(), LocalDateTime.now()).toHours() >= 24) {
-            partnershipRequestRepository.delete(request);
             return registrationFrontendUrl + "?partnership_error=expired";
         }
 
         request.setStatus(PartnershipRequestStatus.PENDING);
         partnershipRequestRepository.save(request);
         return registrationFrontendUrl + "?partnership_confirmed=true";
-    }
-
-    @Scheduled(cron = "0 0/30 * * * *") // Run every 30 minutes
-    @Transactional
-    public void cleanExpiredAndOldRejectedRequests() {
-        LocalDateTime verificationCutoff = LocalDateTime.now().minusHours(24);
-        int deletedVerification = partnershipRequestRepository.deleteByStatusAndCreatedAtBefore(
-                PartnershipRequestStatus.AWAITING_VERIFICATION,
-                verificationCutoff);
-
-        LocalDateTime rejectedCutoff = LocalDateTime.now().minusDays(30);
-        int deletedRejected = partnershipRequestRepository.deleteByStatusAndReviewedAtBefore(
-                PartnershipRequestStatus.REJECTED,
-                rejectedCutoff);
-
-        if (deletedVerification > 0 || deletedRejected > 0) {
-            log.info("Cleanup Scheduler: Deleted {} expired verification requests and {} old rejected requests",
-                    deletedVerification, deletedRejected);
-        }
     }
 
     private void sendVerificationEmail(PartnershipRequest request) {

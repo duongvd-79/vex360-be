@@ -21,14 +21,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.vex360.features.booth.dtos.request.CreateBoothTemplateRequest;
 import com.example.vex360.features.booth.dtos.request.CreateHotspotRequest;
 import com.example.vex360.features.booth.dtos.request.CreatePanoramaRequest;
-import com.example.vex360.features.booth.dtos.request.CreateExhibitorPanoramaRequest;
-import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
-import com.example.vex360.features.booth.dtos.request.CreateBoothTemplateHotspotRequest;
-import com.example.vex360.features.booth.dtos.request.UpdateBoothTemplateHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothTemplateSummaryResponseDTO;
-import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
-import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
@@ -58,6 +52,7 @@ public class BoothTemplateService {
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
     private final CloudService cloudService;
+    private final PanoramaImageCleanupService panoramaImageCleanupService;
     private final BoothMapper boothMapper;
 
     @Transactional
@@ -135,7 +130,7 @@ public class BoothTemplateService {
 
     @Transactional
     public BoothTemplateResponseDTO deleteBoothTemplate(UUID id) {
-        Booth booth = boothRepository.findTemplateById(id)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
         if (booth.getStatus() != BoothStatus.DRAFT && booth.getStatus() != BoothStatus.ARCHIVED) {
             throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
@@ -145,9 +140,8 @@ public class BoothTemplateService {
         List<String> imageKeys = collectOwnedImageKeys(booth);
 
         boothRepository.delete(booth);
-        if (booth.getStatus() == BoothStatus.DRAFT) {
-            cleanupUploadedImages(imageKeys);
-        }
+        boothRepository.flush();
+        panoramaImageCleanupService.scheduleCleanup(imageKeys);
         return response;
     }
 
@@ -172,6 +166,7 @@ public class BoothTemplateService {
                     .imageKey(uploaded.getPublicId())
                     .orderIndex(panoramaRequest.getOrderIndex() == null ? i : panoramaRequest.getOrderIndex())
                     .isDefault(Boolean.TRUE.equals(panoramaRequest.getIsDefault()))
+                    .isTemplateDerived(false)
                     .build());
         }
 
@@ -400,7 +395,7 @@ public class BoothTemplateService {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        Booth booth = boothRepository.findTemplateById(id)
+        Booth booth = boothRepository.findTemplateByIdForUpdate(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
 
         BoothStatus currentStatus = booth.getStatus();
@@ -462,262 +457,6 @@ public class BoothTemplateService {
         }
 
         return boothMapper.toTemplateResponseDTO(boothRepository.save(booth));
-    }
-
-    // --- Admin Panorama Service Logic ---
-
-    @Transactional(readOnly = true)
-    public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        return boothMapper.toPanoramaResponseDTOs(panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId()));
-    }
-
-    @Transactional(readOnly = true)
-    public List<HotspotResponseDTO> getHotspots(User currentUser, UUID boothId, UUID panoramaId) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-        return boothMapper
-                .toHotspotResponseDTOs(hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId()));
-    }
-
-    @Transactional
-    public PanoramaResponseDTO createPanorama(
-            User currentUser,
-            UUID boothId,
-            CreateExhibitorPanoramaRequest request,
-            MultipartFile image) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-        if (request == null || isBlank(request.getName())) {
-            throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
-        }
-
-        CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
-        Panorama panorama = Panorama.builder()
-                .booth(booth)
-                .name(request.getName().trim())
-                .imageUrl(uploaded.getUrl())
-                .imageKey(uploaded.getPublicId())
-                .orderIndex(request.getOrderIndex() == null ? nextOrderIndex(booth.getId()) : request.getOrderIndex())
-                .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
-                .build();
-
-        if (Boolean.TRUE.equals(panorama.getIsDefault())) {
-            panoramaRepository.clearDefaultForBooth(booth.getId());
-        } else if (panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId()).isEmpty()) {
-            panorama.setIsDefault(true);
-        }
-
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
-    }
-
-    @Transactional
-    public PanoramaResponseDTO updatePanorama(
-            User currentUser,
-            UUID boothId,
-            UUID panoramaId,
-            UpdateExhibitorPanoramaRequest request,
-            MultipartFile image) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-
-        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        if (request != null) {
-            if (request.getName() != null) {
-                if (request.getName().isBlank()) {
-                    throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
-                }
-                panorama.setName(request.getName().trim());
-            }
-            if (request.getOrderIndex() != null) {
-                panorama.setOrderIndex(request.getOrderIndex());
-            }
-            if (Boolean.TRUE.equals(request.getIsDefault())) {
-                panoramaRepository.clearDefaultForBooth(booth.getId());
-                panorama.setIsDefault(true);
-            } else if (Boolean.FALSE.equals(request.getIsDefault())) {
-                panorama.setIsDefault(false);
-            }
-        }
-
-        if (image != null && !image.isEmpty()) {
-            CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
-            if (booth.getStatus() == BoothStatus.DRAFT) {
-                cloudService.delete(panorama.getImageKey(), IMAGE_RESOURCE_TYPE);
-            }
-            panorama.setImageUrl(uploaded.getUrl());
-            panorama.setImageKey(uploaded.getPublicId());
-        }
-
-        return boothMapper.toPanoramaResponseDTO(panoramaRepository.save(panorama));
-    }
-
-    @Transactional
-    public PanoramaResponseDTO deletePanorama(User currentUser, UUID boothId, UUID panoramaId) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-
-        Panorama panorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        if (hotspotRepository.existsByTargetPanoramaId(panoramaId)) {
-            throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
-        }
-
-        PanoramaResponseDTO response = boothMapper.toPanoramaResponseDTO(panorama);
-        panoramaRepository.delete(panorama);
-
-        if (booth.getStatus() == BoothStatus.DRAFT) {
-            cloudService.delete(panorama.getImageKey(), IMAGE_RESOURCE_TYPE);
-        }
-
-        return response;
-    }
-
-    // --- Admin Hotspot Service Logic ---
-
-    @Transactional
-    public HotspotResponseDTO createHotspot(
-            User currentUser,
-            UUID boothId,
-            UUID panoramaId,
-            CreateBoothTemplateHotspotRequest request) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-
-        Panorama sourcePanorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        Panorama targetPanorama = panoramaRepository.findByIdAndBoothId(request.getTargetPanoramaId(), booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        Hotspot hotspot = Hotspot.builder()
-                .type(HotspotType.NAV)
-                .name(request.getName().trim())
-                .sourcePanorama(sourcePanorama)
-                .targetPanorama(targetPanorama)
-                .xPosition(request.getXPosition())
-                .yPosition(request.getYPosition())
-                .zPosition(request.getZPosition())
-                .build();
-
-        return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
-    }
-
-    @Transactional
-    public HotspotResponseDTO updateHotspot(
-            User currentUser,
-            UUID boothId,
-            UUID panoramaId,
-            UUID hotspotId,
-            UpdateBoothTemplateHotspotRequest request) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-
-        Panorama sourcePanorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
-
-        if (request != null) {
-            if (request.getName() != null) {
-                if (request.getName().isBlank()) {
-                    throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
-                }
-                hotspot.setName(request.getName().trim());
-            }
-            if (request.getTargetPanoramaId() != null) {
-                Panorama targetPanorama = panoramaRepository
-                        .findByIdAndBoothId(request.getTargetPanoramaId(), booth.getId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-                hotspot.setTargetPanorama(targetPanorama);
-            }
-            if (request.getXPosition() != null) {
-                hotspot.setXPosition(request.getXPosition());
-            }
-            if (request.getYPosition() != null) {
-                hotspot.setYPosition(request.getYPosition());
-            }
-            if (request.getZPosition() != null) {
-                hotspot.setZPosition(request.getZPosition());
-            }
-        }
-
-        return boothMapper.toHotspotResponseDTO(hotspotRepository.save(hotspot));
-    }
-
-    @Transactional
-    public HotspotResponseDTO deleteHotspot(User currentUser, UUID boothId, UUID panoramaId, UUID hotspotId) {
-        if (currentUser == null) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        Booth booth = boothRepository.findTemplateById(boothId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));
-
-        if (booth.getStatus() == BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-
-        Panorama sourcePanorama = panoramaRepository.findByIdAndBoothId(panoramaId, booth.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
-
-        Hotspot hotspot = hotspotRepository.findByIdAndSourcePanoramaId(hotspotId, sourcePanorama.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.HOTSPOT_NOT_FOUND));
-
-        HotspotResponseDTO response = boothMapper.toHotspotResponseDTO(hotspot);
-        hotspotRepository.delete(hotspot);
-        return response;
-    }
-
-    private int nextOrderIndex(UUID boothId) {
-        return panoramaRepository.findByBoothIdOrderByOrderIndexAsc(boothId).size();
     }
 
     private void replaceThumbnail(Booth booth, MultipartFile thumbnail) {

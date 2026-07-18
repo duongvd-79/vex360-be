@@ -20,16 +20,17 @@ import com.example.vex360.features.booth.enums.BoothReviewChangeType;
 import com.example.vex360.features.booth.enums.BoothReviewComparisonCompleteness;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class BoothReviewDiffService {
     public static final int COMPARISON_SCHEMA_VERSION = 2;
 
-    private final ObjectMapper objectMapper = com.fasterxml.jackson.databind.json.JsonMapper.builder()
-            .findAndAddModules()
-            .build();
+    private final ObjectMapper objectMapper;
 
     public BoothReviewChangeSummaryDTO buildSummary(
             BoothReviewSnapshot current,
@@ -84,7 +85,7 @@ public class BoothReviewDiffService {
     public String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }
@@ -95,7 +96,7 @@ public class BoothReviewDiffService {
         }
         try {
             return objectMapper.readValue(json, BoothReviewChangeSummaryDTO.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }
@@ -106,7 +107,7 @@ public class BoothReviewDiffService {
         }
         try {
             return objectMapper.readValue(json, BoothReviewSnapshot.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }

@@ -90,12 +90,14 @@ public enum ErrorCode {
     MEDIA_ASSET_NOT_FOUND("BOOTH-011", "Media asset not found", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_ASSET("BOOTH-012", "Invalid media asset", HttpStatus.BAD_REQUEST),
     BOOTH_QUOTA_EXCEEDED("BOOTH-013", "Booth package benefit quota exceeded", HttpStatus.BAD_REQUEST),
+    BOOTH_TEMPLATE_NOT_COMPATIBLE("BOOTH-014", "Booth template is not compatible with the booth package", HttpStatus.BAD_REQUEST),
     BOOTH_NOT_EDITABLE("BOOTH-015", "Booth is not editable in its current status", HttpStatus.BAD_REQUEST),
     INVALID_BOOTH_REVIEW_STATUS("BOOTH-016", "Invalid booth review status", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_DEADLINE_PASSED("BOOTH-017", "Booth review deadline has passed", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_ALREADY_PENDING("BOOTH-018", "Booth review is already pending", HttpStatus.BAD_REQUEST),
     BOOTH_REVIEW_REQUEST_NOT_FOUND("BOOTH-019", "Booth review request not found", HttpStatus.NOT_FOUND),
     BOOTH_DRAFT_NOT_REVIEWABLE("BOOTH-020", "Draft booth content is not available for review", HttpStatus.FORBIDDEN),
+    BOOTH_TEMPLATE_REQUIRES_EMPTY_BOOTH("BOOTH-021", "Booth must not contain panoramas before applying a template", HttpStatus.CONFLICT),
 
     // DESIGN REQUEST ERRORS
     DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Design request not found", HttpStatus.NOT_FOUND),

@@ -34,7 +34,7 @@ public class PartnershipRequestController extends BaseController {
     @PostMapping("/guest")
     @Operation(
             summary = "Guest gui yeu cau hop tac",
-            description = "Endpoint public cho khach chua co tai khoan. API chi tao partnership request PENDING, chua tao user hoac company.")
+            description = "Endpoint public cho khach chua co tai khoan. Request can xac thuc email truoc khi chuyen sang PENDING; tai khoan moi chi duoc tao sau khi admin approve.")
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> submitGuestRequest(
             @Valid @RequestBody SubmitPartnershipRequest request) {
         PartnershipRequestResponseDTO partnershipRequest = partnershipRequestService.submitGuestRequest(request);
@@ -45,7 +45,7 @@ public class PartnershipRequestController extends BaseController {
     @PreAuthorize("hasAuthority('VISITOR')")
     @Operation(
             summary = "User da dang nhap gui yeu cau hop tac",
-            description = "Endpoint authenticated. requesterEmail phai trung email tai khoan dang dang nhap. Neu muon dung email khac, vui long dang xuat va gui yeu cau voi tu cach guest.")
+            description = "Neu requesterEmail trung email tai khoan, request duoc gui thang den admin de nang cap tai khoan. Neu email khac, request duoc xu ly nhu guest: khong lien ket visitor, can xac thuc email va se tao tai khoan moi khi duoc approve.")
     public ResponseEntity<ApiResponse<PartnershipRequestResponseDTO>> submitAuthenticatedRequest(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody SubmitPartnershipRequest request) {

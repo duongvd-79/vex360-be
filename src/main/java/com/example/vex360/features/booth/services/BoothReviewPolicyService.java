@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.services;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class BoothReviewPolicyService {
     private final BoothReviewRequestRepository boothReviewRequestRepository;
     private final PanoramaRepository panoramaRepository;
+    private final Clock clock;
 
     public void assertEditable(Booth booth) {
         if (booth.getStatus() != BoothStatus.DRAFT) {
@@ -36,7 +38,7 @@ public class BoothReviewPolicyService {
     public void assertBeforeReviewDeadline(Booth booth) {
         Exhibition exhibition = getExhibition(booth);
         LocalDate deadline = exhibition.getStartDate().minusDays(3);
-        if (!LocalDate.now().isBefore(deadline)) {
+        if (!LocalDate.now(clock).isBefore(deadline)) {
             throw new AppException(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED);
         }
     }

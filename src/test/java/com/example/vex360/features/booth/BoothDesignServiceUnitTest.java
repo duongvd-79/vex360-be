@@ -29,6 +29,7 @@ import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.booth.services.BoothDesignService.HotspotDesign;
 import com.example.vex360.features.booth.services.BoothDesignService.PanoramaDesign;
+import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
 
 @ExtendWith(MockitoExtension.class)
 class BoothDesignServiceUnitTest {
@@ -40,12 +41,19 @@ class BoothDesignServiceUnitTest {
     private HotspotRepository hotspotRepository;
     @Mock
     private MediaAssetRepository mediaAssetRepository;
+    @Mock
+    private PanoramaImageCleanupService panoramaImageCleanupService;
 
     private BoothDesignService service;
 
     @BeforeEach
     void setup() {
-        service = new BoothDesignService(boothRepository, panoramaRepository, hotspotRepository, mediaAssetRepository);
+        service = new BoothDesignService(
+                boothRepository,
+                panoramaRepository,
+                hotspotRepository,
+                mediaAssetRepository,
+                panoramaImageCleanupService);
     }
 
     @Test
@@ -108,6 +116,7 @@ class BoothDesignServiceUnitTest {
 
         verify(hotspotRepository).clearTargetsForPanoramas(List.of(oldDesignerPanorama.getId()));
         verify(panoramaRepository).deleteAll(List.of(oldDesignerPanorama));
+        verify(panoramaImageCleanupService).scheduleCleanup(java.util.Set.of());
 
         ArgumentCaptor<Panorama> panoramaCaptor = ArgumentCaptor.forClass(Panorama.class);
         verify(panoramaRepository).save(panoramaCaptor.capture());

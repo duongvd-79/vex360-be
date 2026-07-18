@@ -4,7 +4,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ public class BoothDesignService {
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final PanoramaImageCleanupService panoramaImageCleanupService;
 
     @Transactional
     public Booth getCompanyBoothForUpdate(UUID boothId, UUID companyId) {
@@ -63,6 +66,10 @@ public class BoothDesignService {
     @Transactional
     public void replaceBoothContent(Booth booth, List<PanoramaDesign> panoramas) {
         List<Panorama> oldPanoramas = panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId());
+        Set<String> oldImageKeys = oldPanoramas.stream()
+                .map(Panorama::getImageKey)
+                .filter(key -> key != null && !key.isBlank())
+                .collect(Collectors.toSet());
         List<UUID> oldPanoramaIds = oldPanoramas.stream().map(Panorama::getId).toList();
         if (!oldPanoramaIds.isEmpty()) {
             hotspotRepository.clearTargetsForPanoramas(oldPanoramaIds);
@@ -81,6 +88,7 @@ public class BoothDesignService {
                     .imageKey(panoramaDesign.imageKey())
                     .orderIndex(panoramaDesign.orderIndex())
                     .isDefault(panoramaDesign.isDefault())
+                    .isTemplateDerived(false)
                     .build();
             Panorama saved = panoramaRepository.save(panorama);
             appliedPanoramasByKey.put(panoramaDesign.clientKey(), saved);
@@ -92,6 +100,7 @@ public class BoothDesignService {
                 hotspotRepository.save(toHotspot(hotspotDesign, source, appliedPanoramasByKey));
             }
         }
+        panoramaImageCleanupService.scheduleCleanup(oldImageKeys);
     }
 
     private Hotspot toHotspot(
