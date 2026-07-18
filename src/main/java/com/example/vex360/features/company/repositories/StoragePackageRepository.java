@@ -8,4 +8,6 @@ import com.example.vex360.features.company.entities.StoragePackage;
 
 public interface StoragePackageRepository extends JpaRepository<StoragePackage, Integer> {
     List<StoragePackage> findByIsActiveTrueOrderByPriceVndAsc();
+    List<StoragePackage> findAllByOrderByPriceVndAsc();
+    boolean existsByNameIgnoreCase(String name);
 }

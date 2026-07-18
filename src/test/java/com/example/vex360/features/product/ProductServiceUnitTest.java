@@ -59,7 +59,8 @@ class ProductServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        service = new ProductService(companyService, companyStorageService, categoryRepository, productRepository,
+        service = new ProductService(companyService, companyStorageService,
+                categoryRepository, productRepository,
                 cloudService, productMapper, eventPublisher);
         user = User.builder().id(UUID.randomUUID()).build();
         company = Company.builder().id(UUID.randomUUID()).build();
@@ -69,24 +70,28 @@ class ProductServiceUnitTest {
                 .status(ProductStatus.ACTIVE).contents(List.of(content)).build();
         content.setProduct(product);
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(productRepository.findByIdAndCompanyId(product.getId(), company.getId())).thenReturn(Optional.of(product));
+        when(productRepository.findByIdAndCompanyId(product.getId(),
+                company.getId())).thenReturn(Optional.of(product));
     }
 
     @Test
     void pendingBoothPreventsProductAndContentDeletion() {
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(true);
+        when(productRepository.existsInBoothWithStatus(product.getId(),
+                "PENDING")).thenReturn(true);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.deleteProduct(user, product.getId()));
 
-        assertSame(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH, exception.getErrorCode());
+        assertSame(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH,
+                exception.getErrorCode());
         verify(cloudService, never()).delete("thumbnail-id", "image");
         verify(cloudService, never()).delete("content-id", "video");
     }
 
     @Test
     void reviewHistoryDoesNotPreventPhysicalFileDeletion() {
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsInBoothWithStatus(product.getId(),
+                "PENDING")).thenReturn(false);
         when(productRepository.save(product)).thenReturn(product);
 
         service.deleteProduct(user, product.getId());
