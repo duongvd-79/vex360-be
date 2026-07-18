@@ -51,6 +51,10 @@ app:
     client-id: ${PAYOS_CLIENT_ID:mock_client_id}
     api-key: ${PAYOS_API_KEY:mock_api_key}
     checksum-key: ${PAYOS_CHECKSUM_KEY:mock_checksum_key}
+    return-url: ${PAYOS_RETURN_URL:http://localhost:5175/payment/success}
+    cancel-url: ${PAYOS_CANCEL_URL:http://localhost:5175/payment/cancel}
+    storage-return-url: ${PAYOS_STORAGE_RETURN_URL:http://localhost:5175/storage/payment/success}
+    storage-cancel-url: ${PAYOS_STORAGE_CANCEL_URL:http://localhost:5175/storage/payment/cancel}
 
   # JWT Settings
   jwt:
@@ -99,3 +103,20 @@ spring:
     username: ${AIVEN_DB_USER}
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+app:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:https://vex360.vercel.app}
+  security:
+    oauth2:
+      redirect-uri: ${GOOGLE_REDIRECT_URI:https://vex360.vercel.app/auth/callback/google}
+  backend:
+    base-url: ${BACKEND_BASE_URL}
+  reset-password:
+    frontend-url: ${RESET_PASSWORD_FRONTEND_URL:https://vex360.vercel.app/reset-password}
+  registration:
+    frontend-url: ${REGISTRATION_FRONTEND_URL:https://vex360.vercel.app/login}
+  payos:
+    return-url: ${PAYOS_RETURN_URL:https://vex360.vercel.app/payment/success}
+    cancel-url: ${PAYOS_CANCEL_URL:https://vex360.vercel.app/payment/cancel}
+    storage-return-url: ${PAYOS_STORAGE_RETURN_URL:https://vex360.vercel.app/storage/payment/success}
+    storage-cancel-url: ${PAYOS_STORAGE_CANCEL_URL:https://vex360.vercel.app/storage/payment/cancel}
