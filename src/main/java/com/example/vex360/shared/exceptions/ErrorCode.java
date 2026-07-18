@@ -37,6 +37,7 @@ public enum ErrorCode {
             HttpStatus.CONTENT_TOO_LARGE),
     STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói dịch vụ lưu trữ.", HttpStatus.NOT_FOUND),
     STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
+    STORAGE_PACKAGE_NAME_DUPLICATED("STORAGE-003", "Tên gói lưu trữ đã tồn tại.", HttpStatus.CONFLICT),
     INPUT_FAILED("USER-004", "Input failed", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Old Password is failed", HttpStatus.BAD_REQUEST),
 

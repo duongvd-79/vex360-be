@@ -78,13 +78,15 @@ public class PartnershipRequestService {
     }
 
     @Transactional
-    public PartnershipRequestResponseDTO submitAuthenticatedRequest(User currentUser, SubmitPartnershipRequest request) {
+    public PartnershipRequestResponseDTO submitAuthenticatedRequest(User currentUser,
+            SubmitPartnershipRequest request) {
         validateSubmission(request);
         User submittedByUser = getCurrentUser(currentUser);
         String requesterEmail = normalize(request.getRequesterEmail());
 
         // Nếu email trùng với tài khoản đang đăng nhập
-        if (requesterEmail != null && submittedByUser.getEmail() != null && requesterEmail.equalsIgnoreCase(submittedByUser.getEmail())) {
+        if (requesterEmail != null && submittedByUser.getEmail() != null
+                && requesterEmail.equalsIgnoreCase(submittedByUser.getEmail())) {
             if (partnershipRequestRepository.existsBySubmittedByUserIdAndStatus(
                     submittedByUser.getId(),
                     PartnershipRequestStatus.PENDING)) {
@@ -110,7 +112,8 @@ public class PartnershipRequestService {
             partnershipRequest.setStatus(PartnershipRequestStatus.PENDING); // Gửi thẳng trực tiếp lên Admin
             return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(partnershipRequest));
         } else {
-            // Nếu email khác với tài khoản đang đăng nhập, hành xử như Guest (yêu cầu xác thực qua email)
+            // Nếu email khác với tài khoản đang đăng nhập, hành xử như Guest (yêu cầu xác
+            // thực qua email)
             if (userService.existsByEmail(requesterEmail)) {
                 throw new AppException(ErrorCode.PARTNERSHIP_EMAIL_ALREADY_REGISTERED);
             }
@@ -213,8 +216,7 @@ public class PartnershipRequestService {
                 savedUser,
                 normalize(request.getOrganizationName()),
                 normalize(request.getRequesterEmail()),
-                normalize(request.getRequesterPhoneNumber())
-        );
+                normalize(request.getRequesterPhoneNumber()));
         mailService.sendNewUserCredentialsEmail(savedUser.getEmail(), savedUser.getFullName(), temporaryPassword);
     }
 
@@ -230,8 +232,7 @@ public class PartnershipRequestService {
                     savedUser,
                     normalize(request.getOrganizationName()),
                     normalize(request.getRequesterEmail()),
-                    normalize(request.getRequesterPhoneNumber())
-            );
+                    normalize(request.getRequesterPhoneNumber()));
         }
 
         mailService.sendPartnershipApprovedEmail(
@@ -273,7 +274,8 @@ public class PartnershipRequestService {
         if (submittedByUser == null || submittedByUser.getEmail() == null) {
             return request.getRequesterEmail();
         }
-        if (request.getRequesterEmail() == null || request.getRequesterEmail().equalsIgnoreCase(submittedByUser.getEmail())) {
+        if (request.getRequesterEmail() == null
+                || request.getRequesterEmail().equalsIgnoreCase(submittedByUser.getEmail())) {
             return submittedByUser.getEmail();
         }
         return request.getRequesterEmail();
@@ -324,6 +326,7 @@ public class PartnershipRequestService {
         }
         return request;
     }
+
     private String normalize(String value) {
         if (value == null) {
             return null;
@@ -397,7 +400,6 @@ public class PartnershipRequestService {
                 request.getRequesterEmail(),
                 request.getRequesterName(),
                 request.getOrganizationName(),
-                confirmUrl
-        );
+                confirmUrl);
     }
 }

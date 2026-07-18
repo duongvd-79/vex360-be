@@ -11,4 +11,5 @@ public class StoragePackageResponseDTO {
     String description;
     Long quotaBytes;
     Long priceVnd;
+    Boolean isActive;
 }
