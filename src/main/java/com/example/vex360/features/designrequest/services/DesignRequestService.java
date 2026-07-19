@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.product.entities.Product;
@@ -58,6 +60,12 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Orchestrates the complete booth design-request lifecycle across Exhibitor,
+ * Admin, and Designer roles. The service enforces status transitions, booth
+ * action quota, Designer workload, draft validation, booth locking, and
+ * publication of status-change events.
+ */
 @Service
 @RequiredArgsConstructor
 public class DesignRequestService {
@@ -70,7 +78,20 @@ public class DesignRequestService {
     private final CompanyService companyService;
     private final UserService userService;
     private final ProductService productService;
+    private final DesignDraftAssetService designDraftAssetService;
+    private final ApplicationEventPublisher eventPublisher;
 
+    /**
+     * Creates a pending design request for an Exhibitor-owned booth. The booth
+     * must be in DRAFT and have remaining design-action quota. On success the
+     * booth moves to DESIGNING so Exhibitor editing is blocked.
+     *
+     * @param currentUser authenticated Exhibitor
+     * @param request     booth identifier and optional design note
+     * @return the newly created pending request
+     * @throws AppException if authentication, company ownership, booth status,
+     *                      or booth design-action quota validation fails
+     */
     @Transactional
     public DesignRequestResponseDTO createRequest(User currentUser, CreateDesignRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
@@ -89,9 +110,20 @@ public class DesignRequestService {
                 .status(DesignRequestStatus.PENDING)
                 .reviewCount(0)
                 .build();
-        return toResponse(designRequestRepository.save(designRequest));
+        DesignRequest saved = designRequestRepository.save(designRequest);
+        publishStatusChanged(saved, currentUser, null);
+        return toResponse(saved);
     }
 
+    /**
+     * Lists design requests belonging to the authenticated Exhibitor company.
+     *
+     * @param currentUser authenticated Exhibitor
+     * @param status      optional request-status filter
+     * @param pageable    pagination and sorting options
+     * @return a page of company design requests
+     * @throws AppException if the user is unauthenticated or has no company
+     */
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForExhibitor(
             User currentUser,
@@ -104,6 +136,15 @@ public class DesignRequestService {
         return PageResponse.from(page);
     }
 
+    /**
+     * Lists all design requests for Admin management, optionally filtered by
+     * request status and assigned Designer.
+     *
+     * @param status     optional request-status filter
+     * @param designerId optional assigned Designer identifier
+     * @param pageable   pagination and sorting options
+     * @return a page of matching design requests
+     */
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForAdmin(
             DesignRequestStatus status,
@@ -113,6 +154,15 @@ public class DesignRequestService {
                 .map(this::toResponse));
     }
 
+    /**
+     * Lists requests assigned to the authenticated Designer.
+     *
+     * @param currentUser authenticated Designer
+     * @param status      optional request-status filter
+     * @param pageable    pagination and sorting options
+     * @return a page of requests assigned to the Designer
+     * @throws AppException if the user is unauthenticated
+     */
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForDesigner(
             User currentUser,
@@ -123,6 +173,16 @@ public class DesignRequestService {
                 .map(this::toResponse));
     }
 
+    /**
+     * Cancels an Exhibitor request that is still pending assignment. The booth
+     * is unlocked by returning it from DESIGNING to DRAFT.
+     *
+     * @param currentUser authenticated Exhibitor that owns the request company
+     * @param id          design request identifier
+     * @return the canceled request
+     * @throws AppException if the request is missing, belongs to another
+     *                      company, or is no longer PENDING
+     */
     @Transactional
     public DesignRequestResponseDTO cancelRequest(User currentUser, UUID id) {
         Company company = getCompanyForCurrentUser(currentUser);
@@ -130,12 +190,27 @@ public class DesignRequestService {
         if (request.getStatus() != DesignRequestStatus.PENDING) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
+        DesignRequestStatus previousStatus = request.getStatus();
         request.setStatus(DesignRequestStatus.CANCELED);
         request.setCanceledAt(LocalDateTime.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
-        return toResponse(designRequestRepository.save(request));
+        DesignRequest saved = designRequestRepository.save(request);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
     }
 
+    /**
+     * Assigns a pending request to a user with the DESIGNER role. Assignment is
+     * rejected when the Designer already has three active requests. The
+     * Designer row is locked while workload is checked to serialize concurrent
+     * assignments.
+     *
+     * @param id            design request identifier
+     * @param assignRequest target Designer identifier
+     * @return the assigned request
+     * @throws AppException if the request is not PENDING, the target is not a
+     *                      Designer, or the active-workload limit is reached
+     */
     @Transactional
     public DesignRequestResponseDTO assignRequest(UUID id, AssignDesignRequest assignRequest) {
         DesignRequest request = getRequest(id);
@@ -143,7 +218,7 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
 
-        User designer = userService.getUserEntityById(assignRequest.getDesignerId());
+        User designer = userService.getUserEntityByIdForUpdate(assignRequest.getDesignerId());
         if (designer.getRole() != Role.DESIGNER) {
             throw new AppException(ErrorCode.INVALID_DESIGNER);
         }
@@ -154,32 +229,113 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.DESIGNER_WORKLOAD_EXCEEDED);
         }
 
+        DesignRequestStatus previousStatus = request.getStatus();
         request.setAssignedDesigner(designer);
         request.setAssignedAt(LocalDateTime.now());
         request.setStatus(DesignRequestStatus.ASSIGNED);
-        return toResponse(designRequestRepository.save(request));
+        DesignRequest saved = designRequestRepository.save(request);
+        publishStatusChanged(saved, null, previousStatus);
+        return toResponse(saved);
     }
 
+    /**
+     * Creates and immediately submits an immutable draft in one operation. This
+     * compatibility flow validates request-scoped panorama assets and
+     * Exhibitor-owned product/media references, then moves the request to
+     * DRAFT_SUBMITTED and removes abandoned staging assets.
+     *
+     * @param currentUser  authenticated assigned Designer
+     * @param id           design request identifier
+     * @param draftRequest complete panorama and hotspot configuration
+     * @return the request after draft submission
+     * @throws AppException if assignment, editable status, or draft validation
+     *                      fails
+     */
     @Transactional
     public DesignRequestResponseDTO submitDraft(User currentUser, UUID id, SubmitDesignDraftRequest draftRequest) {
-        User designer = requireCurrentUser(currentUser);
         DesignRequest request = getRequest(id);
-        if (request.getAssignedDesigner() == null
-                || !request.getAssignedDesigner().getId().equals(designer.getId())) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-        if (request.getStatus() != DesignRequestStatus.ASSIGNED
-                && request.getStatus() != DesignRequestStatus.REVISION_REQUESTED) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
-        }
+        requireDesignerCanEdit(currentUser, request);
 
-        DesignDraft draft = buildDraft(request, draftRequest);
+        DesignRequestStatus previousStatus = request.getStatus();
+        DesignDraft draft = buildDraft(request, draftRequest, nextSubmittedVersion(request));
         request.getDrafts().add(draft);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
         request.setReviewNote(null);
-        return toResponse(designRequestRepository.save(request));
+        DesignRequest saved = designRequestRepository.save(request);
+        designDraftAssetService.cleanupUnreferencedAssets(saved);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
     }
 
+    /**
+     * Creates or replaces the mutable working draft (version zero) without
+     * changing the request status. Unreferenced staging assets are removed after
+     * the replacement.
+     *
+     * @param currentUser  authenticated assigned Designer
+     * @param id           design request identifier
+     * @param draftRequest complete working panorama and hotspot configuration
+     * @return the request with the updated working draft
+     * @throws AppException if assignment, editable status, or draft validation
+     *                      fails
+     */
+    @Transactional
+    public DesignRequestResponseDTO saveWorkingDraft(
+            User currentUser,
+            UUID id,
+            SubmitDesignDraftRequest draftRequest) {
+        DesignRequest request = getRequest(id);
+        requireDesignerCanEdit(currentUser, request);
+
+        DesignDraft workingDraft = buildDraft(request, draftRequest, 0);
+        request.getDrafts().removeIf(draft -> draft.getVersionNumber() == 0);
+        request.getDrafts().add(workingDraft);
+        DesignRequest saved = designRequestRepository.save(request);
+        designDraftAssetService.cleanupUnreferencedAssets(saved);
+        return toResponse(saved);
+    }
+
+    /**
+     * Promotes the mutable working draft to the next immutable submitted
+     * version and moves the request to DRAFT_SUBMITTED for Exhibitor review.
+     *
+     * @param currentUser authenticated assigned Designer
+     * @param id          design request identifier
+     * @return the request after submission
+     * @throws AppException if the request is not editable, belongs to another
+     *                      Designer, or has no working draft
+     */
+    @Transactional
+    public DesignRequestResponseDTO submitWorkingDraft(User currentUser, UUID id) {
+        DesignRequest request = getRequest(id);
+        requireDesignerCanEdit(currentUser, request);
+        DesignDraft workingDraft = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() == 0)
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+
+        DesignRequestStatus previousStatus = request.getStatus();
+        workingDraft.setVersionNumber(nextSubmittedVersion(request));
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        request.setReviewNote(null);
+        DesignRequest saved = designRequestRepository.save(request);
+        designDraftAssetService.cleanupUnreferencedAssets(saved);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
+    }
+
+    /**
+     * Rejects the latest submitted draft and returns the request to the assigned
+     * Designer for revision. Each rejection increments both the request review
+     * count and the booth's shared design-action usage.
+     *
+     * @param currentUser   authenticated Exhibitor that owns the request company
+     * @param id            design request identifier
+     * @param rejectRequest optional revision note for the Designer
+     * @return the request in REVISION_REQUESTED status
+     * @throws AppException if the request is not DRAFT_SUBMITTED, belongs to
+     *                      another company, or the booth action quota is exhausted
+     */
     @Transactional
     public DesignRequestResponseDTO rejectDraft(User currentUser, UUID id, RejectDesignDraftRequest rejectRequest) {
         Company company = getCompanyForCurrentUser(currentUser);
@@ -189,12 +345,27 @@ public class DesignRequestService {
         }
         assertBoothDesignQuotaAvailable(request.getBooth());
 
+        DesignRequestStatus previousStatus = request.getStatus();
         request.setReviewCount(request.getReviewCount() + 1);
         request.setReviewNote(rejectRequest == null ? null : trimToNull(rejectRequest.getReviewNote()));
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
-        return toResponse(designRequestRepository.save(request));
+        DesignRequest saved = designRequestRepository.save(request);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
     }
 
+    /**
+     * Approves the latest submitted draft and replaces the booth's panorama and
+     * hotspot content with that draft. The request becomes APPROVED, the booth
+     * returns to DRAFT for Exhibitor editing, and superseded design assets are
+     * cleaned up.
+     *
+     * @param currentUser authenticated Exhibitor that owns the request company
+     * @param id          design request identifier
+     * @return the approved request
+     * @throws AppException if the request is not DRAFT_SUBMITTED, belongs to
+     *                      another company, or has no submitted draft
+     */
     @Transactional
     public DesignRequestResponseDTO approveDraft(User currentUser, UUID id) {
         Company company = getCompanyForCurrentUser(currentUser);
@@ -205,13 +376,42 @@ public class DesignRequestService {
 
         DesignDraft draft = designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(request.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        DesignRequestStatus previousStatus = request.getStatus();
         applyDraftToBooth(request, draft);
         request.setStatus(DesignRequestStatus.APPROVED);
         request.setApprovedAt(LocalDateTime.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
-        return toResponse(designRequestRepository.save(request));
+        DesignRequest saved = designRequestRepository.save(request);
+        designDraftAssetService.cleanupAfterApproval(saved);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
     }
 
+    /**
+     * Forces cleanup of design assets no longer used by the current booth. The
+     * caller must enforce the Admin authorization boundary; this operation only
+     * accepts APPROVED or CANCELED requests.
+     *
+     * @param id terminal design request identifier
+     * @return number of assets deleted
+     * @throws AppException if the request is not APPROVED or CANCELED
+     */
+    @Transactional
+    public int cleanupTerminalAssets(UUID id) {
+        DesignRequest request = getRequest(id);
+        if (request.getStatus() != DesignRequestStatus.APPROVED
+                && request.getStatus() != DesignRequestStatus.CANCELED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        return designDraftAssetService.cleanupAfterApproval(request);
+    }
+
+    /**
+     * Aggregates assignment metrics: pending requests, active requests,
+     * completed/canceled totals, and active workload per Designer.
+     *
+     * @return current design-assignment analytics
+     */
     @Transactional(readOnly = true)
     public DesignAssignmentAnalyticsResponseDTO getAssignmentAnalytics() {
         List<DesignRequestStatus> activeStatuses = DesignRequestRepository.ACTIVE_STATUSES;
@@ -231,18 +431,17 @@ public class DesignRequestService {
                 workloads);
     }
 
-    private DesignDraft buildDraft(DesignRequest request, SubmitDesignDraftRequest draftRequest) {
+    private DesignDraft buildDraft(
+            DesignRequest request,
+            SubmitDesignDraftRequest draftRequest,
+            int versionNumber) {
         if (draftRequest == null || draftRequest.getPanoramas() == null || draftRequest.getPanoramas().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
 
-        int nextVersion = request.getDrafts().stream()
-                .map(DesignDraft::getVersionNumber)
-                .max(Integer::compareTo)
-                .orElse(0) + 1;
         DesignDraft draft = DesignDraft.builder()
                 .designRequest(request)
-                .versionNumber(nextVersion)
+                .versionNumber(versionNumber)
                 .note(trimToNull(draftRequest.getNote()))
                 .build();
 
@@ -260,12 +459,15 @@ public class DesignRequestService {
             if (key == null || !keys.add(key)) {
                 throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
             }
+            String imageUrl = requireText(panoramaRequest.getImageUrl());
+            String imageKey = requireText(panoramaRequest.getImageKey());
+            designDraftAssetService.requireDraftAsset(request, imageKey, imageUrl);
             DesignDraftPanorama panorama = DesignDraftPanorama.builder()
                     .draft(draft)
                     .clientKey(key)
                     .name(requireText(panoramaRequest.getName()))
-                    .imageUrl(requireText(panoramaRequest.getImageUrl()))
-                    .imageKey(trimToNull(panoramaRequest.getImageKey()))
+                    .imageUrl(imageUrl)
+                    .imageKey(imageKey)
                     .orderIndex(panoramaRequest.getOrderIndex())
                     .isDefault(Boolean.TRUE.equals(panoramaRequest.getIsDefault()))
                     .build();
@@ -295,6 +497,26 @@ public class DesignRequestService {
 
         draft.getPanoramas().addAll(panoramas);
         return draft;
+    }
+
+    private int nextSubmittedVersion(DesignRequest request) {
+        return request.getDrafts().stream()
+                .map(DesignDraft::getVersionNumber)
+                .filter(version -> version > 0)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+    }
+
+    private void requireDesignerCanEdit(User currentUser, DesignRequest request) {
+        User designer = requireCurrentUser(currentUser);
+        if (request.getAssignedDesigner() == null
+                || !request.getAssignedDesigner().getId().equals(designer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (request.getStatus() != DesignRequestStatus.ASSIGNED
+                && request.getStatus() != DesignRequestStatus.REVISION_REQUESTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
     }
 
     private DesignDraftHotspot buildDraftHotspot(
@@ -374,8 +596,10 @@ public class DesignRequestService {
                 hotspot.setInfoText(trimToNull(request.getInfoText()));
             }
             case PRODUCT -> applyDraftProductHotspot(hotspot, company, request);
-            case IMAGE -> hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.IMAGE));
-            case VIDEO -> hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.VIDEO));
+            case IMAGE ->
+                hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.IMAGE));
+            case VIDEO ->
+                hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.VIDEO));
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
     }
@@ -507,7 +731,7 @@ public class DesignRequestService {
     }
 
     private DesignRequest getRequest(UUID id) {
-        return designRequestRepository.findById(id)
+        return designRequestRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
     }
 
@@ -567,6 +791,20 @@ public class DesignRequestService {
                 draft.getVersionNumber(),
                 draft.getNote(),
                 draft.getCreatedAt());
+    }
+
+    private void publishStatusChanged(
+            DesignRequest request,
+            User actor,
+            DesignRequestStatus previousStatus) {
+        User assignedDesigner = request.getAssignedDesigner();
+        eventPublisher.publishEvent(new DesignRequestStatusChangedEvent(
+                request.getId(),
+                request.getCompany().getId(),
+                assignedDesigner == null ? null : assignedDesigner.getId(),
+                actor == null ? null : actor.getId(),
+                previousStatus,
+                request.getStatus()));
     }
 
     private String requireText(String value) {

@@ -3,6 +3,7 @@ package com.example.vex360.features.user.repositories;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.user.entities.User;
@@ -12,7 +13,13 @@ import com.example.vex360.shared.enums.UserStatus;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+
 public interface UserRepository extends JpaRepository<User, UUID> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.id = :id")
+    Optional<User> findByIdForUpdate(@Param("id") UUID id);
+
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
 

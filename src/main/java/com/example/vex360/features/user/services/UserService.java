@@ -189,6 +189,12 @@ public class UserService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 
+    @Transactional
+    public User getUserEntityByIdForUpdate(UUID id) {
+        return userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
     private User createAndSaveUser(
             String email,
             String password,
