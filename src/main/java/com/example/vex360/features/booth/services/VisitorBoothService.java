@@ -5,7 +5,9 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.exceptions.AppException;
 
 public interface VisitorBoothService {
@@ -17,7 +19,16 @@ public interface VisitorBoothService {
      * @param pageable required paging and sorting request
      * @throws AppException when the exhibition does not exist or is not active
      */
-    PageResponse<BoothResponseDTO> getPublishedBooths(UUID exhibitionUuid, String keyword, Pageable pageable);
+    PageResponse<BoothResponseDTO> getPublishedBooths(
+            UUID exhibitionUuid,
+            String keyword,
+            BoothListingPriority listingPriority,
+            Pageable pageable);
+
+    PageResponse<VisitorProductSearchResponseDTO> searchDisplayedProducts(
+            UUID exhibitionUuid,
+            String keyword,
+            Pageable pageable);
 
     /**
      * Returns the non-null public tour detail of a published booth in an active exhibition.

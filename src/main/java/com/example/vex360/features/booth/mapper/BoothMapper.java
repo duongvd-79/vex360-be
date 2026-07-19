@@ -25,6 +25,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 @Mapper(componentModel = "spring")
 public interface BoothMapper {
@@ -77,6 +78,7 @@ public interface BoothMapper {
                 booth.getBackgroundMusicFileName(),
                 booth.getBackgroundMusicFileSize(),
                 booth.getDisplayTemplateKey(),
+                resolveListingPriority(registration),
                 booth.getStatus(),
                 booth.getCreatedAt(),
                 booth.getUpdatedAt(),
@@ -84,6 +86,22 @@ public interface BoothMapper {
                 company == null ? null : company.getIndustry(),
                 company == null ? null : company.getEmail(),
                 toPanoramaResponseDTOs(booth.getPanoramas()));
+    }
+
+    private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {
+        if (registration == null) {
+            return BoothListingPriority.NORMAL;
+        }
+        if (registration.getListingPrioritySnapshot() != null) {
+            return registration.getListingPrioritySnapshot();
+        }
+        ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
+        if (exhibitionPackage != null
+                && exhibitionPackage.getTemplate() != null
+                && exhibitionPackage.getTemplate().getListingPriority() != null) {
+            return exhibitionPackage.getTemplate().getListingPriority();
+        }
+        return BoothListingPriority.NORMAL;
     }
 
     private UUID getExhibitionUuid(ExhibitorRegistration registration) {
