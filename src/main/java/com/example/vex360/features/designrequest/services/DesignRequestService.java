@@ -2,7 +2,6 @@ package com.example.vex360.features.designrequest.services;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,6 @@ import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftH
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentAnalyticsResponseDTO;
-import com.example.vex360.features.designrequest.dtos.response.DesignDraftResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkloadResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
@@ -45,6 +43,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.product.entities.Product;
@@ -74,6 +73,7 @@ public class DesignRequestService {
 
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;
+    private final DesignRequestMapper designRequestMapper;
     private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
     private final UserService userService;
@@ -112,7 +112,7 @@ public class DesignRequestService {
                 .build();
         DesignRequest saved = designRequestRepository.save(designRequest);
         publishStatusChanged(saved, currentUser, null);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -132,7 +132,7 @@ public class DesignRequestService {
         Company company = getCompanyForCurrentUser(currentUser);
         Page<DesignRequestResponseDTO> page = designRequestRepository
                 .searchForCompany(company.getId(), status, pageable)
-                .map(this::toResponse);
+                .map(designRequestMapper::toResponse);
         return PageResponse.from(page);
     }
 
@@ -151,7 +151,7 @@ public class DesignRequestService {
             UUID designerId,
             Pageable pageable) {
         return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, pageable)
-                .map(this::toResponse));
+                .map(designRequestMapper::toResponse));
     }
 
     /**
@@ -170,7 +170,7 @@ public class DesignRequestService {
             Pageable pageable) {
         User designer = requireCurrentUser(currentUser);
         return PageResponse.from(designRequestRepository.searchForDesigner(designer.getId(), status, pageable)
-                .map(this::toResponse));
+                .map(designRequestMapper::toResponse));
     }
 
     /**
@@ -196,7 +196,7 @@ public class DesignRequestService {
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -235,7 +235,7 @@ public class DesignRequestService {
         request.setStatus(DesignRequestStatus.ASSIGNED);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, null, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -264,7 +264,7 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -292,7 +292,7 @@ public class DesignRequestService {
         request.getDrafts().add(workingDraft);
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -321,7 +321,7 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -351,7 +351,7 @@ public class DesignRequestService {
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -384,7 +384,7 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupAfterApproval(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
+        return designRequestMapper.toResponse(saved);
     }
 
     /**
@@ -749,48 +749,6 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         return currentUser;
-    }
-
-    private DesignRequestResponseDTO toResponse(DesignRequest request) {
-        Booth booth = request.getBooth();
-        Company company = request.getCompany();
-        User designer = request.getAssignedDesigner();
-        return new DesignRequestResponseDTO(
-                request.getId(),
-                booth == null ? null : booth.getId(),
-                booth == null ? null : booth.getName(),
-                company == null ? null : company.getId(),
-                request.getStatus(),
-                designer == null ? null : designer.getId(),
-                designer == null ? null : designer.getFullName(),
-                request.getNote(),
-                request.getReviewNote(),
-                request.getReviewCount(),
-                toDraftResponse(latestDraft(request)),
-                request.getCreatedAt(),
-                request.getAssignedAt(),
-                request.getApprovedAt(),
-                request.getCanceledAt());
-    }
-
-    private DesignDraft latestDraft(DesignRequest request) {
-        if (request.getDrafts() == null || request.getDrafts().isEmpty()) {
-            return null;
-        }
-        return request.getDrafts().stream()
-                .max(Comparator.comparing(DesignDraft::getVersionNumber))
-                .orElse(null);
-    }
-
-    private DesignDraftResponseDTO toDraftResponse(DesignDraft draft) {
-        if (draft == null) {
-            return null;
-        }
-        return new DesignDraftResponseDTO(
-                draft.getId(),
-                draft.getVersionNumber(),
-                draft.getNote(),
-                draft.getCreatedAt());
     }
 
     private void publishStatusChanged(
