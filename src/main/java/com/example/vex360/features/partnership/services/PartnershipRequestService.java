@@ -46,8 +46,8 @@ public class PartnershipRequestService {
     @Value("${app.backend.base-url}")
     private String backendBaseUrl;
 
-    @Value("${app.registration.frontend-url}")
-    private String registrationFrontendUrl;
+    @Value("${app.partnership.frontend-url}")
+    private String partnershipFrontendUrl;
 
     @Transactional
     public PartnershipRequestResponseDTO submitGuestRequest(SubmitPartnershipRequest request) {
@@ -342,35 +342,35 @@ public class PartnershipRequestService {
         try {
             rawToken = TokenEncryptionUtils.decrypt(encryptedToken);
         } catch (Exception e) {
-            return registrationFrontendUrl + "?partnership_error=invalid_token";
+            return partnershipFrontendUrl + "?partnership_error=invalid_token";
         }
 
         UUID requestId;
         try {
             requestId = UUID.fromString(rawToken);
         } catch (Exception e) {
-            return registrationFrontendUrl + "?partnership_error=invalid_token";
+            return partnershipFrontendUrl + "?partnership_error=invalid_token";
         }
 
         Optional<PartnershipRequest> requestOpt = partnershipRequestRepository.findById(requestId);
         if (requestOpt.isEmpty()) {
-            return registrationFrontendUrl + "?partnership_error=not_found";
+            return partnershipFrontendUrl + "?partnership_error=not_found";
         }
 
         PartnershipRequest request = requestOpt.get();
         if (request.getStatus() != PartnershipRequestStatus.AWAITING_VERIFICATION) {
-            return registrationFrontendUrl + "?partnership_error=already_processed";
+            return partnershipFrontendUrl + "?partnership_error=already_processed";
         }
 
         // Check if expired (24 hours)
         if (request.getCreatedAt() != null &&
                 java.time.Duration.between(request.getCreatedAt(), LocalDateTime.now()).toHours() >= 24) {
-            return registrationFrontendUrl + "?partnership_error=expired";
+            return partnershipFrontendUrl + "?partnership_error=expired";
         }
 
         request.setStatus(PartnershipRequestStatus.PENDING);
         partnershipRequestRepository.save(request);
-        return registrationFrontendUrl + "?partnership_confirmed=true";
+        return partnershipFrontendUrl + "?partnership_confirmed=true";
     }
 
     private void sendVerificationEmail(PartnershipRequest request) {
