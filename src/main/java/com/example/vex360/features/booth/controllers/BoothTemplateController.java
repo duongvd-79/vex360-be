@@ -140,6 +140,7 @@ public class BoothTemplateController extends BaseController {
         return created(panorama);
     }
 
+
     @PatchMapping(path = "/{boothId}/panoramas/{panoramaId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<PanoramaResponseDTO>> updatePanorama(
