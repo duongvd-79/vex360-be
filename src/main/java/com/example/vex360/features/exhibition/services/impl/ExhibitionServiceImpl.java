@@ -14,6 +14,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
@@ -142,6 +144,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Upload keyVisual and save as ExhibitionAsset
         CloudinaryResponse uploadRes = cloudService.upload(keyVisual);
+        deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
         ExhibitionAsset keyVisualAsset = ExhibitionAsset.builder()
                 .exhibition(exhibition)
                 .assetUrl(uploadRes.getUrl())
@@ -173,6 +176,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             for (MultipartFile logo : sponsorLogos) {
                 if (logo != null && !logo.isEmpty()) {
                     CloudinaryResponse uploadResLogo = cloudService.upload(logo);
+                    deleteCloudAssetOnRollback(uploadResLogo.getPublicId(), "image");
                     ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                             .exhibition(exhibition)
                             .assetUrl(uploadResLogo.getUrl())
@@ -618,14 +622,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             String resourceType) {
         ExhibitionAsset existingAsset = exhibitionAssetRepository.findByExhibitionIdAndType(exhibition.getId(), type)
                 .orElse(null);
+        CloudinaryResponse uploadRes = cloudService.upload(file);
+        deleteCloudAssetOnRollback(uploadRes.getPublicId(), resourceType);
         if (existingAsset != null) {
-            cloudService.delete(existingAsset.getPublicId(), resourceType);
-            CloudinaryResponse uploadRes = cloudService.upload(file);
+            String oldPublicId = existingAsset.getPublicId();
             existingAsset.setAssetUrl(uploadRes.getUrl());
             existingAsset.setPublicId(uploadRes.getPublicId());
             exhibitionAssetRepository.save(existingAsset);
+            deleteCloudAssetAfterCommit(oldPublicId, resourceType);
         } else {
-            CloudinaryResponse uploadRes = cloudService.upload(file);
             ExhibitionAsset newAsset = ExhibitionAsset.builder()
                     .exhibition(exhibition)
                     .assetUrl(uploadRes.getUrl())
@@ -658,6 +663,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         validateImageFile(file, true);
 
         CloudinaryResponse uploadRes = cloudService.upload(file);
+        deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
         ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                 .exhibition(exhibition)
                 .assetUrl(uploadRes.getUrl())
@@ -699,16 +705,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         validateImageFile(file, true);
 
-        try {
-            cloudService.delete(asset.getPublicId(), "image");
-        } catch (Exception e) {
-            log.error("Failed to delete old asset from Cloudinary: {}", asset.getPublicId(), e);
-        }
-
+        String oldPublicId = asset.getPublicId();
         CloudinaryResponse uploadRes = cloudService.upload(file);
+        deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
         asset.setAssetUrl(uploadRes.getUrl());
         asset.setPublicId(uploadRes.getPublicId());
         exhibitionAssetRepository.save(asset);
+        deleteCloudAssetAfterCommit(oldPublicId, "image");
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
@@ -740,17 +743,54 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        try {
-            cloudService.delete(asset.getPublicId(), "image");
-        } catch (Exception e) {
-            log.error("Failed to delete asset from Cloudinary: {}", asset.getPublicId(), e);
-        }
-
+        String publicId = asset.getPublicId();
         exhibitionAssetRepository.delete(asset);
         exhibition.getAssets().remove(asset);
+        deleteCloudAssetAfterCommit(publicId, "image");
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    private void deleteCloudAssetOnRollback(String publicId, String resourceType) {
+        if (publicId == null || publicId.isBlank()
+                || !TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    deleteCloudAsset(publicId, resourceType);
+                }
+            }
+        });
+    }
+
+    private void deleteCloudAssetAfterCommit(String publicId, String resourceType) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deleteCloudAsset(publicId, resourceType);
+                }
+            });
+            return;
+        }
+        deleteCloudAsset(publicId, resourceType);
+    }
+
+    private void deleteCloudAsset(String publicId, String resourceType) {
+        try {
+            cloudService.delete(publicId, resourceType);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to clean up Cloudinary asset {}", publicId, exception);
+        }
     }
 
     @Override
@@ -818,6 +858,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
+        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
         if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
             log.error("Cannot update package {} because exhibitors have already registered", packageId);
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
@@ -866,6 +910,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
         if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
