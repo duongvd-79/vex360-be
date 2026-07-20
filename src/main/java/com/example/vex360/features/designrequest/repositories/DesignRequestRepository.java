@@ -1,24 +1,45 @@
 package com.example.vex360.features.designrequest.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
+import jakarta.persistence.LockModeType;
+
 public interface DesignRequestRepository extends JpaRepository<DesignRequest, UUID> {
+    String REQUEST_DETAILS_QUERY = """
+            SELECT dr FROM DesignRequest dr
+            LEFT JOIN FETCH dr.company
+            LEFT JOIN FETCH dr.booth booth
+            LEFT JOIN FETCH booth.exhibitorRegistration registration
+            LEFT JOIN FETCH registration.exhibitionPackage exhibitionPackage
+            LEFT JOIN FETCH exhibitionPackage.exhibition
+            LEFT JOIN FETCH dr.assignedDesigner
+            """;
+
     List<DesignRequestStatus> ACTIVE_STATUSES = List.of(
             DesignRequestStatus.ASSIGNED,
             DesignRequestStatus.DRAFT_SUBMITTED,
             DesignRequestStatus.REVISION_REQUESTED);
 
-    @Query("""
-            SELECT dr FROM DesignRequest dr
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT dr FROM DesignRequest dr WHERE dr.id = :id")
+    Optional<DesignRequest> findByIdForUpdate(@Param("id") UUID id);
+
+    @Query(value = REQUEST_DETAILS_QUERY + """
+            WHERE dr.company.id = :companyId
+              AND (:status IS NULL OR dr.status = :status)
+            """, countQuery = """
+            SELECT COUNT(dr) FROM DesignRequest dr
             WHERE dr.company.id = :companyId
               AND (:status IS NULL OR dr.status = :status)
             """)
@@ -27,8 +48,11 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             @Param("status") DesignRequestStatus status,
             Pageable pageable);
 
-    @Query("""
-            SELECT dr FROM DesignRequest dr
+    @Query(value = REQUEST_DETAILS_QUERY + """
+            WHERE (:status IS NULL OR dr.status = :status)
+              AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
+            """, countQuery = """
+            SELECT COUNT(dr) FROM DesignRequest dr
             WHERE (:status IS NULL OR dr.status = :status)
               AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
             """)
@@ -37,8 +61,11 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             @Param("designerId") UUID designerId,
             Pageable pageable);
 
-    @Query("""
-            SELECT dr FROM DesignRequest dr
+    @Query(value = REQUEST_DETAILS_QUERY + """
+            WHERE dr.assignedDesigner.id = :designerId
+              AND (:status IS NULL OR dr.status = :status)
+            """, countQuery = """
+            SELECT COUNT(dr) FROM DesignRequest dr
             WHERE dr.assignedDesigner.id = :designerId
               AND (:status IS NULL OR dr.status = :status)
             """)

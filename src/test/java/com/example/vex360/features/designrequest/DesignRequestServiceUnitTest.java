@@ -16,9 +16,11 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
@@ -38,9 +40,12 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
+import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.services.ProductService;
@@ -66,6 +71,10 @@ class DesignRequestServiceUnitTest {
     private UserService userService;
     @Mock
     private ProductService productService;
+    @Mock
+    private DesignDraftAssetService designDraftAssetService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private DesignRequestService service;
     private User exhibitor;
@@ -78,10 +87,13 @@ class DesignRequestServiceUnitTest {
         service = new DesignRequestService(
                 designRequestRepository,
                 designDraftRepository,
+                Mappers.getMapper(DesignRequestMapper.class),
                 boothDesignService,
                 companyService,
                 userService,
-                productService);
+                productService,
+                designDraftAssetService,
+                eventPublisher);
 
         exhibitor = User.builder()
                 .id(UUID.randomUUID())
@@ -154,7 +166,7 @@ class DesignRequestServiceUnitTest {
         booth.setStatus(BoothStatus.DESIGNING);
 
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -169,8 +181,8 @@ class DesignRequestServiceUnitTest {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = pendingRequest(requestId);
 
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
-        when(userService.getUserEntityById(designer.getId())).thenReturn(designer);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(userService.getUserEntityByIdForUpdate(designer.getId())).thenReturn(designer);
         when(designRequestRepository.countByAssignedDesignerIdAndStatusIn(
                 eq(designer.getId()),
                 eq(DesignRequestRepository.ACTIVE_STATUSES))).thenReturn(3L);
@@ -187,8 +199,8 @@ class DesignRequestServiceUnitTest {
         UUID requestId = UUID.randomUUID();
         User visitor = User.builder().id(UUID.randomUUID()).role(Role.VISITOR).build();
 
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(pendingRequest(requestId)));
-        when(userService.getUserEntityById(visitor.getId())).thenReturn(visitor);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(pendingRequest(requestId)));
+        when(userService.getUserEntityByIdForUpdate(visitor.getId())).thenReturn(visitor);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.assignRequest(requestId, new AssignDesignRequest(visitor.getId())));
@@ -228,7 +240,7 @@ class DesignRequestServiceUnitTest {
                                 null,
                                 null)))));
 
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(productService.getProductForCompany(productId, company))
                 .thenThrow(new AppException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -240,13 +252,61 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
+    void saveWorkingDraftReplacesVersionZeroAndKeepsRequestAssigned() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        DesignDraft oldWorking = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        request.getDrafts().add(oldWorking);
+        SubmitDesignDraftRequest draftRequest = simpleDraftRequest();
+
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.saveWorkingDraft(designer, requestId, draftRequest);
+
+        assertEquals(1, request.getDrafts().size());
+        assertEquals(0, request.getDrafts().get(0).getVersionNumber());
+        assertEquals(DesignRequestStatus.ASSIGNED, request.getStatus());
+        verify(designDraftAssetService).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void submitWorkingDraftTurnsVersionZeroIntoNextImmutableVersion() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.getDrafts().add(DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(1)
+                .build());
+        DesignDraft working = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        request.getDrafts().add(working);
+
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.submitWorkingDraft(designer, requestId);
+
+        assertEquals(2, working.getVersionNumber());
+        assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
+        verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
+    }
+
+    @Test
     void rejectDraftCountsAgainstBoothActionQuota() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
 
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(designRequestRepository.countByBoothId(booth.getId())).thenReturn(1L);
         when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(2L);
 
@@ -277,7 +337,7 @@ class DesignRequestServiceUnitTest {
                 .build();
         DesignDraft draft = draft(request, product, mediaAsset);
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(designRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
                 .thenReturn(Optional.of(draft));
         when(designRequestRepository.save(any(DesignRequest.class)))
@@ -293,6 +353,21 @@ class DesignRequestServiceUnitTest {
         assertSame(mediaAsset, appliedPanorama.hotspots().get(0).mediaAsset());
         assertEquals(DesignRequestStatus.APPROVED, request.getStatus());
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        verify(designDraftAssetService).cleanupAfterApproval(request);
+    }
+
+    @Test
+    void forceCleanupRejectsActiveRequest() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.cleanupTerminalAssets(requestId));
+
+        assertSame(ErrorCode.INVALID_DESIGN_REQUEST_STATUS, exception.getErrorCode());
+        verify(designDraftAssetService, never()).cleanupAfterApproval(any());
     }
 
     private DesignRequest pendingRequest(UUID id) {
@@ -311,6 +386,19 @@ class DesignRequestServiceUnitTest {
         request.setAssignedDesigner(designer);
         request.setStatus(DesignRequestStatus.ASSIGNED);
         return request;
+    }
+
+    private SubmitDesignDraftRequest simpleDraftRequest() {
+        return new SubmitDesignDraftRequest(
+                "Working",
+                List.of(new SubmitDesignDraftPanoramaRequest(
+                        "p1",
+                        "Entrance",
+                        "https://cdn.example.com/pano.jpg",
+                        "panorama/pano",
+                        0,
+                        true,
+                        List.of())));
     }
 
     private DesignDraft draft(DesignRequest request, Product product, MediaAsset mediaAsset) {

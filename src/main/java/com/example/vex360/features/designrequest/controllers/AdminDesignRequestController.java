@@ -9,6 +9,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,5 +60,11 @@ public class AdminDesignRequestController extends BaseController {
     @Operation(summary = "Admin xem analytics phân công designer")
     public ResponseEntity<ApiResponse<DesignAssignmentAnalyticsResponseDTO>> getAssignmentAnalytics() {
         return ok(designRequestService.getAssignmentAnalytics());
+    }
+
+    @DeleteMapping("/{id}/assets")
+    @Operation(summary = "Admin giải phóng asset không còn được booth sử dụng")
+    public ResponseEntity<ApiResponse<Integer>> cleanupAssets(@PathVariable UUID id) {
+        return ok(designRequestService.cleanupTerminalAssets(id));
     }
 }

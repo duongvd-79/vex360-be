@@ -85,6 +85,17 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<ProductResponseDTO> getActiveProductsForCompany(
+            UUID companyId,
+            String keyword,
+            UUID categoryId,
+            Pageable pageable) {
+        return PageResponse.from(productRepository
+                .searchProducts(companyId, normalizeKeyword(keyword), categoryId, ProductStatus.ACTIVE, pageable)
+                .map(productMapper::toResponse));
+    }
+
+    @Transactional(readOnly = true)
     public ProductResponseDTO getProductById(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
         return productMapper.toResponse(getProductForCompany(productId, company));
