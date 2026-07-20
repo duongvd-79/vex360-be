@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import com.example.vex360.features.booth.controllers.VisitorBoothController;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.services.VisitorBoothService;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -80,6 +81,24 @@ class VisitorBoothControllerUnitTest {
         assertNotNull(response.getBody());
         assertEquals(pageResponse, response.getBody().data());
         verify(visitorBoothService).searchDisplayedProducts(exhibitionUuid, keyword, pageable);
+    }
+
+    @Test
+    void getDisplayedProductDetail_DelegatesToService() {
+        UUID exhibitionUuid = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        ProductResponseDTO detail = new ProductResponseDTO();
+
+        when(visitorBoothService.getDisplayedProductDetail(exhibitionUuid, productId))
+                .thenReturn(detail);
+
+        ResponseEntity<ApiResponse<ProductResponseDTO>> response =
+                controller.getDisplayedProductDetail(exhibitionUuid, productId);
+
+        assertNotNull(response);
+        assertNotNull(response.getBody());
+        assertEquals(detail, response.getBody().data());
+        verify(visitorBoothService).getDisplayedProductDetail(exhibitionUuid, productId);
     }
 
     @Test

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.services.VisitorBoothService;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -56,6 +57,15 @@ public class VisitorBoothController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
         PageResponse<VisitorProductSearchResponseDTO> response = visitorBoothService.searchDisplayedProducts(
                 exhibitionUuid, keyword, pageable);
+        return ok(response);
+    }
+
+    @GetMapping("/{exhibitionUuid}/products/{productId}")
+    @Operation(summary = "Lấy chi tiết sản phẩm đang được trưng bày trong triển lãm")
+    public ResponseEntity<ApiResponse<ProductResponseDTO>> getDisplayedProductDetail(
+            @PathVariable UUID exhibitionUuid,
+            @PathVariable UUID productId) {
+        ProductResponseDTO response = visitorBoothService.getDisplayedProductDetail(exhibitionUuid, productId);
         return ok(response);
     }
 

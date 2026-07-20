@@ -61,6 +61,30 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             @Param("boothStatus") BoothStatus boothStatus,
             Pageable pageable);
 
+    @Query("""
+            SELECT DISTINCT product
+            FROM Hotspot hotspot
+            JOIN hotspot.product product
+            JOIN FETCH product.company
+            JOIN FETCH product.category
+            LEFT JOIN FETCH product.contents
+            JOIN hotspot.sourcePanorama panorama
+            JOIN panorama.booth booth
+            JOIN booth.exhibitorRegistration registration
+            JOIN registration.exhibitionPackage exhibitionPackage
+            JOIN exhibitionPackage.exhibition exhibition
+            WHERE exhibition.uuid = :exhibitionUuid
+              AND product.id = :productId
+              AND product.status = :productStatus
+              AND booth.status = :boothStatus
+              AND booth.isTemplate = false
+            """)
+    Optional<Product> findDisplayedProductDetailForVisitor(
+            @Param("exhibitionUuid") UUID exhibitionUuid,
+            @Param("productId") UUID productId,
+            @Param("productStatus") ProductStatus productStatus,
+            @Param("boothStatus") BoothStatus boothStatus);
+
     List<Hotspot> findBySourcePanoramaIdOrderByNameAsc(UUID sourcePanoramaId);
 
     Optional<Hotspot> findByIdAndSourcePanoramaId(UUID id, UUID sourcePanoramaId);

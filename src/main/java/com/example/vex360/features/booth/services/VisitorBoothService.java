@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.BoothListingPriority;
@@ -29,6 +30,8 @@ public interface VisitorBoothService {
             UUID exhibitionUuid,
             String keyword,
             Pageable pageable);
+
+    ProductResponseDTO getDisplayedProductDetail(UUID exhibitionUuid, UUID productId);
 
     /**
      * Returns the non-null public tour detail of a published booth in an active exhibition.

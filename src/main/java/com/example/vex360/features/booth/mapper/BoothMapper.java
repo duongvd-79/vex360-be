@@ -63,6 +63,10 @@ public interface BoothMapper {
     }
 
     default BoothResponseDTO toBoothResponseDTO(Booth booth) {
+        return toBoothResponseDTO(booth, booth.getPanoramas());
+    }
+
+    default BoothResponseDTO toBoothResponseDTO(Booth booth, List<Panorama> panoramas) {
         Company company = booth.getCompany();
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         return new BoothResponseDTO(
@@ -85,7 +89,7 @@ public interface BoothMapper {
                 company == null ? null : company.getName(),
                 company == null ? null : company.getIndustry(),
                 company == null ? null : company.getEmail(),
-                toPanoramaResponseDTOs(booth.getPanoramas()));
+                toPanoramaResponseDTOs(panoramas));
     }
 
     private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {
@@ -232,6 +236,8 @@ public interface BoothMapper {
                 product.getThumbnailUrl(),
                 product.getPrice(),
                 product.getCurrency(),
-                product.getStatus());
+                product.getStatus(),
+                null,
+                null);
     }
 }

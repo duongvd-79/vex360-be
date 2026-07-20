@@ -1,5 +1,7 @@
 package com.example.vex360.features.product.repositories;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +42,19 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("status") ProductStatus status);
 
     Optional<Product> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    @Query("""
+            SELECT DISTINCT product
+            FROM Product product
+            JOIN FETCH product.company
+            JOIN FETCH product.category
+            LEFT JOIN FETCH product.contents
+            WHERE product.id IN :productIds
+              AND product.status = :status
+            """)
+    List<Product> findAllDetailsByIdInAndStatus(
+            @Param("productIds") Collection<UUID> productIds,
+            @Param("status") ProductStatus status);
 
     boolean existsByCompanyIdAndSkuIgnoreCase(UUID companyId, String sku);
 

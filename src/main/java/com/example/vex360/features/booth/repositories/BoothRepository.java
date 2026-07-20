@@ -176,9 +176,11 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
 
     @Query("""
             SELECT b FROM Booth b
-            JOIN b.exhibitorRegistration reg
-            JOIN reg.exhibitionPackage pkg
-            JOIN pkg.exhibition exh
+            JOIN FETCH b.exhibitorRegistration reg
+            JOIN FETCH reg.exhibitionPackage pkg
+            JOIN FETCH pkg.exhibition exh
+            LEFT JOIN FETCH pkg.template
+            LEFT JOIN FETCH b.company
             WHERE exh.uuid = :exhibitionUuid
               AND b.id = :boothId
               AND b.status = :boothStatus

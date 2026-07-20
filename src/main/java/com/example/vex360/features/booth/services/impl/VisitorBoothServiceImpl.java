@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,18 +13,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotProductSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
+import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
+import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.repositories.ProductPlacementProjection;
 import com.example.vex360.features.booth.services.VisitorBoothService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.product.dtos.response.ProductPlacementDTO;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.features.product.mapper.ProductMapper;
+import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -39,7 +49,10 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
     private final ExhibitionService exhibitionService;
     private final BoothRepository boothRepository;
     private final HotspotRepository hotspotRepository;
+    private final PanoramaRepository panoramaRepository;
+    private final ProductRepository productRepository;
     private final BoothMapper boothMapper;
+    private final ProductMapper productMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -110,17 +123,77 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
 
     @Override
     @Transactional(readOnly = true)
+    public ProductResponseDTO getDisplayedProductDetail(UUID exhibitionUuid, UUID productId) {
+        ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
+        Product product = hotspotRepository.findDisplayedProductDetailForVisitor(
+                exhibition.getUuid(),
+                productId,
+                ProductStatus.ACTIVE,
+                BoothStatus.PUBLISHED)
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+        return productMapper.toResponse(product);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public BoothResponseDTO getBoothTourDetail(UUID exhibitionUuid, UUID boothId) {
         ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
 
-        BoothResponseDTO boothTour = boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
+        Booth booth = boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
                 exhibition.getUuid(),
                 boothId,
                 BoothStatus.PUBLISHED
-        ).map(boothMapper::toBoothResponseDTO)
-         .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        ).orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+
+        List<Panorama> panoramas = panoramaRepository.findDetailsByBoothId(boothId);
+        BoothResponseDTO boothTour = boothMapper.toBoothResponseDTO(booth, panoramas);
+        enrichDisplayedProductDetails(boothTour);
 
         return boothTour;
+    }
+
+    private void enrichDisplayedProductDetails(BoothResponseDTO boothTour) {
+        List<PanoramaResponseDTO> panoramas = boothTour.getPanoramas();
+        if (panoramas == null || panoramas.isEmpty()) {
+            return;
+        }
+
+        List<UUID> productIds = panoramas.stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(HotspotResponseDTO::getProduct)
+                .filter(product -> product != null && product.getId() != null)
+                .map(HotspotProductSummaryDTO::getId)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty()) {
+            return;
+        }
+
+        Map<UUID, ProductResponseDTO> productsById = productRepository
+                .findAllDetailsByIdInAndStatus(productIds, ProductStatus.ACTIVE)
+                .stream()
+                .map(productMapper::toResponse)
+                .collect(Collectors.toMap(ProductResponseDTO::getId, product -> product));
+
+        panoramas.stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .forEach(hotspot -> enrichDisplayedProductDetail(hotspot, productsById));
+    }
+
+    private void enrichDisplayedProductDetail(
+            HotspotResponseDTO hotspot,
+            Map<UUID, ProductResponseDTO> productsById) {
+        HotspotProductSummaryDTO product = hotspot.getProduct();
+        if (product == null) {
+            return;
+        }
+        ProductResponseDTO detail = productsById.get(product.getId());
+        if (detail == null) {
+            hotspot.setProduct(null);
+            return;
+        }
+        product.setDescription(detail.getDescription());
+        product.setContents(detail.getContents());
     }
 
     private ExhibitionResponseDTO getActiveExhibition(UUID exhibitionUuid) {
