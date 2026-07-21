@@ -162,21 +162,6 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
       Pageable pageable);
 
   @Query("""
-      SELECT b FROM Booth b
-      JOIN b.exhibitorRegistration reg
-      JOIN reg.exhibitionPackage pkg
-      JOIN pkg.exhibition exh
-      WHERE exh.uuid = :exhibitionUuid
-        AND b.id = :boothId
-        AND b.status = :boothStatus
-        AND b.isTemplate = false
-      """)
-  Optional<Booth> findPublishedBoothByExhibitionUuidAndBoothId(
-      @Param("exhibitionUuid") UUID exhibitionUuid,
-      @Param("boothId") UUID boothId,
-      @Param("boothStatus") BoothStatus boothStatus);
-
-  @Query("""
       SELECT COUNT(b) FROM Booth b
       WHERE b.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
         AND b.isTemplate = false
