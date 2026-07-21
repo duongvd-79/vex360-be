@@ -307,11 +307,12 @@ public class DataSeeder implements ApplicationRunner {
                 log.info("[SEED] Đã tạo 3 package template (phủ đủ BoothListingPriority + PackageTemplateStatus)");
 
                 // ---------- 4. EXHIBITIONS (phủ đủ 6 trạng thái) ----------
+                // Ngày trải quanh "hôm nay" để triển lãm đang diễn ra và bao trùm các event seed
                 Exhibition exhibition = saveExhibition(organizer,
                                 "Triển lãm Nội thất & Công nghệ VEX360 2026", "Nội thất - Công nghệ",
                                 "Triển lãm ảo quy tụ các thương hiệu nội thất và công nghệ hàng đầu Việt Nam.",
-                                LocalDate.now().plusDays(7), LocalDate.now().plusDays(37), 50,
-                                ExhibitionStatus.PUBLISHED, admin, null);
+                                LocalDate.now().minusDays(20), LocalDate.now().plusDays(10), 50,
+                                ExhibitionStatus.ACTIVE, admin, null);
 
                 saveExhibition(organizer,
                                 "Triển lãm Thủ công Mỹ nghệ Việt 2026", "Thủ công mỹ nghệ",
@@ -758,19 +759,37 @@ public class DataSeeder implements ApplicationRunner {
                                 .phoneNumber("0908888888").message("Cho mình xin catalogue sản phẩm.").build());
                 log.info("[SEED] Đã tạo 2 booth lead");
 
-                // ---------- 24. ANALYTICS EVENTS ----------
-                entityManager.persist(AnalyticsEvent.builder().user(visitor).booth(booth1)
-                                .eventType(AnalyticsEventType.BOOTH_VIEW).durationSeconds(145).build());
-                entityManager.persist(AnalyticsEvent.builder().user(visitor).booth(booth1).product(sofa)
-                                .eventType(AnalyticsEventType.PRODUCT_CLICK).durationSeconds(38).build());
-                entityManager.persist(AnalyticsEvent.builder().user(visitor)
-                                .eventType(AnalyticsEventType.ENTER_EXHIBITION).durationSeconds(0).build());
-                entityManager.persist(AnalyticsEvent.builder().user(visitor).booth(booth1)
-                                .eventType(AnalyticsEventType.CHAT_INITIATED).durationSeconds(0).build());
-                // Phủ AnalyticsEventType.LEAVE_EXHIBITION
-                entityManager.persist(AnalyticsEvent.builder().user(visitor)
-                                .eventType(AnalyticsEventType.LEAVE_EXHIBITION).durationSeconds(620).build());
-                log.info("[SEED] Đã tạo 5 analytics event (phủ đủ AnalyticsEventType)");
+                // ---------- 24. ANALYTICS EVENTS (rải qua nhiều ngày cho dashboard organizer) ----------
+                // Mỗi ngày: một số lượt BOOTH_VIEW + ENTER/LEAVE_EXHIBITION (kèm thời lượng).
+                // Tất cả gắn với triển lãm chính để query tổng hợp theo exhibition_id nhận được.
+                int[] daysAgo = { 18, 15, 12, 9, 6, 4, 2, 1 };
+                int[] viewsPerDay = { 4, 6, 5, 8, 7, 9, 8, 11 };
+                int[] visitsPerDay = { 2, 3, 2, 4, 3, 4, 3, 5 };
+                int totalAnalyticsEvents = 0;
+                for (int i = 0; i < daysAgo.length; i++) {
+                        LocalDateTime day = LocalDateTime.now().minusDays(daysAgo[i]).withHour(10).withMinute(0);
+                        for (int v = 0; v < viewsPerDay[i]; v++) {
+                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, visitor, exhibition, booth1, null,
+                                                null, day.plusMinutes(v));
+                                totalAnalyticsEvents++;
+                        }
+                        for (int v = 0; v < visitsPerDay[i]; v++) {
+                                seedAnalyticsEvent(AnalyticsEventType.ENTER_EXHIBITION, visitor, exhibition, null, null,
+                                                null, day.plusMinutes(v * 3L));
+                                // LEAVE kèm thời lượng (giây) để tính "thời lượng visit trung bình"
+                                seedAnalyticsEvent(AnalyticsEventType.LEAVE_EXHIBITION, visitor, exhibition, null, null,
+                                                480 + v * 40, day.plusMinutes(v * 3L + 6));
+                                totalAnalyticsEvents += 2;
+                        }
+                }
+                // Vài event khác loại để phủ đủ enum (PRODUCT_CLICK, CHAT_INITIATED)
+                seedAnalyticsEvent(AnalyticsEventType.PRODUCT_CLICK, visitor, exhibition, booth1, sofa, 38,
+                                LocalDateTime.now().minusDays(2).withHour(11));
+                seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED, visitor, exhibition, booth1, null, 0,
+                                LocalDateTime.now().minusDays(2).withHour(12));
+                totalAnalyticsEvents += 2;
+                log.info("[SEED] Đã tạo {} analytics event (rải qua {} ngày, phủ đủ AnalyticsEventType)",
+                                totalAnalyticsEvents, daysAgo.length);
 
                 log.info("[SEED] HOÀN TẤT. Đăng nhập bằng bất kỳ email @vex360.local với mật khẩu: {}",
                                 DEFAULT_PASSWORD);
@@ -948,6 +967,28 @@ public class DataSeeder implements ApplicationRunner {
                                 .url(video.url()).publicId(video.publicId())
                                 .mimeType("video/webm").fileSize(video.bytes())
                                 .build());
+        }
+
+        /**
+         * Tạo 1 analytics event với event_time chỉ định (backdate).
+         *
+         * <p>
+         * Cột {@code event_time} dùng {@code @CreationTimestamp} nên khi persist,
+         * Hibernate luôn set = thời điểm hiện tại, bỏ qua giá trị ta gán. Vì vậy sau khi
+         * persist ta chạy 1 câu UPDATE native để ghi đè về ngày mong muốn — nhờ đó dữ
+         * liệu trải qua nhiều ngày cho biểu đồ.
+         */
+        private void seedAnalyticsEvent(AnalyticsEventType type, User user, Exhibition exhibition,
+                        Booth booth, Product product, Integer durationSeconds, LocalDateTime when) {
+                AnalyticsEvent event = AnalyticsEvent.builder()
+                                .user(user).exhibition(exhibition).booth(booth).product(product)
+                                .eventType(type).durationSeconds(durationSeconds).build();
+                entityManager.persist(event);
+                entityManager.flush(); // đảm bảo có id + đã INSERT
+                entityManager.createNativeQuery("UPDATE analytics_events SET event_time = :t WHERE id = :id")
+                                .setParameter("t", when)
+                                .setParameter("id", event.getId())
+                                .executeUpdate();
         }
 
         /**

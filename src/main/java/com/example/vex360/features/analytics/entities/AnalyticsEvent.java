@@ -1,5 +1,6 @@
 package com.example.vex360.features.analytics.entities;
 
+import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.product.entities.Product;
@@ -12,7 +13,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "analytics_events")
+@Table(name = "analytics_events", indexes = {
+        // Tăng tốc query tổng hợp lọc theo triển lãm + khoảng thời gian
+        @Index(name = "idx_analytics_exhibition_time", columnList = "exhibition_id, event_time")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -51,4 +55,9 @@ public class AnalyticsEvent {
     @CreationTimestamp
     @Column(name = "event_time", updatable = false)
     LocalDateTime eventTime;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exhibition_id")
+    Exhibition exhibition;
+
 }

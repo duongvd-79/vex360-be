@@ -38,6 +38,7 @@ public class UploadController extends BaseController {
 
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
     private static final Set<String> ALLOWED_TYPES = Set.of("image/jpeg", "image/png", "video/mp4");
+    private static final Set<String> AVATAR_TYPES = Set.of("image/jpeg", "image/png");
 
     private final CloudService cloudService;
     private final CompanyService companyService;
@@ -68,6 +69,26 @@ public class UploadController extends BaseController {
         companyStorageService.addUsage(company, file.getSize());
 
         return ok(response, "Tải lên tệp tin thành công!");
+    }
+
+    @PostMapping("/avatar")
+    @Operation(summary = "Tải lên ảnh đại diện", description = "Ảnh JPG/PNG tối đa 10MB. Dành cho MỌI user đã đăng nhập; không tra công ty, không tính vào kho lưu trữ công ty.")
+    public ResponseEntity<ApiResponse<CloudinaryResponse>> uploadAvatar(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestPart MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new AppException(ErrorCode.FILE_TOO_LARGE);
+        }
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
+        if (!AVATAR_TYPES.contains(contentType)) {
+            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+        }
+
+        CloudinaryResponse response = cloudService.uploadToFolder(file, "avatar");
+        return ok(response, "Tải lên ảnh đại diện thành công!");
     }
 
     @DeleteMapping
