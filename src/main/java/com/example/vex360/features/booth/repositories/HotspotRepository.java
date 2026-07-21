@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.features.product.enums.ProductStatus;
 
 public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     List<Hotspot> findBySourcePanoramaIdOrderByNameAsc(UUID sourcePanoramaId);
@@ -30,6 +32,18 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             WHERE h.sourcePanorama.booth.id = :boothId
             """)
     long countBySourcePanoramaBoothId(@Param("boothId") UUID boothId);
+
+    boolean existsBySourcePanoramaBoothIdAndTypeNot(UUID boothId, HotspotType type);
+
+    boolean existsBySourcePanoramaBoothIdAndProductStatusNot(UUID boothId, ProductStatus status);
+
+    @Query("""
+            SELECT DISTINCT h.product
+            FROM Hotspot h
+            WHERE h.sourcePanorama.booth.id = :boothId
+              AND h.product IS NOT NULL
+            """)
+    List<Product> findDistinctProductsByBoothId(@Param("boothId") UUID boothId);
 
     @Query("""
             SELECT h.sourcePanorama.booth.id AS boothId, COUNT(h.id) AS contentCount

@@ -138,7 +138,7 @@ class ExhibitorBoothServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
         doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
-                .when(boothReviewPolicyService).assertEditable(booth);
+                .when(boothReviewPolicyService).assertMetadataEditable(booth);
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(
@@ -418,7 +418,7 @@ class ExhibitorBoothServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
         doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
-                .when(boothReviewPolicyService).assertEditable(booth);
+                .when(boothReviewPolicyService).assertMetadataEditable(booth);
 
         AppException exception = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, null, music));

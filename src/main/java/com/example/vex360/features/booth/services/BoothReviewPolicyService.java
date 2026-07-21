@@ -35,6 +35,13 @@ public class BoothReviewPolicyService {
         }
     }
 
+    public void assertMetadataEditable(Booth booth) {
+        if (booth.getStatus() != BoothStatus.DRAFT
+                && booth.getStatus() != BoothStatus.DESIGN_REQUEST_PENDING) {
+            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
+        }
+    }
+
     public void assertBeforeReviewDeadline(Booth booth) {
         Exhibition exhibition = getExhibition(booth);
         LocalDate deadline = exhibition.getStartDate().minusDays(3);

@@ -3,6 +3,9 @@ package com.example.vex360.features.designrequest.services;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,21 +15,29 @@ import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftHotspotRequest;
+import com.example.vex360.features.designrequest.dtos.request.DesignDraftBoothSettingsRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
+import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
-import com.example.vex360.features.product.services.ProductService;
+import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.enums.DesignRequestStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -43,8 +54,11 @@ public class DesignerWorkspaceService {
 
     private final DesignRequestRepository designRequestRepository;
     private final BoothMapper boothMapper;
-    private final ProductService productService;
+    private final DesignRequestProductRepository requestProductRepository;
+    private final ProductMapper productMapper;
     private final BoothDesignService boothDesignService;
+    private final CompanyService companyService;
+    private final DesignRequestEligibilityService eligibilityService;
 
     /**
      * Builds the workspace for an assigned request, including the current booth,
@@ -70,6 +84,14 @@ public class DesignerWorkspaceService {
         return new DesignerWorkspaceResponseDTO(
                 request.getId(),
                 request.getStatus(),
+                request.getMode(),
+                request.getScope(),
+                request.getCancellationStatus(),
+                eligibilityService.remainingActions(request.getBooth()),
+                (int) request.getProducts().stream()
+                        .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
+                (int) request.getProducts().stream()
+                        .filter(item -> !Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
                 request.getNote(),
                 request.getReviewNote(),
                 request.getReviewCount(),
@@ -99,11 +121,13 @@ public class DesignerWorkspaceService {
             UUID categoryId,
             Pageable pageable) {
         DesignRequest request = getAssignedRequest(designer, requestId);
-        return productService.getActiveProductsForCompany(
-                request.getCompany().getId(),
-                keyword,
-                categoryId,
-                pageable);
+        if (request.getScope() != DesignRequestScope.FULL) {
+            throw new AppException(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN);
+        }
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        return PageResponse.from(requestProductRepository
+                .searchAllowedProducts(requestId, normalizedKeyword, categoryId, pageable)
+                .map(item -> productMapper.toResponse(item.getProduct())));
     }
 
     /**
@@ -159,7 +183,72 @@ public class DesignerWorkspaceService {
                 draft.getId(),
                 draft.getVersionNumber(),
                 draft.getCreatedAt(),
-                new SubmitDesignDraftRequest(draft.getNote(), panoramas));
+                new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas));
+    }
+
+    /**
+     * Builds the workspace for the Exhibitor to review the latest submitted design
+     * draft.
+     * Enforces company ownership and that the request is currently submitted for
+     * review.
+     *
+     * @param exhibitor authenticated Exhibitor
+     * @param requestId design request identifier
+     * @return the review workspace details response DTO
+     * @throws AppException if unauthorized, request not found, or status is not
+     *                      DRAFT_SUBMITTED
+     */
+    @Transactional(readOnly = true)
+    public ExhibitorDesignReviewWorkspaceResponseDTO getReviewWorkspace(User exhibitor, UUID requestId) {
+        Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
+        DesignRequest request = designRequestRepository.findById(requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
+        if (!request.getCompany().getId().equals(company.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        DesignDraft latest = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() > WORKING_VERSION)
+                .max(Comparator.comparing(DesignDraft::getVersionNumber))
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        List<ProductResponseDTO> required = request.getProducts().stream()
+                .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline()))
+                .map(item -> productMapper.toResponse(item.getProduct()))
+                .toList();
+        List<ProductResponseDTO> optional = request.getProducts().stream()
+                .filter(item -> !Boolean.TRUE.equals(item.getRequiredFromBaseline()))
+                .map(item -> productMapper.toResponse(item.getProduct()))
+                .toList();
+        Map<UUID, MediaAsset> media = new LinkedHashMap<>();
+        latest.getPanoramas().stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(DesignDraftHotspot::getMediaAsset)
+                .filter(Objects::nonNull)
+                .forEach(asset -> media.putIfAbsent(asset.getId(), asset));
+        return new ExhibitorDesignReviewWorkspaceResponseDTO(
+                request.getId(),
+                request.getStatus(),
+                request.getMode(),
+                request.getScope(),
+                eligibilityService.remainingActions(request.getBooth()),
+                boothMapper.toBoothResponseDTO(request.getBooth()),
+                toDraftResponse(latest),
+                required,
+                optional,
+                media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList());
+    }
+
+    private DesignDraftBoothSettingsRequest toSettings(DesignDraft draft) {
+        return new DesignDraftBoothSettingsRequest(
+                draft.getBoothName(),
+                draft.getBoothDescription(),
+                draft.getDisplayTemplateKey(),
+                draft.getThumbnailAction(),
+                draft.getThumbnailAsset() == null ? null : draft.getThumbnailAsset().getId(),
+                draft.getBackgroundMusicAction(),
+                draft.getBackgroundMusicAsset() == null ? null : draft.getBackgroundMusicAsset().getId());
     }
 
     private SubmitDesignDraftPanoramaRequest toPanoramaRequest(DesignDraftPanorama panorama) {

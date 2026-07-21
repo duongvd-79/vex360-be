@@ -1,5 +1,6 @@
 package com.example.vex360.features.product.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,6 +42,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByIdAndCompanyId(UUID id, UUID companyId);
 
+    List<Product> findByIdInAndCompanyId(List<UUID> ids, UUID companyId);
+
     boolean existsByCompanyIdAndSkuIgnoreCase(UUID companyId, String sku);
 
     boolean existsByCompanyIdAndSkuIgnoreCaseAndIdNot(UUID companyId, String sku, UUID id);
@@ -75,4 +78,32 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("categoryId") UUID categoryId,
             @Param("companyId") UUID companyId,
             @Param("boothStatus") String boothStatus);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM design_request_products drp
+                JOIN design_requests dr ON dr.id = drp.design_request_id
+                WHERE drp.product_id = :productId
+                  AND dr.status IN ('PENDING', 'ASSIGNED', 'DRAFT_SUBMITTED',
+                                    'REVISION_REQUESTED', 'REVISION_QUEUED')
+            )
+            """, nativeQuery = true)
+    boolean existsLockedByDesignRequest(@Param("productId") UUID productId);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM design_request_products drp
+                JOIN design_requests dr ON dr.id = drp.design_request_id
+                JOIN products product ON product.id = drp.product_id
+                WHERE product.category_id = :categoryId
+                  AND product.company_id = :companyId
+                  AND dr.status IN ('PENDING', 'ASSIGNED', 'DRAFT_SUBMITTED',
+                                    'REVISION_REQUESTED', 'REVISION_QUEUED')
+            )
+            """, nativeQuery = true)
+    boolean existsCategoryLockedByDesignRequest(
+            @Param("categoryId") UUID categoryId,
+            @Param("companyId") UUID companyId);
 }

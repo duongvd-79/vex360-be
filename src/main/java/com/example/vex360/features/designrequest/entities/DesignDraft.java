@@ -7,9 +7,13 @@ import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -22,10 +26,9 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
@@ -34,7 +37,8 @@ import lombok.experimental.FieldDefaults;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_design_draft_request_version",
                 columnNames = { "design_request_id", "version_number" }))
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -46,8 +50,6 @@ public class DesignDraft {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "design_request_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     DesignRequest designRequest;
 
     @Column(name = "version_number", nullable = false)
@@ -56,13 +58,38 @@ public class DesignDraft {
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 
+    @Column(name = "booth_name")
+    String boothName;
+
+    @Column(name = "booth_description", columnDefinition = "TEXT")
+    String boothDescription;
+
+    @Column(name = "display_template_key", length = 100)
+    String displayTemplateKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "thumbnail_action", nullable = false)
+    @Builder.Default
+    DesignDraftFileAction thumbnailAction = DesignDraftFileAction.KEEP;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "thumbnail_asset_id")
+    DesignDraftAsset thumbnailAsset;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "background_music_action", nullable = false)
+    @Builder.Default
+    DesignDraftFileAction backgroundMusicAction = DesignDraftFileAction.KEEP;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "background_music_asset_id")
+    DesignDraftAsset backgroundMusicAsset;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "draft", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     List<DesignDraftPanorama> panoramas = new ArrayList<>();
 }

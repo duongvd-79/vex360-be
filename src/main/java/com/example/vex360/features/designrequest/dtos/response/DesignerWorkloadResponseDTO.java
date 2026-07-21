@@ -13,5 +13,8 @@ public class DesignerWorkloadResponseDTO {
     private UUID designerId;
     private String designerName;
     private String designerEmail;
-    private Long activeRequests;
+    private Long workingRequests;
+    private Long waitingReviewRequests;
+    private Long queuedRevisionRequests;
+    private Integer availableSlots;
 }

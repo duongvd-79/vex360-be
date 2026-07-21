@@ -48,6 +48,12 @@ public class BoothDesignService {
     }
 
     @Transactional(readOnly = true)
+    public Booth getCompanyBooth(UUID boothId, UUID companyId) {
+        return boothRepository.findCompanyBoothById(boothId, companyId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
     public Panorama getPanoramaForBooth(UUID panoramaId, UUID boothId) {
         return panoramaRepository.findByIdAndBoothId(panoramaId, boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
@@ -96,6 +102,10 @@ public class BoothDesignService {
         List<PanoramaDesign> sortedPanoramas = panoramas.stream()
                 .sorted(Comparator.comparing(PanoramaDesign::orderIndex))
                 .toList();
+        Set<String> reusedImageKeys = sortedPanoramas.stream()
+                .map(PanoramaDesign::imageKey)
+                .filter(key -> key != null && !key.isBlank())
+                .collect(Collectors.toSet());
         for (PanoramaDesign panoramaDesign : sortedPanoramas) {
             Panorama panorama = Panorama.builder()
                     .booth(booth)
@@ -116,6 +126,7 @@ public class BoothDesignService {
                 hotspotRepository.save(toHotspot(hotspotDesign, source, appliedPanoramasByKey));
             }
         }
+        oldImageKeys.removeAll(reusedImageKeys);
         panoramaImageCleanupService.scheduleCleanup(oldImageKeys);
     }
 

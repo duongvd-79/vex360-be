@@ -85,6 +85,9 @@ public class ProductCategoryService {
         Company company = getCompanyForCurrentUser(currentUser);
         ProductCategory category = getCategoryForCompany(categoryId, company);
         if (request.getStatus() == ProductCategoryStatus.INACTIVE) {
+            if (productRepository.existsCategoryLockedByDesignRequest(categoryId, company.getId())) {
+                throw new AppException(ErrorCode.DESIGN_PRODUCT_LOCKED);
+            }
             if (productRepository.existsCategoryProductInBoothWithStatus(
                     categoryId, company.getId(), "PENDING")) {
                 throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
