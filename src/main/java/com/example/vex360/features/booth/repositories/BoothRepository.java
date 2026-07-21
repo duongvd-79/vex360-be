@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 import jakarta.persistence.LockModeType;
 
@@ -147,23 +148,39 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             SELECT b FROM Booth b
             JOIN b.exhibitorRegistration reg
             JOIN reg.exhibitionPackage pkg
+            JOIN pkg.template template
             JOIN pkg.exhibition exh
             WHERE exh.uuid = :exhibitionUuid
               AND b.status = :boothStatus
               AND b.isTemplate = false
               AND (:keyword IS NULL OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:listingPriority IS NULL
+                OR reg.listingPrioritySnapshot = :listingPriority
+                OR (reg.listingPrioritySnapshot IS NULL AND template.listingPriority = :listingPriority))
+            ORDER BY CASE
+                WHEN reg.listingPrioritySnapshot = 'FEATURED'
+                  OR (reg.listingPrioritySnapshot IS NULL AND template.listingPriority = 'FEATURED') THEN 1
+                WHEN reg.listingPrioritySnapshot = 'PRIORITY'
+                  OR (reg.listingPrioritySnapshot IS NULL AND template.listingPriority = 'PRIORITY') THEN 2
+                ELSE 3
+              END ASC,
+              b.updatedAt DESC,
+              b.id ASC
             """)
     Page<Booth> findPublishedBoothsByExhibitionUuid(
             @Param("exhibitionUuid") UUID exhibitionUuid,
             @Param("boothStatus") BoothStatus boothStatus,
             @Param("keyword") String keyword,
+            @Param("listingPriority") BoothListingPriority listingPriority,
             Pageable pageable);
 
     @Query("""
             SELECT b FROM Booth b
-            JOIN b.exhibitorRegistration reg
-            JOIN reg.exhibitionPackage pkg
-            JOIN pkg.exhibition exh
+            JOIN FETCH b.exhibitorRegistration reg
+            JOIN FETCH reg.exhibitionPackage pkg
+            JOIN FETCH pkg.exhibition exh
+            LEFT JOIN FETCH pkg.template
+            LEFT JOIN FETCH b.company
             WHERE exh.uuid = :exhibitionUuid
               AND b.id = :boothId
               AND b.status = :boothStatus

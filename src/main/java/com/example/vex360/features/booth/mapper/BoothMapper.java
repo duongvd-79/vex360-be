@@ -25,11 +25,13 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 @Mapper(componentModel = "spring")
 public interface BoothMapper {
     // Method nay giup MapStruct sinh implementation bean cho interface mapper.
-    // Luong booth template van dung cac default method ben duoi de map nested data ro rang.
+    // Luong booth template van dung cac default method ben duoi de map nested data
+    // ro rang.
     String mapString(String value);
 
     default BoothTemplateSummaryResponseDTO toTemplateSummaryResponseDTO(Booth booth) {
@@ -62,6 +64,10 @@ public interface BoothMapper {
     }
 
     default BoothResponseDTO toBoothResponseDTO(Booth booth) {
+        return toBoothResponseDTO(booth, booth.getPanoramas());
+    }
+
+    default BoothResponseDTO toBoothResponseDTO(Booth booth, List<Panorama> panoramas) {
         Company company = booth.getCompany();
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         return new BoothResponseDTO(
@@ -77,13 +83,30 @@ public interface BoothMapper {
                 booth.getBackgroundMusicFileName(),
                 booth.getBackgroundMusicFileSize(),
                 booth.getDisplayTemplateKey(),
+                resolveListingPriority(registration),
                 booth.getStatus(),
                 booth.getCreatedAt(),
                 booth.getUpdatedAt(),
                 company == null ? null : company.getName(),
                 company == null ? null : company.getIndustry(),
                 company == null ? null : company.getEmail(),
-                toPanoramaResponseDTOs(booth.getPanoramas()));
+                toPanoramaResponseDTOs(panoramas));
+    }
+
+    private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {
+        if (registration == null) {
+            return BoothListingPriority.NORMAL;
+        }
+        if (registration.getListingPrioritySnapshot() != null) {
+            return registration.getListingPrioritySnapshot();
+        }
+        ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
+        if (exhibitionPackage != null
+                && exhibitionPackage.getTemplate() != null
+                && exhibitionPackage.getTemplate().getListingPriority() != null) {
+            return exhibitionPackage.getTemplate().getListingPriority();
+        }
+        return BoothListingPriority.NORMAL;
     }
 
     private UUID getExhibitionUuid(ExhibitorRegistration registration) {
@@ -214,6 +237,8 @@ public interface BoothMapper {
                 product.getThumbnailUrl(),
                 product.getPrice(),
                 product.getCurrency(),
-                product.getStatus());
+                product.getStatus(),
+                null,
+                null);
     }
 }
