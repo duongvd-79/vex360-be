@@ -32,6 +32,10 @@ import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
+import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
+import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -51,6 +55,7 @@ public class DesignerDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;
     private final DesignerWorkspaceService designerWorkspaceService;
     private final DesignDraftAssetService designDraftAssetService;
+    private final DesignRequestCommunicationService communicationService;
 
     @GetMapping
     @Operation(summary = "Xem danh sách yêu cầu thiết kế được phân công", description = "Trả về các design request được phân công cho Designer đang đăng nhập. Có thể lọc theo status và phân trang; mặc định sắp xếp theo thời gian tạo giảm dần.")
@@ -67,6 +72,24 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         return ok(designerWorkspaceService.getWorkspace(userDetails.getUser(), id));
+    }
+
+    @GetMapping("/{id}/messages")
+    @Operation(summary = "Designer xem tin nhắn trao đổi làm rõ", description = "Trả về lịch sử các tin nhắn trao đổi làm rõ đối với yêu cầu thiết kế được phân công.")
+    public ResponseEntity<ApiResponse<PageResponse<DesignRequestMessageResponseDTO>>> getMessages(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @ParameterObject @PageableDefault(page = 0, size = 20, sort = "createdAt") Pageable pageable) {
+        return ok(communicationService.getForDesigner(userDetails.getUser(), id, pageable));
+    }
+
+    @PostMapping("/{id}/messages")
+    @Operation(summary = "Designer gửi tin nhắn trao đổi làm rõ", description = "Gửi tin nhắn trao đổi làm rõ đến Exhibitor liên quan đến bản thiết kế.")
+    public ResponseEntity<ApiResponse<DesignRequestMessageResponseDTO>> sendMessage(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateDesignRequestMessageRequest request) {
+        return created(communicationService.sendForDesigner(userDetails.getUser(), id, request.getMessage()));
     }
 
     @GetMapping("/{id}/products")
@@ -95,8 +118,9 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> uploadAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "PANORAMA") DesignDraftAssetType assetType,
             @RequestPart("file") MultipartFile file) {
-        return created(designDraftAssetService.uploadPanorama(userDetails.getUser(), id, file));
+        return created(designDraftAssetService.uploadAsset(userDetails.getUser(), id, file, assetType));
     }
 
     @DeleteMapping("/{id}/assets/{assetId}")

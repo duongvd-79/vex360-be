@@ -11,6 +11,7 @@ import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.LockModeType;
@@ -40,4 +41,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByStatus(UserStatus status);
 
     long countByRole(Role role);
+
+    List<User> findByRoleAndStatusOrderByFullNameAsc(Role role, UserStatus status);
 }

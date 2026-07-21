@@ -15,6 +15,13 @@ public class SubmitDesignDraftRequest {
     private String note;
 
     @Valid
-    @NotEmpty(message = "Draft phai co it nhat mot panorama")
+    private DesignDraftBoothSettingsRequest boothSettings;
+
+    @Valid
+    @NotEmpty(message = "Draft phải có ít nhất một panorama")
     private List<SubmitDesignDraftPanoramaRequest> panoramas;
+
+    public SubmitDesignDraftRequest(String note, List<SubmitDesignDraftPanoramaRequest> panoramas) {
+        this(note, null, panoramas);
+    }
 }

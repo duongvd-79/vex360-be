@@ -18,6 +18,9 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
@@ -39,7 +42,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DesignDraftAssetService {
     private static final long MAX_FILE_SIZE = (long) 10 * 1024 * 1024;
-    private static final Set<String> ALLOWED_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final Set<String> PANORAMA_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final Set<String> THUMBNAIL_TYPES = Set.of("image/jpeg", "image/png");
+    private static final Set<String> MUSIC_TYPES = Set.of("audio/mpeg", "audio/mp3");
 
     private final DesignDraftAssetRepository assetRepository;
     private final DesignerWorkspaceService workspaceService;
@@ -62,12 +67,42 @@ public class DesignDraftAssetService {
      */
     @Transactional
     public DesignDraftAssetResponseDTO uploadPanorama(User currentUser, UUID requestId, MultipartFile file) {
+        return uploadAsset(currentUser, requestId, file, DesignDraftAssetType.PANORAMA);
+    }
+
+    /**
+     * Uploads a staging asset (panorama, thumbnail, or background music) for an
+     * assigned request.
+     * Checks company storage quota and performs file validation before uploading to
+     * Cloudinary.
+     * Deducts company storage quota if subsequent DB save fails.
+     *
+     * @param currentUser authenticated Designer
+     * @param requestId   design request identifier
+     * @param file        the file to upload
+     * @param assetType   the type of asset (PANORAMA, THUMBNAIL, or
+     *                    BACKGROUND_MUSIC)
+     * @return the uploaded asset response DTO
+     * @throws AppException if verification, quota, or upload fails
+     */
+    @Transactional
+    public DesignDraftAssetResponseDTO uploadAsset(
+            User currentUser,
+            UUID requestId,
+            MultipartFile file,
+            DesignDraftAssetType assetType) {
         DesignRequest request = workspaceService.getAssignedRequest(currentUser, requestId);
         requireEditableRequest(request);
-        validateFile(file);
+        DesignDraftAssetType resolvedType = assetType == null ? DesignDraftAssetType.PANORAMA : assetType;
+        validateFile(file, resolvedType);
         storageService.checkQuota(request.getCompany(), file.getSize());
 
-        CloudinaryResponse upload = cloudService.uploadToFolder(file, FileUploadUtils.PANORAMA_FOLDER);
+        String folder = switch (resolvedType) {
+            case PANORAMA -> FileUploadUtils.PANORAMA_FOLDER;
+            case THUMBNAIL -> "design-draft-thumbnail";
+            case BACKGROUND_MUSIC -> "design-draft-background-music";
+        };
+        CloudinaryResponse upload = cloudService.uploadToFolder(file, folder);
         long fileSize = upload.getFileSize() == null ? file.getSize() : upload.getFileSize();
         try {
             if (fileSize != file.getSize()) {
@@ -81,11 +116,13 @@ public class DesignDraftAssetService {
                     .fileName(upload.getFileName())
                     .mimeType(upload.getFileType())
                     .fileSize(fileSize)
+                    .assetType(resolvedType)
+                    .assetSource(DesignDraftAssetSource.UPLOADED)
                     .build());
             storageService.addUsage(request.getCompany(), fileSize);
             return toResponse(asset);
         } catch (RuntimeException exception) {
-            cloudService.delete(upload.getPublicId(), "image");
+            cloudService.delete(upload.getPublicId(), resourceType(resolvedType));
             throw exception;
         }
     }
@@ -180,7 +217,32 @@ public class DesignDraftAssetService {
     public DesignDraftAsset requireDraftAsset(DesignRequest request, String publicId, String url) {
         DesignDraftAsset asset = assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
-        if (!asset.getUrl().equals(url)) {
+        if (!asset.getUrl().equals(url) || asset.getAssetType() != DesignDraftAssetType.PANORAMA) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        return asset;
+    }
+
+    /**
+     * Resolves a staging asset by request, asset ID, and verifies its type.
+     * Prevents drafts from referencing incorrect asset types or assets from other
+     * requests.
+     *
+     * @param request   the design request that must own the asset
+     * @param assetId   the identifier of the asset
+     * @param assetType the expected type of the asset
+     * @return the verified draft asset entity
+     * @throws AppException if the asset is missing, or doesn't belong to the
+     *                      request, or type mismatch
+     */
+    @Transactional(readOnly = true)
+    public DesignDraftAsset requireDraftAsset(
+            DesignRequest request,
+            UUID assetId,
+            DesignDraftAssetType assetType) {
+        DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, request.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        if (asset.getAssetType() != assetType) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         return asset;
@@ -199,8 +261,11 @@ public class DesignDraftAssetService {
 
     private void deleteAsset(DesignDraftAsset asset) {
         assetRepository.delete(asset);
+        if (asset.getAssetSource() == DesignDraftAssetSource.BOOTH_BASELINE) {
+            return;
+        }
         storageService.deductUsage(asset.getDesignRequest().getCompany(), asset.getFileSize());
-        cloudService.delete(asset.getPublicId(), "image");
+        cloudService.delete(asset.getPublicId(), resourceType(asset.getAssetType()));
     }
 
     private Set<String> draftImageKeys(DesignRequest request) {
@@ -209,12 +274,25 @@ public class DesignDraftAssetService {
             for (DesignDraftPanorama panorama : draft.getPanoramas()) {
                 keys.add(panorama.getImageKey());
             }
+            if (draft.getThumbnailAsset() != null) {
+                keys.add(draft.getThumbnailAsset().getPublicId());
+            }
+            if (draft.getBackgroundMusicAsset() != null) {
+                keys.add(draft.getBackgroundMusicAsset().getPublicId());
+            }
         }
         return keys;
     }
 
     private Set<String> boothImageKeys(DesignRequest request) {
-        return boothDesignService.getPanoramaImageKeys(request.getBooth().getId());
+        Set<String> keys = new HashSet<>(boothDesignService.getPanoramaImageKeys(request.getBooth().getId()));
+        if (request.getBooth().getThumbnailPublicId() != null) {
+            keys.add(request.getBooth().getThumbnailPublicId());
+        }
+        if (request.getBooth().getBackgroundMusicPublicId() != null) {
+            keys.add(request.getBooth().getBackgroundMusicPublicId());
+        }
+        return keys;
     }
 
     private boolean isReferencedByDraft(DesignRequest request, String publicId) {
@@ -230,19 +308,31 @@ public class DesignDraftAssetService {
                 && request.getStatus() != DesignRequestStatus.REVISION_REQUESTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
+        if (request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
+            throw new AppException(ErrorCode.DESIGN_CANCELLATION_PENDING);
+        }
     }
 
-    private void validateFile(MultipartFile file) {
+    private void validateFile(MultipartFile file, DesignDraftAssetType type) {
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new AppException(ErrorCode.FILE_TOO_LARGE);
         }
+        Set<String> allowedTypes = switch (type) {
+            case PANORAMA -> PANORAMA_TYPES;
+            case THUMBNAIL -> THUMBNAIL_TYPES;
+            case BACKGROUND_MUSIC -> MUSIC_TYPES;
+        };
         if (file.getContentType() == null
-                || !ALLOWED_TYPES.contains(file.getContentType().toLowerCase(Locale.ROOT))) {
+                || !allowedTypes.contains(file.getContentType().toLowerCase(Locale.ROOT))) {
             throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
         }
+    }
+
+    private String resourceType(DesignDraftAssetType type) {
+        return type == DesignDraftAssetType.BACKGROUND_MUSIC ? "video" : "image";
     }
 
     private DesignDraftAssetResponseDTO toResponse(DesignDraftAsset asset) {
@@ -254,6 +344,8 @@ public class DesignDraftAssetService {
                 asset.getFileName(),
                 asset.getMimeType(),
                 asset.getFileSize(),
+                asset.getAssetType(),
+                asset.getAssetSource(),
                 asset.getCreatedAt());
     }
 }

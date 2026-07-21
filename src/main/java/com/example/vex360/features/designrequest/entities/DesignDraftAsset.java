@@ -6,9 +6,13 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,10 +24,9 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
@@ -32,7 +35,8 @@ import lombok.experimental.FieldDefaults;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_design_draft_asset_request_public_id",
                 columnNames = { "design_request_id", "public_id" }))
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -44,14 +48,10 @@ public class DesignDraftAsset {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "design_request_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     DesignRequest designRequest;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "uploaded_by_user_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     User uploadedBy;
 
     @Column(name = "url", nullable = false, length = 1000)
@@ -68,6 +68,16 @@ public class DesignDraftAsset {
 
     @Column(name = "file_size", nullable = false)
     Long fileSize;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "asset_type", nullable = false)
+    @Builder.Default
+    DesignDraftAssetType assetType = DesignDraftAssetType.PANORAMA;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "asset_source", nullable = false)
+    @Builder.Default
+    DesignDraftAssetSource assetSource = DesignDraftAssetSource.UPLOADED;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

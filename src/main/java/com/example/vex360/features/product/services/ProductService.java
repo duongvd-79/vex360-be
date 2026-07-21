@@ -308,6 +308,9 @@ public class ProductService {
     }
 
     private void assertNotUsedByPendingBooth(UUID productId) {
+        if (productRepository.existsLockedByDesignRequest(productId)) {
+            throw new AppException(ErrorCode.DESIGN_PRODUCT_LOCKED);
+        }
         if (productRepository.existsInBoothWithStatus(productId, "PENDING")) {
             throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
         }

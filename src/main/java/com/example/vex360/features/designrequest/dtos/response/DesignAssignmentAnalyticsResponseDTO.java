@@ -11,7 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DesignAssignmentAnalyticsResponseDTO {
     private Long pendingRequests;
-    private Long activeRequests;
+    private Long workingRequests;
+    private Long waitingReviewRequests;
+    private Long queuedRevisionRequests;
     private Long approvedRequests;
     private Long canceledRequests;
     private List<DesignerWorkloadResponseDTO> designerWorkloads;
