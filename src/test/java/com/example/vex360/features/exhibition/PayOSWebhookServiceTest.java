@@ -23,6 +23,7 @@ import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprov
 import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
@@ -65,7 +66,7 @@ class PayOSWebhookServiceTest {
     void setup() {
         pendingRegistration = ExhibitorRegistration.builder()
                 .id(1)
-                .status(ExhibitorRegistrationStatus.PENDING)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
 
         pendingPayment = Payment.builder()
@@ -121,7 +122,7 @@ class PayOSWebhookServiceTest {
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
-        when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(pendingPayment));
+        stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
 
@@ -142,14 +143,14 @@ class PayOSWebhookServiceTest {
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(failedWebhookData);
-        when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(pendingPayment));
+        stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
 
         assertNotNull(result);
         assertEquals("01", result.getCode());
         assertEquals(PaymentStatus.FAILED, pendingPayment.getStatus());
-        assertEquals(ExhibitorRegistrationStatus.PENDING, pendingRegistration.getStatus());
+        assertEquals(ExhibitorRegistrationStatus.PENDING_PAYMENT, pendingRegistration.getStatus());
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository, never()).save(any());
@@ -183,7 +184,7 @@ class PayOSWebhookServiceTest {
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successDataNoRef);
-        when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(pendingPayment));
+        stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
 
@@ -209,11 +210,101 @@ class PayOSWebhookServiceTest {
                 .build();
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
-        when(paymentRepository.findByOrderCode(123456L)).thenReturn(Optional.of(storagePayment));
+        stubLockedPayment(storagePayment);
 
         webhookServiceWrapper.handleWebhook(mockBody);
 
         verify(eventPublisher).publishEvent(any(StoragePackagePaymentCompletedEvent.class));
         verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void paidPayment_duplicateSuccessWebhook_doesNotPublishAgain() throws Exception {
+        Object mockBody = new Object();
+        pendingPayment.setStatus(PaymentStatus.PAID);
+        pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(mockBody);
+
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        verify(paymentRepository, never()).save(any());
+        verify(registrationRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void paidPayment_lateFailureWebhook_doesNotDowngradePayment() throws Exception {
+        Object mockBody = new Object();
+        pendingPayment.setStatus(PaymentStatus.PAID);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(failedWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(mockBody);
+
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        verify(paymentRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void rejectedRegistration_successWebhook_recordsPaymentWithoutApproval() throws Exception {
+        Object mockBody = new Object();
+        pendingRegistration.setStatus(ExhibitorRegistrationStatus.REJECTED);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(mockBody);
+
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        assertEquals(ExhibitorRegistrationStatus.REJECTED, pendingRegistration.getStatus());
+        verify(registrationRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void paidStoragePayment_duplicateWebhook_doesNotIncreaseQuotaAgain() throws Exception {
+        Object mockBody = new Object();
+        Payment storagePayment = Payment.builder()
+                .orderCode(123456L)
+                .paymentType(PaymentType.STORAGE_PACKAGE)
+                .storagePackageOrderId(77)
+                .status(PaymentStatus.PAID)
+                .build();
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
+        stubLockedPayment(storagePayment);
+
+        webhookServiceWrapper.handleWebhook(mockBody);
+
+        verify(paymentRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    private void stubLockedPayment(Payment payment) {
+        Integer registrationId = payment.getExhibitorRegistration() == null
+                ? null
+                : payment.getExhibitorRegistration().getId();
+        PaymentRoute route = new PaymentRoute() {
+            @Override
+            public PaymentType getPaymentType() {
+                return payment.getPaymentType();
+            }
+
+            @Override
+            public Integer getRegistrationId() {
+                return registrationId;
+            }
+        };
+        when(paymentRepository.findRouteByOrderCode(payment.getOrderCode())).thenReturn(Optional.of(route));
+        when(paymentRepository.findByOrderCodeForUpdate(payment.getOrderCode())).thenReturn(Optional.of(payment));
+        if (registrationId != null) {
+            when(registrationRepository.findByIdForUpdate(registrationId))
+                    .thenReturn(Optional.of(payment.getExhibitorRegistration()));
+        }
     }
 }

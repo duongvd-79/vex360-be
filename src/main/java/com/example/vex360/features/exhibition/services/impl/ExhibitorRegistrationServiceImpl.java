@@ -32,6 +32,7 @@ import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprov
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -64,10 +65,14 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Transactional
     public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
             String participationReason) {
-        User company = userService.getUserEntityById(companyUserId);
+        User company = userService.getUserEntityByIdForUpdate(companyUserId);
 
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+
+        if (expPackage.getStatus() != ExhibitionPackageStatus.ACTIVE) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
 
         Exhibition exhibition = expPackage.getExhibition();
         if (exhibition == null || (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
@@ -112,7 +117,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Override
     @Transactional
     public ExhibitorRegistrationResponseDTO getRegistrationDetails(UUID registrationUuid, UUID companyUserId) {
-        ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
 
         if (!registration.getCompany().getId().equals(companyUserId)) {
@@ -121,6 +126,12 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
                 .orElse(null);
+
+        if (payment != null && payment.getStatus() == PaymentStatus.PENDING
+                && (payment.getCheckoutUrl() == null || payment.getCheckoutUrl().isBlank())) {
+            payment.setStatus(PaymentStatus.FAILED);
+            payment = paymentRepository.save(payment);
+        }
 
         // If the registration is approved and waiting for payment, generate PayOS
         // checkout URL on the fly if needed
@@ -159,6 +170,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 log.info("Automatically generated PayOS link for registration {}: {}", registration.getId(),
                         response.getCheckoutUrl());
             } catch (Exception e) {
+                newPayment.setStatus(PaymentStatus.FAILED);
+                payment = paymentRepository.save(newPayment);
                 log.error("Failed to generate PayOS link for registration {}", registration.getId(), e);
             }
         }
@@ -346,7 +359,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
 
         if (!registration.getCompany().getId().equals(exhibitor.getId())) {
@@ -362,7 +375,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         registration = registrationRepository.save(registration);
 
         List<Payment> pendingPayments = paymentRepository
-                .findByExhibitorRegistrationIdIn(List.of(registration.getId()));
+                .findByExhibitorRegistrationIdForUpdate(registration.getId());
         for (Payment p : pendingPayments) {
             if (p.getStatus() == PaymentStatus.PENDING) {
                 p.setStatus(PaymentStatus.FAILED);

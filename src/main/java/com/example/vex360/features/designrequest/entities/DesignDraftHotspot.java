@@ -1,5 +1,6 @@
 package com.example.vex360.features.designrequest.entities;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
@@ -24,15 +25,15 @@ import jakarta.persistence.Transient;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "design_draft_hotspots")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -44,8 +45,6 @@ public class DesignDraftHotspot {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "source_draft_panorama_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     DesignDraftPanorama sourcePanorama;
 
     @Enumerated(EnumType.STRING)
@@ -60,14 +59,10 @@ public class DesignDraftHotspot {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "media_asset_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     MediaAsset mediaAsset;
 
     @Column(name = "info_text", columnDefinition = "TEXT")
@@ -144,9 +139,9 @@ public class DesignDraftHotspot {
             return null;
         }
         return new HotspotCornersDTO(
-                java.util.List.of(cornerTlX, cornerTlY, cornerTlZ),
-                java.util.List.of(cornerTrX, cornerTrY, cornerTrZ),
-                java.util.List.of(cornerBlX, cornerBlY, cornerBlZ),
-                java.util.List.of(cornerBrX, cornerBrY, cornerBrZ));
+                List.of(cornerTlX, cornerTlY, cornerTlZ),
+                List.of(cornerTrX, cornerTrY, cornerTrZ),
+                List.of(cornerBlX, cornerBlY, cornerBlZ),
+                List.of(cornerBrX, cornerBrY, cornerBrZ));
     }
 }
