@@ -245,7 +245,7 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void submitDraftThrowsWhenProductDoesNotBelongToCompany() {
+    void saveWorkingDraftThrowsWhenProductDoesNotBelongToCompany() {
         UUID requestId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
@@ -280,7 +280,7 @@ class DesignRequestServiceUnitTest {
                 .thenThrow(new AppException(ErrorCode.PRODUCT_NOT_FOUND));
 
         AppException exception = assertThrows(AppException.class,
-                () -> service.submitDraft(designer, requestId, draftRequest));
+                () -> service.saveWorkingDraft(designer, requestId, draftRequest));
 
         assertSame(ErrorCode.PRODUCT_NOT_FOUND, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());

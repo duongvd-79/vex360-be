@@ -1,9 +1,11 @@
 package com.example.vex360.features.auth.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +17,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -30,6 +33,8 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 class AuthSessionServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-07-17T12:00:00Z");
+    private static final long SESSION_EXPIRATION_MS = 3_600_000L;
+    private static final long REMEMBER_EXPIRATION_MS = 2_592_000_000L;
 
     @Mock private JwtService jwtService;
     @Mock private RefreshTokenRepository refreshTokenRepository;
@@ -44,7 +49,8 @@ class AuthSessionServiceTest {
                 refreshTokenRepository,
                 accessTokenRevocationService,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                3_600_000L);
+                SESSION_EXPIRATION_MS,
+                REMEMBER_EXPIRATION_MS);
     }
 
     @Test
@@ -52,11 +58,29 @@ class AuthSessionServiceTest {
         User user = User.builder().email("user@example.com").build();
         when(jwtService.generateToken(any(CustomUserDetails.class))).thenReturn("access-token");
 
-        var response = service.issue(user);
+        var response = service.issue(user, false);
 
         assertEquals("access-token", response.getAccessToken());
+        assertFalse(response.isRememberMe());
         verify(refreshTokenRepository).deleteByUser(user);
-        verify(refreshTokenRepository).save(any(RefreshToken.class));
+        ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(tokenCaptor.capture());
+        assertEquals(NOW.plusMillis(SESSION_EXPIRATION_MS), tokenCaptor.getValue().getExpiryDate());
+        assertFalse(tokenCaptor.getValue().isRememberMe());
+    }
+
+    @Test
+    void issue_RememberMeUsesLongExpiration() {
+        User user = User.builder().email("user@example.com").build();
+        when(jwtService.generateToken(any(CustomUserDetails.class))).thenReturn("access-token");
+
+        var response = service.issue(user, true);
+
+        assertTrue(response.isRememberMe());
+        ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(tokenCaptor.capture());
+        assertEquals(NOW.plusMillis(REMEMBER_EXPIRATION_MS), tokenCaptor.getValue().getExpiryDate());
+        assertTrue(tokenCaptor.getValue().isRememberMe());
     }
 
     @Test
@@ -65,6 +89,7 @@ class AuthSessionServiceTest {
         RefreshToken current = RefreshToken.builder()
                 .token("refresh-token")
                 .expiryDate(NOW.plusSeconds(60))
+                .rememberMe(true)
                 .used(false)
                 .user(user)
                 .build();
@@ -74,8 +99,13 @@ class AuthSessionServiceTest {
         var response = service.rotate("refresh-token");
 
         assertEquals("new-access-token", response.getAccessToken());
+        assertTrue(response.isRememberMe());
         assertTrue(current.isUsed());
-        verify(refreshTokenRepository).save(current);
+        ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository, times(2)).save(tokenCaptor.capture());
+        RefreshToken replacement = tokenCaptor.getAllValues().get(1);
+        assertEquals(NOW.plusMillis(REMEMBER_EXPIRATION_MS), replacement.getExpiryDate());
+        assertTrue(replacement.isRememberMe());
     }
 
     @Test

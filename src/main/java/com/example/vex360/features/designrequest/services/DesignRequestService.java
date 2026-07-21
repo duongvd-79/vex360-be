@@ -344,34 +344,6 @@ public class DesignRequestService {
         return toResponse(saved);
     }
 
-    /**
-     * Creates and immediately submits an immutable draft in one operation. This
-     * compatibility flow validates request-scoped panorama assets and
-     * Exhibitor-owned product/media references, then moves the request to
-     * DRAFT_SUBMITTED and removes abandoned staging assets.
-     *
-     * @param currentUser  authenticated assigned Designer
-     * @param id           design request identifier
-     * @param draftRequest complete panorama and hotspot configuration
-     * @return the request after draft submission
-     * @throws AppException if assignment, editable status, or draft validation
-     *                      fails
-     */
-    @Transactional
-    public DesignRequestResponseDTO submitDraft(User currentUser, UUID id, SubmitDesignDraftRequest draftRequest) {
-        DesignRequest request = getRequest(id);
-        requireDesignerCanEdit(currentUser, request);
-
-        DesignRequestStatus previousStatus = request.getStatus();
-        DesignDraft draft = buildDraft(request, draftRequest, nextSubmittedVersion(request));
-        request.getDrafts().add(draft);
-        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
-        request.setReviewNote(null);
-        DesignRequest saved = designRequestRepository.save(request);
-        designDraftAssetService.cleanupUnreferencedAssets(saved);
-        publishStatusChanged(saved, currentUser, previousStatus);
-        return toResponse(saved);
-    }
 
     /**
      * Creates or replaces the mutable working draft (version zero) without

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
@@ -33,18 +34,21 @@ public class AuthSessionService {
     private final AccessTokenRevocationService accessTokenRevocationService;
     private final Clock clock;
     private final long refreshExpirationMs;
+    private final long rememberRefreshExpirationMs;
 
     public AuthSessionService(
             JwtService jwtService,
             RefreshTokenRepository refreshTokenRepository,
             AccessTokenRevocationService accessTokenRevocationService,
             Clock clock,
-            @Value("${app.jwt.refresh-expiration-ms}") long refreshExpirationMs) {
+            @Value("${app.jwt.refresh-expiration-ms}") long refreshExpirationMs,
+            @Value("${app.jwt.remember-refresh-expiration-ms}") long rememberRefreshExpirationMs) {
         this.jwtService = jwtService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.accessTokenRevocationService = accessTokenRevocationService;
         this.clock = clock;
         this.refreshExpirationMs = refreshExpirationMs;
+        this.rememberRefreshExpirationMs = rememberRefreshExpirationMs;
     }
 
     /**
@@ -52,17 +56,18 @@ public class AuthSessionService {
      * pair.
      *
      * @param user authenticated user receiving the session
+     * @param rememberMe whether the refresh session survives browser restarts
      * @return newly issued access and refresh tokens
      */
     @Transactional
-    public TokenResponse issue(User user) {
+    public TokenResponse issue(User user, boolean rememberMe) {
         String accessToken = jwtService.generateToken(new CustomUserDetails(user));
         String refreshTokenValue = UUID.randomUUID().toString();
-        RefreshToken refreshToken = newRefreshToken(user, refreshTokenValue);
+        RefreshToken refreshToken = newRefreshToken(user, refreshTokenValue, rememberMe);
 
         refreshTokenRepository.deleteByUser(user);
         refreshTokenRepository.save(refreshToken);
-        return tokenResponse(accessToken, refreshTokenValue);
+        return tokenResponse(accessToken, refreshTokenValue, rememberMe);
     }
 
     /**
@@ -96,8 +101,8 @@ public class AuthSessionService {
 
         String accessToken = jwtService.generateToken(new CustomUserDetails(user));
         String refreshTokenValue = UUID.randomUUID().toString();
-        refreshTokenRepository.save(newRefreshToken(user, refreshTokenValue));
-        return tokenResponse(accessToken, refreshTokenValue);
+        refreshTokenRepository.save(newRefreshToken(user, refreshTokenValue, currentToken.isRememberMe()));
+        return tokenResponse(accessToken, refreshTokenValue, currentToken.isRememberMe());
     }
 
     /**
@@ -110,7 +115,9 @@ public class AuthSessionService {
      */
     @Transactional
     public void logout(String refreshTokenValue, String accessToken) {
-        refreshTokenRepository.findByToken(refreshTokenValue).ifPresent(refreshTokenRepository::delete);
+        if (StringUtils.hasText(refreshTokenValue)) {
+            refreshTokenRepository.findByToken(refreshTokenValue).ifPresent(refreshTokenRepository::delete);
+        }
         accessTokenRevocationService.blacklist(accessToken);
     }
 
@@ -127,19 +134,22 @@ public class AuthSessionService {
         accessTokenRevocationService.blacklist(accessToken);
     }
 
-    private RefreshToken newRefreshToken(User user, String tokenValue) {
+    private RefreshToken newRefreshToken(User user, String tokenValue, boolean rememberMe) {
+        long expirationMs = rememberMe ? rememberRefreshExpirationMs : refreshExpirationMs;
         return RefreshToken.builder()
                 .token(tokenValue)
-                .expiryDate(Instant.now(clock).plusMillis(refreshExpirationMs))
+                .expiryDate(Instant.now(clock).plusMillis(expirationMs))
                 .user(user)
                 .used(false)
+                .rememberMe(rememberMe)
                 .build();
     }
 
-    private TokenResponse tokenResponse(String accessToken, String refreshToken) {
+    private TokenResponse tokenResponse(String accessToken, String refreshToken, boolean rememberMe) {
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
+                .rememberMe(rememberMe)
                 .build();
     }
 }

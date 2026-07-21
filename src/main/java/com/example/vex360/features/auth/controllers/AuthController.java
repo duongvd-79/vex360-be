@@ -3,16 +3,20 @@ package com.example.vex360.features.auth.controllers;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 
@@ -47,6 +51,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Authentication", description = "Quản lý xác thực, đăng ký, khôi phục mật khẩu và vòng đời token")
 public class AuthController extends BaseController {
 
+    private static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api/v1/auth";
+
     private final AuthService authService;
     private final RegistrationService registrationService;
     private final PasswordService passwordService;
@@ -56,6 +63,9 @@ public class AuthController extends BaseController {
 
     @Value("${app.registration.frontend-url}")
     private String registrationFrontendUrl;
+
+    @Value("${app.jwt.remember-refresh-expiration-ms}")
+    private long rememberRefreshExpirationMs;
 
     /**
      * Endpoint for user registration.
@@ -94,9 +104,9 @@ public class AuthController extends BaseController {
      * @return unified API response containing token details
      */
     @PostMapping("/login")
-    @Operation(summary = "Đăng nhập tài khoản", description = "Xác thực email và mật khẩu của người dùng, trả về Access Token (stateless) và Refresh Token (stateful).")
+    @Operation(summary = "Đăng nhập tài khoản", description = "Xác thực email và mật khẩu, trả về Access Token và đặt Refresh Token trong cookie HttpOnly.")
     public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {
-        return ok(authService.login(request));
+        return withRefreshCookie(authService.login(request));
     }
 
     /**
@@ -109,7 +119,7 @@ public class AuthController extends BaseController {
     @Operation(summary = "Đăng nhập bằng Google", description = "Xác thực người dùng thông qua tài khoản Google, trả về Access Token (stateless) và Refresh Token (stateful).")
     public ResponseEntity<ApiResponse<TokenResponse>> googleCallback(
             @Valid @RequestBody GoogleCallbackRequest request) {
-        return ok(authService.loginWithGoogle(request.getCode()));
+        return withRefreshCookie(authService.loginWithGoogle(request.getCode()));
 
     }
 
@@ -120,29 +130,32 @@ public class AuthController extends BaseController {
      * rotated refresh token.
      *
      * 
-     * @param token the current refresh token
+     * @param token the current refresh token from its HttpOnly cookie
      * @return unified API response containing the new token details
      */
 
     @PostMapping("/refresh")
     @Operation(summary = "Làm mới Access Token", description = "Sử dụng Refresh Token hợp lệ để nhận cặp token mới. Áp dụng cơ chế xoay vòng Refresh Token (Rotation) và phát hiện tấn công phát lại (Replay Detection).")
-    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@RequestParam("token") String token) {
-        return ok(authService.refreshToken(token));
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(
+            @CookieValue(REFRESH_TOKEN_COOKIE) String token) {
+        return withRefreshCookie(authService.refreshToken(token));
     }
 
     /**
      * Endpoint for user logout.
      * Invalidate refresh token session and blacklists active access token.
      *
-     * @param token the refresh token to revoke
+     * @param token the refresh token cookie to revoke
      */
     @PostMapping("/logout")
     @Operation(summary = "Đăng xuất tài khoản", description = "Thu hồi Refresh Token hiện tại và đưa Access Token đang dùng vào danh sách đen (blacklist).")
     public ResponseEntity<ApiResponse<Void>> logout(
-            @RequestParam("token") String token,
+            @CookieValue(value = REFRESH_TOKEN_COOKIE, required = false) String token,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         authService.logout(token, bearerToken(authorization));
-        return ok(null, "Đăng xuất thành công!");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString())
+                .body(createSuccessResponse(null, "Đăng xuất thành công!"));
     }
 
     /**
@@ -215,5 +228,33 @@ public class AuthController extends BaseController {
             return authorization.substring(7);
         }
         return null;
+    }
+
+    private ResponseEntity<ApiResponse<TokenResponse>> withRefreshCookie(TokenResponse tokens) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(tokens).toString())
+                .body(createSuccessResponse(tokens));
+    }
+
+    private ResponseCookie refreshCookie(TokenResponse tokens) {
+        ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokens.getRefreshToken())
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path(REFRESH_TOKEN_COOKIE_PATH);
+        if (tokens.isRememberMe()) {
+            cookie.maxAge(Duration.ofMillis(rememberRefreshExpirationMs));
+        }
+        return cookie.build();
+    }
+
+    private ResponseCookie clearRefreshCookie() {
+        return ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path(REFRESH_TOKEN_COOKIE_PATH)
+                .maxAge(Duration.ZERO)
+                .build();
     }
 }
