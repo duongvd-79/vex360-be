@@ -124,7 +124,6 @@ public class BoothTemplateController extends BaseController {
         return ok(panoramas);
     }
 
-
     @PostMapping(path = "/{boothId}/panoramas", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<PanoramaResponseDTO>> createPanorama(

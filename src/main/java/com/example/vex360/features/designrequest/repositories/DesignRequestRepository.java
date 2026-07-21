@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
 import jakarta.persistence.LockModeType;
@@ -26,10 +28,16 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             LEFT JOIN FETCH dr.assignedDesigner
             """;
 
-    List<DesignRequestStatus> ACTIVE_STATUSES = List.of(
+    List<DesignRequestStatus> WORKING_STATUSES = List.of(
+            DesignRequestStatus.ASSIGNED,
+            DesignRequestStatus.REVISION_REQUESTED);
+
+    List<DesignRequestStatus> NON_TERMINAL_STATUSES = List.of(
+            DesignRequestStatus.PENDING,
             DesignRequestStatus.ASSIGNED,
             DesignRequestStatus.DRAFT_SUBMITTED,
-            DesignRequestStatus.REVISION_REQUESTED);
+            DesignRequestStatus.REVISION_REQUESTED,
+            DesignRequestStatus.REVISION_QUEUED);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT dr FROM DesignRequest dr WHERE dr.id = :id")
@@ -51,14 +59,20 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
     @Query(value = REQUEST_DETAILS_QUERY + """
             WHERE (:status IS NULL OR dr.status = :status)
               AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
+              AND (:mode IS NULL OR dr.mode = :mode)
+              AND (:scope IS NULL OR dr.scope = :scope)
             """, countQuery = """
             SELECT COUNT(dr) FROM DesignRequest dr
             WHERE (:status IS NULL OR dr.status = :status)
               AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
+              AND (:mode IS NULL OR dr.mode = :mode)
+              AND (:scope IS NULL OR dr.scope = :scope)
             """)
     Page<DesignRequest> searchForAdmin(
             @Param("status") DesignRequestStatus status,
             @Param("designerId") UUID designerId,
+            @Param("mode") DesignRequestMode mode,
+            @Param("scope") DesignRequestScope scope,
             Pageable pageable);
 
     @Query(value = REQUEST_DETAILS_QUERY + """
@@ -74,7 +88,9 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             @Param("status") DesignRequestStatus status,
             Pageable pageable);
 
-    long countByBoothId(UUID boothId);
+    long countByBoothIdAndQuotaChargedTrue(UUID boothId);
+
+    boolean existsByBoothIdAndStatusIn(UUID boothId, List<DesignRequestStatus> statuses);
 
     @Query("""
             SELECT COALESCE(SUM(dr.reviewCount), 0)
@@ -89,6 +105,10 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     long countByStatusIn(List<DesignRequestStatus> statuses);
 
+    Optional<DesignRequest> findFirstByAssignedDesignerIdAndStatusOrderByRevisionQueuedAtAsc(
+            UUID designerId,
+            DesignRequestStatus status);
+
     @Query("""
             SELECT dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email, COUNT(dr)
             FROM DesignRequest dr
@@ -97,4 +117,39 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             GROUP BY dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email
             """)
     List<Object[]> countActiveRequestsByDesigner(@Param("statuses") List<DesignRequestStatus> statuses);
+
+    @Query("""
+            SELECT COUNT(dr) FROM DesignRequest dr
+            WHERE dr.status = :status
+              AND (:mode IS NULL OR dr.mode = :mode)
+              AND (:scope IS NULL OR dr.scope = :scope)
+            """)
+    long countFiltered(
+            @Param("status") DesignRequestStatus status,
+            @Param("mode") DesignRequestMode mode,
+            @Param("scope") DesignRequestScope scope);
+
+    @Query("""
+            SELECT COUNT(dr) FROM DesignRequest dr
+            WHERE dr.status IN :statuses
+              AND (:mode IS NULL OR dr.mode = :mode)
+              AND (:scope IS NULL OR dr.scope = :scope)
+            """)
+    long countFilteredIn(
+            @Param("statuses") List<DesignRequestStatus> statuses,
+            @Param("mode") DesignRequestMode mode,
+            @Param("scope") DesignRequestScope scope);
+
+    @Query("""
+            SELECT COUNT(dr) FROM DesignRequest dr
+            WHERE dr.assignedDesigner.id = :designerId
+              AND dr.status IN :statuses
+              AND (:mode IS NULL OR dr.mode = :mode)
+              AND (:scope IS NULL OR dr.scope = :scope)
+            """)
+    long countDesignerFilteredIn(
+            @Param("designerId") UUID designerId,
+            @Param("statuses") List<DesignRequestStatus> statuses,
+            @Param("mode") DesignRequestMode mode,
+            @Param("scope") DesignRequestScope scope);
 }

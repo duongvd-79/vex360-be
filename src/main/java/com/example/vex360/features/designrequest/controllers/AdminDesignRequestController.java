@@ -21,6 +21,13 @@ import com.example.vex360.features.designrequest.dtos.request.AssignDesignReques
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentAnalyticsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
+import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.enums.DesignRequestScope;
+import com.example.vex360.features.designrequest.dtos.request.DecideDesignCancellationRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
+import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
+import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentCandidateResponseDTO;
+import java.util.List;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -38,32 +45,59 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin - Design Requests", description = "Admin quản lý và phân công yêu cầu thiết kế booth")
 public class AdminDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;
+    private final DesignRequestCommunicationService communicationService;
 
     @GetMapping
-    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth")
+    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ lọc theo trạng thái, ID designer, chế độ, phạm vi thiết kế và phân trang.")
     public ResponseEntity<ApiResponse<PageResponse<DesignRequestResponseDTO>>> getRequests(
             @RequestParam(required = false) DesignRequestStatus status,
             @RequestParam(required = false) UUID designerId,
+            @RequestParam(required = false) DesignRequestMode mode,
+            @RequestParam(required = false) DesignRequestScope scope,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ok(designRequestService.getRequestsForAdmin(status, designerId, pageable));
+        return ok(designRequestService.getRequestsForAdmin(status, designerId, mode, scope, pageable));
     }
 
     @PostMapping("/{id}/assign")
-    @Operation(summary = "Admin phân công designer")
+    @Operation(summary = "Admin phân công designer", description = "Phân công một Designer chịu trách nhiệm thực hiện yêu cầu thiết kế booth.")
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> assignRequest(
             @PathVariable UUID id,
             @Valid @RequestBody AssignDesignRequest request) {
         return ok(designRequestService.assignRequest(id, request));
     }
 
+    @PostMapping("/{id}/cancellation-decision")
+    @Operation(summary = "Quyết định yêu cầu hủy thiết kế từ Exhibitor", description = "Admin phê duyệt hoặc từ chối yêu cầu hủy thiết kế booth từ phía Exhibitor.")
+    public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> decideCancellation(
+            @PathVariable UUID id,
+            @Valid @RequestBody DecideDesignCancellationRequest request) {
+        return ok(designRequestService.decideCancellation(id, request.getApprove(), request.getNote()));
+    }
+
+    @GetMapping("/{id}/messages")
+    @Operation(summary = "Xem tin nhắn trao đổi làm rõ", description = "Lấy danh sách các tin nhắn trao đổi làm rõ giữa Exhibitor và Designer cho yêu cầu thiết kế này.")
+    public ResponseEntity<ApiResponse<PageResponse<DesignRequestMessageResponseDTO>>> getMessages(
+            @PathVariable UUID id,
+            @ParameterObject @PageableDefault(page = 0, size = 20, sort = "createdAt") Pageable pageable) {
+        return ok(communicationService.getForAdmin(id, pageable));
+    }
+
     @GetMapping("/assignment-analytics")
-    @Operation(summary = "Admin xem analytics phân công designer")
-    public ResponseEntity<ApiResponse<DesignAssignmentAnalyticsResponseDTO>> getAssignmentAnalytics() {
-        return ok(designRequestService.getAssignmentAnalytics());
+    @Operation(summary = "Admin xem phân tích phân công designer", description = "Lấy dữ liệu thống kê, phân tích về tình hình phân công thiết kế của các Designer.")
+    public ResponseEntity<ApiResponse<DesignAssignmentAnalyticsResponseDTO>> getAssignmentAnalytics(
+            @RequestParam(required = false) DesignRequestMode mode,
+            @RequestParam(required = false) DesignRequestScope scope) {
+        return ok(designRequestService.getAssignmentAnalytics(mode, scope));
+    }
+
+    @GetMapping("/assignment-candidates")
+    @Operation(summary = "Lấy danh sách ứng viên Designer để phân công", description = "Trả về danh sách các Designer cùng với thông tin số lượng công việc hiện tại và số slot trống để phân công.")
+    public ResponseEntity<ApiResponse<List<DesignAssignmentCandidateResponseDTO>>> getAssignmentCandidates() {
+        return ok(designRequestService.getAssignmentCandidates());
     }
 
     @DeleteMapping("/{id}/assets")
-    @Operation(summary = "Admin giải phóng asset không còn được booth sử dụng")
+    @Operation(summary = "Admin dọn dẹp asset không sử dụng", description = "Giải phóng các asset thiết kế nháp không còn được booth sử dụng để tối ưu bộ nhớ.")
     public ResponseEntity<ApiResponse<Integer>> cleanupAssets(@PathVariable UUID id) {
         return ok(designRequestService.cleanupTerminalAssets(id));
     }

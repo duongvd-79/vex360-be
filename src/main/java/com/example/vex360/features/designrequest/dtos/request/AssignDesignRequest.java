@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AssignDesignRequest {
-    @NotNull(message = "Designer id khong duoc de trong")
+    @NotNull(message = "Designer id không được để trống")
     private UUID designerId;
 }

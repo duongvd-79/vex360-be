@@ -10,6 +10,7 @@ import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprov
 import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
 import com.example.vex360.features.exhibition.services.PayOSWebhookService;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
@@ -44,8 +45,26 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     data.getCode());
 
             Long orderCode = data.getOrderCode();
-            Payment payment = paymentRepository.findByOrderCode(orderCode)
+            PaymentRoute route = paymentRepository.findRouteByOrderCode(orderCode)
                     .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+
+            ExhibitorRegistration registration = null;
+            if (route.getPaymentType() == PaymentType.EXHIBITION_REGISTRATION) {
+                if (route.getRegistrationId() == null) {
+                    throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+                }
+                registration = registrationRepository.findByIdForUpdate(route.getRegistrationId())
+                        .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+            }
+
+            Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode)
+                    .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+            validateLockedRoute(route, payment);
+
+            if (payment.getStatus() == PaymentStatus.PAID) {
+                log.info("Payment with orderCode {} has already been processed. Skipping.", orderCode);
+                return data;
+            }
 
             if ("00".equals(data.getCode())) {
                 payment.setStatus(PaymentStatus.PAID);
@@ -59,10 +78,9 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     eventPublisher.publishEvent(new StoragePackagePaymentCompletedEvent(
                             this, payment.getStoragePackageOrderId()));
                 } else {
-                    ExhibitorRegistration registration = payment.getExhibitorRegistration();
-                    if (registration.getStatus() == ExhibitorRegistrationStatus.CANCELED) {
-                        log.warn("Payment PAID for a CANCELED registration ID: {}. Refusing to approve.",
-                                registration.getId());
+                    if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
+                        log.warn("Payment PAID for registration ID {} in status {}. Refusing to approve.",
+                                registration.getId(), registration.getStatus());
                     } else {
                         registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                         registrationRepository.save(registration);
@@ -81,6 +99,19 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
             throw e;
         } catch (Exception e) {
             log.error("Failed to verify PayOS Webhook payload", e);
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+    }
+
+    private void validateLockedRoute(PaymentRoute route, Payment payment) {
+        if (payment.getPaymentType() != route.getPaymentType()) {
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+
+        Integer lockedRegistrationId = payment.getExhibitorRegistration() == null
+                ? null
+                : payment.getExhibitorRegistration().getId();
+        if (!java.util.Objects.equals(lockedRegistrationId, route.getRegistrationId())) {
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }

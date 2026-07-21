@@ -16,18 +16,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SubmitDesignDraftHotspotRequest {
-    @NotNull(message = "Loai hotspot khong duoc de trong")
+    @NotNull(message = "Loại hotspot không được để trống")
     private HotspotType type;
 
     private String name;
 
-    @NotNull(message = "Vi tri x khong duoc de trong")
+    @NotNull(message = "Vị trí x không được để trống")
     private Double xPosition;
 
-    @NotNull(message = "Vi tri y khong duoc de trong")
+    @NotNull(message = "Vị trí y không được để trống")
     private Double yPosition;
 
-    @NotNull(message = "Vi tri z khong duoc de trong")
+    @NotNull(message = "Vị trí z không được để trống")
     private Double zPosition;
 
     private String targetDraftPanoramaKey;

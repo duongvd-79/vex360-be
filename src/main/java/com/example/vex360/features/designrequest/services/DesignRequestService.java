@@ -36,6 +36,7 @@ import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftH
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentAnalyticsResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkloadResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
@@ -43,6 +44,11 @@ import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
+import com.example.vex360.features.designrequest.events.DesignRequestCancellationChangedEvent;
+import com.example.vex360.features.designrequest.events.DesignRequestRevisionPromotedEvent;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
+import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -51,6 +57,9 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.shared.enums.UserStatus;
+import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentCandidateResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.Role;
@@ -68,7 +77,6 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DesignRequestService {
-    private static final int MAX_BOOTH_DESIGN_ACTIONS = 3;
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
 
     private final DesignRequestRepository designRequestRepository;
@@ -78,13 +86,19 @@ public class DesignRequestService {
     private final CompanyService companyService;
     private final UserService userService;
     private final ProductService productService;
+    private final DesignRequestEligibilityService eligibilityService;
+    private final DesignRequestProductService requestProductService;
+    private final DesignRequestBaselineService baselineService;
     private final DesignDraftAssetService designDraftAssetService;
+    private final DesignDraftSettingsService draftSettingsService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserRepository userRepository;
 
     /**
      * Creates a pending design request for an Exhibitor-owned booth. The booth
      * must be in DRAFT and have remaining design-action quota. On success the
-     * booth moves to DESIGNING so Exhibitor editing is blocked.
+     * booth moves to DESIGN_REQUEST_PENDING; spatial content is locked while
+     * metadata, files, and the allowlist remain editable until assignment.
      *
      * @param currentUser authenticated Exhibitor
      * @param request     booth identifier and optional design note
@@ -96,11 +110,9 @@ public class DesignRequestService {
     public DesignRequestResponseDTO createRequest(User currentUser, CreateDesignRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getCompanyBoothForUpdate(request.getBoothId(), company);
-        if (booth.getStatus() != BoothStatus.DRAFT) {
-            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
-        }
-        assertBoothDesignQuotaAvailable(booth);
-        booth.setStatus(BoothStatus.DESIGNING);
+        var eligibility = eligibilityService.evaluate(booth);
+        eligibilityService.assertCanCreate(eligibility, request.getScope());
+        booth.setStatus(BoothStatus.DESIGN_REQUEST_PENDING);
 
         DesignRequest designRequest = DesignRequest.builder()
                 .booth(booth)
@@ -108,11 +120,44 @@ public class DesignRequestService {
                 .requestedBy(currentUser)
                 .note(trimToNull(request.getNote()))
                 .status(DesignRequestStatus.PENDING)
+                .mode(eligibility.getMode())
+                .scope(request.getScope())
                 .reviewCount(0)
                 .build();
+        requestProductService.initializeAllowlist(designRequest, request.getProductIds());
         DesignRequest saved = designRequestRepository.save(designRequest);
         publishStatusChanged(saved, currentUser, null);
-        return designRequestMapper.toResponse(saved);
+        return toResponse(saved);
+    }
+
+    /**
+     * Evaluates request mode, available scopes, blocking reason, and remaining
+     * action quota for an Exhibitor-owned booth.
+     */
+    @Transactional(readOnly = true)
+    public DesignRequestEligibilityResponseDTO getEligibility(
+            User currentUser, UUID boothId) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        Booth booth = boothDesignService.getCompanyBooth(boothId, company.getId());
+        return eligibilityService.evaluate(booth);
+    }
+
+    /**
+     * Replaces optional product visibility while a FULL request is PENDING;
+     * products required by a redesign baseline are always retained.
+     */
+    @Transactional
+    public DesignRequestResponseDTO updatePendingProducts(
+            User currentUser,
+            UUID id,
+            List<UUID> productIds) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        DesignRequest request = getRequestForCompany(id, company);
+        if (request.getStatus() != DesignRequestStatus.PENDING) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        requestProductService.replaceOptionalProducts(request, productIds);
+        return toResponse(designRequestRepository.save(request));
     }
 
     /**
@@ -132,7 +177,7 @@ public class DesignRequestService {
         Company company = getCompanyForCurrentUser(currentUser);
         Page<DesignRequestResponseDTO> page = designRequestRepository
                 .searchForCompany(company.getId(), status, pageable)
-                .map(designRequestMapper::toResponse);
+                .map(this::toResponse);
         return PageResponse.from(page);
     }
 
@@ -149,9 +194,11 @@ public class DesignRequestService {
     public PageResponse<DesignRequestResponseDTO> getRequestsForAdmin(
             DesignRequestStatus status,
             UUID designerId,
+            DesignRequestMode mode,
+            DesignRequestScope scope,
             Pageable pageable) {
-        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, pageable)
-                .map(designRequestMapper::toResponse));
+        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, mode, scope, pageable)
+                .map(this::toResponse));
     }
 
     /**
@@ -170,12 +217,12 @@ public class DesignRequestService {
             Pageable pageable) {
         User designer = requireCurrentUser(currentUser);
         return PageResponse.from(designRequestRepository.searchForDesigner(designer.getId(), status, pageable)
-                .map(designRequestMapper::toResponse));
+                .map(this::toResponse));
     }
 
     /**
      * Cancels an Exhibitor request that is still pending assignment. The booth
-     * is unlocked by returning it from DESIGNING to DRAFT.
+     * returns to DRAFT and the charged create action is refunded.
      *
      * @param currentUser authenticated Exhibitor that owns the request company
      * @param id          design request identifier
@@ -192,11 +239,70 @@ public class DesignRequestService {
         }
         DesignRequestStatus previousStatus = request.getStatus();
         request.setStatus(DesignRequestStatus.CANCELED);
+        request.setQuotaCharged(false);
         request.setCanceledAt(LocalDateTime.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        return toResponse(saved);
+    }
+
+    /**
+     * Records an Exhibitor cancellation request after assignment without
+     * changing the main workflow status or releasing a working slot.
+     */
+    @Transactional
+    public DesignRequestResponseDTO requestCancellation(User currentUser, UUID id, String reason) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        DesignRequest request = getRequestForCompany(id, company);
+        if (request.getStatus() == DesignRequestStatus.PENDING) {
+            return cancelRequest(currentUser, id);
+        }
+        if (request.getStatus() == DesignRequestStatus.APPROVED
+                || request.getStatus() == DesignRequestStatus.CANCELED
+                || request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        String cancellationReason = trimToNull(reason);
+        if (cancellationReason == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
+        request.setCancellationReason(cancellationReason);
+        request.setCancellationRequestedAt(LocalDateTime.now());
+        DesignRequest saved = designRequestRepository.save(request);
+        publishCancellationChanged(saved, currentUser);
+        return toResponse(saved);
+    }
+
+    /**
+     * Resolves a pending cancellation request. Approval cancels and unlocks the
+     * booth; rejection resumes the existing main workflow status.
+     */
+    @Transactional
+    public DesignRequestResponseDTO decideCancellation(UUID id, boolean approve, String note) {
+        DesignRequest request = getRequest(id);
+        if (request.getCancellationStatus() != DesignRequestCancellationStatus.REQUESTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        request.setCancellationResolutionNote(trimToNull(note));
+        request.setCancellationResolvedAt(LocalDateTime.now());
+        if (approve) {
+            DesignRequestStatus previousStatus = request.getStatus();
+            request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
+            request.setStatus(DesignRequestStatus.CANCELED);
+            request.setCanceledAt(LocalDateTime.now());
+            request.getBooth().setStatus(BoothStatus.DRAFT);
+            DesignRequest saved = designRequestRepository.save(request);
+            publishStatusChanged(saved, null, previousStatus);
+            publishCancellationChanged(saved, null);
+            promoteOldestQueued(request.getAssignedDesigner());
+            return toResponse(saved);
+        }
+        request.setCancellationStatus(DesignRequestCancellationStatus.REJECTED);
+        DesignRequest saved = designRequestRepository.save(request);
+        publishCancellationChanged(saved, null);
+        return toResponse(saved);
     }
 
     /**
@@ -222,9 +328,10 @@ public class DesignRequestService {
         if (designer.getRole() != Role.DESIGNER) {
             throw new AppException(ErrorCode.INVALID_DESIGNER);
         }
+        eligibilityService.assertCanAssign(request);
         long activeCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
                 designer.getId(),
-                DesignRequestRepository.ACTIVE_STATUSES);
+                DesignRequestRepository.WORKING_STATUSES);
         if (activeCount >= MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
             throw new AppException(ErrorCode.DESIGNER_WORKLOAD_EXCEEDED);
         }
@@ -233,9 +340,11 @@ public class DesignRequestService {
         request.setAssignedDesigner(designer);
         request.setAssignedAt(LocalDateTime.now());
         request.setStatus(DesignRequestStatus.ASSIGNED);
+        request.getBooth().setStatus(BoothStatus.DESIGNING);
+        baselineService.createWorkingBaseline(request);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, null, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     /**
@@ -264,7 +373,8 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        promoteOldestQueued(saved.getAssignedDesigner());
+        return toResponse(saved);
     }
 
     /**
@@ -292,7 +402,7 @@ public class DesignRequestService {
         request.getDrafts().add(workingDraft);
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
-        return designRequestMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     /**
@@ -321,18 +431,20 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        promoteOldestQueued(saved.getAssignedDesigner());
+        return toResponse(saved);
     }
 
     /**
      * Rejects the latest submitted draft and returns the request to the assigned
-     * Designer for revision. Each rejection increments both the request review
-     * count and the booth's shared design-action usage.
+     * Designer for revision. Each rejection requires a note and increments both
+     * the request review count and the booth's shared design-action usage. If
+     * all Designer slots are occupied, the request enters REVISION_QUEUED.
      *
      * @param currentUser   authenticated Exhibitor that owns the request company
      * @param id            design request identifier
-     * @param rejectRequest optional revision note for the Designer
-     * @return the request in REVISION_REQUESTED status
+     * @param rejectRequest required revision note for the Designer
+     * @return the request in REVISION_REQUESTED or REVISION_QUEUED status
      * @throws AppException if the request is not DRAFT_SUBMITTED, belongs to
      *                      another company, or the booth action quota is exhausted
      */
@@ -343,15 +455,30 @@ public class DesignRequestService {
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
-        assertBoothDesignQuotaAvailable(request.getBooth());
+        if (eligibilityService.remainingActions(request.getBooth()) == 0) {
+            throw new AppException(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED);
+        }
 
         DesignRequestStatus previousStatus = request.getStatus();
         request.setReviewCount(request.getReviewCount() + 1);
-        request.setReviewNote(rejectRequest == null ? null : trimToNull(rejectRequest.getReviewNote()));
-        request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
+        String reviewNote = rejectRequest == null ? null : trimToNull(rejectRequest.getReviewNote());
+        if (reviewNote == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        request.setReviewNote(reviewNote);
+        User assignedDesigner = userService.getUserEntityByIdForUpdate(request.getAssignedDesigner().getId());
+        long workingCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
+                assignedDesigner.getId(), DesignRequestRepository.WORKING_STATUSES);
+        if (workingCount >= MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
+            request.setStatus(DesignRequestStatus.REVISION_QUEUED);
+            request.setRevisionQueuedAt(LocalDateTime.now());
+        } else {
+            request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
+            request.setRevisionQueuedAt(null);
+        }
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     /**
@@ -384,7 +511,8 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupAfterApproval(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        return designRequestMapper.toResponse(saved);
+        promoteOldestQueued(saved.getAssignedDesigner());
+        return toResponse(saved);
     }
 
     /**
@@ -407,28 +535,64 @@ public class DesignRequestService {
     }
 
     /**
-     * Aggregates assignment metrics: pending requests, active requests,
-     * completed/canceled totals, and active workload per Designer.
+     * Aggregates pending, working, waiting-review, queued, completed, canceled,
+     * and per-Designer workload metrics with optional mode/scope filters.
      *
      * @return current design-assignment analytics
      */
     @Transactional(readOnly = true)
-    public DesignAssignmentAnalyticsResponseDTO getAssignmentAnalytics() {
-        List<DesignRequestStatus> activeStatuses = DesignRequestRepository.ACTIVE_STATUSES;
-        List<DesignerWorkloadResponseDTO> workloads = designRequestRepository.countActiveRequestsByDesigner(
-                activeStatuses).stream()
-                .map(row -> new DesignerWorkloadResponseDTO(
-                        (UUID) row[0],
-                        (String) row[1],
-                        (String) row[2],
-                        (Long) row[3]))
+    public DesignAssignmentAnalyticsResponseDTO getAssignmentAnalytics(
+            com.example.vex360.features.designrequest.enums.DesignRequestMode mode,
+            com.example.vex360.features.designrequest.enums.DesignRequestScope scope) {
+        List<DesignRequestStatus> activeStatuses = DesignRequestRepository.WORKING_STATUSES;
+        List<DesignerWorkloadResponseDTO> workloads = userRepository
+                .findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
+                .map(designer -> toWorkload(designer, mode, scope))
                 .toList();
         return new DesignAssignmentAnalyticsResponseDTO(
-                designRequestRepository.countByStatus(DesignRequestStatus.PENDING),
-                designRequestRepository.countByStatusIn(activeStatuses),
-                designRequestRepository.countByStatus(DesignRequestStatus.APPROVED),
-                designRequestRepository.countByStatus(DesignRequestStatus.CANCELED),
+                designRequestRepository.countFiltered(DesignRequestStatus.PENDING, mode, scope),
+                designRequestRepository.countFilteredIn(activeStatuses, mode, scope),
+                designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode, scope),
+                designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode, scope),
+                designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode, scope),
+                designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode, scope),
                 workloads);
+    }
+
+    /**
+     * Lists active Designers including those with zero workload, ordered by
+     * available slots and then display name.
+     */
+    @Transactional(readOnly = true)
+    public List<DesignAssignmentCandidateResponseDTO> getAssignmentCandidates() {
+        return userRepository.findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
+                .map(designer -> {
+                    long working = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
+                            designer.getId(), DesignRequestRepository.WORKING_STATUSES);
+                    return new DesignAssignmentCandidateResponseDTO(
+                            designer.getId(), designer.getFullName(), designer.getEmail(), working,
+                            Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
+                })
+                .sorted(java.util.Comparator
+                        .comparingInt(DesignAssignmentCandidateResponseDTO::getAvailableSlots).reversed()
+                        .thenComparing(candidate -> candidate.getDesignerName() == null
+                                ? "" : candidate.getDesignerName(), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private DesignerWorkloadResponseDTO toWorkload(
+            User designer,
+            com.example.vex360.features.designrequest.enums.DesignRequestMode mode,
+            com.example.vex360.features.designrequest.enums.DesignRequestScope scope) {
+        long working = designRequestRepository.countDesignerFilteredIn(
+                designer.getId(), DesignRequestRepository.WORKING_STATUSES, mode, scope);
+        long waiting = designRequestRepository.countDesignerFilteredIn(
+                designer.getId(), List.of(DesignRequestStatus.DRAFT_SUBMITTED), mode, scope);
+        long queued = designRequestRepository.countDesignerFilteredIn(
+                designer.getId(), List.of(DesignRequestStatus.REVISION_QUEUED), mode, scope);
+        return new DesignerWorkloadResponseDTO(
+                designer.getId(), designer.getFullName(), designer.getEmail(),
+                working, waiting, queued, Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
     }
 
     private DesignDraft buildDraft(
@@ -444,6 +608,7 @@ public class DesignRequestService {
                 .versionNumber(versionNumber)
                 .note(trimToNull(draftRequest.getNote()))
                 .build();
+        draftSettingsService.applyToDraft(request, draft, draftRequest.getBoothSettings());
 
         Set<String> keys = new HashSet<>();
         long defaultCount = draftRequest.getPanoramas().stream()
@@ -487,7 +652,7 @@ public class DesignRequestService {
                     : panoramaRequest.getHotspots();
             for (SubmitDesignDraftHotspotRequest hotspotRequest : hotspotRequests) {
                 DesignDraftHotspot hotspot = buildDraftHotspot(
-                        request.getCompany(),
+                        request,
                         panorama,
                         panoramasByKey,
                         hotspotRequest);
@@ -517,10 +682,13 @@ public class DesignRequestService {
                 && request.getStatus() != DesignRequestStatus.REVISION_REQUESTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
+        if (request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
+            throw new AppException(ErrorCode.DESIGN_CANCELLATION_PENDING);
+        }
     }
 
     private DesignDraftHotspot buildDraftHotspot(
-            Company company,
+            DesignRequest designRequest,
             DesignDraftPanorama sourcePanorama,
             Map<String, DesignDraftPanorama> panoramasByKey,
             SubmitDesignDraftHotspotRequest request) {
@@ -543,11 +711,16 @@ public class DesignRequestService {
                 .build();
         applyCorners(hotspot, request.getType(), request.getCorners());
 
+        if (designRequest.getScope() == DesignRequestScope.SPATIAL
+                && request.getType() != HotspotType.NAV) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+
         switch (request.getType()) {
             case NAV -> applyDraftNavHotspot(hotspot, panoramasByKey, request);
-            case PRODUCT -> applyDraftProductHotspot(hotspot, company, request);
-            case INFO -> applyDraftInfoHotspot(hotspot, company, request);
-            case MEDIA -> applyDraftMediaHotspot(hotspot, company, request);
+            case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
+            case INFO -> applyDraftInfoHotspot(hotspot, designRequest, request);
+            case MEDIA -> applyDraftMediaHotspot(hotspot, designRequest.getCompany(), request);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         return hotspot;
@@ -571,12 +744,13 @@ public class DesignRequestService {
 
     private void applyDraftProductHotspot(
             DesignDraftHotspot hotspot,
-            Company company,
+            DesignRequest designRequest,
             SubmitDesignDraftHotspotRequest request) {
         if (request.getProductId() == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
-        Product product = productService.getProductForCompany(request.getProductId(), company);
+        requestProductService.assertProductAllowed(designRequest, request.getProductId());
+        Product product = productService.getProductForCompany(request.getProductId(), designRequest.getCompany());
         if (product.getStatus() != ProductStatus.ACTIVE) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
         }
@@ -586,7 +760,7 @@ public class DesignRequestService {
 
     private void applyDraftInfoHotspot(
             DesignDraftHotspot hotspot,
-            Company company,
+            DesignRequest designRequest,
             SubmitDesignDraftHotspotRequest request) {
         HotspotInfoContentType contentType = resolveInfoContentType(request);
         hotspot.setInfoContentType(contentType);
@@ -595,11 +769,13 @@ public class DesignRequestService {
             case NONE -> {
                 hotspot.setInfoText(trimToNull(request.getInfoText()));
             }
-            case PRODUCT -> applyDraftProductHotspot(hotspot, company, request);
+            case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
             case IMAGE ->
-                hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.IMAGE));
+                hotspot.setMediaAsset(getMediaAsset(
+                        request.getMediaAssetId(), designRequest.getCompany(), MediaAssetType.IMAGE));
             case VIDEO ->
-                hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, MediaAssetType.VIDEO));
+                hotspot.setMediaAsset(getMediaAsset(
+                        request.getMediaAssetId(), designRequest.getCompany(), MediaAssetType.VIDEO));
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
     }
@@ -621,6 +797,9 @@ public class DesignRequestService {
                 draft.getPanoramas().stream()
                         .map(this::toPanoramaDesign)
                         .toList());
+        if (request.getScope() == DesignRequestScope.FULL) {
+            draftSettingsService.applyToBooth(request.getBooth(), draft);
+        }
     }
 
     private PanoramaDesign toPanoramaDesign(DesignDraftPanorama draftPanorama) {
@@ -662,14 +841,6 @@ public class DesignRequestService {
                 draftHotspot.getCornerBrX(),
                 draftHotspot.getCornerBrY(),
                 draftHotspot.getCornerBrZ());
-    }
-
-    private void assertBoothDesignQuotaAvailable(Booth booth) {
-        long actions = designRequestRepository.countByBoothId(booth.getId())
-                + designRequestRepository.sumReviewCountByBoothId(booth.getId());
-        if (actions >= MAX_BOOTH_DESIGN_ACTIONS) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED);
-        }
     }
 
     private MediaAsset getMediaAsset(UUID mediaAssetId, Company company, MediaAssetType expectedType) {
@@ -765,6 +936,40 @@ public class DesignRequestService {
                 request.getStatus()));
     }
 
+    private void publishCancellationChanged(DesignRequest request, User actor) {
+        eventPublisher.publishEvent(new DesignRequestCancellationChangedEvent(
+                request.getId(),
+                request.getCompany().getId(),
+                request.getAssignedDesigner() == null ? null : request.getAssignedDesigner().getId(),
+                actor == null ? null : actor.getId(),
+                request.getCancellationStatus()));
+    }
+
+    private void promoteOldestQueued(User designer) {
+        if (designer == null) {
+            return;
+        }
+        userService.getUserEntityByIdForUpdate(designer.getId());
+        long workingCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
+                designer.getId(), DesignRequestRepository.WORKING_STATUSES);
+        while (workingCount < MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
+            DesignRequest queued = designRequestRepository
+                    .findFirstByAssignedDesignerIdAndStatusOrderByRevisionQueuedAtAsc(
+                            designer.getId(), DesignRequestStatus.REVISION_QUEUED)
+                    .orElse(null);
+            if (queued == null) {
+                return;
+            }
+            DesignRequestStatus previousStatus = queued.getStatus();
+            queued.setStatus(DesignRequestStatus.REVISION_REQUESTED);
+            queued.setRevisionQueuedAt(null);
+            designRequestRepository.save(queued);
+            publishStatusChanged(queued, null, previousStatus);
+            eventPublisher.publishEvent(new DesignRequestRevisionPromotedEvent(queued.getId(), designer.getId()));
+            workingCount++;
+        }
+    }
+
     private String requireText(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {
@@ -783,5 +988,11 @@ public class DesignRequestService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private DesignRequestResponseDTO toResponse(DesignRequest request) {
+        DesignRequestResponseDTO response = designRequestMapper.toResponse(request);
+        response.setRemainingDesignActions(eligibilityService.remainingActions(request.getBooth()));
+        return response;
     }
 }

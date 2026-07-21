@@ -65,7 +65,7 @@ public class ExhibitorBoothService {
             MultipartFile backgroundMusic) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
-        boothReviewPolicyService.assertEditable(booth);
+        boothReviewPolicyService.assertMetadataEditable(booth);
 
         if (request != null) {
             updateMetadata(booth, request);
@@ -107,7 +107,7 @@ public class ExhibitorBoothService {
     public BoothResponseDTO deleteBackgroundMusic(User currentUser, UUID boothId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
-        boothReviewPolicyService.assertEditable(booth);
+        boothReviewPolicyService.assertMetadataEditable(booth);
 
         String publicId = booth.getBackgroundMusicPublicId();
         if (!hasText(publicId)) {
@@ -125,6 +125,10 @@ public class ExhibitorBoothService {
     }
 
     private void updateMetadata(Booth booth, UpdateBoothRequest request) {
+        if (booth.getStatus() == com.example.vex360.features.booth.enums.BoothStatus.DESIGN_REQUEST_PENDING
+                && request.getDisplayTemplateKey() != null) {
+            throw new AppException(ErrorCode.BOOTH_NOT_EDITABLE);
+        }
         if (request.getName() != null) {
             if (request.getName().isBlank()) {
                 throw new AppException(ErrorCode.INVALID_BOOTH);

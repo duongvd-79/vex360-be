@@ -10,6 +10,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
+import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
@@ -29,15 +32,15 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "design_requests")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -49,32 +52,32 @@ public class DesignRequest {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "booth_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     Booth booth;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     Company company;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "requested_by_user_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     User requestedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_designer_user_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     User assignedDesigner;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
     DesignRequestStatus status = DesignRequestStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mode", nullable = false)
+    DesignRequestMode mode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope", nullable = false)
+    DesignRequestScope scope;
 
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
@@ -85,6 +88,30 @@ public class DesignRequest {
     @Column(name = "review_count", nullable = false)
     @Builder.Default
     Integer reviewCount = 0;
+
+    @Column(name = "quota_charged", nullable = false)
+    @Builder.Default
+    Boolean quotaCharged = true;
+
+    @Column(name = "revision_queued_at")
+    LocalDateTime revisionQueuedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_status", nullable = false)
+    @Builder.Default
+    DesignRequestCancellationStatus cancellationStatus = DesignRequestCancellationStatus.NONE;
+
+    @Column(name = "cancellation_reason", length = 2000)
+    String cancellationReason;
+
+    @Column(name = "cancellation_requested_at")
+    LocalDateTime cancellationRequestedAt;
+
+    @Column(name = "cancellation_resolved_at")
+    LocalDateTime cancellationResolvedAt;
+
+    @Column(name = "cancellation_resolution_note", length = 2000)
+    String cancellationResolutionNote;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -105,7 +132,13 @@ public class DesignRequest {
 
     @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     List<DesignDraft> drafts = new ArrayList<>();
+
+    @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<DesignRequestProduct> products = new ArrayList<>();
+
+    @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<DesignRequestMessage> messages = new ArrayList<>();
 }

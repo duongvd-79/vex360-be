@@ -21,7 +21,10 @@ import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspace
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
-import com.example.vex360.features.product.services.ProductService;
+import com.example.vex360.features.product.mapper.ProductMapper;
+import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
+import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -29,10 +32,20 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class DesignerWorkspaceServiceUnitTest {
-    @Mock DesignRequestRepository designRequestRepository;
-    @Mock BoothMapper boothMapper;
-    @Mock ProductService productService;
-    @Mock BoothDesignService boothDesignService;
+    @Mock
+    DesignRequestRepository designRequestRepository;
+    @Mock
+    BoothMapper boothMapper;
+    @Mock
+    DesignRequestProductRepository requestProductRepository;
+    @Mock
+    ProductMapper productMapper;
+    @Mock
+    BoothDesignService boothDesignService;
+    @Mock
+    CompanyService companyService;
+    @Mock
+    DesignRequestEligibilityService eligibilityService;
 
     private DesignerWorkspaceService service;
     private User designer;
@@ -43,8 +56,11 @@ class DesignerWorkspaceServiceUnitTest {
         service = new DesignerWorkspaceService(
                 designRequestRepository,
                 boothMapper,
-                productService,
-                boothDesignService);
+                requestProductRepository,
+                productMapper,
+                boothDesignService,
+                companyService,
+                eligibilityService);
         designer = User.builder().id(UUID.randomUUID()).build();
         request = DesignRequest.builder()
                 .id(UUID.randomUUID())

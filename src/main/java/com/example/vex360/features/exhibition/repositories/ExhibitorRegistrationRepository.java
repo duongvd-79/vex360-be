@@ -3,6 +3,7 @@ package com.example.vex360.features.exhibition.repositories;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
@@ -13,10 +14,20 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
 
+import jakarta.persistence.LockModeType;
+
 public interface ExhibitorRegistrationRepository extends JpaRepository<ExhibitorRegistration, Integer> {
         Optional<ExhibitorRegistration> findByUuid(UUID uuid);
 
         boolean existsByExhibitionPackageExhibitionId(Integer exhibitionId);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT r FROM ExhibitorRegistration r WHERE r.uuid = :uuid")
+        Optional<ExhibitorRegistration> findByUuidForUpdate(@Param("uuid") UUID uuid);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT r FROM ExhibitorRegistration r WHERE r.id = :id")
+        Optional<ExhibitorRegistration> findByIdForUpdate(@Param("id") Integer id);
 
         boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
 

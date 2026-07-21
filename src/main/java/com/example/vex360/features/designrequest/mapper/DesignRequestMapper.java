@@ -35,6 +35,9 @@ public interface DesignRequestMapper {
     @Mapping(target = "assignedDesignerId", source = "assignedDesigner.id")
     @Mapping(target = "assignedDesignerName", source = "assignedDesigner.fullName")
     @Mapping(target = "latestDraft", source = "drafts", qualifiedByName = "latestDraft")
+    @Mapping(target = "requiredProductCount", expression = "java(countProducts(request, true))")
+    @Mapping(target = "optionalProductCount", expression = "java(countProducts(request, false))")
+    @Mapping(target = "remainingDesignActions", ignore = true)
     DesignRequestResponseDTO toResponse(DesignRequest request);
 
     DesignDraftResponseDTO toDraftResponse(DesignDraft draft);
@@ -48,5 +51,14 @@ public interface DesignRequestMapper {
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
                 .map(this::toDraftResponse)
                 .orElse(null);
+    }
+
+    default int countProducts(DesignRequest request, boolean required) {
+        if (request.getProducts() == null) {
+            return 0;
+        }
+        return (int) request.getProducts().stream()
+                .filter(product -> Boolean.TRUE.equals(product.getRequiredFromBaseline()) == required)
+                .count();
     }
 }

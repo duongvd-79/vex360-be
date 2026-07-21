@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,6 +27,7 @@ public class BoothResponseDTO {
     private String backgroundMusicFileName;
     private Long backgroundMusicFileSize;
     private String displayTemplateKey;
+    private BoothListingPriority listingPriority;
     private BoothStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
