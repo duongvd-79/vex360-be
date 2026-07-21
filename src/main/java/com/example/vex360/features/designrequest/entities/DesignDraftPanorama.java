@@ -18,15 +18,15 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "design_draft_panoramas")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -38,8 +38,6 @@ public class DesignDraftPanorama {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "draft_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     DesignDraft draft;
 
     @Column(name = "client_key", nullable = false, length = 100)
@@ -63,7 +61,5 @@ public class DesignDraftPanorama {
 
     @OneToMany(mappedBy = "sourcePanorama", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     List<DesignDraftHotspot> hotspots = new ArrayList<>();
 }

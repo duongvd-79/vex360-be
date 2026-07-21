@@ -13,18 +13,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SubmitDesignDraftPanoramaRequest {
-    @NotBlank(message = "Client key khong duoc de trong")
+    @NotBlank(message = "Client key không được để trống")
     private String clientKey;
 
-    @NotBlank(message = "Ten panorama khong duoc de trong")
+    @NotBlank(message = "Tên panorama không được để trống")
     private String name;
 
-    @NotBlank(message = "Image url khong duoc de trong")
+    @NotBlank(message = "Image url không được để trống")
     private String imageUrl;
 
     private String imageKey;
 
-    @NotNull(message = "Thu tu panorama khong duoc de trong")
+    @NotNull(message = "Thứ tự panorama không được để trống")
     private Integer orderIndex;
 
     private Boolean isDefault;
