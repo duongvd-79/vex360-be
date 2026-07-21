@@ -22,7 +22,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.user.entities.User;
@@ -53,7 +52,6 @@ class DesignRequestBaselineServiceUnitTest {
                 .booth(booth)
                 .requestedBy(exhibitor)
                 .mode(DesignRequestMode.REDESIGN)
-                .scope(DesignRequestScope.FULL)
                 .build();
         when(panoramaRepository.findDetailsByBoothId(boothId)).thenReturn(List.of(panorama));
         when(assetRepository.findByDesignRequestIdAndPublicId(request.getId(), "panorama/original"))

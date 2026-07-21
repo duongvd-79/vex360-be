@@ -48,7 +48,6 @@ import com.example.vex360.features.designrequest.events.DesignRequestCancellatio
 import com.example.vex360.features.designrequest.events.DesignRequestRevisionPromotedEvent;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -97,7 +96,7 @@ public class DesignRequestService {
     /**
      * Creates a pending design request for an Exhibitor-owned booth. The booth
      * must be in DRAFT and have remaining design-action quota. On success the
-     * booth moves to DESIGN_REQUEST_PENDING; spatial content is locked while
+     * booth moves to DESIGN_REQUEST_PENDING; booth content is locked while
      * metadata, files, and the allowlist remain editable until assignment.
      *
      * @param currentUser authenticated Exhibitor
@@ -111,7 +110,7 @@ public class DesignRequestService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getCompanyBoothForUpdate(request.getBoothId(), company);
         var eligibility = eligibilityService.evaluate(booth);
-        eligibilityService.assertCanCreate(eligibility, request.getScope());
+        eligibilityService.assertCanCreate(eligibility);
         booth.setStatus(BoothStatus.DESIGN_REQUEST_PENDING);
 
         DesignRequest designRequest = DesignRequest.builder()
@@ -121,7 +120,6 @@ public class DesignRequestService {
                 .note(trimToNull(request.getNote()))
                 .status(DesignRequestStatus.PENDING)
                 .mode(eligibility.getMode())
-                .scope(request.getScope())
                 .reviewCount(0)
                 .build();
         requestProductService.initializeAllowlist(designRequest, request.getProductIds());
@@ -131,8 +129,8 @@ public class DesignRequestService {
     }
 
     /**
-     * Evaluates request mode, available scopes, blocking reason, and remaining
-     * action quota for an Exhibitor-owned booth.
+     * Evaluates request mode, blocking reason, and remaining action quota for an
+     * Exhibitor-owned booth.
      */
     @Transactional(readOnly = true)
     public DesignRequestEligibilityResponseDTO getEligibility(
@@ -143,7 +141,7 @@ public class DesignRequestService {
     }
 
     /**
-     * Replaces optional product visibility while a FULL request is PENDING;
+     * Replaces optional product visibility while a request is PENDING;
      * products required by a redesign baseline are always retained.
      */
     @Transactional
@@ -195,9 +193,8 @@ public class DesignRequestService {
             DesignRequestStatus status,
             UUID designerId,
             DesignRequestMode mode,
-            DesignRequestScope scope,
             Pageable pageable) {
-        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, mode, scope, pageable)
+        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, mode, pageable)
                 .map(this::toResponse));
     }
 
@@ -331,7 +328,7 @@ public class DesignRequestService {
         eligibilityService.assertCanAssign(request);
         long activeCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
                 designer.getId(),
-                DesignRequestRepository.WORKING_STATUSES);
+                DesignRequestRepository.SLOT_OCCUPYING_STATUSES);
         if (activeCount >= MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
             throw new AppException(ErrorCode.DESIGNER_WORKLOAD_EXCEEDED);
         }
@@ -373,7 +370,6 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        promoteOldestQueued(saved.getAssignedDesigner());
         return toResponse(saved);
     }
 
@@ -431,20 +427,20 @@ public class DesignRequestService {
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        promoteOldestQueued(saved.getAssignedDesigner());
         return toResponse(saved);
     }
 
     /**
      * Rejects the latest submitted draft and returns the request to the assigned
      * Designer for revision. Each rejection requires a note and increments both
-     * the request review count and the booth's shared design-action usage. If
-     * all Designer slots are occupied, the request enters REVISION_QUEUED.
+     * the request review count and the booth's shared design-action usage. The
+     * request already owns a Designer slot while waiting for review, so rejection
+     * returns it directly to revision.
      *
      * @param currentUser   authenticated Exhibitor that owns the request company
      * @param id            design request identifier
      * @param rejectRequest required revision note for the Designer
-     * @return the request in REVISION_REQUESTED or REVISION_QUEUED status
+     * @return the request in REVISION_REQUESTED status
      * @throws AppException if the request is not DRAFT_SUBMITTED, belongs to
      *                      another company, or the booth action quota is exhausted
      */
@@ -466,16 +462,8 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         request.setReviewNote(reviewNote);
-        User assignedDesigner = userService.getUserEntityByIdForUpdate(request.getAssignedDesigner().getId());
-        long workingCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
-                assignedDesigner.getId(), DesignRequestRepository.WORKING_STATUSES);
-        if (workingCount >= MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
-            request.setStatus(DesignRequestStatus.REVISION_QUEUED);
-            request.setRevisionQueuedAt(LocalDateTime.now());
-        } else {
-            request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
-            request.setRevisionQueuedAt(null);
-        }
+        request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
+        request.setRevisionQueuedAt(null);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
         return toResponse(saved);
@@ -536,26 +524,26 @@ public class DesignRequestService {
 
     /**
      * Aggregates pending, working, waiting-review, queued, completed, canceled,
-     * and per-Designer workload metrics with optional mode/scope filters.
+     * and per-Designer workload metrics with an optional mode filter. Requests
+     * waiting for Exhibitor review are included in occupied slots.
      *
      * @return current design-assignment analytics
      */
     @Transactional(readOnly = true)
     public DesignAssignmentAnalyticsResponseDTO getAssignmentAnalytics(
-            com.example.vex360.features.designrequest.enums.DesignRequestMode mode,
-            com.example.vex360.features.designrequest.enums.DesignRequestScope scope) {
-        List<DesignRequestStatus> activeStatuses = DesignRequestRepository.WORKING_STATUSES;
+            DesignRequestMode mode) {
+        List<DesignRequestStatus> activeStatuses = DesignRequestRepository.SLOT_OCCUPYING_STATUSES;
         List<DesignerWorkloadResponseDTO> workloads = userRepository
                 .findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
-                .map(designer -> toWorkload(designer, mode, scope))
+                .map(designer -> toWorkload(designer, mode))
                 .toList();
         return new DesignAssignmentAnalyticsResponseDTO(
-                designRequestRepository.countFiltered(DesignRequestStatus.PENDING, mode, scope),
-                designRequestRepository.countFilteredIn(activeStatuses, mode, scope),
-                designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode, scope),
-                designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode, scope),
-                designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode, scope),
-                designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode, scope),
+                designRequestRepository.countFiltered(DesignRequestStatus.PENDING, mode),
+                designRequestRepository.countFilteredIn(activeStatuses, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode),
                 workloads);
     }
 
@@ -568,7 +556,7 @@ public class DesignRequestService {
         return userRepository.findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
                 .map(designer -> {
                     long working = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
-                            designer.getId(), DesignRequestRepository.WORKING_STATUSES);
+                            designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES);
                     return new DesignAssignmentCandidateResponseDTO(
                             designer.getId(), designer.getFullName(), designer.getEmail(), working,
                             Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
@@ -582,14 +570,13 @@ public class DesignRequestService {
 
     private DesignerWorkloadResponseDTO toWorkload(
             User designer,
-            com.example.vex360.features.designrequest.enums.DesignRequestMode mode,
-            com.example.vex360.features.designrequest.enums.DesignRequestScope scope) {
+            DesignRequestMode mode) {
         long working = designRequestRepository.countDesignerFilteredIn(
-                designer.getId(), DesignRequestRepository.WORKING_STATUSES, mode, scope);
+                designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES, mode);
         long waiting = designRequestRepository.countDesignerFilteredIn(
-                designer.getId(), List.of(DesignRequestStatus.DRAFT_SUBMITTED), mode, scope);
+                designer.getId(), List.of(DesignRequestStatus.DRAFT_SUBMITTED), mode);
         long queued = designRequestRepository.countDesignerFilteredIn(
-                designer.getId(), List.of(DesignRequestStatus.REVISION_QUEUED), mode, scope);
+                designer.getId(), List.of(DesignRequestStatus.REVISION_QUEUED), mode);
         return new DesignerWorkloadResponseDTO(
                 designer.getId(), designer.getFullName(), designer.getEmail(),
                 working, waiting, queued, Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
@@ -711,11 +698,6 @@ public class DesignRequestService {
                 .build();
         applyCorners(hotspot, request.getType(), request.getCorners());
 
-        if (designRequest.getScope() == DesignRequestScope.SPATIAL
-                && request.getType() != HotspotType.NAV) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
-
         switch (request.getType()) {
             case NAV -> applyDraftNavHotspot(hotspot, panoramasByKey, request);
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
@@ -797,9 +779,7 @@ public class DesignRequestService {
                 draft.getPanoramas().stream()
                         .map(this::toPanoramaDesign)
                         .toList());
-        if (request.getScope() == DesignRequestScope.FULL) {
-            draftSettingsService.applyToBooth(request.getBooth(), draft);
-        }
+        draftSettingsService.applyToBooth(request.getBooth(), draft);
     }
 
     private PanoramaDesign toPanoramaDesign(DesignDraftPanorama draftPanorama) {
@@ -951,7 +931,7 @@ public class DesignRequestService {
         }
         userService.getUserEntityByIdForUpdate(designer.getId());
         long workingCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
-                designer.getId(), DesignRequestRepository.WORKING_STATUSES);
+                designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES);
         while (workingCount < MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
             DesignRequest queued = designRequestRepository
                     .findFirstByAssignedDesignerIdAndStatusOrderByRevisionQueuedAtAsc(

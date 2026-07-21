@@ -7,7 +7,6 @@ import java.util.UUID;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,7 +26,6 @@ public class DesignRequestResponseDTO {
     private LocalDate exhibitionStartDate;
     private DesignRequestStatus status;
     private DesignRequestMode mode;
-    private DesignRequestScope scope;
     private UUID assignedDesignerId;
     private String assignedDesignerName;
     private String note;

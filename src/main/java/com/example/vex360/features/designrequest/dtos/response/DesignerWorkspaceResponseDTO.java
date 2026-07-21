@@ -6,7 +6,6 @@ import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,7 +18,6 @@ public class DesignerWorkspaceResponseDTO {
     private UUID requestId;
     private DesignRequestStatus status;
     private DesignRequestMode mode;
-    private DesignRequestScope scope;
     private DesignRequestCancellationStatus cancellationStatus;
     private Integer remainingDesignActions;
     private Integer requiredProductCount;

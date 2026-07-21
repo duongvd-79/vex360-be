@@ -3,7 +3,6 @@
 
 ALTER TABLE design_requests
     ADD COLUMN mode VARCHAR(32) NULL AFTER status,
-    ADD COLUMN scope VARCHAR(16) NULL AFTER mode,
     ADD COLUMN quota_charged BOOLEAN NOT NULL DEFAULT TRUE AFTER review_count,
     ADD COLUMN revision_queued_at DATETIME(6) NULL AFTER quota_charged,
     ADD COLUMN cancellation_status VARCHAR(16) NOT NULL DEFAULT 'NONE' AFTER revision_queued_at,
@@ -13,7 +12,7 @@ ALTER TABLE design_requests
     ADD COLUMN cancellation_resolution_note VARCHAR(2000) NULL AFTER cancellation_resolved_at;
 
 UPDATE design_requests
-SET mode = 'INITIAL_DESIGN', scope = 'FULL';
+SET mode = 'INITIAL_DESIGN';
 
 UPDATE design_requests
 SET quota_charged = FALSE
@@ -21,8 +20,7 @@ WHERE status = 'CANCELED'
   AND assigned_designer_user_id IS NULL;
 
 ALTER TABLE design_requests
-    MODIFY COLUMN mode VARCHAR(32) NOT NULL,
-    MODIFY COLUMN scope VARCHAR(16) NOT NULL;
+    MODIFY COLUMN mode VARCHAR(32) NOT NULL;
 
 CREATE TABLE design_request_products (
     id BINARY(16) NOT NULL,
@@ -82,8 +80,8 @@ CREATE INDEX idx_design_request_booth_status
     ON design_requests (booth_id, status);
 CREATE INDEX idx_design_request_assignment_queue
     ON design_requests (assigned_designer_user_id, status, revision_queued_at);
-CREATE INDEX idx_design_request_mode_scope_status
-    ON design_requests (mode, scope, status);
+CREATE INDEX idx_design_request_mode_status
+    ON design_requests (mode, status);
 CREATE INDEX idx_design_request_product_product
     ON design_request_products (product_id, design_request_id);
 CREATE INDEX idx_design_request_message_created

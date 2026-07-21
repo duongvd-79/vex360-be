@@ -27,7 +27,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.user.entities.User;
@@ -85,7 +84,6 @@ public class DesignerWorkspaceService {
                 request.getId(),
                 request.getStatus(),
                 request.getMode(),
-                request.getScope(),
                 request.getCancellationStatus(),
                 eligibilityService.remainingActions(request.getBooth()),
                 (int) request.getProducts().stream()
@@ -121,9 +119,6 @@ public class DesignerWorkspaceService {
             UUID categoryId,
             Pageable pageable) {
         DesignRequest request = getAssignedRequest(designer, requestId);
-        if (request.getScope() != DesignRequestScope.FULL) {
-            throw new AppException(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN);
-        }
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(requestProductRepository
                 .searchAllowedProducts(requestId, normalizedKeyword, categoryId, pageable)
@@ -231,7 +226,6 @@ public class DesignerWorkspaceService {
                 request.getId(),
                 request.getStatus(),
                 request.getMode(),
-                request.getScope(),
                 eligibilityService.remainingActions(request.getBooth()),
                 boothMapper.toBoothResponseDTO(request.getBooth()),
                 toDraftResponse(latest),

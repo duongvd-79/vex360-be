@@ -12,7 +12,6 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
@@ -74,10 +73,6 @@ public class DesignRequest {
     @Enumerated(EnumType.STRING)
     @Column(name = "mode", nullable = false)
     DesignRequestMode mode;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "scope", nullable = false)
-    DesignRequestScope scope;
 
     @Column(name = "note", columnDefinition = "TEXT")
     String note;

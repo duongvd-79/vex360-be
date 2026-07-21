@@ -9,7 +9,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
@@ -29,25 +28,16 @@ public class DesignDraftSettingsService {
 
     /**
      * Applies the booth settings from a draft request to a given DesignDraft.
-     * Enforces scope validation (e.g., SPATIAL scope must not contain metadata
-     * changes).
      *
      * @param request  the design request
      * @param draft    the draft to apply settings to
      * @param settings the booth settings request payload
-     * @throws AppException if the settings are invalid or unauthorized for the
-     *                      request scope
+     * @throws AppException if the settings are invalid
      */
     public void applyToDraft(
             DesignRequest request,
             DesignDraft draft,
             DesignDraftBoothSettingsRequest settings) {
-        if (request.getScope() == DesignRequestScope.SPATIAL) {
-            if (settings != null) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-            }
-            return;
-        }
         Booth booth = request.getBooth();
         draft.setBoothName(settings == null || settings.getName() == null
                 ? booth.getName()
