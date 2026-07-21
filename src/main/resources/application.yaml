@@ -112,7 +112,7 @@ app:
     oauth2:
       redirect-uri: ${GOOGLE_REDIRECT_URI:https://vex360.vercel.app/auth/callback/google}
   backend:
-    base-url: ${BACKEND_BASE_URL}
+    base-url: ${BACKEND_BASE_URL:https://vex360.vercel.app}
   reset-password:
     frontend-url: ${RESET_PASSWORD_FRONTEND_URL:https://vex360.vercel.app/reset-password}
   registration:

@@ -1,5 +1,6 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -17,6 +18,10 @@ public class DesignRequestResponseDTO {
     private UUID boothId;
     private String boothName;
     private UUID companyId;
+    private String companyName;
+    private UUID exhibitionId;
+    private String exhibitionName;
+    private LocalDate exhibitionStartDate;
     private DesignRequestStatus status;
     private UUID assignedDesignerId;
     private String assignedDesignerName;

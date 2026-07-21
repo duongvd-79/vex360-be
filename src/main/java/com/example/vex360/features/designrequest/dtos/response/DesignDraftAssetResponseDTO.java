@@ -1,0 +1,22 @@
+package com.example.vex360.features.designrequest.dtos.response;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class DesignDraftAssetResponseDTO {
+    private UUID id;
+    private UUID requestId;
+    private String url;
+    private String imageKey;
+    private String fileName;
+    private String mimeType;
+    private Long fileSize;
+    private LocalDateTime createdAt;
+}
