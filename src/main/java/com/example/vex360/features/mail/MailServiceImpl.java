@@ -1,15 +1,11 @@
 package com.example.vex360.features.mail;
 
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
 import com.example.vex360.shared.enums.Role;
 
-import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -17,15 +13,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class MailServiceImpl implements MailService {
 
-    private final JavaMailSender mailSender;
+    private final EmailTransport emailTransport;
 
-    public MailServiceImpl(ObjectProvider<JavaMailSender> mailSenderProvider) {
-        this.mailSender = mailSenderProvider.getIfAvailable();
+    public MailServiceImpl(EmailTransport emailTransport) {
+        this.emailTransport = emailTransport;
     }
 
     @Override
     public void sendForgotPasswordEmail(String toEmail, String resetUrl) {
         String subject = "Yêu cầu khôi phục mật khẩu - VEX360";
+        String safeResetUrl = HtmlUtils.htmlEscape(resetUrl);
         String htmlContent = buildHtmlTemplate(
                 "Khôi phục mật khẩu",
                 """
@@ -38,13 +35,14 @@ public class MailServiceImpl implements MailService {
                         <p>Nếu nút trên không hoạt động, bạn có thể sao chép liên kết dưới đây và dán vào trình duyệt:</p>
                         <p style="word-break: break-all;"><a href="%1$s" style="color: #cc785c;">%1$s</a></p>
                         <p>Nếu bạn không gửi yêu cầu này, vui lòng bỏ qua email này. Tài khoản của bạn vẫn được bảo mật.</p>"""
-                        .formatted(resetUrl));
+                        .formatted(safeResetUrl));
         sendHtmlMail(toEmail, subject, htmlContent);
     }
 
     @Override
     public void sendRegistrationVerificationEmail(String toEmail, String verifyUrl) {
         String subject = "Xác thực tài khoản VEX360";
+        String safeVerifyUrl = HtmlUtils.htmlEscape(verifyUrl);
         String htmlContent = buildHtmlTemplate(
                 "Xác thực tài khoản",
                 """
@@ -56,7 +54,7 @@ public class MailServiceImpl implements MailService {
                         </div>
                         <p>Nếu nút trên không hoạt động, bạn có thể sao chép liên kết dưới đây và dán vào trình duyệt:</p>
                         <p style="word-break: break-all;"><a href="%1$s" style="color: #cc785c;">%1$s</a></p>"""
-                        .formatted(verifyUrl));
+                        .formatted(safeVerifyUrl));
         sendHtmlMail(toEmail, subject, htmlContent);
     }
 
@@ -165,6 +163,7 @@ public class MailServiceImpl implements MailService {
             String organizationName,
             String confirmUrl) {
         String displayName = fullName == null || fullName.isBlank() ? "bạn" : fullName;
+        String safeConfirmUrl = HtmlUtils.htmlEscape(confirmUrl);
         String subject = "Xác nhận yêu cầu hợp tác - Vex360";
         String htmlContent = buildHtmlTemplate(
                 "Xác minh yêu cầu hợp tác",
@@ -179,27 +178,17 @@ public class MailServiceImpl implements MailService {
                         .formatted(
                                 HtmlUtils.htmlEscape(displayName),
                                 HtmlUtils.htmlEscape(organizationName),
-                                confirmUrl));
+                                safeConfirmUrl));
         sendHtmlMail(toEmail, subject, htmlContent);
     }
 
     private void sendHtmlMail(String toEmail, String subject, String htmlContent) {
-        log.info("Sending HTML email - To: {}, Subject: {}", toEmail, subject);
-        if (mailSender == null) {
-            log.warn("JavaMailSender is not configured. Email has been logged but not sent via SMTP.");
-            log.info("Logged Email Body:\n{}", htmlContent);
-            return;
-        }
+        log.info("Sending HTML email - Subject: {}", subject);
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setTo(toEmail);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
-            mailSender.send(message);
-            log.info("HTML email sent successfully via SMTP to {}", toEmail);
+            emailTransport.send(toEmail, subject, htmlContent);
+            log.info("HTML email sent successfully");
         } catch (Exception e) {
-            log.error("Failed to send HTML email via SMTP to {}: {}", toEmail, e.getMessage());
+            log.error("Failed to send HTML email: {}", e.getClass().getSimpleName());
         }
     }
 
