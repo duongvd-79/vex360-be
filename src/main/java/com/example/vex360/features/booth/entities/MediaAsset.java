@@ -50,7 +50,7 @@ public class MediaAsset {
     String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "VARCHAR(50)")
     MediaAssetType type;
 
     @Column(name = "url", nullable = false, length = 1000)

@@ -39,7 +39,7 @@ public class AnalyticsEvent {
     Product product;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "event_type", nullable = false)
+    @Column(name = "event_type", nullable = false, columnDefinition = "VARCHAR(50)")
     AnalyticsEventType eventType;
 
     @Column(name = "duration_seconds")

@@ -49,6 +49,6 @@ public class ExhibitionAsset {
     String publicId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "asset_type", nullable = false)
+    @Column(name = "asset_type", nullable = false, columnDefinition = "VARCHAR(50)")
     ExhibitionAssetType type;
 }

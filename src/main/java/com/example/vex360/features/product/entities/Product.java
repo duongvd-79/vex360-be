@@ -89,7 +89,7 @@ public class Product {
     Long thumbnailFileSize = 0L;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     ProductStatus status = ProductStatus.ACTIVE;
 

@@ -56,7 +56,7 @@ public class ExhibitorRegistration {
     User company;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     ExhibitorRegistrationStatus status;
 
     @CreationTimestamp
@@ -102,6 +102,6 @@ public class ExhibitorRegistration {
     Long storageLimitMbSnapshot;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "listing_priority_snapshot")
+    @Column(name = "listing_priority_snapshot", columnDefinition = "VARCHAR(50)")
     BoothListingPriority listingPrioritySnapshot;
 }

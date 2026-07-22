@@ -83,11 +83,11 @@ public class PackageTemplate {
     Long storageLimitMb;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "listing_priority", nullable = false)
+    @Column(name = "listing_priority", nullable = false, columnDefinition = "VARCHAR(50)")
     BoothListingPriority listingPriority;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     PackageTemplateStatus status = PackageTemplateStatus.ACTIVE;
 

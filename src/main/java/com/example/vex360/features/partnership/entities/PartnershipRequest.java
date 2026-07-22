@@ -69,11 +69,11 @@ public class PartnershipRequest {
     String organizationName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "requested_role", nullable = false)
+    @Column(name = "requested_role", nullable = false, columnDefinition = "VARCHAR(50)")
     Role requestedRole;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "account_action", nullable = false)
+    @Column(name = "account_action", nullable = false, columnDefinition = "VARCHAR(50)")
     PartnershipAccountAction accountAction;
 
     @Column(name = "message", columnDefinition = "TEXT")
@@ -83,7 +83,7 @@ public class PartnershipRequest {
     Boolean acceptedPolicy;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     PartnershipRequestStatus status = PartnershipRequestStatus.PENDING;
 

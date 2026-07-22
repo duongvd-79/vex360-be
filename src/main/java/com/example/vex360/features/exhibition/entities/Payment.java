@@ -48,7 +48,7 @@ public class Payment {
     Integer storagePackageOrderId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_type", nullable = false)
+    @Column(name = "payment_type", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     PaymentType paymentType = PaymentType.EXHIBITION_REGISTRATION;
 
@@ -79,7 +79,7 @@ public class Payment {
     String checkoutUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     PaymentStatus status;
 
     @Column(name = "paid_at")

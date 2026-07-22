@@ -66,12 +66,12 @@ public class DesignRequest {
     User assignedDesigner;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignRequestStatus status = DesignRequestStatus.PENDING;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "mode", nullable = false)
+    @Column(name = "mode", nullable = false, columnDefinition = "VARCHAR(50)")
     DesignRequestMode mode;
 
     @Column(name = "note", columnDefinition = "TEXT")
@@ -92,7 +92,7 @@ public class DesignRequest {
     LocalDateTime revisionQueuedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "cancellation_status", nullable = false)
+    @Column(name = "cancellation_status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignRequestCancellationStatus cancellationStatus = DesignRequestCancellationStatus.NONE;
 

@@ -112,7 +112,6 @@ app:
   mail:
     resend:
       api-key: ${RESEND_API_KEY}
-      from: ${RESEND_FROM}
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:https://vex360.vercel.app}
   security:

@@ -55,7 +55,7 @@ public class Booth {
     String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     BoothStatus status = BoothStatus.DRAFT;
 

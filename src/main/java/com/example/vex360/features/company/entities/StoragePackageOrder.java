@@ -56,7 +56,7 @@ public class StoragePackageOrder {
     String checkoutUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     StoragePackageOrderStatus status = StoragePackageOrderStatus.PENDING;
 

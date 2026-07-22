@@ -72,7 +72,7 @@ public class Company {
     String address;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     CompanyStatus status = CompanyStatus.INCOMPLETE_PROFILE;
 
