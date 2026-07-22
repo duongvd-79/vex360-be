@@ -2,6 +2,7 @@ package com.example.vex360.features.mail;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -15,10 +16,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import com.example.vex360.shared.enums.Role;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class MailServiceUnitTest {
 
     @Mock
@@ -130,10 +133,11 @@ class MailServiceUnitTest {
     }
 
     @Test
-    void testSendMail_TransportThrows_ExceptionCaught() {
-        doThrow(new RuntimeException("Email provider failed"))
+    void testSendMail_TransportThrows_LogsSanitizedProviderMessage(CapturedOutput output) {
+        doThrow(new RuntimeException("Email provider failed\ninjected"))
                 .when(emailTransport).send(eq("test@example.com"), contains("VEX360"), contains("http://reset"));
 
         assertDoesNotThrow(() -> mailService.sendForgotPasswordEmail("test@example.com", "http://reset"));
+        assertThat(output).contains("Email provider failed_injected");
     }
 }

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
 import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.utils.LogSanitizer;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -188,7 +189,8 @@ public class MailServiceImpl implements MailService {
             emailTransport.send(toEmail, subject, htmlContent);
             log.info("HTML email sent successfully");
         } catch (Exception e) {
-            log.error("Failed to send HTML email: {}", e.getClass().getSimpleName());
+            String errorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            log.error("Failed to send HTML email: {}", LogSanitizer.sanitize(errorMessage));
         }
     }
 
