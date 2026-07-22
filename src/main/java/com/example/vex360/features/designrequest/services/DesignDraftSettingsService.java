@@ -9,9 +9,9 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
+import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
-import com.example.vex360.shared.services.CloudService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +24,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DesignDraftSettingsService {
     private final DesignDraftAssetService assetService;
-    private final CloudService cloudService;
+    private final DesignAssetReferenceService assetReferenceService;
+    private final DesignDraftAssetRepository assetRepository;
 
     /**
      * Applies the booth settings from a draft request to a given DesignDraft.
@@ -63,6 +64,11 @@ public class DesignDraftSettingsService {
             }
             draft.setThumbnailAsset(assetService.requireDraftAsset(
                     request, settings.getThumbnailAssetId(), DesignDraftAssetType.THUMBNAIL));
+        } else if (thumbnailAction == DesignDraftFileAction.KEEP) {
+            draft.setThumbnailAsset(findBaselineAsset(
+                    request,
+                    request.getBooth().getThumbnailPublicId(),
+                    DesignDraftAssetType.THUMBNAIL));
         }
         if (musicAction == DesignDraftFileAction.REPLACE) {
             if (settings.getBackgroundMusicAssetId() == null) {
@@ -70,6 +76,11 @@ public class DesignDraftSettingsService {
             }
             draft.setBackgroundMusicAsset(assetService.requireDraftAsset(
                     request, settings.getBackgroundMusicAssetId(), DesignDraftAssetType.BACKGROUND_MUSIC));
+        } else if (musicAction == DesignDraftFileAction.KEEP) {
+            draft.setBackgroundMusicAsset(findBaselineAsset(
+                    request,
+                    request.getBooth().getBackgroundMusicPublicId(),
+                    DesignDraftAssetType.BACKGROUND_MUSIC));
         }
     }
 
@@ -89,8 +100,8 @@ public class DesignDraftSettingsService {
         booth.setDisplayTemplateKey(draft.getDisplayTemplateKey());
         applyThumbnail(booth, draft.getThumbnailAction(), draft.getThumbnailAsset());
         applyBackgroundMusic(booth, draft.getBackgroundMusicAction(), draft.getBackgroundMusicAsset());
-        cleanupReplacedAsset(oldThumbnailPublicId, booth.getThumbnailPublicId(), "image", draft);
-        cleanupReplacedAsset(oldMusicPublicId, booth.getBackgroundMusicPublicId(), "video", draft);
+        cleanupReplacedAsset(oldThumbnailPublicId, booth.getThumbnailPublicId(), "image");
+        cleanupReplacedAsset(oldMusicPublicId, booth.getBackgroundMusicPublicId(), "video");
     }
 
     private void applyThumbnail(Booth booth, DesignDraftFileAction action, DesignDraftAsset asset) {
@@ -134,20 +145,23 @@ public class DesignDraftSettingsService {
     private void cleanupReplacedAsset(
             String oldPublicId,
             String currentPublicId,
-            String resourceType,
-            DesignDraft draft) {
+            String resourceType) {
         if (oldPublicId == null || oldPublicId.isBlank() || oldPublicId.equals(currentPublicId)) {
             return;
         }
-        boolean reusedByDraft = draft.getPanoramas().stream()
-                .anyMatch(panorama -> oldPublicId.equals(panorama.getImageKey()))
-                || (draft.getThumbnailAsset() != null
-                        && oldPublicId.equals(draft.getThumbnailAsset().getPublicId()))
-                || (draft.getBackgroundMusicAsset() != null
-                        && oldPublicId.equals(draft.getBackgroundMusicAsset().getPublicId()));
-        if (!reusedByDraft) {
-            cloudService.delete(oldPublicId, resourceType);
+        assetReferenceService.scheduleCleanup(oldPublicId, resourceType);
+    }
+
+    private DesignDraftAsset findBaselineAsset(
+            DesignRequest request,
+            String publicId,
+            DesignDraftAssetType type) {
+        if (publicId == null || publicId.isBlank()) {
+            return null;
         }
+        return assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId)
+                .filter(asset -> asset.getAssetType() == type)
+                .orElse(null);
     }
 
     private String requireText(String value) {

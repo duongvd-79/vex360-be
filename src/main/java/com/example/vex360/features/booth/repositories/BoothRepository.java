@@ -16,6 +16,10 @@ import com.example.vex360.shared.enums.BoothListingPriority;
 import jakarta.persistence.LockModeType;
 
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
+    boolean existsByThumbnailPublicIdOrBackgroundMusicPublicId(
+            String thumbnailPublicId,
+            String backgroundMusicPublicId);
+
     @Query("""
             SELECT b FROM Booth b
             WHERE b.isTemplate = true

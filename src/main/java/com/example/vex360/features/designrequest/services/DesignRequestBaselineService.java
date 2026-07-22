@@ -38,21 +38,15 @@ public class DesignRequestBaselineService {
     private final DesignDraftAssetRepository assetRepository;
 
     /**
-     * Copies the active design state of the request's booth (panoramas, hotspots,
-     * thumbnails, music)
-     * into a baseline working draft (version 0) and records baseline assets in the
-     * repository.
-     * Only applies to design requests with REDESIGN mode.
+     * Creates the mutable working draft assigned to a Designer. Initial-design
+     * requests receive a settings-only draft, while redesign requests also copy
+     * the booth's current panoramas, hotspots, and baseline assets.
      *
-     * @param request the design request for which to create the baseline draft
+     * @param request the design request for which to create the working draft
      */
     @Transactional
     public void createWorkingBaseline(DesignRequest request) {
-        if (request.getMode() != DesignRequestMode.REDESIGN) {
-            return;
-        }
         Booth booth = request.getBooth();
-        List<Panorama> sourcePanoramas = panoramaRepository.findDetailsByBoothId(booth.getId());
         DesignDraft draft = DesignDraft.builder()
                 .designRequest(request)
                 .versionNumber(0)
@@ -62,6 +56,27 @@ public class DesignRequestBaselineService {
                 .thumbnailAction(DesignDraftFileAction.KEEP)
                 .backgroundMusicAction(DesignDraftFileAction.KEEP)
                 .build();
+        draft.setThumbnailAsset(createBaselineAsset(
+                request,
+                booth.getThumbnailUrl(),
+                booth.getThumbnailPublicId(),
+                "thumbnail",
+                null,
+                DesignDraftAssetType.THUMBNAIL));
+        draft.setBackgroundMusicAsset(createBaselineAsset(
+                request,
+                booth.getBackgroundMusicUrl(),
+                booth.getBackgroundMusicPublicId(),
+                booth.getBackgroundMusicFileName(),
+                booth.getBackgroundMusicFileSize(),
+                DesignDraftAssetType.BACKGROUND_MUSIC));
+
+        if (request.getMode() == DesignRequestMode.INITIAL_DESIGN) {
+            request.getDrafts().add(draft);
+            return;
+        }
+
+        List<Panorama> sourcePanoramas = panoramaRepository.findDetailsByBoothId(booth.getId());
 
         Map<java.util.UUID, String> panoramaKeys = new HashMap<>();
         for (Panorama panorama : sourcePanoramas) {
@@ -84,11 +99,6 @@ public class DesignRequestBaselineService {
             }
             draft.getPanoramas().add(draftPanorama);
         }
-        createBaselineAsset(request, booth.getThumbnailUrl(), booth.getThumbnailPublicId(), "thumbnail",
-                null, DesignDraftAssetType.THUMBNAIL);
-        createBaselineAsset(request, booth.getBackgroundMusicUrl(), booth.getBackgroundMusicPublicId(),
-                booth.getBackgroundMusicFileName(), booth.getBackgroundMusicFileSize(),
-                DesignDraftAssetType.BACKGROUND_MUSIC);
         request.getDrafts().add(draft);
     }
 
@@ -130,18 +140,18 @@ public class DesignRequestBaselineService {
         return clone;
     }
 
-    private void createBaselineAsset(
+    private DesignDraftAsset createBaselineAsset(
             DesignRequest request,
             String url,
             String publicId,
             String fileName,
             Long fileSize,
             DesignDraftAssetType type) {
-        if (url == null || url.isBlank() || publicId == null || publicId.isBlank()
-                || assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId).isPresent()) {
-            return;
+        if (url == null || url.isBlank() || publicId == null || publicId.isBlank()) {
+            return null;
         }
-        assetRepository.save(DesignDraftAsset.builder()
+        return assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId)
+                .orElseGet(() -> assetRepository.save(DesignDraftAsset.builder()
                 .designRequest(request)
                 .uploadedBy(request.getRequestedBy())
                 .url(url)
@@ -151,6 +161,6 @@ public class DesignRequestBaselineService {
                 .fileSize(fileSize == null ? 0L : fileSize)
                 .assetType(type)
                 .assetSource(DesignDraftAssetSource.BOOTH_BASELINE)
-                .build());
+                .build()));
     }
 }

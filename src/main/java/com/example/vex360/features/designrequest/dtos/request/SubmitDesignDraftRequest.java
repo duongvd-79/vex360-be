@@ -3,7 +3,7 @@ package com.example.vex360.features.designrequest.dtos.request;
 import java.util.List;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,7 +18,7 @@ public class SubmitDesignDraftRequest {
     private DesignDraftBoothSettingsRequest boothSettings;
 
     @Valid
-    @NotEmpty(message = "Draft phải có ít nhất một panorama")
+    @NotNull(message = "Danh sach panorama khong duoc de trong")
     private List<SubmitDesignDraftPanoramaRequest> panoramas;
 
     public SubmitDesignDraftRequest(String note, List<SubmitDesignDraftPanoramaRequest> panoramas) {

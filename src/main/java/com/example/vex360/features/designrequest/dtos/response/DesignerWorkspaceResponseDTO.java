@@ -28,4 +28,6 @@ public class DesignerWorkspaceResponseDTO {
     private BoothResponseDTO booth;
     private DesignDraftWorkspaceResponseDTO workingDraft;
     private DesignDraftWorkspaceResponseDTO latestSubmittedDraft;
+    private Boolean editable;
+    private DesignDraftBenefitUsageResponseDTO benefitUsage;
 }

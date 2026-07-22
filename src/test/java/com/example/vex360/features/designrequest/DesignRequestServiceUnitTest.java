@@ -51,6 +51,10 @@ import com.example.vex360.features.designrequest.services.DesignRequestEligibili
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.designrequest.services.DesignDraftSettingsService;
+import com.example.vex360.features.designrequest.services.DesignDraftCloneService;
+import com.example.vex360.features.designrequest.services.DesignDraftRetentionService;
+import com.example.vex360.features.designrequest.services.DesignDraftGraphValidator;
+import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.user.repositories.UserRepository;
@@ -98,6 +102,14 @@ class DesignRequestServiceUnitTest {
     private UserRepository userRepository;
     @Mock
     private DesignDraftSettingsService draftSettingsService;
+    @Mock
+    private DesignDraftCloneService draftCloneService;
+    @Mock
+    private DesignDraftRetentionService draftRetentionService;
+    @Mock
+    private DesignDraftGraphValidator draftGraphValidator;
+    @Mock
+    private DesignDraftBenefitGuardService draftBenefitGuardService;
 
     private DesignRequestService service;
     private User exhibitor;
@@ -122,6 +134,10 @@ class DesignRequestServiceUnitTest {
                 baselineService,
                 designDraftAssetService,
                 draftSettingsService,
+                draftCloneService,
+                draftRetentionService,
+                draftGraphValidator,
+                draftBenefitGuardService,
                 eventPublisher,
                 userRepository);
 
@@ -306,7 +322,33 @@ class DesignRequestServiceUnitTest {
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());
         assertEquals(DesignRequestStatus.ASSIGNED, request.getStatus());
+        verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
+        verify(draftBenefitGuardService).assertMutationAllowed(
+                eq(request),
+                any(),
+                any(DesignDraft.class));
         verify(designDraftAssetService).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void saveWorkingDraftAllowsTemporaryZeroPanoramaState() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        DesignDraft working = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        request.getDrafts().add(working);
+        SubmitDesignDraftRequest draftRequest = new SubmitDesignDraftRequest("empty", List.of());
+
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.saveWorkingDraft(designer, requestId, draftRequest);
+
+        assertTrue(working.getPanoramas().isEmpty());
+        verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
     }
 
     @Test
@@ -331,6 +373,8 @@ class DesignRequestServiceUnitTest {
 
         assertEquals(2, working.getVersionNumber());
         assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
+        verify(draftGraphValidator).validateForSubmission(request, working);
+        verify(draftBenefitGuardService).assertWithinSubmissionLimits(request, working);
         verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
     }
@@ -380,6 +424,7 @@ class DesignRequestServiceUnitTest {
         service.rejectDraft(exhibitor, requestId, new RejectDesignDraftRequest("Move entrance"));
 
         assertEquals(DesignRequestStatus.REVISION_REQUESTED, request.getStatus());
+        verify(draftCloneService).cloneLatestSubmittedToWorking(request);
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
     }
 
@@ -448,6 +493,7 @@ class DesignRequestServiceUnitTest {
         assertSame(mediaAsset, appliedPanorama.hotspots().get(0).mediaAsset());
         assertEquals(DesignRequestStatus.APPROVED, request.getStatus());
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        verify(draftRetentionService).retainApprovedDraft(request, draft);
         verify(designDraftAssetService).cleanupAfterApproval(request);
     }
 

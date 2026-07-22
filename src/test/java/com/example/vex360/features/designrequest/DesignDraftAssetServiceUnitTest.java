@@ -34,6 +34,7 @@ import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -54,6 +55,8 @@ class DesignDraftAssetServiceUnitTest {
     CloudService cloudService;
     @Mock
     BoothDesignService boothDesignService;
+    @Mock
+    DesignAssetReferenceService assetReferenceService;
 
     private DesignDraftAssetService service;
     private User designer;
@@ -67,7 +70,8 @@ class DesignDraftAssetServiceUnitTest {
                 workspaceService,
                 storageService,
                 cloudService,
-                boothDesignService);
+                boothDesignService,
+                assetReferenceService);
         designer = User.builder().id(UUID.randomUUID()).build();
         company = Company.builder().id(UUID.randomUUID()).storageUsedBytes(0L).storageQuotaBytes(1_000_000L).build();
         request = DesignRequest.builder()
@@ -90,7 +94,7 @@ class DesignDraftAssetServiceUnitTest {
                 .fileSize(5L)
                 .fileType("image/jpeg")
                 .build();
-        when(workspaceService.getAssignedRequest(designer, request.getId())).thenReturn(request);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
         when(cloudService.uploadToFolder(file, "panorama")).thenReturn(upload);
         when(assetRepository.save(any(DesignDraftAsset.class))).thenAnswer(invocation -> {
             DesignDraftAsset asset = invocation.getArgument(0);
@@ -118,7 +122,7 @@ class DesignDraftAssetServiceUnitTest {
                 .orderIndex(0)
                 .build());
         request.getDrafts().add(draft);
-        when(workspaceService.getAssignedRequest(designer, request.getId())).thenReturn(request);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
         when(assetRepository.findByIdAndDesignRequestId(asset.getId(), request.getId()))
                 .thenReturn(Optional.of(asset));
 
@@ -143,8 +147,23 @@ class DesignDraftAssetServiceUnitTest {
 
         verify(assetRepository).delete(unused);
         verify(storageService).deductUsage(company, unused.getFileSize());
-        verify(cloudService).delete("panorama/unused", "image");
+        verify(assetReferenceService).scheduleCleanup("panorama/unused", "image");
         verify(assetRepository, never()).delete(used);
+    }
+
+    @Test
+    void cleanupAfterApprovalKeepsAssetReferencedByRetainedDraftVersion() {
+        DesignDraftAsset retained = asset("panorama/retained-version");
+        when(assetRepository.findByDesignRequestBoothId(request.getBooth().getId()))
+                .thenReturn(List.of(retained));
+        when(boothDesignService.getPanoramaImageKeys(request.getBooth().getId()))
+                .thenReturn(Set.of());
+        when(assetReferenceService.isReferenced(retained.getPublicId())).thenReturn(true);
+
+        service.cleanupAfterApproval(request);
+
+        verify(assetRepository, never()).delete(retained);
+        verify(storageService, never()).deductUsage(company, retained.getFileSize());
     }
 
     @Test
