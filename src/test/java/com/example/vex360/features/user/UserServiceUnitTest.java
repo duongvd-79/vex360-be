@@ -248,6 +248,24 @@ class UserServiceUnitTest {
     }
 
     @Test
+    void changeCurrentUserPasswordThrowsWhenProviderIsNotLocal() {
+        User googleUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("google@example.com")
+                .provider(AuthProvider.GOOGLE)
+                .build();
+        ChangePasswordRequest request = new ChangePasswordRequest("old", "NewPassword123!");
+
+        when(userRepository.findByEmail(googleUser.getEmail())).thenReturn(Optional.of(googleUser));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> userService.changeCurrentUserPassword(googleUser.getEmail(), request));
+
+        assertSame(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD, exception.getErrorCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void updateRole_Success() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(sampleUser));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));

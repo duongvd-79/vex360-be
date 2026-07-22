@@ -19,6 +19,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.LogSanitizer;
@@ -137,6 +138,9 @@ public class PasswordService {
     @Transactional
     public void changePassword(UUID currentUserId, ChangePasswordRequest request, String accessToken) {
         User user = userService.getUserEntityById(currentUserId);
+        if (user.getProvider() != AuthProvider.LOCAL) {
+            throw new AppException(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD);
+        }
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }

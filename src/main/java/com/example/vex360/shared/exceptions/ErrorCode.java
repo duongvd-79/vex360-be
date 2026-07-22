@@ -27,6 +27,9 @@ public enum ErrorCode {
     ACCOUNT_DISABLED("AUTH-005", "Tài khoản của bạn đã bị vô hiệu hóa.", HttpStatus.UNAUTHORIZED),
     ACCOUNT_PENDING("AUTH-006", "Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để hoàn tất kích hoạt.",
             HttpStatus.UNAUTHORIZED),
+    PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD("AUTH-007",
+            "Tài khoản đăng nhập qua dịch vụ bên ngoài không hỗ trợ đổi mật khẩu.",
+            HttpStatus.BAD_REQUEST),
 
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "Không tìm thấy thông tin người dùng.", HttpStatus.NOT_FOUND),
