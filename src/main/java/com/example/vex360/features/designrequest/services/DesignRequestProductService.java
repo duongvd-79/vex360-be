@@ -15,7 +15,6 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -40,24 +39,16 @@ public class DesignRequestProductService {
 
     /**
      * Initializes the product allowlist for a design request.
-     * Restricts spatial requests from containing selected products. For redesign,
-     * it also automatically includes active baseline products from existing
-     * hotspots.
+     * For redesign, it also automatically includes active baseline products from
+     * existing hotspots.
      *
      * @param request            the design request to initialize allowlist for
      * @param selectedProductIds the product identifiers chosen by the exhibitor
-     * @throws AppException if spatial request contains products or validation fails
+     * @throws AppException if product ownership or status validation fails
      */
     @Transactional
     public void initializeAllowlist(DesignRequest request, List<UUID> selectedProductIds) {
         List<UUID> selectedIds = distinctIds(selectedProductIds);
-        if (request.getScope() == DesignRequestScope.SPATIAL) {
-            if (!selectedIds.isEmpty()) {
-                throw new AppException(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN);
-            }
-            return;
-        }
-
         List<Product> selected = loadActiveCompanyProducts(request, selectedIds);
         Map<UUID, Product> products = selected.stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
@@ -79,19 +70,15 @@ public class DesignRequestProductService {
     }
 
     /**
-     * Replaces the optional/non-baseline products in the allowlist for a FULL
-     * design request.
+     * Replaces the optional/non-baseline products in the allowlist.
      * Retains any baseline products.
      *
      * @param request            the design request to update
      * @param selectedProductIds the new list of product identifiers
-     * @throws AppException if scope is not FULL or validation fails
+     * @throws AppException if product ownership or status validation fails
      */
     @Transactional
     public void replaceOptionalProducts(DesignRequest request, List<UUID> selectedProductIds) {
-        if (request.getScope() != DesignRequestScope.FULL) {
-            throw new AppException(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN);
-        }
         List<Product> selected = loadActiveCompanyProducts(request, distinctIds(selectedProductIds));
         Set<UUID> requiredIds = request.getProducts().stream()
                 .filter(product -> Boolean.TRUE.equals(product.getRequiredFromBaseline()))
@@ -112,13 +99,10 @@ public class DesignRequestProductService {
      *
      * @param request   the design request to check
      * @param productId the identifier of the product
-     * @throws AppException if scope is not FULL or the product is not allowed
+     * @throws AppException if the product is not allowed
      */
     @Transactional(readOnly = true)
     public void assertProductAllowed(DesignRequest request, UUID productId) {
-        if (request.getScope() != DesignRequestScope.FULL) {
-            throw new AppException(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN);
-        }
         if (!requestProductRepository.existsByDesignRequestIdAndProductId(request.getId(), productId)) {
             throw new AppException(ErrorCode.DESIGN_PRODUCT_NOT_ALLOWED);
         }

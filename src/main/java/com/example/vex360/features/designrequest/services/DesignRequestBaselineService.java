@@ -20,7 +20,6 @@ import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -81,10 +80,6 @@ public class DesignRequestBaselineService {
                     .isDefault(panorama.getIsDefault())
                     .build();
             for (Hotspot hotspot : panorama.getHotspots()) {
-                if (request.getScope() == DesignRequestScope.SPATIAL
-                        && hotspot.getType() != com.example.vex360.features.booth.enums.HotspotType.NAV) {
-                    continue;
-                }
                 draftPanorama.getHotspots().add(cloneHotspot(draftPanorama, hotspot, panoramaKeys));
             }
             draft.getPanoramas().add(draftPanorama);

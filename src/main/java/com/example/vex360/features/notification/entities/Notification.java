@@ -31,7 +31,7 @@ public class Notification {
     User recipient;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "recipient_role")
+    @Column(name = "recipient_role", columnDefinition = "VARCHAR(50)")
     Role recipientRole;
 
     @Column(name = "title", nullable = false)

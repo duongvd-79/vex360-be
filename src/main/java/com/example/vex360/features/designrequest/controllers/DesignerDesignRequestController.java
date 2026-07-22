@@ -141,14 +141,6 @@ public class DesignerDesignRequestController extends BaseController {
         return ok(designDraftAssetService.getAssets(userDetails.getUser(), id, pageable));
     }
 
-    @PostMapping("/{id}/drafts")
-    @Operation(summary = "Tạo và gửi trực tiếp một bản thảo hoàn chỉnh", description = "Tạo submitted draft mới từ toàn bộ cấu hình panorama và hotspot rồi chuyển request sang DRAFT_SUBMITTED để Exhibitor review. Chỉ dùng được khi request ở ASSIGNED hoặc REVISION_REQUESTED. Panorama phải tham chiếu staging asset của đúng request; product và media asset phải thuộc company Exhibitor. Endpoint này được giữ để tương thích với client gửi draft một bước.")
-    public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> submitDraft(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @Valid @RequestBody SubmitDesignDraftRequest request) {
-        return ok(designRequestService.submitDraft(userDetails.getUser(), id, request));
-    }
 
     @PutMapping("/{id}/working-draft")
     @Operation(summary = "Lưu working draft đang thiết kế", description = "Tạo mới hoặc thay thế working draft mutable của request với version 0 mà chưa gửi cho Exhibitor. Dùng cho autosave khi request ở ASSIGNED hoặc REVISION_REQUESTED. Các staging asset không còn được working draft hay submitted draft tham chiếu sẽ được tự động dọn dẹp và hoàn quota.")

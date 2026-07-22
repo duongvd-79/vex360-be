@@ -1,6 +1,5 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
-import java.util.List;
 import java.util.UUID;
 
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
@@ -18,5 +17,4 @@ public class DesignRequestEligibilityResponseDTO {
     private boolean eligible;
     private String reasonCode;
     private int remainingDesignActions;
-    private List<DesignRequestScopeAvailabilityDTO> scopes;
 }

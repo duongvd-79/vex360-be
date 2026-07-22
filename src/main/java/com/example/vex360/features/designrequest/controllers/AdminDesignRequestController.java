@@ -22,7 +22,6 @@ import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentA
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.dtos.request.DecideDesignCancellationRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
@@ -48,14 +47,13 @@ public class AdminDesignRequestController extends BaseController {
     private final DesignRequestCommunicationService communicationService;
 
     @GetMapping
-    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ lọc theo trạng thái, ID designer, chế độ, phạm vi thiết kế và phân trang.")
+    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ lọc theo trạng thái, ID designer, chế độ và phân trang.")
     public ResponseEntity<ApiResponse<PageResponse<DesignRequestResponseDTO>>> getRequests(
             @RequestParam(required = false) DesignRequestStatus status,
             @RequestParam(required = false) UUID designerId,
             @RequestParam(required = false) DesignRequestMode mode,
-            @RequestParam(required = false) DesignRequestScope scope,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ok(designRequestService.getRequestsForAdmin(status, designerId, mode, scope, pageable));
+        return ok(designRequestService.getRequestsForAdmin(status, designerId, mode, pageable));
     }
 
     @PostMapping("/{id}/assign")
@@ -85,9 +83,8 @@ public class AdminDesignRequestController extends BaseController {
     @GetMapping("/assignment-analytics")
     @Operation(summary = "Admin xem phân tích phân công designer", description = "Lấy dữ liệu thống kê, phân tích về tình hình phân công thiết kế của các Designer.")
     public ResponseEntity<ApiResponse<DesignAssignmentAnalyticsResponseDTO>> getAssignmentAnalytics(
-            @RequestParam(required = false) DesignRequestMode mode,
-            @RequestParam(required = false) DesignRequestScope scope) {
-        return ok(designRequestService.getAssignmentAnalytics(mode, scope));
+            @RequestParam(required = false) DesignRequestMode mode) {
+        return ok(designRequestService.getAssignmentAnalytics(mode));
     }
 
     @GetMapping("/assignment-candidates")

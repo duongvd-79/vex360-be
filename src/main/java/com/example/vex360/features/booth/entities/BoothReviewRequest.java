@@ -47,7 +47,7 @@ public class BoothReviewRequest {
     Booth booth;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     BoothReviewStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

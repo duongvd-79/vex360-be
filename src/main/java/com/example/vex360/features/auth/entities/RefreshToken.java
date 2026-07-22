@@ -40,6 +40,10 @@ public class RefreshToken {
     @Builder.Default
     private boolean used = false;
 
+    @Column(nullable = false, name = "remember_me")
+    @Builder.Default
+    private boolean rememberMe = false;
+
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

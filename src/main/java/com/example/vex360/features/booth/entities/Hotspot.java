@@ -40,7 +40,7 @@ public class Hotspot {
     UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     HotspotType type = HotspotType.NAV;
 
@@ -94,11 +94,11 @@ public class Hotspot {
     Integer zIndex;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "media_click_action", length = 20)
+    @Column(name = "media_click_action", columnDefinition = "VARCHAR(50)")
     HotspotMediaClickAction mediaClickAction;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "info_content_type", length = 20)
+    @Column(name = "info_content_type", columnDefinition = "VARCHAR(50)")
     HotspotInfoContentType infoContentType;
 
     @Column(name = "corner_tl_x")

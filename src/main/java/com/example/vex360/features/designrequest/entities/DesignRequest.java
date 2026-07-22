@@ -12,7 +12,6 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
@@ -67,17 +66,13 @@ public class DesignRequest {
     User assignedDesigner;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignRequestStatus status = DesignRequestStatus.PENDING;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "mode", nullable = false)
+    @Column(name = "mode", nullable = false, columnDefinition = "VARCHAR(50)")
     DesignRequestMode mode;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "scope", nullable = false)
-    DesignRequestScope scope;
 
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
@@ -97,7 +92,7 @@ public class DesignRequest {
     LocalDateTime revisionQueuedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "cancellation_status", nullable = false)
+    @Column(name = "cancellation_status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignRequestCancellationStatus cancellationStatus = DesignRequestCancellationStatus.NONE;
 

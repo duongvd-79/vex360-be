@@ -20,19 +20,6 @@ spring:
     enabled: false
     baseline-on-migrate: true
 
-  # Mail Server Configuration
-  mail:
-    host: ${SMTP_HOST}
-    port: ${SMTP_PORT}
-    username: ${SMTP_USERNAME}
-    password: ${SMTP_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
   # File Upload Configuration
   servlet:
     multipart:
@@ -61,6 +48,7 @@ app:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
+    remember-refresh-expiration-ms: ${JWT_REMEMBER_REFRESH_EXPIRATION_MS:2592000000}
 
   # Security Whitelist
   security:
@@ -99,6 +87,17 @@ spring:
     username: ${LOCAL_DB_USER:root}
     password: ${LOCAL_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 ---
 spring:
   config:
@@ -110,6 +109,10 @@ spring:
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 app:
+  mail:
+    resend:
+      api-key: ${RESEND_API_KEY}
+      from: ${RESEND_FROM}
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:https://vex360.vercel.app}
   security:

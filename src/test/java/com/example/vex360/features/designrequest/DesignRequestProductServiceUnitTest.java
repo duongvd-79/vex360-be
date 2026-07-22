@@ -2,7 +2,6 @@ package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -19,14 +18,11 @@ import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.repositories.ProductRepository;
-import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class DesignRequestProductServiceUnitTest {
@@ -48,7 +44,6 @@ class DesignRequestProductServiceUnitTest {
                 .company(company)
                 .booth(Booth.builder().id(UUID.randomUUID()).build())
                 .mode(DesignRequestMode.REDESIGN)
-                .scope(DesignRequestScope.FULL)
                 .build();
         request.getProducts().add(DesignRequestProduct.builder()
                 .designRequest(request).product(required).requiredFromBaseline(true).build());
@@ -64,15 +59,22 @@ class DesignRequestProductServiceUnitTest {
     }
 
     @Test
-    void spatialRequestRejectsProductSelection() {
+    void initialDesignAcceptsSelectedProducts() {
+        Company company = Company.builder().id(UUID.randomUUID()).build();
+        Product selected = Product.builder().id(UUID.randomUUID()).company(company)
+                .status(ProductStatus.ACTIVE).build();
         DesignRequest request = DesignRequest.builder()
-                .scope(DesignRequestScope.SPATIAL)
+                .company(company)
+                .booth(Booth.builder().id(UUID.randomUUID()).build())
                 .mode(DesignRequestMode.INITIAL_DESIGN)
                 .build();
-        AppException exception = assertThrows(AppException.class,
-                () -> new DesignRequestProductService(requestProductRepository, productRepository, hotspotRepository)
-                        .initializeAllowlist(request, List.of(UUID.randomUUID())));
+        when(productRepository.findByIdInAndCompanyId(List.of(selected.getId()), company.getId()))
+                .thenReturn(List.of(selected));
 
-        assertSame(ErrorCode.DESIGN_PRODUCT_ACCESS_FORBIDDEN, exception.getErrorCode());
+        new DesignRequestProductService(requestProductRepository, productRepository, hotspotRepository)
+                .initializeAllowlist(request, List.of(selected.getId()));
+
+        assertEquals(1, request.getProducts().size());
+        assertSame(selected, request.getProducts().get(0).getProduct());
     }
 }

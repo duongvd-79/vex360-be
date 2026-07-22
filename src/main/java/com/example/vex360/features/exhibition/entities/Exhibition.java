@@ -78,7 +78,7 @@ public class Exhibition {
     @Column(name = "estimated_booths", nullable = false)
     Integer estimatedBooths;
 
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Enumerated(EnumType.STRING)
     ExhibitionStatus status;
 

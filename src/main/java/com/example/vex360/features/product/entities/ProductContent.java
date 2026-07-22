@@ -53,7 +53,7 @@ public class ProductContent {
     String publicId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "VARCHAR(50)")
     ProductContentType type;
 
     @Column(name = "order_index", nullable = false)

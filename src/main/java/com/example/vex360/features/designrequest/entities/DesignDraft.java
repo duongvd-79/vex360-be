@@ -68,7 +68,7 @@ public class DesignDraft {
     String displayTemplateKey;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "thumbnail_action", nullable = false)
+    @Column(name = "thumbnail_action", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignDraftFileAction thumbnailAction = DesignDraftFileAction.KEEP;
 
@@ -77,7 +77,7 @@ public class DesignDraft {
     DesignDraftAsset thumbnailAsset;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "background_music_action", nullable = false)
+    @Column(name = "background_music_action", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignDraftFileAction backgroundMusicAction = DesignDraftFileAction.KEEP;
 

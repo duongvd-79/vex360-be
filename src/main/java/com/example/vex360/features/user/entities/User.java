@@ -51,10 +51,11 @@ public class User {
     String phoneNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
+    @Column(name = "role", nullable = false, columnDefinition = "VARCHAR(50)")
     Role role;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "provider", columnDefinition = "VARCHAR(50)")
     @Builder.Default
     AuthProvider provider = AuthProvider.LOCAL;
 
@@ -62,7 +63,7 @@ public class User {
     String avatarUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "user_status", nullable = false)
+    @Column(name = "user_status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     UserStatus status = UserStatus.ACTIVE;
 

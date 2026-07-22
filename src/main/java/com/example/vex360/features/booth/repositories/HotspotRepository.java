@@ -16,7 +16,6 @@ import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.enums.HotspotType;
 
 public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     @Query(value = """
@@ -101,8 +100,6 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             WHERE h.sourcePanorama.booth.id = :boothId
             """)
     long countBySourcePanoramaBoothId(@Param("boothId") UUID boothId);
-
-    boolean existsBySourcePanoramaBoothIdAndTypeNot(UUID boothId, HotspotType type);
 
     boolean existsBySourcePanoramaBoothIdAndProductStatusNot(UUID boothId, ProductStatus status);
 

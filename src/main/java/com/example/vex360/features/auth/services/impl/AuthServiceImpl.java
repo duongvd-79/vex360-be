@@ -49,7 +49,7 @@ public class AuthServiceImpl implements AuthService {
                 profile.email(),
                 profile.fullName(),
                 profile.avatarUrl());
-        return authSessionService.issue(user);
+        return authSessionService.issue(user, false);
     }
 
     /** {@inheritDoc} */
@@ -70,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
             if (authenticatedUser.getFailedLoginAttempts() > 0) {
                 userService.resetFailedAttempts(authenticatedUser);
             }
-            return authSessionService.issue(authenticatedUser);
+            return authSessionService.issue(authenticatedUser, request.isRememberMe());
         } catch (AuthenticationException exception) {
             userService.incrementFailedAttempts(request.getEmail());
             log.warn("Authentication failed for email: {}", LogSanitizer.sanitize(request.getEmail()));

@@ -78,7 +78,7 @@ class PartnershipRequestServiceUnitTest {
                 Mappers.getMapper(PartnershipRequestMapper.class));
 
         org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "backendBaseUrl", "http://localhost:8080");
-        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "registrationFrontendUrl", "http://localhost:3000/register");
+        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "partnershipFrontendUrl", "http://localhost:3000/register");
 
         user = User.builder()
                 .id(UUID.randomUUID())

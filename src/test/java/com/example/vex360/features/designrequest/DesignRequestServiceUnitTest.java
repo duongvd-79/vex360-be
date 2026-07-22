@@ -3,6 +3,7 @@ package com.example.vex360.features.designrequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -54,7 +55,6 @@ import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.enums.DesignRequestScope;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.product.entities.Product;
@@ -215,13 +215,18 @@ class DesignRequestServiceUnitTest {
         when(userService.getUserEntityByIdForUpdate(designer.getId())).thenReturn(designer);
         when(designRequestRepository.countByAssignedDesignerIdAndStatusIn(
                 eq(designer.getId()),
-                eq(DesignRequestRepository.WORKING_STATUSES))).thenReturn(3L);
+                eq(DesignRequestRepository.SLOT_OCCUPYING_STATUSES))).thenReturn(3L);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.assignRequest(requestId, new AssignDesignRequest(designer.getId())));
 
         assertSame(ErrorCode.DESIGNER_WORKLOAD_EXCEEDED, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void submittedDraftStillConsumesDesignerSlot() {
+        assertTrue(DesignRequestRepository.SLOT_OCCUPYING_STATUSES.contains(DesignRequestStatus.DRAFT_SUBMITTED));
     }
 
     @Test
@@ -240,7 +245,7 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void submitDraftThrowsWhenProductDoesNotBelongToCompany() {
+    void saveWorkingDraftThrowsWhenProductDoesNotBelongToCompany() {
         UUID requestId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
@@ -275,7 +280,7 @@ class DesignRequestServiceUnitTest {
                 .thenThrow(new AppException(ErrorCode.PRODUCT_NOT_FOUND));
 
         AppException exception = assertThrows(AppException.class,
-                () -> service.submitDraft(designer, requestId, draftRequest));
+                () -> service.saveWorkingDraft(designer, requestId, draftRequest));
 
         assertSame(ErrorCode.PRODUCT_NOT_FOUND, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
@@ -327,6 +332,7 @@ class DesignRequestServiceUnitTest {
         assertEquals(2, working.getVersionNumber());
         assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
         verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
+        verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
     }
 
     @Test
@@ -362,21 +368,19 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void rejectDraftQueuesRevisionWhenDesignerHasThreeWorkingRequests() {
+    void rejectDraftReturnsToRevisionWithoutAcquiringAnotherSlot() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
-        when(userService.getUserEntityByIdForUpdate(designer.getId())).thenReturn(designer);
-        when(designRequestRepository.countByAssignedDesignerIdAndStatusIn(
-                designer.getId(), DesignRequestRepository.WORKING_STATUSES)).thenReturn(3L);
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         service.rejectDraft(exhibitor, requestId, new RejectDesignDraftRequest("Move entrance"));
 
-        assertEquals(DesignRequestStatus.REVISION_QUEUED, request.getStatus());
+        assertEquals(DesignRequestStatus.REVISION_REQUESTED, request.getStatus());
+        verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
     }
 
     @Test
@@ -470,7 +474,6 @@ class DesignRequestServiceUnitTest {
                 .requestedBy(exhibitor)
                 .status(DesignRequestStatus.PENDING)
                 .mode(DesignRequestMode.INITIAL_DESIGN)
-                .scope(DesignRequestScope.FULL)
                 .reviewCount(0)
                 .build();
     }

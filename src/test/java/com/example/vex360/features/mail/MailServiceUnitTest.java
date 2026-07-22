@@ -1,162 +1,139 @@
 package com.example.vex360.features.mail;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import com.example.vex360.shared.enums.Role;
-
-import jakarta.mail.internet.MimeMessage;
 
 @ExtendWith(MockitoExtension.class)
 class MailServiceUnitTest {
 
     @Mock
-    private ObjectProvider<JavaMailSender> mailSenderProvider;
-
-    @Mock
-    private JavaMailSender mailSender;
+    private EmailTransport emailTransport;
 
     private MailServiceImpl mailService;
 
     @BeforeEach
     void setUp() {
-        when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
-        mailService = new MailServiceImpl(mailSenderProvider);
-    }
-
-    @Test
-    void testConstructor_MailSenderNotAvailable() {
-        ObjectProvider<JavaMailSender> providerNull = mock(ObjectProvider.class);
-        when(providerNull.getIfAvailable()).thenReturn(null);
-
-        MailServiceImpl serviceNoSender = new MailServiceImpl(providerNull);
-        // Should not throw, should log warning when sending email
-        assertDoesNotThrow(() -> {
-            serviceNoSender.sendForgotPasswordEmail("test@example.com", "http://reset");
-        });
+        mailService = new MailServiceImpl(emailTransport);
     }
 
     @Test
     void testSendForgotPasswordEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendForgotPasswordEmail("test@example.com", "http://reset");
 
-        verify(mailSender).send(mimeMessage);
+        verify(emailTransport).send(
+                eq("test@example.com"),
+                eq("Yêu cầu khôi phục mật khẩu - VEX360"),
+                contains("http://reset"));
     }
 
     @Test
     void testSendRegistrationVerificationEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendRegistrationVerificationEmail("verify@example.com", "http://verify");
 
-        verify(mailSender).send(mimeMessage);
+        verify(emailTransport).send(
+                eq("verify@example.com"),
+                eq("Xác thực tài khoản VEX360"),
+                contains("http://verify"));
     }
 
     @Test
     void testSendPasswordChangeNotificationEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendPasswordChangeNotificationEmail("notify@example.com");
 
-        verify(mailSender).send(mimeMessage);
+        verify(emailTransport).send(
+                eq("notify@example.com"),
+                eq("Mật khẩu của bạn đã được thay đổi thành công - VEX360"),
+                contains("CẢNH BÁO"));
     }
 
     @Test
     void testSendNewUserCredentialsEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
-        // Test with regular fullName
         mailService.sendNewUserCredentialsEmail("credentials@example.com", "John Doe", "temp-pass");
-
-        // Test with null and empty fullName to cover branch cases and escapeHtml
         mailService.sendNewUserCredentialsEmail("credentials@example.com", null, "pass&<'\"_val");
         mailService.sendNewUserCredentialsEmail("credentials@example.com", "   ", "pass");
 
-        verify(mailSender, times(3)).send(mimeMessage);
+        verify(emailTransport, times(3)).send(
+                eq("credentials@example.com"),
+                eq("Thông tin tài khoản VEX360"),
+                contains("credentials@example.com"));
     }
 
     @Test
     void testSendPartnershipApprovedEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendPartnershipApprovedEmail("approved@example.com", "Owner", Role.EXHIBITOR, "My Org");
         mailService.sendPartnershipApprovedEmail("approved@example.com", null, Role.ORGANIZER, "My Org");
         mailService.sendPartnershipApprovedEmail("approved@example.com", "   ", Role.ORGANIZER, "My Org");
 
-        verify(mailSender, times(3)).send(mimeMessage);
+        verify(emailTransport, times(3)).send(
+                eq("approved@example.com"),
+                eq("Yêu cầu hợp tác đã được phê duyệt - VEX360"),
+                contains("My Org"));
     }
 
     @Test
     void testSendPartnershipRejectedEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendPartnershipRejectedEmail("rejected@example.com", "Owner", "My Org", "Bad documents");
         mailService.sendPartnershipRejectedEmail("rejected@example.com", null, "My Org", null);
         mailService.sendPartnershipRejectedEmail("rejected@example.com", "   ", "My Org", "   ");
 
-        verify(mailSender, times(3)).send(mimeMessage);
+        verify(emailTransport, times(3)).send(
+                eq("rejected@example.com"),
+                eq("Yêu cầu hợp tác chưa được phê duyệt - VEX360"),
+                contains("My Org"));
     }
 
     @Test
     void testSendPartnershipVerificationEmail_Success() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         mailService.sendPartnershipVerificationEmail(
                 "verify@example.com",
                 "John Owner",
                 "Vex Org",
-                "http://confirm"
-        );
+                "http://confirm");
 
-        verify(mailSender).send(mimeMessage);
+        verify(emailTransport).send(
+                eq("verify@example.com"),
+                eq("Xác nhận yêu cầu hợp tác - Vex360"),
+                contains("http://confirm"));
     }
 
     @Test
-    void testSendMail_SenderNull_DoesNotSend() {
-        ObjectProvider<JavaMailSender> providerNull = mock(ObjectProvider.class);
-        when(providerNull.getIfAvailable()).thenReturn(null);
-        MailServiceImpl serviceNoSender = new MailServiceImpl(providerNull);
+    void testVerificationLinks_AreEscapedBeforeEmbeddingInHtml() {
+        String dangerousUrl = "https://example.com/?next=\"><script>alert(1)</script>";
 
-        serviceNoSender.sendPartnershipApprovedEmail("approved@example.com", "Owner", Role.EXHIBITOR, "My Org");
+        mailService.sendForgotPasswordEmail("test@example.com", dangerousUrl);
+        mailService.sendRegistrationVerificationEmail("test@example.com", dangerousUrl);
+        mailService.sendPartnershipVerificationEmail(
+                "test@example.com",
+                "Owner",
+                "Vex Org",
+                dangerousUrl);
 
-        verifyNoInteractions(mailSender);
+        ArgumentCaptor<String> htmlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailTransport, times(3)).send(anyString(), anyString(), htmlCaptor.capture());
+        assertTrue(htmlCaptor.getAllValues().stream()
+                .allMatch(html -> !html.contains("<script>") && html.contains("&lt;script&gt;")));
     }
 
     @Test
-    void testSendHtmlMail_ThrowsException_ExceptionCaught() {
-        JavaMailSenderImpl dummySender = new JavaMailSenderImpl();
-        MimeMessage mimeMessage = dummySender.createMimeMessage();
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-        doThrow(new RuntimeException("SMTP failed")).when(mailSender).send(mimeMessage);
+    void testSendMail_TransportThrows_ExceptionCaught() {
+        doThrow(new RuntimeException("Email provider failed"))
+                .when(emailTransport).send(eq("test@example.com"), contains("VEX360"), contains("http://reset"));
 
-        // Exception should be caught and not thrown
-        assertDoesNotThrow(() -> {
-            mailService.sendForgotPasswordEmail("test@example.com", "http://reset");
-        });
+        assertDoesNotThrow(() -> mailService.sendForgotPasswordEmail("test@example.com", "http://reset"));
     }
 }

@@ -68,7 +68,7 @@ class AuthServiceImplUnitTest {
         when(googleOAuthClient.exchangeCode("authorization-code")).thenReturn(profile);
         when(userService.findOrCreateGoogleUser(profile.email(), profile.fullName(), profile.avatarUrl()))
                 .thenReturn(user);
-        when(authSessionService.issue(user)).thenReturn(expected);
+        when(authSessionService.issue(user, false)).thenReturn(expected);
 
         assertEquals(expected, authService.loginWithGoogle("authorization-code"));
     }
@@ -88,16 +88,18 @@ class AuthServiceImplUnitTest {
     @Test
     void login_ValidCredentialsResetFailuresAndIssueSession() {
         LoginRequest request = loginRequest();
+        request.setRememberMe(true);
         User user = User.builder().email(request.getEmail()).failedLoginAttempts(2).build();
         CustomUserDetails userDetails = new CustomUserDetails(user);
         TokenResponse expected = TokenResponse.builder().accessToken("access-token").build();
         when(userService.findUserByEmail(request.getEmail())).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any())).thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(authSessionService.issue(user)).thenReturn(expected);
+        when(authSessionService.issue(user, true)).thenReturn(expected);
 
         assertEquals(expected, authService.login(request));
         verify(userService).resetFailedAttempts(user);
+        verify(authSessionService).issue(user, true);
     }
 
     @Test

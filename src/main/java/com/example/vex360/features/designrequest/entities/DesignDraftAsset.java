@@ -70,12 +70,12 @@ public class DesignDraftAsset {
     Long fileSize;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "asset_type", nullable = false)
+    @Column(name = "asset_type", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignDraftAssetType assetType = DesignDraftAssetType.PANORAMA;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "asset_source", nullable = false)
+    @Column(name = "asset_source", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignDraftAssetSource assetSource = DesignDraftAssetSource.UPLOADED;
 
