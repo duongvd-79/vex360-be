@@ -28,6 +28,7 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
@@ -128,5 +129,20 @@ class PasswordServiceTest {
         assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
         verify(userService, never()).updatePassword(any(), any());
         verify(authSessionService, never()).revokeAll(any(), any());
+    }
+
+    @Test
+    void changePassword_NonLocalProvider_ThrowsAppException() {
+        UUID userId = UUID.randomUUID();
+        User persistedUser = User.builder().id(userId).provider(AuthProvider.GOOGLE).build();
+        ChangePasswordRequest request = new ChangePasswordRequest("old-password", "new-password");
+        when(userService.getUserEntityById(userId)).thenReturn(persistedUser);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.changePassword(userId, request, null));
+
+        assertEquals(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD, exception.getErrorCode());
+        verify(userService, never()).updatePassword(any(), any());
     }
 }

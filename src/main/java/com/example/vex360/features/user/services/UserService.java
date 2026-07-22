@@ -109,6 +109,9 @@ public class UserService {
     @Transactional
     public void changeCurrentUserPassword(String email, ChangePasswordRequest request) {
         User user = getUserByEmail(email);
+        if (user.getProvider() != AuthProvider.LOCAL) {
+            throw new AppException(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD);
+        }
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.OLDPASSWORD_FAILED);
         }
