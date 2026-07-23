@@ -51,6 +51,7 @@ public class DesignDraftAssetService {
     private final CompanyStorageService storageService;
     private final CloudService cloudService;
     private final BoothDesignService boothDesignService;
+    private final DesignAssetReferenceService assetReferenceService;
 
     /**
      * Uploads a panorama staging asset for an assigned, editable request.
@@ -91,7 +92,7 @@ public class DesignDraftAssetService {
             UUID requestId,
             MultipartFile file,
             DesignDraftAssetType assetType) {
-        DesignRequest request = workspaceService.getAssignedRequest(currentUser, requestId);
+        DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
         requireEditableRequest(request);
         DesignDraftAssetType resolvedType = assetType == null ? DesignDraftAssetType.PANORAMA : assetType;
         validateFile(file, resolvedType);
@@ -142,7 +143,7 @@ public class DesignDraftAssetService {
      */
     @Transactional
     public DesignDraftAssetResponseDTO releaseAsset(User currentUser, UUID requestId, UUID assetId) {
-        DesignRequest request = workspaceService.getAssignedRequest(currentUser, requestId);
+        DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
         requireEditableRequest(request);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
@@ -251,7 +252,8 @@ public class DesignDraftAssetService {
     private int deleteUnreferenced(List<DesignDraftAsset> assets, Set<String> referencedKeys) {
         int deleted = 0;
         for (DesignDraftAsset asset : assets) {
-            if (!referencedKeys.contains(asset.getPublicId())) {
+            if (!referencedKeys.contains(asset.getPublicId())
+                    && !assetReferenceService.isReferenced(asset.getPublicId())) {
                 deleteAsset(asset);
                 deleted++;
             }
@@ -265,7 +267,7 @@ public class DesignDraftAssetService {
             return;
         }
         storageService.deductUsage(asset.getDesignRequest().getCompany(), asset.getFileSize());
-        cloudService.delete(asset.getPublicId(), resourceType(asset.getAssetType()));
+        assetReferenceService.scheduleCleanup(asset.getPublicId(), resourceType(asset.getAssetType()));
     }
 
     private Set<String> draftImageKeys(DesignRequest request) {

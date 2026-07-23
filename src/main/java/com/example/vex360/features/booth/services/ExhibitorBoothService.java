@@ -19,6 +19,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -41,6 +42,7 @@ public class ExhibitorBoothService {
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
     private final BoothReviewPolicyService boothReviewPolicyService;
+    private final DesignAssetReferenceService assetReferenceService;
 
     @Transactional(readOnly = true)
     public PageResponse<BoothResponseDTO> getBooths(User currentUser, Pageable pageable) {
@@ -70,9 +72,10 @@ public class ExhibitorBoothService {
         if (request != null) {
             updateMetadata(booth, request);
         }
-        if (thumbnail != null && !thumbnail.isEmpty()) {
-            replaceThumbnail(booth, thumbnail);
-        }
+        String oldThumbnailPublicId = booth.getThumbnailPublicId();
+        CloudinaryResponse thumbnailUpload = thumbnail != null && !thumbnail.isEmpty()
+                ? replaceThumbnail(booth, thumbnail)
+                : null;
 
         String oldBackgroundMusicPublicId = booth.getBackgroundMusicPublicId();
         CloudinaryResponse backgroundMusicUpload = null;
@@ -91,13 +94,11 @@ public class ExhibitorBoothService {
             throw exception;
         }
 
+        if (thumbnailUpload != null && hasText(oldThumbnailPublicId)) {
+            assetReferenceService.scheduleCleanup(oldThumbnailPublicId, "image");
+        }
         if (backgroundMusicUpload != null && hasText(oldBackgroundMusicPublicId)) {
-            try {
-                cloudService.delete(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
-            } catch (RuntimeException exception) {
-                cleanupUploadedBackgroundMusic(backgroundMusicUpload.getPublicId(), exception);
-                throw exception;
-            }
+            assetReferenceService.scheduleCleanup(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
         }
 
         return boothMapper.toBoothResponseDTO(savedBooth);
@@ -120,7 +121,7 @@ public class ExhibitorBoothService {
         booth.setBackgroundMusicFileSize(null);
         Booth savedBooth = boothRepository.save(booth);
         boothRepository.flush();
-        cloudService.delete(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        assetReferenceService.scheduleCleanup(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
         return boothMapper.toBoothResponseDTO(savedBooth);
     }
 
@@ -145,14 +146,12 @@ public class ExhibitorBoothService {
         }
     }
 
-    private void replaceThumbnail(Booth booth, MultipartFile thumbnail) {
+    private CloudinaryResponse replaceThumbnail(Booth booth, MultipartFile thumbnail) {
         validateThumbnail(thumbnail);
         CloudinaryResponse upload = cloudService.upload(thumbnail);
-        if (hasText(booth.getThumbnailPublicId())) {
-            cloudService.delete(booth.getThumbnailPublicId(), "image");
-        }
         booth.setThumbnailUrl(upload.getUrl());
         booth.setThumbnailPublicId(upload.getPublicId());
+        return upload;
     }
 
     private CloudinaryResponse replaceBackgroundMusic(Booth booth, MultipartFile backgroundMusic) {

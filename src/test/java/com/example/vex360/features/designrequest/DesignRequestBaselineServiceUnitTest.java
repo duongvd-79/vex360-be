@@ -1,8 +1,12 @@
 package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -32,6 +36,64 @@ class DesignRequestBaselineServiceUnitTest {
     PanoramaRepository panoramaRepository;
     @Mock
     DesignDraftAssetRepository assetRepository;
+
+    @Test
+    void initialDesignCreatesSettingsOnlyWorkingDraft() {
+        Booth booth = Booth.builder()
+                .id(UUID.randomUUID())
+                .name("Initial booth")
+                .description("Description")
+                .displayTemplateKey("classic")
+                .build();
+        DesignRequest request = DesignRequest.builder()
+                .id(UUID.randomUUID())
+                .booth(booth)
+                .requestedBy(User.builder().id(UUID.randomUUID()).build())
+                .mode(DesignRequestMode.INITIAL_DESIGN)
+                .build();
+
+        new DesignRequestBaselineService(panoramaRepository, assetRepository).createWorkingBaseline(request);
+
+        assertEquals(1, request.getDrafts().size());
+        assertEquals(0, request.getDrafts().get(0).getVersionNumber());
+        assertEquals("Initial booth", request.getDrafts().get(0).getBoothName());
+        assertEquals("Description", request.getDrafts().get(0).getBoothDescription());
+        assertEquals("classic", request.getDrafts().get(0).getDisplayTemplateKey());
+        assertTrue(request.getDrafts().get(0).getPanoramas().isEmpty());
+        verifyNoInteractions(panoramaRepository, assetRepository);
+    }
+
+    @Test
+    void initialDesignAttachesExistingBoothThumbnailSnapshot() {
+        Booth booth = Booth.builder()
+                .id(UUID.randomUUID())
+                .name("Initial booth")
+                .displayTemplateKey("classic")
+                .thumbnailUrl("https://cdn/thumbnail.jpg")
+                .thumbnailPublicId("thumbnail/original")
+                .build();
+        DesignRequest request = DesignRequest.builder()
+                .id(UUID.randomUUID())
+                .booth(booth)
+                .requestedBy(User.builder().id(UUID.randomUUID()).build())
+                .mode(DesignRequestMode.INITIAL_DESIGN)
+                .build();
+        when(assetRepository.findByDesignRequestIdAndPublicId(request.getId(), "thumbnail/original"))
+                .thenReturn(Optional.empty());
+        when(assetRepository.save(any(DesignDraftAsset.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        new DesignRequestBaselineService(panoramaRepository, assetRepository).createWorkingBaseline(request);
+
+        assertEquals(1, request.getDrafts().size());
+        assertEquals(0, request.getDrafts().get(0).getVersionNumber());
+        assertNotNull(request.getDrafts().get(0).getThumbnailAsset());
+        assertEquals("thumbnail/original",
+                request.getDrafts().get(0).getThumbnailAsset().getPublicId());
+        assertEquals(DesignDraftAssetSource.BOOTH_BASELINE,
+                request.getDrafts().get(0).getThumbnailAsset().getAssetSource());
+        verifyNoInteractions(panoramaRepository);
+    }
 
     @Test
     void redesignCloneReusesBaselineAssetWithoutUploadingOrChargingStorage() {

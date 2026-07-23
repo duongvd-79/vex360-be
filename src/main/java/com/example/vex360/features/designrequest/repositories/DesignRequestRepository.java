@@ -89,6 +89,11 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     boolean existsByBoothIdAndStatusIn(UUID boothId, List<DesignRequestStatus> statuses);
 
+    List<DesignRequest> findByBoothIdAndStatusAndIdNot(
+            UUID boothId,
+            DesignRequestStatus status,
+            UUID id);
+
     @Query("""
             SELECT COALESCE(SUM(dr.reviewCount), 0)
             FROM DesignRequest dr

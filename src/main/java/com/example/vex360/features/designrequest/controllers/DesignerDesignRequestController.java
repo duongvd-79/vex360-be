@@ -1,5 +1,6 @@
 package com.example.vex360.features.designrequest.controllers;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springdoc.core.annotations.ParameterObject;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +25,16 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
+import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
+import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
+import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftPanoramaRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftPreviewResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
@@ -33,9 +44,12 @@ import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
+import com.example.vex360.features.designrequest.enums.DesignDraftPreviewSource;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
+import com.example.vex360.features.designrequest.services.DesignerDraftEditorService;
+import com.example.vex360.features.designrequest.services.DesignerDraftPreviewService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -56,6 +70,8 @@ public class DesignerDesignRequestController extends BaseController {
     private final DesignerWorkspaceService designerWorkspaceService;
     private final DesignDraftAssetService designDraftAssetService;
     private final DesignRequestCommunicationService communicationService;
+    private final DesignerDraftEditorService draftEditorService;
+    private final DesignerDraftPreviewService draftPreviewService;
 
     @GetMapping
     @Operation(summary = "Xem danh sách yêu cầu thiết kế được phân công", description = "Trả về các design request được phân công cho Designer đang đăng nhập. Có thể lọc theo status và phân trang; mặc định sắp xếp theo thời gian tạo giảm dần.")
@@ -72,6 +88,92 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         return ok(designerWorkspaceService.getWorkspace(userDetails.getUser(), id));
+    }
+
+    @GetMapping("/{id}/preview")
+    @Operation(summary = "Preview khong gian booth 360 cua Designer", description = "Tra ve cung cau truc panorama va hotspot de frontend dung renderer 360 hien tai. Source co the la working draft, submitted draft moi nhat hoac booth chinh thuc.")
+    public ResponseEntity<ApiResponse<DesignDraftPreviewResponseDTO>> getPreview(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @RequestParam(required = false) DesignDraftPreviewSource source) {
+        return ok(draftPreviewService.getPreview(userDetails.getUser(), id, source));
+    }
+
+    @PutMapping("/{id}/working-draft/settings")
+    @Operation(summary = "Cap nhat thong tin working draft", description = "Cap nhat ten, mo ta, template, thumbnail va background music cua working draft version 0.")
+    public ResponseEntity<ApiResponse<DesignDraftSettingsResponseDTO>> updateDraftSettings(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateDesignDraftSettingsRequest request) {
+        return ok(draftEditorService.updateSettings(userDetails.getUser(), id, request));
+    }
+
+    @PostMapping("/{id}/working-draft/panoramas")
+    @Operation(summary = "Them khong gian 360 vao working draft")
+    public ResponseEntity<ApiResponse<DesignDraftPanoramaResponseDTO>> createDraftPanorama(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateDesignDraftPanoramaRequest request) {
+        return created(draftEditorService.createPanorama(userDetails.getUser(), id, request));
+    }
+
+    @PatchMapping("/{id}/working-draft/panoramas/{panoramaId}")
+    @Operation(summary = "Cap nhat khong gian 360 trong working draft")
+    public ResponseEntity<ApiResponse<DesignDraftPanoramaResponseDTO>> updateDraftPanorama(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID panoramaId,
+            @Valid @RequestBody UpdateDesignDraftPanoramaRequest request) {
+        return ok(draftEditorService.updatePanorama(userDetails.getUser(), id, panoramaId, request));
+    }
+
+    @PutMapping("/{id}/working-draft/panoramas/order")
+    @Operation(summary = "Sap xep lai cac khong gian 360 trong working draft")
+    public ResponseEntity<ApiResponse<List<DesignDraftPanoramaResponseDTO>>> reorderDraftPanoramas(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody ReorderDesignDraftPanoramasRequest request) {
+        return ok(draftEditorService.reorderPanoramas(userDetails.getUser(), id, request));
+    }
+
+    @DeleteMapping("/{id}/working-draft/panoramas/{panoramaId}")
+    @Operation(summary = "Xoa khong gian 360 khoi working draft")
+    public ResponseEntity<ApiResponse<DesignDraftPanoramaResponseDTO>> deleteDraftPanorama(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID panoramaId) {
+        return ok(draftEditorService.deletePanorama(userDetails.getUser(), id, panoramaId));
+    }
+
+    @PostMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots")
+    @Operation(summary = "Them hotspot vao khong gian 360 cua working draft")
+    public ResponseEntity<ApiResponse<HotspotResponseDTO>> createDraftHotspot(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID panoramaId,
+            @Valid @RequestBody UpsertHotspotRequest request) {
+        return created(draftEditorService.createHotspot(userDetails.getUser(), id, panoramaId, request));
+    }
+
+    @PatchMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
+    @Operation(summary = "Cap nhat hotspot trong working draft")
+    public ResponseEntity<ApiResponse<HotspotResponseDTO>> updateDraftHotspot(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID panoramaId,
+            @PathVariable UUID hotspotId,
+            @Valid @RequestBody UpsertHotspotRequest request) {
+        return ok(draftEditorService.updateHotspot(userDetails.getUser(), id, panoramaId, hotspotId, request));
+    }
+
+    @DeleteMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
+    @Operation(summary = "Xoa hotspot khoi working draft")
+    public ResponseEntity<ApiResponse<HotspotResponseDTO>> deleteDraftHotspot(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID panoramaId,
+            @PathVariable UUID hotspotId) {
+        return ok(draftEditorService.deleteHotspot(userDetails.getUser(), id, panoramaId, hotspotId));
     }
 
     @GetMapping("/{id}/messages")
@@ -142,6 +244,7 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
 
+    @Deprecated(since = "designer granular draft API")
     @PutMapping("/{id}/working-draft")
     @Operation(summary = "Lưu working draft đang thiết kế", description = "Tạo mới hoặc thay thế working draft mutable của request với version 0 mà chưa gửi cho Exhibitor. Dùng cho autosave khi request ở ASSIGNED hoặc REVISION_REQUESTED. Các staging asset không còn được working draft hay submitted draft tham chiếu sẽ được tự động dọn dẹp và hoàn quota.")
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> saveWorkingDraft(
