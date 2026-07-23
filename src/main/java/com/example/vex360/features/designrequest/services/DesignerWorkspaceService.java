@@ -126,7 +126,6 @@ public class DesignerWorkspaceService {
             String keyword,
             UUID categoryId,
             Pageable pageable) {
-        DesignRequest request = getAssignedRequest(designer, requestId);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(requestProductRepository
                 .searchAllowedProducts(requestId, ProductStatus.ACTIVE, normalizedKeyword, categoryId, pageable)

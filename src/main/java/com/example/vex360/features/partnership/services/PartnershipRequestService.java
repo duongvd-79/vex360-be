@@ -1,6 +1,7 @@
 package com.example.vex360.features.partnership.services;
 
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -173,7 +174,7 @@ public class PartnershipRequestService {
             approveAuthenticatedRequest(request);
         }
         request.setStatus(PartnershipRequestStatus.APPROVED);
-        request.setReviewedAt(LocalDateTime.now());
+        request.setReviewedAt(Instant.now());
         return partnershipRequestMapper.toResponse(partnershipRequestRepository.save(request));
     }
 
@@ -182,7 +183,7 @@ public class PartnershipRequestService {
         PartnershipRequest request = getPendingRequest(id);
         request.setStatus(PartnershipRequestStatus.REJECTED);
         request.setReviewNote(rejectRequest.getReviewNote());
-        request.setReviewedAt(LocalDateTime.now());
+        request.setReviewedAt(Instant.now());
         PartnershipRequest savedRequest = partnershipRequestRepository.save(request);
         String notificationEmail = resolveNotificationEmail(savedRequest);
         mailService.sendPartnershipRejectedEmail(
@@ -364,7 +365,7 @@ public class PartnershipRequestService {
 
         // Check if expired (24 hours)
         if (request.getCreatedAt() != null &&
-                java.time.Duration.between(request.getCreatedAt(), LocalDateTime.now()).toHours() >= 24) {
+                Duration.between(request.getCreatedAt(), Instant.now()).toHours() >= 24) {
             return partnershipFrontendUrl + "?partnership_error=expired";
         }
 

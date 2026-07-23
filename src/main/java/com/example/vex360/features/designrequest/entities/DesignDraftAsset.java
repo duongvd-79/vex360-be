@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.entities;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -81,5 +81,5 @@ public class DesignDraftAsset {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 }

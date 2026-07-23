@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.entities;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -58,7 +58,7 @@ public class BoothReviewRequest {
 
     @CreationTimestamp
     @Column(name = "submitted_at", nullable = false, updatable = false)
-    LocalDateTime submittedAt;
+    Instant submittedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by_id")
@@ -67,7 +67,7 @@ public class BoothReviewRequest {
     User reviewedBy;
 
     @Column(name = "reviewed_at")
-    LocalDateTime reviewedAt;
+    Instant reviewedAt;
 
     @Column(name = "rejected_reason", columnDefinition = "TEXT")
     String rejectedReason;

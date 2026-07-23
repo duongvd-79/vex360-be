@@ -1,7 +1,7 @@
 package com.example.vex360.features.exhibition.entities;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -83,9 +83,9 @@ public class Payment {
     PaymentStatus status;
 
     @Column(name = "paid_at")
-    LocalDateTime paidAt;
+    Instant paidAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 }

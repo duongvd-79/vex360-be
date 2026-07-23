@@ -3,10 +3,14 @@ package com.example.vex360.features.chat.entities;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.user.entities.User;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -36,16 +40,16 @@ public class ChatRoom {
     private User visitorUser;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "last_message_at")
-    private LocalDateTime lastMessageAt;
+    private Instant lastMessageAt;
 
     @Column(name = "last_message_preview")
     private String lastMessagePreview;
 
     @PrePersist
     void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = Instant.now();
     }
 }

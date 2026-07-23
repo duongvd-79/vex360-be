@@ -3,7 +3,7 @@ package com.example.vex360.features.exhibition.entities;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -58,5 +58,5 @@ public class ExhibitionPackage {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 }

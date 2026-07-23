@@ -1,6 +1,6 @@
 package com.example.vex360.features.partnership.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -62,8 +62,8 @@ public class PartnershipRequestResponseDTO {
     private String reviewNote;
 
     @Schema(description = "Thời điểm request được tạo", example = "2026-06-22T10:30:00")
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Schema(description = "Thời điểm request được duyệt hoặc từ chối", example = "2026-06-22T11:00:00")
-    private LocalDateTime reviewedAt;
+    private Instant reviewedAt;
 }

@@ -1,10 +1,14 @@
 package com.example.vex360.features.chat.dtos;
 
-import lombok.*;
-
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -18,7 +22,7 @@ public class ChatRoomResponse {
     private String exhibitorAvatar;
     private String visitorName;
     private String visitorAvatar;
-    private LocalDateTime lastMessageAt;
+    private Instant lastMessageAt;
     private String lastMessagePreview;
     private List<ChatMessagePayload> messages;
     private int unreadCount;

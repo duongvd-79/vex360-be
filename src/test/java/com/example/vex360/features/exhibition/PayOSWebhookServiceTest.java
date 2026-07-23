@@ -11,11 +11,13 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -177,7 +179,7 @@ class PayOSWebhookServiceTest {
     @Test
     void testHandleWebhook_Success_PaymentPaid_ReferenceNull() throws Exception {
         Object mockBody = new Object();
-        WebhookData successDataNoRef = org.mockito.Mockito.mock(WebhookData.class);
+        WebhookData successDataNoRef = Mockito.mock(WebhookData.class);
         when(successDataNoRef.getOrderCode()).thenReturn(123456L);
         when(successDataNoRef.getCode()).thenReturn("00");
         when(successDataNoRef.getReference()).thenReturn(null);
@@ -191,7 +193,7 @@ class PayOSWebhookServiceTest {
         assertNotNull(result);
         assertEquals("00", result.getCode());
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
-        org.junit.jupiter.api.Assertions.assertNull(pendingPayment.getPaymentReference());
+        Assertions.assertNull(pendingPayment.getPaymentReference());
         assertEquals(ExhibitorRegistrationStatus.APPROVED, pendingRegistration.getStatus());
 
         verify(paymentRepository).save(pendingPayment);

@@ -1,6 +1,6 @@
 package com.example.vex360.features.company.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +15,6 @@ public class AdminStoragePackageOrderResponseDTO {
     Long quotaBytes; // dung lượng của gói
     Long amountVnd; // số tiền
     String status; // trạng thái thanh toán (PENDING/PAID/...)
-    LocalDateTime paidAt; // thời điểm thanh toán (null nếu chưa trả)
-    LocalDateTime createdAt; // thời điểm tạo đơn
+    Instant paidAt; // thời điểm thanh toán (null nếu chưa trả)
+    Instant createdAt; // thời điểm tạo đơn
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -228,7 +229,7 @@ class ExhibitorBoothTemplateServiceUnitTest {
                 .yPosition(2.0)
                 .zPosition(3.0)
                 .build());
-        return new java.util.ArrayList<>(List.of(entrance, main));
+        return new ArrayList<>(List.of(entrance, main));
     }
 
     private BoothContentCountProjection count(UUID boothId, long contentCount) {

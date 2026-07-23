@@ -1,7 +1,7 @@
 package com.example.vex360.features.exhibition.services.impl;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -536,7 +536,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         exhibition.setReviewedBy(admin);
-        exhibition.setReviewedAt(LocalDateTime.now());
+        exhibition.setReviewedAt(Instant.now());
 
         exhibition = exhibitionRepository.save(exhibition);
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
@@ -564,7 +564,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition.setStatus(ExhibitionStatus.REJECTED);
         exhibition.setRejectedReason(request.getRejectedReason());
         exhibition.setReviewedBy(admin);
-        exhibition.setReviewedAt(LocalDateTime.now());
+        exhibition.setReviewedAt(Instant.now());
 
         // Increment rejection count
         int newRejectionCount = exhibition.getRejectionCount() + 1;

@@ -1,9 +1,7 @@
 package com.example.vex360.features.user.entities;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
 import java.time.Instant;
-
+import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -80,9 +78,9 @@ public class User {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    LocalDateTime updatedAt;
+    Instant updatedAt;
 }

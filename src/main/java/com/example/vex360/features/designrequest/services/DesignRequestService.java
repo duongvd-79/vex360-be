@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.services;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -242,7 +242,7 @@ public class DesignRequestService {
         DesignRequestStatus previousStatus = request.getStatus();
         request.setStatus(DesignRequestStatus.CANCELED);
         request.setQuotaCharged(false);
-        request.setCanceledAt(LocalDateTime.now());
+        request.setCanceledAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
@@ -271,7 +271,7 @@ public class DesignRequestService {
         }
         request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
         request.setCancellationReason(cancellationReason);
-        request.setCancellationRequestedAt(LocalDateTime.now());
+        request.setCancellationRequestedAt(Instant.now());
         DesignRequest saved = designRequestRepository.save(request);
         publishCancellationChanged(saved, currentUser);
         return toResponse(saved);
@@ -288,12 +288,12 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
         request.setCancellationResolutionNote(trimToNull(note));
-        request.setCancellationResolvedAt(LocalDateTime.now());
+        request.setCancellationResolvedAt(Instant.now());
         if (approve) {
             DesignRequestStatus previousStatus = request.getStatus();
             request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
             request.setStatus(DesignRequestStatus.CANCELED);
-            request.setCanceledAt(LocalDateTime.now());
+            request.setCanceledAt(Instant.now());
             request.getBooth().setStatus(BoothStatus.DRAFT);
             DesignRequest saved = designRequestRepository.save(request);
             publishStatusChanged(saved, null, previousStatus);
@@ -340,7 +340,7 @@ public class DesignRequestService {
 
         DesignRequestStatus previousStatus = request.getStatus();
         request.setAssignedDesigner(designer);
-        request.setAssignedAt(LocalDateTime.now());
+        request.setAssignedAt(Instant.now());
         request.setStatus(DesignRequestStatus.ASSIGNED);
         request.getBooth().setStatus(BoothStatus.DESIGNING);
         baselineService.createWorkingBaseline(request);
@@ -490,7 +490,7 @@ public class DesignRequestService {
         DesignRequestStatus previousStatus = request.getStatus();
         applyDraftToBooth(request, draft);
         request.setStatus(DesignRequestStatus.APPROVED);
-        request.setApprovedAt(LocalDateTime.now());
+        request.setApprovedAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         draftRetentionService.retainApprovedDraft(saved, draft);

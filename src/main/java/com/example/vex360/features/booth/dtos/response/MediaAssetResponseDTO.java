@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.MediaAssetType;
@@ -21,5 +21,5 @@ public class MediaAssetResponseDTO {
     private String publicId;
     private String mimeType;
     private Long fileSize;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

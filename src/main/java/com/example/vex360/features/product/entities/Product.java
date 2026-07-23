@@ -3,7 +3,7 @@ package com.example.vex360.features.product.entities;
 import com.example.vex360.features.company.entities.Company;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -101,9 +101,9 @@ public class Product {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    LocalDateTime updatedAt;
+    Instant updatedAt;
 }
