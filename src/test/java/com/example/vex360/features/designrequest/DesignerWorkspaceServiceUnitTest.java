@@ -24,6 +24,8 @@ import com.example.vex360.features.designrequest.services.DesignerWorkspaceServi
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
+import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
 import com.example.vex360.features.user.entities.User;
@@ -46,6 +48,8 @@ class DesignerWorkspaceServiceUnitTest {
     @Mock
     CompanyService companyService;
     @Mock
+    CompanyStorageService storageService;
+    @Mock
     DesignRequestEligibilityService eligibilityService;
     @Mock
     DesignDraftBenefitGuardService benefitGuardService;
@@ -63,11 +67,19 @@ class DesignerWorkspaceServiceUnitTest {
                 productMapper,
                 boothDesignService,
                 companyService,
+                storageService,
                 eligibilityService,
                 benefitGuardService);
         designer = User.builder().id(UUID.randomUUID()).build();
+        Company company = Company.builder()
+                .id(UUID.randomUUID())
+                .storageUsedBytes(0L)
+                .storageReservedBytes(0L)
+                .storageQuotaBytes(100L)
+                .build();
         request = DesignRequest.builder()
                 .id(UUID.randomUUID())
+                .company(company)
                 .booth(Booth.builder().id(UUID.randomUUID()).name("Booth").build())
                 .assignedDesigner(designer)
                 .status(DesignRequestStatus.ASSIGNED)

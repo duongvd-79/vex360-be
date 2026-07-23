@@ -22,8 +22,11 @@ public interface DesignDraftRepository extends JpaRepository<DesignDraft, UUID> 
             FROM DesignDraft draft
             LEFT JOIN draft.thumbnailAsset thumbnailAsset
             LEFT JOIN draft.backgroundMusicAsset backgroundMusicAsset
+            LEFT JOIN draft.mediaAssets mediaAsset
+            LEFT JOIN mediaAsset.asset draftAsset
             WHERE thumbnailAsset.publicId = :publicId
                OR backgroundMusicAsset.publicId = :publicId
+               OR draftAsset.publicId = :publicId
             """)
     boolean existsByThumbnailOrBackgroundMusicPublicId(@Param("publicId") String publicId);
 }

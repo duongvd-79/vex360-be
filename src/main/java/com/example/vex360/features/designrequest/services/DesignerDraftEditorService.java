@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,15 +23,20 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
+import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
+
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
@@ -62,6 +68,7 @@ public class DesignerDraftEditorService {
     private final DesignDraftBenefitGuardService benefitGuardService;
     private final DesignDraftGraphValidator graphValidator;
     private final DesignerDraftPreviewService previewService;
+    private final DesignRequestMapper designRequestMapper;
 
     @Transactional
     public DesignDraftSettingsResponseDTO updateSettings(
@@ -594,6 +601,98 @@ public class DesignerDraftEditorService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    @Transactional
+    public DesignDraftMediaAssetResponseDTO addMediaAsset(
+            User designer,
+            UUID requestId,
+            SubmitDesignDraftMediaAssetRequest request) {
+        EditableDraft context = getEditableDraft(designer, requestId);
+        if (request == null || request.getAssetId() == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        DesignDraft draft = context.draft();
+        boolean duplicate = draft.getMediaAssets().stream()
+                .anyMatch(ma -> ma.getAsset() != null && request.getAssetId().equals(ma.getAsset().getId()));
+        if (duplicate) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        DesignDraftAsset asset = draftAssetRepository
+                .findByIdAndDesignRequestId(request.getAssetId(), context.request().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        if (asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        String title = trimToNull(request.getTitle());
+        if (title != null && title.length() > 255) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+
+        DesignDraftMediaAsset mediaAsset = DesignDraftMediaAsset.builder()
+                .draft(draft)
+                .asset(asset)
+                .title(title)
+                .sortOrder(nextMediaSortOrder(draft))
+                .build();
+        draft.getMediaAssets().add(mediaAsset);
+        draftRepository.saveAndFlush(draft);
+
+        return designRequestMapper.toMediaAssetResponse(mediaAsset);
+    }
+
+    @Transactional
+    public void removeMediaAsset(User designer, UUID requestId, UUID mediaAssetId) {
+        EditableDraft context = getEditableDraft(designer, requestId);
+        DesignDraft draft = context.draft();
+        boolean removed = draft.getMediaAssets().removeIf(ma -> ma.getId() != null && ma.getId().equals(mediaAssetId));
+        if (!removed) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        draftRepository.saveAndFlush(draft);
+        assetService.cleanupUnreferencedAssets(context.request());
+    }
+
+    @Transactional
+    public List<DesignDraftMediaAssetResponseDTO> reorderMediaAssets(
+            User designer,
+            UUID requestId,
+            List<UUID> orderedMediaAssetIds) {
+        EditableDraft context = getEditableDraft(designer, requestId);
+        if (orderedMediaAssetIds == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        DesignDraft draft = context.draft();
+        Set<UUID> existingIds = draft.getMediaAssets().stream()
+                .map(DesignDraftMediaAsset::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (orderedMediaAssetIds.size() != existingIds.size()
+                || new HashSet<>(orderedMediaAssetIds).size() != orderedMediaAssetIds.size()
+                || !existingIds.containsAll(orderedMediaAssetIds)) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        for (int i = 0; i < orderedMediaAssetIds.size(); i++) {
+            UUID id = orderedMediaAssetIds.get(i);
+            int index = i;
+            draft.getMediaAssets().stream()
+                    .filter(ma -> id.equals(ma.getId()))
+                    .findFirst()
+                    .ifPresent(ma -> ma.setSortOrder(index));
+        }
+        draftRepository.saveAndFlush(draft);
+        return draft.getMediaAssets().stream()
+                .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
+                .map(designRequestMapper::toMediaAssetResponse)
+                .toList();
+    }
+
+    private int nextMediaSortOrder(DesignDraft draft) {
+        return draft.getMediaAssets().stream()
+                .map(DesignDraftMediaAsset::getSortOrder)
+                .filter(Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(-1) + 1;
     }
 
     private record EditableDraft(DesignRequest request, DesignDraft draft) {

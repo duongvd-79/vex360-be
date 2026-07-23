@@ -9,6 +9,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
@@ -30,6 +31,7 @@ public class DesignAssetReferenceService {
     private final BoothRepository boothRepository;
     private final DesignDraftPanoramaRepository draftPanoramaRepository;
     private final DesignDraftRepository draftRepository;
+    private final MediaAssetRepository mediaAssetRepository;
     private final CloudService cloudService;
 
     public boolean isReferenced(String publicId) {
@@ -39,7 +41,8 @@ public class DesignAssetReferenceService {
         return panoramaRepository.existsByImageKey(publicId)
                 || draftPanoramaRepository.existsByImageKey(publicId)
                 || boothRepository.existsByThumbnailPublicIdOrBackgroundMusicPublicId(publicId, publicId)
-                || draftRepository.existsByThumbnailOrBackgroundMusicPublicId(publicId);
+                || draftRepository.existsByThumbnailOrBackgroundMusicPublicId(publicId)
+                || mediaAssetRepository.existsByPublicId(publicId);
     }
 
     public void scheduleCleanup(String publicId, String resourceType) {

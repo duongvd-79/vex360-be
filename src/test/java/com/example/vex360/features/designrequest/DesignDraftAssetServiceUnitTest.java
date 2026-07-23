@@ -21,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.services.BoothDesignService;
@@ -35,6 +37,9 @@ import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRe
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -107,6 +112,135 @@ class DesignDraftAssetServiceUnitTest {
         assertEquals("panorama/pano", response.getImageKey());
         verify(storageService).checkQuota(company, 5L);
         verify(storageService).addUsage(company, 5L);
+    }
+
+    @Test
+    void uploadMediaReservesQuotaWithoutChargingUsage() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "intro.mp4", "video/mp4", "video".getBytes());
+        CloudinaryResponse upload = CloudinaryResponse.builder()
+                .url("https://cdn.example/intro.mp4")
+                .publicId("design-media/intro")
+                .fileName("intro.mp4")
+                .fileSize(5L)
+                .fileType("video/mp4")
+                .build();
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(cloudService.uploadToFolder(file, "design-draft-media-attachment")).thenReturn(upload);
+        when(assetRepository.save(any(DesignDraftAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DesignDraftAssetResponseDTO response = service.uploadAsset(
+                designer,
+                request.getId(),
+                file,
+                DesignDraftAssetType.MEDIA_ATTACHMENT);
+
+        assertEquals(DesignDraftAssetQuotaState.RESERVED, response.getQuotaState());
+        verify(storageService).reserveUsage(company, 5L);
+        verify(storageService, never()).addUsage(company, 5L);
+    }
+
+    @Test
+    void uploadMediaRejectsUnsupportedMimeTypeBeforeCloudUpload() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "document.pdf", "application/pdf", "pdf".getBytes());
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
+
+        assertSame(ErrorCode.FILE_TYPE_NOT_SUPPORTED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+        verify(storageService, never()).reserveUsage(any(), any(Long.class));
+    }
+
+    @Test
+    void uploadMediaRejectsEmptyFileBeforeQuotaReservation() {
+        MockMultipartFile file = new MockMultipartFile("file", "empty.png", "image/png", new byte[0]);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
+
+        assertSame(ErrorCode.PANORAMA_FILE_INVALID, exception.getErrorCode());
+        verify(storageService, never()).reserveUsage(any(), any(Long.class));
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void uploadMediaRejectsFileOverTenMegabytesBeforeQuotaReservation() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "large.mp4",
+                "video/mp4",
+                new byte[10 * 1024 * 1024 + 1]);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
+
+        assertSame(ErrorCode.FILE_TOO_LARGE, exception.getErrorCode());
+        verify(storageService, never()).reserveUsage(any(), any(Long.class));
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void uploadMediaRejectsRequestWithPendingCancellation() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "intro.mp4", "video/mp4", "video".getBytes());
+        request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
+
+        assertSame(ErrorCode.DESIGN_CANCELLATION_PENDING, exception.getErrorCode());
+        verify(storageService, never()).reserveUsage(any(), any(Long.class));
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void uploadMediaCleansCloudAssetWhenRepositorySaveFails() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "intro.mp4", "video/mp4", "video".getBytes());
+        CloudinaryResponse upload = mediaUpload();
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(cloudService.uploadToFolder(file, "design-draft-media-attachment")).thenReturn(upload);
+        when(assetRepository.save(any(DesignDraftAsset.class))).thenThrow(new IllegalStateException("database down"));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
+
+        verify(cloudService).delete("design-media/intro", "video");
+    }
+
+    @Test
+    void uploadMediaCleansCloudAssetWhenTransactionRollsBackAfterMethodReturns() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "intro.mp4", "video/mp4", "video".getBytes());
+        CloudinaryResponse upload = mediaUpload();
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(cloudService.uploadToFolder(file, "design-draft-media-attachment")).thenReturn(upload);
+        when(assetRepository.save(any(DesignDraftAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT);
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        verify(cloudService).delete("design-media/intro", "video");
     }
 
     @Test
@@ -190,6 +324,17 @@ class DesignDraftAssetServiceUnitTest {
                 .fileName("pano.jpg")
                 .mimeType("image/jpeg")
                 .fileSize(5L)
+                .quotaState(DesignDraftAssetQuotaState.CHARGED)
+                .build();
+    }
+
+    private CloudinaryResponse mediaUpload() {
+        return CloudinaryResponse.builder()
+                .url("https://cdn.example/intro.mp4")
+                .publicId("design-media/intro")
+                .fileName("intro.mp4")
+                .fileSize(5L)
+                .fileType("video/mp4")
                 .build();
     }
 }

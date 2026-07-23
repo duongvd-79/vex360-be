@@ -16,7 +16,9 @@ import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
+
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.services.DesignDraftCloneService;
@@ -72,6 +74,15 @@ class DesignDraftCloneServiceUnitTest {
         submitted.getPanoramas().add(sourcePanorama);
         request.getDrafts().add(submitted);
 
+        DesignDraftMediaAsset sourceMedia = DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(submitted)
+                .asset(thumbnail)
+                .title("Sample Attachment")
+                .sortOrder(1)
+                .build();
+        submitted.getMediaAssets().add(sourceMedia);
+
         DesignDraft working = service.cloneLatestSubmittedToWorking(request);
 
         assertEquals(0, working.getVersionNumber());
@@ -86,6 +97,11 @@ class DesignDraftCloneServiceUnitTest {
         assertSame(working, working.getPanoramas().get(0).getDraft());
         assertSame(working.getPanoramas().get(0),
                 working.getPanoramas().get(0).getHotspots().get(0).getSourcePanorama());
+        assertEquals(1, working.getMediaAssets().size());
+        assertNotSame(sourceMedia, working.getMediaAssets().get(0));
+        assertEquals("Sample Attachment", working.getMediaAssets().get(0).getTitle());
+        assertSame(thumbnail, working.getMediaAssets().get(0).getAsset());
+
     }
 
     @Test

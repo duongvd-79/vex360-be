@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
@@ -26,4 +27,5 @@ public class ExhibitorDesignReviewWorkspaceResponseDTO {
     private List<ProductResponseDTO> requiredProducts;
     private List<ProductResponseDTO> optionalProducts;
     private List<MediaAssetResponseDTO> referencedMedia;
+    private StorageUsageResponseDTO storageUsage;
 }

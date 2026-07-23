@@ -12,4 +12,6 @@ public interface MediaAssetRepository extends JpaRepository<MediaAsset, UUID> {
     Page<MediaAsset> findByCompanyId(UUID companyId, Pageable pageable);
 
     Optional<MediaAsset> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    boolean existsByPublicId(String publicId);
 }

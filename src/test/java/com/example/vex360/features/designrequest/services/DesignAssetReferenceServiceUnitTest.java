@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionSynchronization;
 
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
@@ -30,6 +31,8 @@ class DesignAssetReferenceServiceUnitTest {
     @Mock
     private DesignDraftRepository draftRepository;
     @Mock
+    private MediaAssetRepository mediaAssetRepository;
+    @Mock
     private CloudService cloudService;
 
     private DesignAssetReferenceService service;
@@ -41,6 +44,7 @@ class DesignAssetReferenceServiceUnitTest {
                 boothRepository,
                 draftPanoramaRepository,
                 draftRepository,
+                mediaAssetRepository,
                 cloudService);
     }
 
@@ -69,6 +73,15 @@ class DesignAssetReferenceServiceUnitTest {
         service.scheduleCleanup("draft/thumbnail-a", "image");
 
         verify(cloudService, never()).delete("draft/thumbnail-a", "image");
+    }
+
+    @Test
+    void cleanupKeepsPromotedCompanyMedia() {
+        when(mediaAssetRepository.existsByPublicId("design-media/approved")).thenReturn(true);
+
+        service.scheduleCleanup("design-media/approved", "video");
+
+        verify(cloudService, never()).delete("design-media/approved", "video");
     }
 
     @Test

@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -78,6 +79,11 @@ public class DesignDraftAsset {
     @Column(name = "asset_source", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     DesignDraftAssetSource assetSource = DesignDraftAssetSource.UPLOADED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quota_state", nullable = false, columnDefinition = "VARCHAR(50)")
+    @Builder.Default
+    DesignDraftAssetQuotaState quotaState = DesignDraftAssetQuotaState.CHARGED;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

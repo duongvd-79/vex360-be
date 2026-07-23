@@ -19,6 +19,7 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
@@ -40,6 +41,7 @@ public class ExhibitorMediaAssetService {
     private final CompanyStorageService companyStorageService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
+    private final DesignAssetReferenceService assetReferenceService;
 
     @Transactional(readOnly = true)
     public PageResponse<MediaAssetResponseDTO> getMediaAssets(User currentUser, Pageable pageable) {
@@ -93,7 +95,7 @@ public class ExhibitorMediaAssetService {
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);
         mediaAssetRepository.delete(mediaAsset);
         companyStorageService.deductUsage(company, mediaAsset.getFileSize() != null ? mediaAsset.getFileSize() : 0L);
-        cloudService.delete(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
+        assetReferenceService.scheduleCleanup(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
         return response;
     }
 

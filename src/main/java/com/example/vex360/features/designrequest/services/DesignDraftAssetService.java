@@ -9,6 +9,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.booth.services.BoothDesignService;
@@ -19,6 +21,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
@@ -32,19 +35,22 @@ import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.utils.FileUploadUtils;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Manages request-scoped panorama assets while a Designer is preparing booth
- * drafts. Uploaded bytes are charged to the Exhibitor company and released
- * when an unused asset is deleted or cleaned up.
+ * Manages request-scoped assets while a Designer prepares booth drafts.
+ * Booth content is charged on upload; review media reserves storage until the
+ * Exhibitor approves or discards it.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DesignDraftAssetService {
     private static final long MAX_FILE_SIZE = (long) 10 * 1024 * 1024;
     private static final Set<String> PANORAMA_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> THUMBNAIL_TYPES = Set.of("image/jpeg", "image/png");
     private static final Set<String> MUSIC_TYPES = Set.of("audio/mpeg", "audio/mp3");
+    private static final Set<String> MEDIA_TYPES = Set.of("image/jpeg", "image/png", "video/mp4");
 
     private final DesignDraftAssetRepository assetRepository;
     private final DesignerWorkspaceService workspaceService;
@@ -96,18 +102,33 @@ public class DesignDraftAssetService {
         requireEditableRequest(request);
         DesignDraftAssetType resolvedType = assetType == null ? DesignDraftAssetType.PANORAMA : assetType;
         validateFile(file, resolvedType);
-        storageService.checkQuota(request.getCompany(), file.getSize());
+        boolean reservedUpload = resolvedType == DesignDraftAssetType.MEDIA_ATTACHMENT;
+        if (reservedUpload) {
+            storageService.reserveUsage(request.getCompany(), file.getSize());
+        } else {
+            storageService.checkQuota(request.getCompany(), file.getSize());
+        }
 
         String folder = switch (resolvedType) {
             case PANORAMA -> FileUploadUtils.PANORAMA_FOLDER;
             case THUMBNAIL -> "design-draft-thumbnail";
             case BACKGROUND_MUSIC -> "design-draft-background-music";
+            case MEDIA_ATTACHMENT -> "design-draft-media-attachment";
+            case MODEL_3D -> "design-draft-model-3d";
         };
+
         CloudinaryResponse upload = cloudService.uploadToFolder(file, folder);
+        boolean rollbackCleanupRegistered = registerRollbackCleanup(
+                upload.getPublicId(),
+                resourceType(resolvedType, upload.getFileType()));
         long fileSize = upload.getFileSize() == null ? file.getSize() : upload.getFileSize();
         try {
             if (fileSize != file.getSize()) {
-                storageService.checkQuota(request.getCompany(), fileSize);
+                if (reservedUpload) {
+                    storageService.adjustReservation(request.getCompany(), file.getSize(), fileSize);
+                } else {
+                    storageService.checkQuota(request.getCompany(), fileSize);
+                }
             }
             DesignDraftAsset asset = assetRepository.save(DesignDraftAsset.builder()
                     .designRequest(request)
@@ -119,17 +140,24 @@ public class DesignDraftAssetService {
                     .fileSize(fileSize)
                     .assetType(resolvedType)
                     .assetSource(DesignDraftAssetSource.UPLOADED)
+                    .quotaState(reservedUpload
+                            ? DesignDraftAssetQuotaState.RESERVED
+                            : DesignDraftAssetQuotaState.CHARGED)
                     .build());
-            storageService.addUsage(request.getCompany(), fileSize);
+            if (!reservedUpload) {
+                storageService.addUsage(request.getCompany(), fileSize);
+            }
             return toResponse(asset);
         } catch (RuntimeException exception) {
-            cloudService.delete(upload.getPublicId(), resourceType(resolvedType));
+            if (!rollbackCleanupRegistered) {
+                cleanupCloudAsset(upload.getPublicId(), resourceType(resolvedType, upload.getFileType()));
+            }
             throw exception;
         }
     }
 
     /**
-     * Deletes an unused staging asset and deducts its size from company storage.
+     * Deletes an unused staging asset and releases its charged or reserved bytes.
      * An asset referenced by any draft or by the current booth cannot be
      * released manually.
      *
@@ -263,11 +291,28 @@ public class DesignDraftAssetService {
 
     private void deleteAsset(DesignDraftAsset asset) {
         assetRepository.delete(asset);
-        if (asset.getAssetSource() == DesignDraftAssetSource.BOOTH_BASELINE) {
-            return;
+        DesignDraftAssetQuotaState quotaState = asset.getQuotaState();
+        if (quotaState == null) {
+            quotaState = asset.getAssetSource() == DesignDraftAssetSource.BOOTH_BASELINE
+                    ? DesignDraftAssetQuotaState.NONE
+                    : DesignDraftAssetQuotaState.CHARGED;
         }
-        storageService.deductUsage(asset.getDesignRequest().getCompany(), asset.getFileSize());
-        assetReferenceService.scheduleCleanup(asset.getPublicId(), resourceType(asset.getAssetType()));
+        switch (quotaState) {
+            case CHARGED -> storageService.deductUsage(
+                    asset.getDesignRequest().getCompany(),
+                    asset.getFileSize());
+            case RESERVED -> storageService.releaseReservedUsage(
+                    asset.getDesignRequest().getCompany(),
+                    asset.getFileSize());
+            case NONE, PROMOTED -> {
+                // No company storage counter changes for baseline or promoted assets.
+            }
+        }
+        if (asset.getAssetSource() != DesignDraftAssetSource.BOOTH_BASELINE) {
+            assetReferenceService.scheduleCleanup(
+                    asset.getPublicId(),
+                    resourceType(asset.getAssetType(), asset.getMimeType()));
+        }
     }
 
     private Set<String> draftImageKeys(DesignRequest request) {
@@ -281,6 +326,13 @@ public class DesignDraftAssetService {
             }
             if (draft.getBackgroundMusicAsset() != null) {
                 keys.add(draft.getBackgroundMusicAsset().getPublicId());
+            }
+            if (draft.getMediaAssets() != null) {
+                draft.getMediaAssets().stream()
+                        .filter(media -> media.getAsset() != null)
+                        .map(media -> media.getAsset().getPublicId())
+                        .filter(publicId -> publicId != null && !publicId.isBlank())
+                        .forEach(keys::add);
             }
         }
         return keys;
@@ -326,6 +378,8 @@ public class DesignDraftAssetService {
             case PANORAMA -> PANORAMA_TYPES;
             case THUMBNAIL -> THUMBNAIL_TYPES;
             case BACKGROUND_MUSIC -> MUSIC_TYPES;
+            case MEDIA_ATTACHMENT -> MEDIA_TYPES;
+            case MODEL_3D -> Set.of();
         };
         if (file.getContentType() == null
                 || !allowedTypes.contains(file.getContentType().toLowerCase(Locale.ROOT))) {
@@ -333,8 +387,42 @@ public class DesignDraftAssetService {
         }
     }
 
-    private String resourceType(DesignDraftAssetType type) {
-        return type == DesignDraftAssetType.BACKGROUND_MUSIC ? "video" : "image";
+    private String resourceType(DesignDraftAssetType type, String mimeType) {
+        if (type == DesignDraftAssetType.MEDIA_ATTACHMENT) {
+            return mimeType != null && mimeType.toLowerCase(Locale.ROOT).startsWith("video/")
+                    ? "video"
+                    : "image";
+        }
+        return switch (type) {
+            case BACKGROUND_MUSIC -> "video";
+            case MODEL_3D -> "raw";
+            case PANORAMA, THUMBNAIL -> "image";
+            case MEDIA_ATTACHMENT -> throw new IllegalStateException("Handled above");
+        };
+    }
+
+    private boolean registerRollbackCleanup(String publicId, String resourceType) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    cleanupCloudAsset(publicId, resourceType);
+                }
+            }
+        });
+        return true;
+    }
+
+    private void cleanupCloudAsset(String publicId, String resourceType) {
+        try {
+            cloudService.delete(publicId, resourceType);
+        } catch (RuntimeException cleanupFailure) {
+            log.warn("Failed to clean up rolled-back design asset {}", publicId, cleanupFailure);
+        }
     }
 
     private DesignDraftAssetResponseDTO toResponse(DesignDraftAsset asset) {
@@ -348,6 +436,7 @@ public class DesignDraftAssetService {
                 asset.getFileSize(),
                 asset.getAssetType(),
                 asset.getAssetSource(),
+                asset.getQuotaState(),
                 asset.getCreatedAt());
     }
 }

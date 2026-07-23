@@ -92,4 +92,9 @@ public class DesignDraft {
     @OneToMany(mappedBy = "draft", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     List<DesignDraftPanorama> panoramas = new ArrayList<>();
+
+    @OneToMany(mappedBy = "draft", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<DesignDraftMediaAsset> mediaAssets = new ArrayList<>();
 }
+

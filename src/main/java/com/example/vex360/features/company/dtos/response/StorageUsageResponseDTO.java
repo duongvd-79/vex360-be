@@ -7,6 +7,8 @@ import lombok.Data;
 @Builder
 public class StorageUsageResponseDTO {
     Long usedBytes;
+    Long reservedBytes;
     Long quotaBytes;
+    Long availableBytes;
     Double usedPercentage;
 }

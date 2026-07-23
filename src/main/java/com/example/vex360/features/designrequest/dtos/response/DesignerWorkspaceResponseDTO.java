@@ -6,6 +6,7 @@ import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,4 +31,5 @@ public class DesignerWorkspaceResponseDTO {
     private DesignDraftWorkspaceResponseDTO latestSubmittedDraft;
     private Boolean editable;
     private DesignDraftBenefitUsageResponseDTO benefitUsage;
+    private StorageUsageResponseDTO storageUsage;
 }

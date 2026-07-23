@@ -12,7 +12,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -65,11 +64,16 @@ import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
 class BoothReviewServiceUnitTest {
-    @Mock BoothRepository boothRepository;
-    @Mock BoothReviewRequestRepository reviewRepository;
-    @Mock CompanyService companyService;
-    @Mock BoothReviewPolicyService policyService;
-    @Mock BoothReviewContentAssembler contentAssembler;
+    @Mock
+    BoothRepository boothRepository;
+    @Mock
+    BoothReviewRequestRepository reviewRepository;
+    @Mock
+    CompanyService companyService;
+    @Mock
+    BoothReviewPolicyService policyService;
+    @Mock
+    BoothReviewContentAssembler contentAssembler;
 
     private BoothReviewService service;
     private User exhibitor;
@@ -156,18 +160,18 @@ class BoothReviewServiceUnitTest {
         when(contentAssembler.toOrganizerContentOverview(booth, null)).thenReturn(nonPendingOverview);
 
         booth.setStatus(BoothStatus.PENDING);
-        OrganizerBoothContentOverviewDTO pendingResult =
-                service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
+        OrganizerBoothContentOverviewDTO pendingResult = service.getContentOverviewForOrganizer(organizer,
+                exhibitionUuid, booth.getId());
         assertSame(pendingOverview, pendingResult);
 
         booth.setStatus(BoothStatus.PUBLISHED);
-        OrganizerBoothContentOverviewDTO published =
-                service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
+        OrganizerBoothContentOverviewDTO published = service.getContentOverviewForOrganizer(organizer, exhibitionUuid,
+                booth.getId());
         assertSame(nonPendingOverview, published);
 
         booth.setStatus(BoothStatus.ARCHIVED);
-        OrganizerBoothContentOverviewDTO archived =
-                service.getContentOverviewForOrganizer(organizer, exhibitionUuid, booth.getId());
+        OrganizerBoothContentOverviewDTO archived = service.getContentOverviewForOrganizer(organizer, exhibitionUuid,
+                booth.getId());
         assertSame(nonPendingOverview, archived);
     }
 
@@ -219,7 +223,7 @@ class BoothReviewServiceUnitTest {
         BoothReviewRequestSummaryDTO approved = service.approve(organizer, exhibitionUuid, approveRequest.getId());
         assertEquals(BoothReviewStatus.APPROVED, approved.getStatus());
         assertEquals(BoothStatus.PUBLISHED, booth.getStatus());
-        assertEquals(LocalDateTime.ofInstant(clock.instant(), clock.getZone()), approveRequest.getReviewedAt());
+        assertEquals(clock.instant(), approveRequest.getReviewedAt());
 
         booth.setStatus(BoothStatus.PENDING);
         BoothReviewRequest rejectRequest = reviewRequest(BoothReviewStatus.PENDING, 2);

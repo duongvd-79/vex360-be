@@ -50,6 +50,8 @@ public enum ErrorCode {
     INPUT_FAILED("USER-004", "Dữ liệu nhập vào không hợp lệ.", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Mật khẩu hiện tại không chính xác.", HttpStatus.BAD_REQUEST),
 
+    INVALID_STORAGE_USAGE("STORAGE-004", "Invalid storage usage state.", HttpStatus.CONFLICT),
+
     // PARTNERSHIP ERRORS
     PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
             "Email này đã đăng ký tài khoản. Vui lòng đăng nhập để gửi yêu cầu hợp tác.",
