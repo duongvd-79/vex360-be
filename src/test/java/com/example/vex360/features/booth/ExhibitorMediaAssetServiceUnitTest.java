@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -97,7 +98,7 @@ class ExhibitorMediaAssetServiceUnitTest {
     void testGetMediaAssets_Success() {
         when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
         Pageable pageable = PageRequest.of(0, 10);
-        Page<MediaAsset> page = new PageImpl<>(java.util.List.of(mediaAsset));
+        Page<MediaAsset> page = new PageImpl<>(List.of(mediaAsset));
         when(mediaAssetRepository.findByCompanyId(company.getId(), pageable)).thenReturn(page);
 
         PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, pageable);

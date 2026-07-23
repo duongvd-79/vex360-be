@@ -10,7 +10,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "analytics_events", indexes = {
@@ -54,7 +54,7 @@ public class AnalyticsEvent {
 
     @CreationTimestamp
     @Column(name = "event_time", updatable = false)
-    LocalDateTime eventTime;
+    Instant eventTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exhibition_id")

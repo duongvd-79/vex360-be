@@ -1,6 +1,6 @@
 package com.example.vex360.features.company.entities;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -61,13 +61,13 @@ public class StoragePackageOrder {
     StoragePackageOrderStatus status = StoragePackageOrderStatus.PENDING;
 
     @Column(name = "paid_at")
-    LocalDateTime paidAt;
+    Instant paidAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    LocalDateTime updatedAt;
+    Instant updatedAt;
 }

@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
@@ -24,8 +24,8 @@ public class BoothReviewRequestSummaryDTO {
     private UUID exhibitionUuid;
     private String exhibitionName;
     private BoothReviewStatus status;
-    private LocalDateTime submittedAt;
-    private LocalDateTime reviewedAt;
+    private Instant submittedAt;
+    private Instant reviewedAt;
     private String rejectedReason;
     private BoothReviewChangeSummaryDTO changeSummary;
 }

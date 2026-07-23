@@ -1,7 +1,7 @@
 package com.example.vex360.shared.config.security;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,7 +85,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(Instant.now())
                     .status(HttpStatus.TOO_MANY_REQUESTS.value())
                     .error(HttpStatus.TOO_MANY_REQUESTS.name())
                     .code("SYS-004")

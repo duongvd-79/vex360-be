@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -14,5 +14,5 @@ public class DesignDraftResponseDTO {
     private UUID id;
     private Integer versionNumber;
     private String note;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

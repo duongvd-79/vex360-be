@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -94,7 +94,7 @@ public class ChatService {
                         .build());
 
         // Cập nhật preview ở chat_rooms
-        room.setLastMessageAt(LocalDateTime.now());
+        room.setLastMessageAt(Instant.now());
         room.setLastMessagePreview(content.length() > 50
                 ? content.substring(0, 50) + "..."
                 : content);

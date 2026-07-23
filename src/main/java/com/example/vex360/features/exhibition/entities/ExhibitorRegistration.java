@@ -3,7 +3,7 @@ package com.example.vex360.features.exhibition.entities;
 import com.example.vex360.features.user.entities.User;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -61,7 +61,7 @@ public class ExhibitorRegistration {
 
     @CreationTimestamp
     @Column(name = "submitted_at", updatable = false)
-    LocalDateTime submittedAt;
+    Instant submittedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by_user_id")

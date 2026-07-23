@@ -1,7 +1,7 @@
 package com.example.vex360.features.packagetemplate.dtos.response;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.shared.enums.BoothListingPriority;
@@ -29,6 +29,6 @@ public class PackageTemplateResponseDTO {
     private Long storageLimitMb;
     private BoothListingPriority listingPriority;
     private PackageTemplateStatus status;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
 }

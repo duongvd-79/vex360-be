@@ -22,14 +22,17 @@ import com.example.vex360.shared.enums.PaymentStatus;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -289,7 +292,7 @@ class ExhibitorRegistrationServiceTest {
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CreatePaymentLinkResponse payOSResponse = org.mockito.Mockito.mock(CreatePaymentLinkResponse.class);
+        CreatePaymentLinkResponse payOSResponse = Mockito.mock(CreatePaymentLinkResponse.class);
         when(payOSResponse.getCheckoutUrl()).thenReturn("chkUrl");
         when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
                 .thenReturn(payOSResponse);
@@ -322,7 +325,7 @@ class ExhibitorRegistrationServiceTest {
                 .thenReturn(Optional.of(failedPayment));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CreatePaymentLinkResponse payOSResponse = org.mockito.Mockito.mock(CreatePaymentLinkResponse.class);
+        CreatePaymentLinkResponse payOSResponse = Mockito.mock(CreatePaymentLinkResponse.class);
         when(payOSResponse.getCheckoutUrl()).thenReturn("chkUrl");
         when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
                 .thenReturn(payOSResponse);
@@ -350,7 +353,7 @@ class ExhibitorRegistrationServiceTest {
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CreatePaymentLinkResponse payOSResponse = org.mockito.Mockito.mock(CreatePaymentLinkResponse.class);
+        CreatePaymentLinkResponse payOSResponse = Mockito.mock(CreatePaymentLinkResponse.class);
         when(payOSResponse.getCheckoutUrl()).thenReturn("chkUrl");
         when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
                 .thenReturn(payOSResponse);
@@ -380,7 +383,7 @@ class ExhibitorRegistrationServiceTest {
         var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
 
         assertNotNull(dto);
-        org.junit.jupiter.api.Assertions.assertNull(dto.getCheckoutUrl());
+        Assertions.assertNull(dto.getCheckoutUrl());
         assertEquals("FAILED", dto.getPaymentStatus());
     }
 
@@ -404,7 +407,7 @@ class ExhibitorRegistrationServiceTest {
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
                 .thenReturn(Optional.of(stuckPayment));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        CreatePaymentLinkResponse response = org.mockito.Mockito.mock(CreatePaymentLinkResponse.class);
+        CreatePaymentLinkResponse response = Mockito.mock(CreatePaymentLinkResponse.class);
         when(response.getCheckoutUrl()).thenReturn("regenerated-url");
         when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
                 .thenReturn(response);
@@ -419,14 +422,14 @@ class ExhibitorRegistrationServiceTest {
     void testGetRegistrationsForOrganizer_Unauthenticated_ThrowsException() {
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.getRegistrationsForOrganizer(null, UUID.randomUUID(),
-                    ExhibitorRegistrationStatus.PENDING, "", org.springframework.data.domain.Pageable.unpaged());
+                    ExhibitorRegistrationStatus.PENDING, "", Pageable.unpaged());
         });
         assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
 
         User userNoId = User.builder().id(null).build();
         AppException exception2 = assertThrows(AppException.class, () -> {
             registrationService.getRegistrationsForOrganizer(userNoId, UUID.randomUUID(),
-                    ExhibitorRegistrationStatus.PENDING, "", org.springframework.data.domain.Pageable.unpaged());
+                    ExhibitorRegistrationStatus.PENDING, "", Pageable.unpaged());
         });
         assertEquals(ErrorCode.UNAUTHENTICATED, exception2.getErrorCode());
     }
@@ -435,10 +438,10 @@ class ExhibitorRegistrationServiceTest {
     void testGetRegistrationsForOrganizer_EmptyList_ReturnsPage() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
-        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        PageRequest pageRequest = PageRequest.of(0, 10);
         when(registrationRepository.searchForOrganizer(organizer.getId(), exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest))
-                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(), pageRequest, 0));
+                .thenReturn(new PageImpl<>(List.of(), pageRequest, 0));
 
         var pageResponse = registrationService.getRegistrationsForOrganizer(organizer, exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest);
@@ -452,7 +455,7 @@ class ExhibitorRegistrationServiceTest {
     void testGetRegistrationsForOrganizer_WithPayments_ReturnsPage() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
-        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        PageRequest pageRequest = PageRequest.of(0, 10);
         ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(companyUser)
                 .exhibitionPackage(paidPackage).status(ExhibitorRegistrationStatus.PENDING).build();
         ExhibitorRegistration reg2 = ExhibitorRegistration.builder().id(2).uuid(UUID.randomUUID()).company(companyUser)
@@ -460,18 +463,17 @@ class ExhibitorRegistrationServiceTest {
 
         when(registrationRepository.searchForOrganizer(organizer.getId(), exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest))
-                .thenReturn(
-                        new org.springframework.data.domain.PageImpl<>(java.util.List.of(reg1, reg2), pageRequest, 2));
+                .thenReturn(new PageImpl<>(List.of(reg1, reg2), pageRequest, 2));
 
         Payment payment1Old = Payment.builder().id(100).status(PaymentStatus.FAILED).exhibitorRegistration(reg1)
-                .createdAt(java.time.LocalDateTime.now().minusDays(1)).build();
+                .createdAt(Instant.now().minusSeconds(86400)).build();
         Payment payment1New = Payment.builder().id(101).status(PaymentStatus.PENDING).exhibitorRegistration(reg1)
-                .createdAt(java.time.LocalDateTime.now()).build();
+                .createdAt(Instant.now()).build();
         Payment payment2 = Payment.builder().id(102).status(PaymentStatus.PAID).exhibitorRegistration(reg2)
-                .createdAt(java.time.LocalDateTime.now()).build();
+                .createdAt(Instant.now()).build();
 
-        when(paymentRepository.findByExhibitorRegistrationIdIn(java.util.List.of(1, 2)))
-                .thenReturn(java.util.List.of(payment1Old, payment1New, payment2));
+        when(paymentRepository.findByExhibitorRegistrationIdIn(List.of(1, 2)))
+                .thenReturn(List.of(payment1Old, payment1New, payment2));
 
         var pageResponse = registrationService.getRegistrationsForOrganizer(organizer, exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest);
@@ -662,7 +664,7 @@ class ExhibitorRegistrationServiceTest {
         var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
 
         assertNotNull(dto);
-        org.junit.jupiter.api.Assertions.assertNull(dto.getCheckoutUrl());
+        Assertions.assertNull(dto.getCheckoutUrl());
         verify(payOSIntegrationService, never()).createPaymentLink(any(), any(), any(), any(), any());
     }
 
@@ -698,22 +700,22 @@ class ExhibitorRegistrationServiceTest {
     void testGetRegistrationsForOrganizer_OlderPaymentSkipped() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
-        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        PageRequest pageRequest = PageRequest.of(0, 10);
         ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(companyUser)
                 .exhibitionPackage(paidPackage).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.searchForOrganizer(organizer.getId(), exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest))
-                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(reg1), pageRequest, 1));
+                .thenReturn(new PageImpl<>(List.of(reg1), pageRequest, 1));
 
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        Instant now = Instant.now();
         Payment payment1New = Payment.builder().id(101).status(PaymentStatus.PENDING).exhibitorRegistration(reg1)
                 .createdAt(now).build();
         Payment payment1Old = Payment.builder().id(100).status(PaymentStatus.FAILED).exhibitorRegistration(reg1)
-                .createdAt(now.minusDays(1)).build();
+                .createdAt(now.minusSeconds(86400)).build();
 
-        when(paymentRepository.findByExhibitorRegistrationIdIn(java.util.List.of(1)))
-                .thenReturn(java.util.List.of(payment1New, payment1Old));
+        when(paymentRepository.findByExhibitorRegistrationIdIn(List.of(1)))
+                .thenReturn(List.of(payment1New, payment1Old));
 
         var pageResponse = registrationService.getRegistrationsForOrganizer(organizer, exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest);

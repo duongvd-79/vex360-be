@@ -2,7 +2,7 @@ package com.example.vex360.features.partnership.entities;
 
 import com.example.vex360.features.user.entities.User;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -92,10 +92,10 @@ public class PartnershipRequest {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @Column(name = "reviewed_at")
-    LocalDateTime reviewedAt;
+    Instant reviewedAt;
 
     @Column(name = "active_requester_email", unique = true)
     String activeRequesterEmail;

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
@@ -262,7 +263,7 @@ class BoothReviewServiceUnitTest {
                         organizer,
                         exhibitionUuid,
                         booth.getId(),
-                        org.springframework.data.domain.PageRequest.of(0, 10)));
+                        PageRequest.of(0, 10)));
 
         assertSame(ErrorCode.INVALID_BOOTH_REVIEW_STATUS, exception.getErrorCode());
     }

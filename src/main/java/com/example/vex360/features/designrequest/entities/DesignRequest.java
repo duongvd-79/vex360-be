@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.entities;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -89,7 +89,7 @@ public class DesignRequest {
     Boolean quotaCharged = true;
 
     @Column(name = "revision_queued_at")
-    LocalDateTime revisionQueuedAt;
+    Instant revisionQueuedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "cancellation_status", nullable = false, columnDefinition = "VARCHAR(50)")
@@ -100,30 +100,30 @@ public class DesignRequest {
     String cancellationReason;
 
     @Column(name = "cancellation_requested_at")
-    LocalDateTime cancellationRequestedAt;
+    Instant cancellationRequestedAt;
 
     @Column(name = "cancellation_resolved_at")
-    LocalDateTime cancellationResolvedAt;
+    Instant cancellationResolvedAt;
 
     @Column(name = "cancellation_resolution_note", length = 2000)
     String cancellationResolutionNote;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    LocalDateTime updatedAt;
+    Instant updatedAt;
 
     @Column(name = "assigned_at")
-    LocalDateTime assignedAt;
+    Instant assignedAt;
 
     @Column(name = "approved_at")
-    LocalDateTime approvedAt;
+    Instant approvedAt;
 
     @Column(name = "canceled_at")
-    LocalDateTime canceledAt;
+    Instant canceledAt;
 
     @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

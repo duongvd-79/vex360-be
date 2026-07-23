@@ -1,6 +1,6 @@
 package com.example.vex360.features.company.services;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
@@ -140,7 +140,7 @@ public class StoragePackageService {
                 StoragePackageOrder order = storagePackageOrderRepository.findById(event.getStoragePackageOrderId())
                                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
                 order.setStatus(StoragePackageOrderStatus.PAID);
-                order.setPaidAt(LocalDateTime.now());
+                order.setPaidAt(Instant.now());
                 storagePackageOrderRepository.save(order);
 
                 Company company = order.getCompany();

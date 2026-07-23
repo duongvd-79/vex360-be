@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
@@ -23,5 +23,5 @@ public class DesignDraftAssetResponseDTO {
     private Long fileSize;
     private DesignDraftAssetType assetType;
     private DesignDraftAssetSource assetSource;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

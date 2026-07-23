@@ -1,7 +1,7 @@
 package com.example.vex360.features.booth.services;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -112,7 +112,7 @@ public class BoothReviewService {
         assertPending(request);
         request.setStatus(BoothReviewStatus.APPROVED);
         request.setReviewedBy(organizer);
-        request.setReviewedAt(LocalDateTime.now(clock));
+        request.setReviewedAt(Instant.now(clock));
         request.setRejectedReason(null);
         request.getBooth().setStatus(BoothStatus.PUBLISHED);
         BoothReviewRequest saved = boothReviewRequestRepository.save(request);
@@ -135,7 +135,7 @@ public class BoothReviewService {
         }
         request.setStatus(BoothReviewStatus.REJECTED);
         request.setReviewedBy(organizer);
-        request.setReviewedAt(LocalDateTime.now(clock));
+        request.setReviewedAt(Instant.now(clock));
         request.setRejectedReason(rejectRequest.getRejectedReason().trim());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         BoothReviewRequest saved = boothReviewRequestRepository.save(request);

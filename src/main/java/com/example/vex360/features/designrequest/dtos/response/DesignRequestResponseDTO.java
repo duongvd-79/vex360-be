@@ -1,7 +1,7 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.shared.enums.DesignRequestStatus;
@@ -37,8 +37,8 @@ public class DesignRequestResponseDTO {
     private DesignRequestCancellationStatus cancellationStatus;
     private String cancellationReason;
     private DesignDraftResponseDTO latestDraft;
-    private LocalDateTime createdAt;
-    private LocalDateTime assignedAt;
-    private LocalDateTime approvedAt;
-    private LocalDateTime canceledAt;
+    private Instant createdAt;
+    private Instant assignedAt;
+    private Instant approvedAt;
+    private Instant canceledAt;
 }

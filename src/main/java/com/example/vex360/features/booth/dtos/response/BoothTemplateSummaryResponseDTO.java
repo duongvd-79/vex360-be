@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.BoothStatus;
@@ -20,7 +20,7 @@ public class BoothTemplateSummaryResponseDTO {
     private Boolean isTemplate;
     private String thumbnailUrl;
     private Integer panoramaCount;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
 }
 

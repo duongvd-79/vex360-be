@@ -3,7 +3,7 @@ package com.example.vex360.features.exhibition.entities;
 import com.example.vex360.features.user.entities.User;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -94,11 +94,11 @@ public class Exhibition {
     User reviewedBy;
 
     @Column(name = "reviewed_at")
-    LocalDateTime reviewedAt;
+    Instant reviewedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    Instant createdAt;
 
     @OneToMany(mappedBy = "exhibition", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 20)
