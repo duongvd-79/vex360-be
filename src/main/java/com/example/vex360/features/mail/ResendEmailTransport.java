@@ -10,7 +10,7 @@ import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
 
 @Component
-@Profile("aiven")
+@Profile("resend")
 class ResendEmailTransport implements EmailTransport {
 
     private final Resend resend;
@@ -39,7 +39,7 @@ class ResendEmailTransport implements EmailTransport {
         try {
             resend.emails().send(options);
         } catch (ResendException exception) {
-            throw new IllegalStateException("Resend email delivery failed", exception);
+            throw new IllegalStateException("Resend email delivery failed: " + exception.getMessage(), exception);
         }
     }
 }

@@ -39,6 +39,7 @@ import com.example.vex360.features.booth.services.ExhibitorBoothService;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.services.CloudService;
 
@@ -56,6 +57,9 @@ class ExhibitorBoothServiceUnitTest {
     @Mock
     private BoothReviewPolicyService boothReviewPolicyService;
 
+    @Mock
+    private DesignAssetReferenceService assetReferenceService;
+
     private ExhibitorBoothService exhibitorBoothService;
     private User exhibitorUser;
     private Company company;
@@ -67,7 +71,8 @@ class ExhibitorBoothServiceUnitTest {
                 companyService,
                 cloudService,
                 Mappers.getMapper(BoothMapper.class),
-                boothReviewPolicyService);
+                boothReviewPolicyService,
+                assetReferenceService);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -117,7 +122,7 @@ class ExhibitorBoothServiceUnitTest {
 
         assertEquals("New Booth", response.getName());
         assertEquals("https://new.example/thumbnail.png", response.getThumbnailUrl());
-        verify(cloudService).delete("old_public_id", "image");
+        verify(assetReferenceService).scheduleCleanup("old_public_id", "image");
     }
 
     @Test
@@ -311,7 +316,7 @@ class ExhibitorBoothServiceUnitTest {
         assertEquals("https://new.example/ambient.mp3", response.getBackgroundMusicUrl());
         assertEquals("ambient.mp3", response.getBackgroundMusicFileName());
         assertEquals(5L, response.getBackgroundMusicFileSize());
-        verify(cloudService).delete("old_music_id", "video");
+        verify(assetReferenceService).scheduleCleanup("old_music_id", "video");
     }
 
     @Test
@@ -451,6 +456,6 @@ class ExhibitorBoothServiceUnitTest {
         assertNull(response.getBackgroundMusicFileName());
         assertNull(response.getBackgroundMusicFileSize());
         assertNull(booth.getBackgroundMusicPublicId());
-        verify(cloudService).delete("music_id", "video");
+        verify(assetReferenceService).scheduleCleanup("music_id", "video");
     }
 }

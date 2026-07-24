@@ -17,18 +17,22 @@ import com.example.vex360.shared.enums.BoothListingPriority;
 import jakarta.persistence.LockModeType;
 
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
-  @Query("""
-      SELECT b FROM Booth b
-      WHERE b.isTemplate = true
-        AND (:keyword IS NULL
-          OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(b.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        AND (:status IS NULL OR b.status = :status)
-      """)
-  Page<Booth> searchTemplates(
-      @Param("keyword") String keyword,
-      @Param("status") BoothStatus status,
-      Pageable pageable);
+    boolean existsByThumbnailPublicIdOrBackgroundMusicPublicId(
+            String thumbnailPublicId,
+            String backgroundMusicPublicId);
+
+    @Query("""
+            SELECT b FROM Booth b
+            WHERE b.isTemplate = true
+              AND (:keyword IS NULL
+                OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(b.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:status IS NULL OR b.status = :status)
+            """)
+    Page<Booth> searchTemplates(
+            @Param("keyword") String keyword,
+            @Param("status") BoothStatus status,
+            Pageable pageable);
 
   @Query("""
       SELECT b FROM Booth b

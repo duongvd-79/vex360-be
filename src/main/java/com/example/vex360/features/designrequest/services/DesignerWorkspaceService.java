@@ -28,6 +28,7 @@ import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
+import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
@@ -37,6 +38,7 @@ import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.enums.DesignRequestStatus;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -58,6 +60,7 @@ public class DesignerWorkspaceService {
     private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
     private final DesignRequestEligibilityService eligibilityService;
+    private final DesignDraftBenefitGuardService benefitGuardService;
 
     /**
      * Builds the workspace for an assigned request, including the current booth,
@@ -80,6 +83,7 @@ public class DesignerWorkspaceService {
                 .filter(draft -> draft.getVersionNumber() > WORKING_VERSION)
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
                 .orElse(null);
+        DesignDraft usageDraft = working == null ? latestSubmitted : working;
         return new DesignerWorkspaceResponseDTO(
                 request.getId(),
                 request.getStatus(),
@@ -95,7 +99,11 @@ public class DesignerWorkspaceService {
                 request.getReviewCount(),
                 boothMapper.toBoothResponseDTO(request.getBooth()),
                 toDraftResponse(working),
-                toDraftResponse(latestSubmitted));
+                toDraftResponse(latestSubmitted),
+                isEditable(request, working),
+                usageDraft == null
+                        ? benefitGuardService.getBaselineUsageResponse(request)
+                        : benefitGuardService.getUsageResponse(request, usageDraft));
     }
 
     /**
@@ -121,7 +129,7 @@ public class DesignerWorkspaceService {
         DesignRequest request = getAssignedRequest(designer, requestId);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(requestProductRepository
-                .searchAllowedProducts(requestId, normalizedKeyword, categoryId, pageable)
+                .searchAllowedProducts(requestId, ProductStatus.ACTIVE, normalizedKeyword, categoryId, pageable)
                 .map(item -> productMapper.toResponse(item.getProduct())));
     }
 
@@ -159,11 +167,27 @@ public class DesignerWorkspaceService {
         }
         DesignRequest request = designRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
+        requireAssignedDesigner(designer, request);
+        return request;
+    }
+
+    /** Loads and locks an assigned request for Designer mutations. */
+    @Transactional
+    public DesignRequest getAssignedRequestForUpdate(User designer, UUID requestId) {
+        if (designer == null || designer.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        DesignRequest request = designRequestRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
+        requireAssignedDesigner(designer, request);
+        return request;
+    }
+
+    private void requireAssignedDesigner(User designer, DesignRequest request) {
         if (request.getAssignedDesigner() == null
                 || !designer.getId().equals(request.getAssignedDesigner().getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
-        return request;
     }
 
     private DesignDraftWorkspaceResponseDTO toDraftResponse(DesignDraft draft) {
@@ -179,6 +203,14 @@ public class DesignerWorkspaceService {
                 draft.getVersionNumber(),
                 draft.getCreatedAt(),
                 new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas));
+    }
+
+    private boolean isEditable(DesignRequest request, DesignDraft working) {
+        return working != null
+                && working.getVersionNumber() == WORKING_VERSION
+                && (request.getStatus() == DesignRequestStatus.ASSIGNED
+                        || request.getStatus() == DesignRequestStatus.REVISION_REQUESTED)
+                && request.getCancellationStatus() != DesignRequestCancellationStatus.REQUESTED;
     }
 
     /**

@@ -48,6 +48,7 @@ import com.example.vex360.features.designrequest.events.DesignRequestCancellatio
 import com.example.vex360.features.designrequest.events.DesignRequestRevisionPromotedEvent;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -90,6 +91,10 @@ public class DesignRequestService {
     private final DesignRequestBaselineService baselineService;
     private final DesignDraftAssetService designDraftAssetService;
     private final DesignDraftSettingsService draftSettingsService;
+    private final DesignDraftCloneService draftCloneService;
+    private final DesignDraftRetentionService draftRetentionService;
+    private final DesignDraftGraphValidator draftGraphValidator;
+    private final DesignDraftBenefitGuardService draftBenefitGuardService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
 
@@ -365,10 +370,21 @@ public class DesignRequestService {
         DesignRequest request = getRequest(id);
         requireDesignerCanEdit(currentUser, request);
 
+        DesignDraft currentWorking = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() == 0)
+                .findFirst()
+                .orElse(null);
+        DesignDraftBenefitGuardService.Usage beforeUsage = draftBenefitGuardService.calculateUsage(currentWorking);
         DesignDraft workingDraft = buildDraft(request, draftRequest, 0);
-        request.getDrafts().removeIf(draft -> draft.getVersionNumber() == 0);
-        request.getDrafts().add(workingDraft);
+        draftGraphValidator.validateWorkingGraph(request, workingDraft);
+        draftBenefitGuardService.assertMutationAllowed(request, beforeUsage, workingDraft);
+        if (currentWorking == null) {
+            request.getDrafts().add(workingDraft);
+        } else {
+            replaceWorkingDraft(currentWorking, workingDraft);
+        }
         DesignRequest saved = designRequestRepository.save(request);
+        designRequestRepository.flush();
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         return toResponse(saved);
     }
@@ -392,6 +408,8 @@ public class DesignRequestService {
                 .findFirst()
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
 
+        draftGraphValidator.validateForSubmission(request, workingDraft);
+        draftBenefitGuardService.assertWithinSubmissionLimits(request, workingDraft);
         DesignRequestStatus previousStatus = request.getStatus();
         workingDraft.setVersionNumber(nextSubmittedVersion(request));
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
@@ -434,6 +452,7 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         request.setReviewNote(reviewNote);
+        draftCloneService.cloneLatestSubmittedToWorking(request);
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
         request.setRevisionQueuedAt(null);
         DesignRequest saved = designRequestRepository.save(request);
@@ -463,12 +482,18 @@ public class DesignRequestService {
 
         DesignDraft draft = designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(request.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        if (draft.getVersionNumber() == null || draft.getVersionNumber() <= 0) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        draftGraphValidator.validateForSubmission(request, draft);
+        draftBenefitGuardService.assertWithinSubmissionLimits(request, draft);
         DesignRequestStatus previousStatus = request.getStatus();
         applyDraftToBooth(request, draft);
         request.setStatus(DesignRequestStatus.APPROVED);
         request.setApprovedAt(LocalDateTime.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
+        draftRetentionService.retainApprovedDraft(saved, draft);
         designDraftAssetService.cleanupAfterApproval(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
         promoteOldestQueued(saved.getAssignedDesigner());
@@ -558,7 +583,7 @@ public class DesignRequestService {
             DesignRequest request,
             SubmitDesignDraftRequest draftRequest,
             int versionNumber) {
-        if (draftRequest == null || draftRequest.getPanoramas() == null || draftRequest.getPanoramas().isEmpty()) {
+        if (draftRequest == null || draftRequest.getPanoramas() == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
 
@@ -597,7 +622,7 @@ public class DesignRequestService {
                     .build();
             panoramas.add(panorama);
         }
-        if (defaultCount == 0) {
+        if (!panoramas.isEmpty() && defaultCount == 0) {
             panoramas.get(0).setIsDefault(true);
         }
 
@@ -629,6 +654,32 @@ public class DesignRequestService {
                 .filter(version -> version > 0)
                 .max(Integer::compareTo)
                 .orElse(0) + 1;
+    }
+
+    private void replaceWorkingDraft(DesignDraft target, DesignDraft source) {
+        target.setNote(source.getNote());
+        target.setBoothName(source.getBoothName());
+        target.setBoothDescription(source.getBoothDescription());
+        target.setDisplayTemplateKey(source.getDisplayTemplateKey());
+
+        boolean preserveThumbnailSnapshot = source.getThumbnailAction() == DesignDraftFileAction.KEEP
+                && target.getThumbnailAction() == DesignDraftFileAction.KEEP;
+        boolean preserveMusicSnapshot = source.getBackgroundMusicAction() == DesignDraftFileAction.KEEP
+                && target.getBackgroundMusicAction() == DesignDraftFileAction.KEEP;
+        target.setThumbnailAction(source.getThumbnailAction());
+        target.setThumbnailAsset(preserveThumbnailSnapshot && target.getThumbnailAsset() != null
+                ? target.getThumbnailAsset()
+                : source.getThumbnailAsset());
+        target.setBackgroundMusicAction(source.getBackgroundMusicAction());
+        target.setBackgroundMusicAsset(preserveMusicSnapshot && target.getBackgroundMusicAsset() != null
+                ? target.getBackgroundMusicAsset()
+                : source.getBackgroundMusicAsset());
+
+        target.getPanoramas().clear();
+        for (DesignDraftPanorama panorama : source.getPanoramas()) {
+            panorama.setDraft(target);
+            target.getPanoramas().add(panorama);
+        }
     }
 
     private void requireDesignerCanEdit(User currentUser, DesignRequest request) {
@@ -720,9 +771,8 @@ public class DesignRequestService {
         hotspot.setInfoContentType(contentType);
         hotspot.setName(resolveName(request.getName(), "Info"));
         switch (contentType) {
-            case NONE -> {
-                hotspot.setInfoText(trimToNull(request.getInfoText()));
-            }
+            case NONE -> hotspot.setInfoText(null);
+            case TEXT -> hotspot.setInfoText(requireText(request.getInfoText()));
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
             case IMAGE ->
                 hotspot.setMediaAsset(getMediaAsset(
@@ -811,6 +861,9 @@ public class DesignRequestService {
         }
         if (request.getMediaAssetId() != null) {
             return HotspotInfoContentType.IMAGE;
+        }
+        if (trimToNull(request.getInfoText()) != null) {
+            return HotspotInfoContentType.TEXT;
         }
         return HotspotInfoContentType.NONE;
     }
