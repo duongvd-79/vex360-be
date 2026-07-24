@@ -19,4 +19,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")
     long countUnreadByRoomIdAndUserId(UUID roomId, UUID userId);
 
+    @Query("SELECT COUNT(m) FROM ChatMessage m "
+            + "WHERE m.room.exhibitorUser.id = :exhibitorUserId AND m.sender.id != :exhibitorUserId AND m.readAt IS NULL")
+    long countUnreadForExhibitor(UUID exhibitorUserId);
+
 }

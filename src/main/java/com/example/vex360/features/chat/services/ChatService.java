@@ -7,7 +7,8 @@ import com.example.vex360.features.chat.entities.ChatMessage;
 import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
-import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.exceptions.AppException;
@@ -27,13 +28,14 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserService userService;
-    private final ExhibitionService exhibitionService;
+    private final ExhibitionRepository exhibitionRepository;
 
     // ── 1. Tạo hoặc lấy phòng chat ──────────────────────────────
     @Transactional
     public ChatRoomResponse getOrCreateRoom(UUID visitorId, GetOrCreateRoomRequest request) {
 
-        var exhibition = exhibitionService.getExhibitionEntityById(request.getExhibitionId());
+        Exhibition exhibition = exhibitionRepository.findByUuid(request.getExhibitionId())
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
         var exhibitorUser = userService.getUserEntityById(request.getExhibitorUserId());
 
