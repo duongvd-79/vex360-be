@@ -296,8 +296,8 @@ public class AnalyticsService {
         // Chặng 2: khoảng ngày mặc định = 30 ngày gần nhất nếu client không gửi
         LocalDate rangeEnd = endDate != null ? endDate : LocalDate.now();
         LocalDate rangeStart = startDate != null ? startDate : rangeEnd.minusDays(29);
-        LocalDateTime startDateTime = rangeStart.atStartOfDay();
-        LocalDateTime endDateTime = rangeEnd.atTime(LocalTime.MAX);
+        Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
 
         BoothAnalyticsDetailDTO.BoothSummary summary = toBoothSummary(booth);
 
@@ -500,8 +500,8 @@ public class AnalyticsService {
         // Chặng 2: khoảng ngày mặc định = 30 ngày gần nhất nếu client không gửi
         LocalDate rangeEnd = endDate != null ? endDate : LocalDate.now();
         LocalDate rangeStart = startDate != null ? startDate : rangeEnd.minusDays(29);
-        LocalDateTime startDateTime = rangeStart.atStartOfDay();
-        LocalDateTime endDateTime = rangeEnd.atTime(LocalTime.MAX);
+        Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
 
         // Chặng 3: chart tổng hợp theo ngày (view + tương tác) gộp mọi gian hàng
         List<ExhibitorDashboardOverviewDTO.ChartPoint> chart = new ArrayList<>();

@@ -58,8 +58,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Object[]> aggregateBoothDailyMetrics(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     @Query(value = """
             SELECT AVG(duration_seconds)
@@ -70,8 +70,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     Double averageBoothDurationSeconds(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // Lấy metadata_json của mọi lượt click (product/hotspot) để gom theo tên clickable ở tầng service
     @Query(value = """
@@ -83,8 +83,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<String> findBoothClickMetadata(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // Lấy danh sách thời lượng từng lượt rời booth để chia bucket histogram ở tầng service
     @Query(value = """
@@ -97,8 +97,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Integer> findBoothLeaveDurations(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // Mỗi dòng = 1 giờ trong ngày (0-23): [giờ, số lượt xem]
     @Query(value = """
@@ -113,8 +113,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Object[]> aggregateBoothViewsByHour(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // ===== Thống kê tổng hợp nhiều gian hàng (dashboard exhibitor) =====
 
@@ -132,8 +132,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Object[]> aggregateCompanyDailyMetrics(
             @Param("boothIds") List<UUID> boothIds,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // Tổng lượt xem của 1 gian hàng trong khoảng thời gian -- dùng để xếp hạng gian hàng nổi bật
     @Query(value = """
@@ -145,7 +145,7 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     long countBoothViews(
             @Param("boothId") UUID boothId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
 }
