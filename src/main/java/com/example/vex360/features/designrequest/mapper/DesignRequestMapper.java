@@ -12,6 +12,9 @@ import com.example.vex360.features.designrequest.dtos.response.DesignRequestResp
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
+
 /**
  * Maps design-request aggregates to API response DTOs without applying business
  * rules or mutating entities.
@@ -40,7 +43,18 @@ public interface DesignRequestMapper {
     @Mapping(target = "remainingDesignActions", ignore = true)
     DesignRequestResponseDTO toResponse(DesignRequest request);
 
+    @Mapping(target = "mediaAssetCount", expression = "java(mediaAssetCount(draft))")
+    @Mapping(target = "mediaAssetTotalBytes", expression = "java(mediaAssetTotalBytes(draft))")
     DesignDraftResponseDTO toDraftResponse(DesignDraft draft);
+
+    @Mapping(target = "draftId", source = "draft.id")
+    @Mapping(target = "assetId", source = "asset.id")
+    @Mapping(target = "url", source = "asset.url")
+    @Mapping(target = "fileName", source = "asset.fileName")
+    @Mapping(target = "mimeType", source = "asset.mimeType")
+    @Mapping(target = "fileSize", source = "asset.fileSize")
+    @Mapping(target = "assetType", source = "asset.assetType")
+    DesignDraftMediaAssetResponseDTO toMediaAssetResponse(DesignDraftMediaAsset mediaAsset);
 
     @Named("latestDraft")
     default DesignDraftResponseDTO toLatestDraft(List<DesignDraft> drafts) {
@@ -60,5 +74,19 @@ public interface DesignRequestMapper {
         return (int) request.getProducts().stream()
                 .filter(product -> Boolean.TRUE.equals(product.getRequiredFromBaseline()) == required)
                 .count();
+    }
+
+    default int mediaAssetCount(DesignDraft draft) {
+        return draft.getMediaAssets() == null ? 0 : draft.getMediaAssets().size();
+    }
+
+    default long mediaAssetTotalBytes(DesignDraft draft) {
+        if (draft.getMediaAssets() == null) {
+            return 0;
+        }
+        return draft.getMediaAssets().stream()
+                .filter(media -> media.getAsset() != null && media.getAsset().getFileSize() != null)
+                .mapToLong(media -> media.getAsset().getFileSize())
+                .sum();
     }
 }

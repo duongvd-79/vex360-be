@@ -25,6 +25,7 @@ import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
@@ -127,5 +128,6 @@ class DesignRequestBaselineServiceUnitTest {
         ArgumentCaptor<DesignDraftAsset> asset = ArgumentCaptor.forClass(DesignDraftAsset.class);
         verify(assetRepository).save(asset.capture());
         assertEquals(DesignDraftAssetSource.BOOTH_BASELINE, asset.getValue().getAssetSource());
+        assertEquals(DesignDraftAssetQuotaState.NONE, asset.getValue().getQuotaState());
     }
 }

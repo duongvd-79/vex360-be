@@ -1,8 +1,9 @@
 package com.example.vex360.features.analytics.services;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -167,8 +168,8 @@ public class AnalyticsService {
         // Chặng 2: xác định khoảng ngày (mặc định theo lịch triển lãm nếu client không gửi)
         LocalDate rangeStart = startDate != null ? startDate : exhibition.getStartDate();
         LocalDate rangeEnd = endDate != null ? endDate : exhibition.getEndDate();
-        LocalDateTime startDateTime = rangeStart.atStartOfDay();
-        LocalDateTime endDateTime = rangeEnd.atTime(LocalTime.MAX);
+        Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
 
         // Chặng 3: gọi query lấy dữ liệu thô
         Integer exhibitionId = exhibition.getId();

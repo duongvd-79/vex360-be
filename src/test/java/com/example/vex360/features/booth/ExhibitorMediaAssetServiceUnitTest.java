@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,6 +37,7 @@ import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -60,6 +62,8 @@ class ExhibitorMediaAssetServiceUnitTest {
 
     @Mock
     private CompanyStorageService companyStorageService;
+    @Mock
+    private DesignAssetReferenceService assetReferenceService;
 
     private ExhibitorMediaAssetService mediaAssetService;
 
@@ -76,8 +80,8 @@ class ExhibitorMediaAssetServiceUnitTest {
                 companyService,
                 companyStorageService,
                 cloudService,
-                boothMapper
-        );
+                boothMapper,
+                assetReferenceService);
 
         currentUser = User.builder().id(UUID.randomUUID()).email("user@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).name("Company Corp").build();
@@ -97,7 +101,7 @@ class ExhibitorMediaAssetServiceUnitTest {
     void testGetMediaAssets_Success() {
         when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
         Pageable pageable = PageRequest.of(0, 10);
-        Page<MediaAsset> page = new PageImpl<>(java.util.List.of(mediaAsset));
+        Page<MediaAsset> page = new PageImpl<>(List.of(mediaAsset));
         when(mediaAssetRepository.findByCompanyId(company.getId(), pageable)).thenReturn(page);
 
         PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, pageable);
@@ -273,7 +277,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         assertNotNull(response);
         assertEquals(assetId, response.getId());
         verify(mediaAssetRepository).delete(mediaAsset);
-        verify(cloudService).delete("public-123", "image");
+        verify(assetReferenceService).scheduleCleanup("public-123", "image");
     }
 
     @Test
@@ -288,7 +292,7 @@ class ExhibitorMediaAssetServiceUnitTest {
 
         assertNotNull(response);
         verify(mediaAssetRepository).delete(mediaAsset);
-        verify(cloudService).delete("public-123", "video");
+        verify(assetReferenceService).scheduleCleanup("public-123", "video");
     }
 
     @Test

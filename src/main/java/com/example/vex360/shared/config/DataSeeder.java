@@ -3,9 +3,10 @@ package com.example.vex360.shared.config;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -409,7 +410,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .orderCode(orderCode()).amount(new BigDecimal("13500000"))
                                 .systemFee(new BigDecimal("1350000")).organizerPayout(new BigDecimal("12150000"))
                                 .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-PAY-001")
-                                .status(PaymentStatus.PAID).paidAt(LocalDateTime.now().minusDays(1)).build());
+                                .status(PaymentStatus.PAID).paidAt(Instant.now().minus(1, ChronoUnit.DAYS)).build());
                 paymentRepository.save(Payment.builder()
                                 .exhibitorRegistration(reg2).paymentType(PaymentType.EXHIBITION_REGISTRATION)
                                 .orderCode(orderCode()).amount(new BigDecimal("5000000"))
@@ -600,7 +601,7 @@ public class DataSeeder implements ApplicationRunner {
                 storagePackageOrderRepository.save(StoragePackageOrder.builder()
                                 .company(company1).storagePackage(pkg5GB).orderCode(orderCode())
                                 .amountVnd(pkg5GB.getPriceVnd()).status(StoragePackageOrderStatus.PAID)
-                                .paidAt(LocalDateTime.now().minusDays(3))
+                                .paidAt(Instant.now().minus(3, ChronoUnit.DAYS))
                                 .checkoutUrl("https://pay.payos.vn/web/seed-paid").build());
                 storagePackageOrderRepository.save(StoragePackageOrder.builder()
                                 .company(company2).storagePackage(pkg1GB).orderCode(orderCode())
@@ -651,7 +652,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .accountAction(PartnershipAccountAction.UPGRADE_EXISTING_USER)
                                 .message("Tôi đang là visitor, muốn nâng cấp thành exhibitor.")
                                 .acceptedPolicy(Boolean.TRUE).status(PartnershipRequestStatus.APPROVED)
-                                .approvedUser(visitor).reviewedAt(LocalDateTime.now().minusDays(5)).build());
+                                .approvedUser(visitor).reviewedAt(Instant.now().minus(5, ChronoUnit.DAYS)).build());
                 partnershipRequestRepository.save(PartnershipRequest.builder()
                                 .requesterName("Trịnh Bị Từ Chối").requesterEmail("guest.partner3@example.com")
                                 .requesterPhoneNumber("0907888888").organizationName("Công ty TNHH Chưa Đủ Điều Kiện")
@@ -660,7 +661,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .message("Chúng tôi muốn tham gia nền tảng.")
                                 .acceptedPolicy(Boolean.TRUE).status(PartnershipRequestStatus.REJECTED)
                                 .reviewNote("Thông tin doanh nghiệp chưa đầy đủ, vui lòng bổ sung giấy phép.")
-                                .reviewedAt(LocalDateTime.now().minusDays(4)).build());
+                                .reviewedAt(Instant.now().minus(4, ChronoUnit.DAYS)).build());
                 partnershipRequestRepository.save(PartnershipRequest.builder()
                                 .requesterName("Trịnh Bị Từ Chối").requesterEmail("guest.partner3@example.com")
                                 .requesterPhoneNumber("0907888888").organizationName("Công ty TNHH Chưa Đủ Điều Kiện")
@@ -668,14 +669,14 @@ public class DataSeeder implements ApplicationRunner {
                                 .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                                 .message("Đơn cũ đã bị thay thế bởi đơn gửi lại sau đó.")
                                 .acceptedPolicy(Boolean.TRUE).status(PartnershipRequestStatus.SUPERSEDED)
-                                .reviewedAt(LocalDateTime.now().minusDays(6)).build());
+                                .reviewedAt(Instant.now().minus(6, ChronoUnit.DAYS)).build());
                 log.info("[SEED] Đã tạo 5 partnership request "
                                 + "(phủ đủ PartnershipRequestStatus + PartnershipAccountAction)");
 
                 // ---------- 19. BOOTH REVIEW REQUEST ----------
                 boothReviewRequestRepository.save(BoothReviewRequest.builder()
                                 .booth(booth1).status(BoothReviewStatus.APPROVED).submittedBy(exhibitor1)
-                                .reviewedBy(organizer).reviewedAt(LocalDateTime.now().minusDays(1))
+                                .reviewedBy(organizer).reviewedAt(Instant.now().minus(1, ChronoUnit.DAYS))
                                 .versionNumber(1).build());
                 boothReviewRequestRepository.save(BoothReviewRequest.builder()
                                 .booth(booth2).status(BoothReviewStatus.PENDING).submittedBy(exhibitor2)
@@ -683,7 +684,7 @@ public class DataSeeder implements ApplicationRunner {
                 // Phủ BoothReviewStatus.REJECTED
                 boothReviewRequestRepository.save(BoothReviewRequest.builder()
                                 .booth(booth2).status(BoothReviewStatus.REJECTED).submittedBy(exhibitor2)
-                                .reviewedBy(organizer).reviewedAt(LocalDateTime.now().minusDays(2))
+                                .reviewedBy(organizer).reviewedAt(Instant.now().minus(2, ChronoUnit.DAYS))
                                 .rejectedReason("Hình ảnh gian hàng chưa đạt chuẩn độ phân giải tối thiểu.")
                                 .versionNumber(1).build());
                 log.info("[SEED] Đã tạo 3 booth review request (phủ đủ BoothReviewStatus)");
@@ -696,7 +697,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .assignedDesigner(designer).status(DesignRequestStatus.ASSIGNED)
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Cần thiết kế gian hàng tông xanh công nghệ, tối giản.")
-                                .reviewCount(0).assignedAt(LocalDateTime.now().minusDays(1)).build());
+                                .reviewCount(0).assignedAt(Instant.now().minus(1, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)
                                 .status(DesignRequestStatus.PENDING)
@@ -708,33 +709,33 @@ public class DataSeeder implements ApplicationRunner {
                                 .assignedDesigner(designer).status(DesignRequestStatus.DRAFT_SUBMITTED)
                                 .mode(DesignRequestMode.REDESIGN)
                                 .note("Designer đã nộp bản thiết kế đầu tiên.")
-                                .reviewCount(0).assignedAt(LocalDateTime.now().minusDays(3)).build());
+                                .reviewCount(0).assignedAt(Instant.now().minus(3, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)
                                 .assignedDesigner(designer).status(DesignRequestStatus.REVISION_REQUESTED)
                                 .mode(DesignRequestMode.REDESIGN)
                                 .note("Yêu cầu chỉnh lại bố cục khu trưng bày.")
                                 .reviewNote("Vui lòng tăng khoảng trống lối đi và đổi tông màu sáng hơn.")
-                                .reviewCount(1).assignedAt(LocalDateTime.now().minusDays(5)).build());
+                                .reviewCount(1).assignedAt(Instant.now().minus(5, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)
                                 .assignedDesigner(designer).status(DesignRequestStatus.APPROVED)
                                 .mode(DesignRequestMode.REDESIGN)
                                 .note("Thiết kế đã được duyệt và áp dụng.")
-                                .reviewCount(2).assignedAt(LocalDateTime.now().minusDays(10))
-                                .approvedAt(LocalDateTime.now().minusDays(7)).build());
+                                .reviewCount(2).assignedAt(Instant.now().minus(10, ChronoUnit.DAYS))
+                                .approvedAt(Instant.now().minus(7, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth2).company(company2).requestedBy(exhibitor2)
                                 .status(DesignRequestStatus.CANCELED)
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Exhibitor tự huỷ do đổi kế hoạch.")
-                                .reviewCount(0).canceledAt(LocalDateTime.now().minusDays(2)).build());
+                                .reviewCount(0).canceledAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus + DesignRequestMode)");
 
                 // ---------- 21. CHAT ROOM + MESSAGES ----------
                 ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
                                 .exhibition(exhibition).exhibitorUser(exhibitor1).visitorUser(visitor)
-                                .lastMessageAt(LocalDateTime.now().minusMinutes(5))
+                                .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
                                 .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
                 chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
                                 .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không ạ?")
@@ -783,25 +784,30 @@ public class DataSeeder implements ApplicationRunner {
                 // <30s, 30-60s, 1-3 phút, 3-5 phút, >5 phút.
                 int[] boothDurationsSeconds = { 15, 45, 90, 150, 240, 340, 20, 100 };
                 int totalAnalyticsEvents = 0;
+                ZoneId seedZone = ZoneId.systemDefault();
                 for (int i = 0; i < daysAgo.length; i++) {
-                        LocalDateTime day = LocalDateTime.now().minusDays(daysAgo[i]).withMinute(0);
+                        Instant day = Instant.now().minus(daysAgo[i], ChronoUnit.DAYS);
                         for (int v = 0; v < viewsPerDay[i]; v++) {
                                 int hour = hourSlots[(i + v) % hourSlots.length];
-                                LocalDateTime viewTime = day.withHour(hour).plusMinutes(v);
+                                Instant viewTime = day.atZone(seedZone)
+                                                .withHour(hour).withMinute(v).withSecond(0).withNano(0)
+                                                .toInstant();
                                 seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, visitor, exhibition, booth1, null,
                                                 null, viewTime);
                                 // BOOTH_LEAVE kèm thời lượng -> phủ histogram "thời gian ở trong booth"
                                 int duration = boothDurationsSeconds[(i + v) % boothDurationsSeconds.length];
                                 seedAnalyticsEvent(AnalyticsEventType.BOOTH_LEAVE, visitor, exhibition, booth1, null,
-                                                duration, viewTime.plusSeconds(duration));
+                                                duration, viewTime.plus(duration, ChronoUnit.SECONDS));
                                 totalAnalyticsEvents += 2;
                         }
+                        Instant tenAm = day.atZone(seedZone).withHour(10).withMinute(0).withSecond(0).withNano(0)
+                                        .toInstant();
                         for (int v = 0; v < visitsPerDay[i]; v++) {
                                 seedAnalyticsEvent(AnalyticsEventType.ENTER_EXHIBITION, visitor, exhibition, null, null,
-                                                null, day.withHour(10).plusMinutes(v * 3L));
+                                                null, tenAm.plus(v * 3L, ChronoUnit.MINUTES));
                                 // LEAVE kèm thời lượng (giây) để tính "thời lượng visit trung bình"
                                 seedAnalyticsEvent(AnalyticsEventType.LEAVE_EXHIBITION, visitor, exhibition, null, null,
-                                                480 + v * 40, day.withHour(10).plusMinutes(v * 3L + 6));
+                                                480 + v * 40, tenAm.plus(v * 3L + 6, ChronoUnit.MINUTES));
                                 totalAnalyticsEvents += 2;
                         }
                 }
@@ -819,7 +825,7 @@ public class DataSeeder implements ApplicationRunner {
 
                 // Phủ nốt CHAT_INITIATED
                 seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED, visitor, exhibition, booth1, null, 0,
-                                LocalDateTime.now().minusDays(2).withHour(12));
+                                Instant.now().minus(2, ChronoUnit.DAYS));
                 totalAnalyticsEvents += 1;
                 log.info("[SEED] Đã tạo {} analytics event (rải qua {} ngày, phủ đủ AnalyticsEventType)",
                                 totalAnalyticsEvents, daysAgo.length);
@@ -882,7 +888,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .startDate(startDate).endDate(endDate).estimatedBooths(estimatedBooths)
                                 .status(status)
                                 .reviewedBy(reviewedBy)
-                                .reviewedAt(reviewedBy != null ? LocalDateTime.now().minusDays(2) : null)
+                                .reviewedAt(reviewedBy != null ? Instant.now().minus(2, ChronoUnit.DAYS) : null)
                                 .rejectedReason(rejectedReason)
                                 .rejectionCount(rejectedReason != null ? 1 : 0)
                                 .build());
@@ -1012,12 +1018,12 @@ public class DataSeeder implements ApplicationRunner {
          * liệu trải qua nhiều ngày cho biểu đồ.
          */
         private void seedAnalyticsEvent(AnalyticsEventType type, User user, Exhibition exhibition,
-                        Booth booth, Product product, Integer durationSeconds, LocalDateTime when) {
+                        Booth booth, Product product, Integer durationSeconds, Instant when) {
                 seedAnalyticsEvent(type, user, exhibition, booth, product, durationSeconds, when, null);
         }
 
         private void seedAnalyticsEvent(AnalyticsEventType type, User user, Exhibition exhibition,
-                        Booth booth, Product product, Integer durationSeconds, LocalDateTime when,
+                        Booth booth, Product product, Integer durationSeconds, Instant when,
                         String metadataJson) {
                 AnalyticsEvent event = AnalyticsEvent.builder()
                                 .user(user).exhibition(exhibition).booth(booth).product(product)
@@ -1040,9 +1046,12 @@ public class DataSeeder implements ApplicationRunner {
         private int seedBoothClicks(User user, Exhibition exhibition, Booth booth, AnalyticsEventType type,
                         String clickableName, Product product, int count) {
                 String metadata = clickMetadata(clickableName);
+                ZoneId zone = ZoneId.systemDefault();
                 for (int c = 0; c < count; c++) {
-                        LocalDateTime when = LocalDateTime.now().minusDays(1 + (c % 6)).withHour(9 + (c % 10))
-                                        .plusMinutes(c);
+                        Instant when = Instant.now().minus(1 + (c % 6), ChronoUnit.DAYS)
+                                        .atZone(zone)
+                                        .withHour(9 + (c % 10)).withMinute(c % 60).withSecond(0).withNano(0)
+                                        .toInstant();
                         seedAnalyticsEvent(type, user, exhibition, booth, product, null, when, metadata);
                 }
                 return count;
@@ -1079,8 +1088,7 @@ public class DataSeeder implements ApplicationRunner {
                 try {
                         Map<?, ?> params = ObjectUtils.asMap("folder", folder, "resource_type", "auto");
                         @SuppressWarnings("unchecked")
-                        Map<String, Object> result = (Map<String, Object>) cloudinary.uploader().upload(remoteUrl,
-                                        params);
+                        Map<String, Object> result = cloudinary.uploader().upload(remoteUrl, params);
 
                         String url = (String) result.get("secure_url");
                         String publicId = (String) result.get("public_id");

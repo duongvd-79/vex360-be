@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +44,6 @@ class BoothProductCleanupServiceUnitTest {
 
         service.removeHotspotsForProduct(product);
 
-        verify(hotspotRepository, never()).deleteAll(org.mockito.ArgumentMatchers.anyList());
+        verify(hotspotRepository, never()).deleteAll(ArgumentMatchers.anyList());
     }
 }

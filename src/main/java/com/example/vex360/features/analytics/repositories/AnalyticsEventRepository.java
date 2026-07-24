@@ -1,6 +1,6 @@
 package com.example.vex360.features.analytics.repositories;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,8 +26,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Object[]> aggregateDailyMetrics(
             @Param("exhibitionId") Integer exhibitionId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     @Query(value = """
             SELECT AVG(duration_seconds)
@@ -38,8 +38,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     Double averageVisitDurationSeconds(
             @Param("exhibitionId") Integer exhibitionId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     // ===== Thống kê cấp gian hàng (booth) cho exhibitor =====
 

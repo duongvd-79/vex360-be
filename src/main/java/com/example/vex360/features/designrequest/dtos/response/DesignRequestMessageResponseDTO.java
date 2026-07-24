@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.shared.enums.Role;
@@ -19,5 +19,5 @@ public class DesignRequestMessageResponseDTO {
     private String senderName;
     private Role senderRole;
     private String message;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

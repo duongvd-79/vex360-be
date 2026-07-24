@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.exhibition.entities.Payment;
@@ -42,7 +43,7 @@ class StoragePaymentServiceUnitTest {
 
         assertEquals("checkout-url", checkoutUrl);
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository, org.mockito.Mockito.times(2)).save(paymentCaptor.capture());
+        verify(paymentRepository, Mockito.times(2)).save(paymentCaptor.capture());
         assertEquals(7, paymentCaptor.getValue().getStoragePackageOrderId());
     }
 }

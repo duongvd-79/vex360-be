@@ -1,7 +1,7 @@
 package com.example.vex360.features.exhibition.dtos.response;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,7 +22,7 @@ public class ExhibitorRegistrationResponseDTO {
     private Integer exhibitionPackageId;
     private UUID companyUserId;
     private String status;
-    private LocalDateTime submittedAt;
+    private Instant submittedAt;
     private String checkoutUrl;
     private String paymentStatus;
     private Long orderCode;

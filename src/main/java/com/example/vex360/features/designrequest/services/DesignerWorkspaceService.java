@@ -16,6 +16,7 @@ import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftHotspotRequest;
 import com.example.vex360.features.designrequest.dtos.request.DesignDraftBoothSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftWorkspaceResponseDTO;
@@ -23,6 +24,7 @@ import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspace
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -32,6 +34,7 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -59,6 +62,7 @@ public class DesignerWorkspaceService {
     private final ProductMapper productMapper;
     private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
+    private final CompanyStorageService storageService;
     private final DesignRequestEligibilityService eligibilityService;
     private final DesignDraftBenefitGuardService benefitGuardService;
 
@@ -103,7 +107,8 @@ public class DesignerWorkspaceService {
                 isEditable(request, working),
                 usageDraft == null
                         ? benefitGuardService.getBaselineUsageResponse(request)
-                        : benefitGuardService.getUsageResponse(request, usageDraft));
+                        : benefitGuardService.getUsageResponse(request, usageDraft),
+                storageService.getUsage(request.getCompany()));
     }
 
     /**
@@ -126,7 +131,6 @@ public class DesignerWorkspaceService {
             String keyword,
             UUID categoryId,
             Pageable pageable) {
-        DesignRequest request = getAssignedRequest(designer, requestId);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(requestProductRepository
                 .searchAllowedProducts(requestId, ProductStatus.ACTIVE, normalizedKeyword, categoryId, pageable)
@@ -191,6 +195,7 @@ public class DesignerWorkspaceService {
     }
 
     private DesignDraftWorkspaceResponseDTO toDraftResponse(DesignDraft draft) {
+
         if (draft == null) {
             return null;
         }
@@ -198,11 +203,24 @@ public class DesignerWorkspaceService {
                 .sorted(Comparator.comparing(DesignDraftPanorama::getOrderIndex))
                 .map(this::toPanoramaRequest)
                 .toList();
+        List<SubmitDesignDraftMediaAssetRequest> mediaAssets = draft.getMediaAssets() == null ? List.of()
+                : draft.getMediaAssets().stream()
+                        .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
+                        .map(this::toMediaAssetRequest)
+                        .toList();
         return new DesignDraftWorkspaceResponseDTO(
                 draft.getId(),
                 draft.getVersionNumber(),
                 draft.getCreatedAt(),
-                new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas));
+                new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas, mediaAssets));
+    }
+
+    private SubmitDesignDraftMediaAssetRequest toMediaAssetRequest(DesignDraftMediaAsset mediaAsset) {
+        return new SubmitDesignDraftMediaAssetRequest(
+                mediaAsset.getId(),
+                mediaAsset.getAsset() != null ? mediaAsset.getAsset().getId() : null,
+                mediaAsset.getTitle(),
+                mediaAsset.getSortOrder());
     }
 
     private boolean isEditable(DesignRequest request, DesignDraft working) {
@@ -263,7 +281,8 @@ public class DesignerWorkspaceService {
                 toDraftResponse(latest),
                 required,
                 optional,
-                media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList());
+                media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList(),
+                storageService.getUsage(company));
     }
 
     private DesignDraftBoothSettingsRequest toSettings(DesignDraft draft) {

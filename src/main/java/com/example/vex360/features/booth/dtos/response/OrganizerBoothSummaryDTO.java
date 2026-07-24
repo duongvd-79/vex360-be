@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.example.vex360.features.booth.enums.BoothStatus;
@@ -29,5 +29,5 @@ public class OrganizerBoothSummaryDTO {
     private Long backgroundMusicFileSize;
     private String displayTemplateKey;
     private BoothStatus status;
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 }

@@ -12,7 +12,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
@@ -77,8 +80,8 @@ class PartnershipRequestServiceUnitTest {
                 mailService,
                 Mappers.getMapper(PartnershipRequestMapper.class));
 
-        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "backendBaseUrl", "http://localhost:8080");
-        org.springframework.test.util.ReflectionTestUtils.setField(partnershipRequestService, "partnershipFrontendUrl", "http://localhost:3000/register");
+        ReflectionTestUtils.setField(partnershipRequestService, "backendBaseUrl", "http://localhost:8080");
+        ReflectionTestUtils.setField(partnershipRequestService, "partnershipFrontendUrl", "http://localhost:3000/register");
 
         user = User.builder()
                 .id(UUID.randomUUID())
@@ -764,7 +767,7 @@ class PartnershipRequestServiceUnitTest {
                 .id(requestId)
                 .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                 .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .build();
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
@@ -786,7 +789,7 @@ class PartnershipRequestServiceUnitTest {
                 .id(requestId)
                 .accountAction(PartnershipAccountAction.CREATE_NEW_ACCOUNT)
                 .status(PartnershipRequestStatus.AWAITING_VERIFICATION)
-                .createdAt(LocalDateTime.now().minusHours(25))
+                .createdAt(Instant.now().minus(25, ChronoUnit.HOURS))
                 .build();
 
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));

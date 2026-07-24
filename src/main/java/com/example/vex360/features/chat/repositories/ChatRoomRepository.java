@@ -2,7 +2,7 @@ package com.example.vex360.features.chat.repositories;
 
 import com.example.vex360.features.chat.entities.ChatRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -29,6 +29,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
             """, nativeQuery = true)
     List<Object[]> countDailyChats(
             @Param("exhibitionId") Integer exhibitionId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 }

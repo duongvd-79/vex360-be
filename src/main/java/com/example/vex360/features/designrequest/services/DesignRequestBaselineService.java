@@ -17,6 +17,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
@@ -152,15 +153,16 @@ public class DesignRequestBaselineService {
         }
         return assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId)
                 .orElseGet(() -> assetRepository.save(DesignDraftAsset.builder()
-                .designRequest(request)
-                .uploadedBy(request.getRequestedBy())
-                .url(url)
-                .publicId(publicId)
-                .fileName(fileName)
-                .mimeType(null)
-                .fileSize(fileSize == null ? 0L : fileSize)
-                .assetType(type)
-                .assetSource(DesignDraftAssetSource.BOOTH_BASELINE)
-                .build()));
+                        .designRequest(request)
+                        .uploadedBy(request.getRequestedBy())
+                        .url(url)
+                        .publicId(publicId)
+                        .fileName(fileName)
+                        .mimeType(null)
+                        .fileSize(fileSize == null ? 0L : fileSize)
+                        .assetType(type)
+                        .assetSource(DesignDraftAssetSource.BOOTH_BASELINE)
+                        .quotaState(DesignDraftAssetQuotaState.NONE)
+                        .build()));
     }
 }

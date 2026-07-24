@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -116,7 +117,7 @@ class BoothDesignServiceUnitTest {
 
         verify(hotspotRepository).clearTargetsForPanoramas(List.of(oldDesignerPanorama.getId()));
         verify(panoramaRepository).deleteAll(List.of(oldDesignerPanorama));
-        verify(panoramaImageCleanupService).scheduleCleanup(java.util.Set.of());
+        verify(panoramaImageCleanupService).scheduleCleanup(Set.of());
 
         ArgumentCaptor<Panorama> panoramaCaptor = ArgumentCaptor.forClass(Panorama.class);
         verify(panoramaRepository).save(panoramaCaptor.capture());

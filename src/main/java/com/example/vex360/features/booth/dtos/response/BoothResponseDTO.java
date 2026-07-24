@@ -1,6 +1,6 @@
 package com.example.vex360.features.booth.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,8 +31,8 @@ public class BoothResponseDTO {
     private String displayTemplateKey;
     private BoothListingPriority listingPriority;
     private BoothStatus status;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
     private String companyName;
     private String companyIndustry;
     private String companyEmail;

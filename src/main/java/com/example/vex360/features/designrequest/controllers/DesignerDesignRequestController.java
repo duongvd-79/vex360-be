@@ -29,15 +29,18 @@ import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
+import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPreviewResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
+
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
@@ -216,7 +219,12 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
     @PostMapping(value = "/{id}/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload panorama cho bản thiết kế", description = "Upload một ảnh panorama staging thuộc design request đang ở trạng thái ASSIGNED hoặc REVISION_REQUESTED. Chấp nhận JPEG, PNG hoặc WEBP tối đa 10 MB; dung lượng được tính vào quota của company Exhibitor. Response trả về assetId, URL và imageKey để dùng khi lưu draft.")
+    /*
+     * @Operation(summary = "Upload panorama cho bản thiết kế", description =
+     * "Upload một ảnh panorama staging thuộc design request đang ở trạng thái ASSIGNED hoặc REVISION_REQUESTED. Chấp nhận JPEG, PNG hoặc WEBP tối đa 10 MB; dung lượng được tính vào quota của company Exhibitor. Response trả về assetId, URL và imageKey để dùng khi lưu draft."
+     * )
+     */
+    @Operation(summary = "Upload staging asset", description = "Uploads an asset for an ASSIGNED or REVISION_REQUESTED design request. MEDIA_ATTACHMENT accepts JPEG, PNG, or MP4 up to 10 MB. Its bytes are reserved and become used storage only when the Exhibitor accepts the media during approval.")
     public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> uploadAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
@@ -243,7 +251,6 @@ public class DesignerDesignRequestController extends BaseController {
         return ok(designDraftAssetService.getAssets(userDetails.getUser(), id, pageable));
     }
 
-
     @Deprecated(since = "designer granular draft API")
     @PutMapping("/{id}/working-draft")
     @Operation(summary = "Lưu working draft đang thiết kế", description = "Tạo mới hoặc thay thế working draft mutable của request với version 0 mà chưa gửi cho Exhibitor. Dùng cho autosave khi request ở ASSIGNED hoặc REVISION_REQUESTED. Các staging asset không còn được working draft hay submitted draft tham chiếu sẽ được tự động dọn dẹp và hoàn quota.")
@@ -260,5 +267,39 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         return ok(designRequestService.submitWorkingDraft(userDetails.getUser(), id));
+    }
+
+    @PostMapping("/{id}/working-draft/media-assets")
+    /*
+     * @Operation(summary = "Thêm media asset đính kèm vào working draft",
+     * description =
+     * "Thêm một tệp media (ảnh, video, audio, PDF, file 3D) đã upload làm media asset đính kèm cho draft."
+     * )
+     */
+    @Operation(summary = "Add review media to the working draft", description = "Adds an uploaded MEDIA_ATTACHMENT to the review list. Only JPEG, PNG, and MP4 are supported; audio, PDF, and 3D models are outside the current scope.")
+    public ResponseEntity<ApiResponse<DesignDraftMediaAssetResponseDTO>> addMediaAsset(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody SubmitDesignDraftMediaAssetRequest request) {
+        return created(draftEditorService.addMediaAsset(userDetails.getUser(), id, request));
+    }
+
+    @DeleteMapping("/{id}/working-draft/media-assets/{mediaAssetId}")
+    @Operation(summary = "Xóa media asset đính kèm khỏi working draft", description = "Xóa tệp media asset đính kèm khỏi working draft.")
+    public ResponseEntity<ApiResponse<Void>> removeMediaAsset(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID mediaAssetId) {
+        draftEditorService.removeMediaAsset(userDetails.getUser(), id, mediaAssetId);
+        return ok(null);
+    }
+
+    @PutMapping("/{id}/working-draft/media-assets/reorder")
+    @Operation(summary = "Sắp xếp danh sách media asset đính kèm trong working draft", description = "Cập nhật thứ tự hiển thị danh sách media asset đính kèm.")
+    public ResponseEntity<ApiResponse<List<DesignDraftMediaAssetResponseDTO>>> reorderMediaAssets(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @RequestBody List<UUID> orderedMediaAssetIds) {
+        return ok(draftEditorService.reorderMediaAssets(userDetails.getUser(), id, orderedMediaAssetIds));
     }
 }

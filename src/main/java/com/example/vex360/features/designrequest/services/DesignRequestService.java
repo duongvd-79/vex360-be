@@ -1,6 +1,6 @@
 package com.example.vex360.features.designrequest.services;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,6 +49,8 @@ import com.example.vex360.features.designrequest.events.DesignRequestRevisionPro
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -68,6 +70,14 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
+import java.util.Locale;
+
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
+import com.example.vex360.features.company.services.CompanyStorageService;
+import com.example.vex360.features.designrequest.dtos.request.ApproveDesignDraftRequest;
+import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
+
 /**
  * Orchestrates the complete booth design-request lifecycle across Exhibitor,
  * Admin, and Designer roles. The service enforces status transitions, booth
@@ -81,6 +91,8 @@ public class DesignRequestService {
 
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;
+    private final MediaAssetRepository mediaAssetRepository;
+    private final CompanyStorageService storageService;
     private final DesignRequestMapper designRequestMapper;
     private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
@@ -242,7 +254,7 @@ public class DesignRequestService {
         DesignRequestStatus previousStatus = request.getStatus();
         request.setStatus(DesignRequestStatus.CANCELED);
         request.setQuotaCharged(false);
-        request.setCanceledAt(LocalDateTime.now());
+        request.setCanceledAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
@@ -271,7 +283,7 @@ public class DesignRequestService {
         }
         request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
         request.setCancellationReason(cancellationReason);
-        request.setCancellationRequestedAt(LocalDateTime.now());
+        request.setCancellationRequestedAt(Instant.now());
         DesignRequest saved = designRequestRepository.save(request);
         publishCancellationChanged(saved, currentUser);
         return toResponse(saved);
@@ -288,14 +300,17 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
         request.setCancellationResolutionNote(trimToNull(note));
-        request.setCancellationResolvedAt(LocalDateTime.now());
+        request.setCancellationResolvedAt(Instant.now());
         if (approve) {
             DesignRequestStatus previousStatus = request.getStatus();
             request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
             request.setStatus(DesignRequestStatus.CANCELED);
-            request.setCanceledAt(LocalDateTime.now());
+            request.setCanceledAt(Instant.now());
             request.getBooth().setStatus(BoothStatus.DRAFT);
+            request.getDrafts().clear();
+            designDraftRepository.flush();
             DesignRequest saved = designRequestRepository.save(request);
+            designDraftAssetService.cleanupAfterApproval(saved);
             publishStatusChanged(saved, null, previousStatus);
             publishCancellationChanged(saved, null);
             promoteOldestQueued(request.getAssignedDesigner());
@@ -340,7 +355,7 @@ public class DesignRequestService {
 
         DesignRequestStatus previousStatus = request.getStatus();
         request.setAssignedDesigner(designer);
-        request.setAssignedAt(LocalDateTime.now());
+        request.setAssignedAt(Instant.now());
         request.setStatus(DesignRequestStatus.ASSIGNED);
         request.getBooth().setStatus(BoothStatus.DESIGNING);
         baselineService.createWorkingBaseline(request);
@@ -348,7 +363,6 @@ public class DesignRequestService {
         publishStatusChanged(saved, null, previousStatus);
         return toResponse(saved);
     }
-
 
     /**
      * Creates or replaces the mutable working draft (version zero) without
@@ -474,6 +488,11 @@ public class DesignRequestService {
      */
     @Transactional
     public DesignRequestResponseDTO approveDraft(User currentUser, UUID id) {
+        return approveDraft(currentUser, id, null);
+    }
+
+    @Transactional
+    public DesignRequestResponseDTO approveDraft(User currentUser, UUID id, ApproveDesignDraftRequest approveRequest) {
         Company company = getCompanyForCurrentUser(currentUser);
         DesignRequest request = getRequestForCompany(id, company);
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
@@ -487,10 +506,17 @@ public class DesignRequestService {
         }
         draftGraphValidator.validateForSubmission(request, draft);
         draftBenefitGuardService.assertWithinSubmissionLimits(request, draft);
+        Set<UUID> acceptedMediaIds = validateAcceptedMediaIds(
+                draft,
+                approveRequest == null ? null : approveRequest.getAcceptedMediaAssetIds());
         DesignRequestStatus previousStatus = request.getStatus();
         applyDraftToBooth(request, draft);
+
+        promoteApprovedMediaAssets(company, draft, acceptedMediaIds);
+        draft.getMediaAssets().removeIf(media -> !acceptedMediaIds.contains(media.getId()));
+
         request.setStatus(DesignRequestStatus.APPROVED);
-        request.setApprovedAt(LocalDateTime.now());
+        request.setApprovedAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
         DesignRequest saved = designRequestRepository.save(request);
         draftRetentionService.retainApprovedDraft(saved, draft);
@@ -498,6 +524,74 @@ public class DesignRequestService {
         publishStatusChanged(saved, currentUser, previousStatus);
         promoteOldestQueued(saved.getAssignedDesigner());
         return toResponse(saved);
+    }
+
+    private void promoteApprovedMediaAssets(Company company, DesignDraft draft, Set<UUID> acceptedMediaIds) {
+        for (DesignDraftMediaAsset mediaDraft : draft.getMediaAssets()) {
+            if (!acceptedMediaIds.contains(mediaDraft.getId())) {
+                continue;
+            }
+            DesignDraftAsset asset = mediaDraft.getAsset();
+            String name = mediaDraft.getTitle() != null && !mediaDraft.getTitle().isBlank()
+                    ? mediaDraft.getTitle().trim()
+                    : (asset.getFileName() != null ? asset.getFileName() : "Media Asset");
+            MediaAssetType type = resolveApprovedMediaType(asset.getMimeType());
+
+            MediaAsset boothMedia = MediaAsset.builder()
+                    .company(company)
+                    .name(name)
+                    .type(type)
+                    .url(asset.getUrl())
+                    .publicId(asset.getPublicId())
+                    .mimeType(asset.getMimeType())
+                    .fileSize(asset.getFileSize())
+                    .build();
+            mediaAssetRepository.save(boothMedia);
+            storageService.promoteReservedUsage(company, asset.getFileSize());
+            asset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED);
+        }
+    }
+
+    private Set<UUID> validateAcceptedMediaIds(DesignDraft draft, List<UUID> requestedIds) {
+        List<UUID> acceptedIds = requestedIds == null ? List.of() : requestedIds;
+        Set<UUID> acceptedSet = new HashSet<>(acceptedIds);
+        if (acceptedSet.size() != acceptedIds.size() || acceptedSet.contains(null)) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+
+        Map<UUID, DesignDraftMediaAsset> submittedMedia = draft.getMediaAssets() == null
+                ? Map.of()
+                : draft.getMediaAssets().stream()
+                        .filter(media -> media.getId() != null)
+                        .collect(Collectors.toMap(DesignDraftMediaAsset::getId, Function.identity()));
+        if (!submittedMedia.keySet().containsAll(acceptedSet)) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        acceptedSet.stream()
+                .map(submittedMedia::get)
+                .map(DesignDraftMediaAsset::getAsset)
+                .forEach(this::validatePromotableMediaAsset);
+        return acceptedSet;
+    }
+
+    private void validatePromotableMediaAsset(DesignDraftAsset asset) {
+        if (asset == null
+                || asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT
+                || asset.getQuotaState() != DesignDraftAssetQuotaState.RESERVED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        resolveApprovedMediaType(asset.getMimeType());
+    }
+
+    private MediaAssetType resolveApprovedMediaType(String mimeType) {
+        String normalized = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
+        if (normalized.equals("video/mp4")) {
+            return MediaAssetType.VIDEO;
+        }
+        if (normalized.equals("image/jpeg") || normalized.equals("image/png")) {
+            return MediaAssetType.IMAGE;
+        }
+        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
     }
 
     /**
@@ -515,6 +609,10 @@ public class DesignRequestService {
         if (request.getStatus() != DesignRequestStatus.APPROVED
                 && request.getStatus() != DesignRequestStatus.CANCELED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        if (request.getStatus() == DesignRequestStatus.CANCELED && !request.getDrafts().isEmpty()) {
+            request.getDrafts().clear();
+            designDraftRepository.flush();
         }
         return designDraftAssetService.cleanupAfterApproval(request);
     }
@@ -561,7 +659,8 @@ public class DesignRequestService {
                 .sorted(java.util.Comparator
                         .comparingInt(DesignAssignmentCandidateResponseDTO::getAvailableSlots).reversed()
                         .thenComparing(candidate -> candidate.getDesignerName() == null
-                                ? "" : candidate.getDesignerName(), String.CASE_INSENSITIVE_ORDER))
+                                ? ""
+                                : candidate.getDesignerName(), String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 

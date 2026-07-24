@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.shared.exceptions.AppException;
@@ -33,6 +34,7 @@ public class DesignDraftCloneService {
     }
 
     private DesignDraft cloneDraft(DesignRequest request, DesignDraft source) {
+
         DesignDraft clone = DesignDraft.builder()
                 .designRequest(request)
                 .versionNumber(0)
@@ -61,8 +63,21 @@ public class DesignDraftCloneService {
             }
             clone.getPanoramas().add(panorama);
         }
+
+        if (source.getMediaAssets() != null) {
+            for (DesignDraftMediaAsset sourceMedia : source.getMediaAssets()) {
+                DesignDraftMediaAsset cloneMedia = DesignDraftMediaAsset.builder()
+                        .draft(clone)
+                        .asset(sourceMedia.getAsset())
+                        .title(sourceMedia.getTitle())
+                        .sortOrder(sourceMedia.getSortOrder())
+                        .build();
+                clone.getMediaAssets().add(cloneMedia);
+            }
+        }
         return clone;
     }
+
 
     private DesignDraftHotspot cloneHotspot(
             DesignDraftPanorama panorama,

@@ -20,8 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.config.security.RequireActiveCompany;
+import com.example.vex360.features.designrequest.dtos.request.ApproveDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequest;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
+
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignRequestProductsRequest;
 import com.example.vex360.features.designrequest.dtos.request.RequestDesignCancellationRequest;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
@@ -124,11 +126,18 @@ public class ExhibitorDesignRequestController extends BaseController {
     }
 
     @PostMapping("/{id}/approve")
-    @Operation(summary = "Exhibitor duyệt bản thảo và áp dụng vào booth", description = "Duyệt bản thảo thiết kế mới nhất của Designer và tự động áp dụng bản thiết kế 3D này vào booth chính thức.")
+    /*
+     * @Operation(summary = "Exhibitor duyệt bản thảo và áp dụng vào booth",
+     * description =
+     * "Duyệt bản thảo thiết kế mới nhất của Designer và tự động áp dụng bản thiết kế 3D này vào booth chính thức. Có thể truyền danh sách acceptedMediaAssetIds để lựa chọn tệp media asset đính kèm."
+     * )
+     */
+    @Operation(summary = "Approve the latest design draft", description = "Applies the latest submitted draft to the booth. Only DesignDraftMediaAsset IDs listed in acceptedMediaAssetIds become company media; an omitted, null, or empty list accepts no media.")
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> approveDraft(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id) {
-        return ok(designRequestService.approveDraft(userDetails.getUser(), id));
+            @PathVariable UUID id,
+            @RequestBody(required = false) ApproveDesignDraftRequest request) {
+        return ok(designRequestService.approveDraft(userDetails.getUser(), id, request));
     }
 
     @GetMapping("/{id}/review-workspace")

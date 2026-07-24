@@ -1,6 +1,6 @@
 package com.example.vex360.features.user.dtos.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import lombok.AccessLevel;
@@ -22,6 +22,6 @@ public class UserResponseDTO {
     String avatarUrl;
     String status;
     String provider;
-    LocalDateTime createdAt;
-    LocalDateTime updatedAt;
+    Instant createdAt;
+    Instant updatedAt;
 }

@@ -1,7 +1,7 @@
 package com.example.vex360.features.exhibition.services.impl;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.List;
 import java.util.Map;
@@ -303,7 +303,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     .organizerPayout(BigDecimal.ZERO)
                     .paymentProvider("FREE")
                     .status(PaymentStatus.PAID)
-                    .paidAt(LocalDateTime.now())
+                    .paidAt(Instant.now())
                     .build();
             paymentRepository.save(payment);
             eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));

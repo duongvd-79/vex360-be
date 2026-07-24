@@ -45,6 +45,14 @@ import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.List;
+import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
+
 @ExtendWith(MockitoExtension.class)
 class DesignerDraftEditorServiceUnitTest {
     @Mock
@@ -67,6 +75,8 @@ class DesignerDraftEditorServiceUnitTest {
     DesignDraftGraphValidator graphValidator;
     @Mock
     DesignerDraftPreviewService previewService;
+    @Mock
+    DesignRequestMapper designRequestMapper;
 
     private DesignerDraftEditorService service;
     private User designer;
@@ -86,7 +96,9 @@ class DesignerDraftEditorServiceUnitTest {
                 boothDesignService,
                 benefitGuardService,
                 graphValidator,
-                previewService);
+                previewService,
+                designRequestMapper);
+
         designer = User.builder().id(UUID.randomUUID()).build();
         Company company = Company.builder().id(UUID.randomUUID()).build();
         Booth booth = Booth.builder().id(UUID.randomUUID()).company(company).name("Booth").build();
@@ -224,7 +236,158 @@ class DesignerDraftEditorServiceUnitTest {
         assertFalse(draft.getNote().isBlank());
     }
 
+    @Test
+    void addMediaAsset_DuplicateAssetId_ThrowsAppException() {
+        UUID assetId = UUID.randomUUID();
+        DesignDraftAsset asset = DesignDraftAsset.builder()
+                .id(assetId)
+                .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                .build();
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder()
+                .draft(draft)
+                .asset(asset)
+                .title("Existing asset")
+                .build());
+
+        SubmitDesignDraftMediaAssetRequest req = new SubmitDesignDraftMediaAssetRequest(null, assetId, "Duplicate", 0);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> service.addMediaAsset(designer, request.getId(), req));
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void addMediaAsset_InvalidAssetType_ThrowsAppException() {
+        UUID assetId = UUID.randomUUID();
+        DesignDraftAsset panoramaAsset = DesignDraftAsset.builder()
+                .id(assetId)
+                .assetType(DesignDraftAssetType.PANORAMA)
+                .build();
+
+        SubmitDesignDraftMediaAssetRequest req = new SubmitDesignDraftMediaAssetRequest(null, assetId,
+                "Media Attachment", 0);
+        when(draftAssetRepository.findByIdAndDesignRequestId(assetId, request.getId()))
+                .thenReturn(Optional.of(panoramaAsset));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> service.addMediaAsset(designer, request.getId(), req));
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void reorderMediaAssets_ForeignOrNonExistentId_ThrowsAppException() {
+        UUID existingId = UUID.randomUUID();
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder().id(existingId).draft(draft).build());
+
+        List<UUID> invalidList = List.of(existingId, UUID.randomUUID());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> service.reorderMediaAssets(designer, request.getId(), invalidList));
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void reorderMediaAssets_DuplicateId_ThrowsAppException() {
+        UUID firstId = UUID.randomUUID();
+        UUID secondId = UUID.randomUUID();
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder().id(firstId).draft(draft).build());
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder().id(secondId).draft(draft).build());
+
+        AppException ex = assertThrows(
+                AppException.class,
+                () -> service.reorderMediaAssets(designer, request.getId(), List.of(firstId, firstId)));
+
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void addMediaAsset_IgnoresClientSortOrderAndAppendsToDraft() {
+        UUID assetId = UUID.randomUUID();
+        DesignDraftAsset asset = DesignDraftAsset.builder()
+                .id(assetId)
+                .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                .build();
+        when(draftAssetRepository.findByIdAndDesignRequestId(assetId, request.getId()))
+                .thenReturn(Optional.of(asset));
+
+        service.addMediaAsset(
+                designer,
+                request.getId(),
+                new SubmitDesignDraftMediaAssetRequest(null, assetId, " Intro ", -50));
+
+        assertEquals(0, draft.getMediaAssets().get(0).getSortOrder());
+        assertEquals("Intro", draft.getMediaAssets().get(0).getTitle());
+    }
+
+    @Test
+    void addMediaAsset_AppendsAfterHighestServerOrderWhenDraftHasGap() {
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(DesignDraftAsset.builder().id(UUID.randomUUID()).build())
+                .sortOrder(0)
+                .build());
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(DesignDraftAsset.builder().id(UUID.randomUUID()).build())
+                .sortOrder(2)
+                .build());
+        UUID newAssetId = UUID.randomUUID();
+        when(draftAssetRepository.findByIdAndDesignRequestId(newAssetId, request.getId()))
+                .thenReturn(Optional.of(DesignDraftAsset.builder()
+                        .id(newAssetId)
+                        .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                        .build()));
+
+        service.addMediaAsset(
+                designer,
+                request.getId(),
+                new SubmitDesignDraftMediaAssetRequest(null, newAssetId, "New", -1));
+
+        assertEquals(3, draft.getMediaAssets().get(2).getSortOrder());
+    }
+
+    @Test
+    void addMediaAsset_TitleLongerThanColumn_ThrowsAppException() {
+        UUID assetId = UUID.randomUUID();
+        DesignDraftAsset asset = DesignDraftAsset.builder()
+                .id(assetId)
+                .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                .build();
+        when(draftAssetRepository.findByIdAndDesignRequestId(assetId, request.getId()))
+                .thenReturn(Optional.of(asset));
+
+        AppException ex = assertThrows(
+                AppException.class,
+                () -> service.addMediaAsset(
+                        designer,
+                        request.getId(),
+                        new SubmitDesignDraftMediaAssetRequest(null, assetId, "a".repeat(256), null)));
+
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void removeMediaAsset_NonExistentId_ThrowsAppException() {
+        AppException ex = assertThrows(AppException.class,
+                () -> service.removeMediaAsset(designer, request.getId(), UUID.randomUUID()));
+        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+    }
+
+    @Test
+    void removeMediaAsset_CleansReleasedReservation() {
+        UUID mediaId = UUID.randomUUID();
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder().id(mediaId).draft(draft).build());
+
+        service.removeMediaAsset(designer, request.getId(), mediaId);
+
+        assertTrue(draft.getMediaAssets().isEmpty());
+        verify(assetService).cleanupUnreferencedAssets(request);
+    }
+
     private DesignDraftPanorama panorama(String key, int order, boolean isDefault) {
+
         return DesignDraftPanorama.builder()
                 .id(UUID.randomUUID())
                 .draft(draft)

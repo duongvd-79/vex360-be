@@ -21,7 +21,12 @@ public class SubmitDesignDraftRequest {
     @NotNull(message = "Danh sách panorama không được để trống")
     private List<SubmitDesignDraftPanoramaRequest> panoramas;
 
+    @Valid
+    private List<SubmitDesignDraftMediaAssetRequest> mediaAssets;
+
     public SubmitDesignDraftRequest(String note, List<SubmitDesignDraftPanoramaRequest> panoramas) {
-        this(note, null, panoramas);
+        this(note, null, panoramas, null);
     }
 }
+
+

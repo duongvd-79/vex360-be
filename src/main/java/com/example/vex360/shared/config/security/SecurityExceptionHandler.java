@@ -1,8 +1,7 @@
 package com.example.vex360.shared.config.security;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,7 +44,7 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
     private void writeErrorResponse(HttpServletRequest request, HttpServletResponse response, ErrorCode errorCode)
             throws IOException {
         ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(errorCode.getHttpStatus().value())
                 .error(errorCode.getHttpStatus().name())
                 .code(errorCode.getCode())

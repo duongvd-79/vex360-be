@@ -1,6 +1,6 @@
 package com.example.vex360.features.exhibition.services.impl;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,7 +68,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
             if ("00".equals(data.getCode())) {
                 payment.setStatus(PaymentStatus.PAID);
-                payment.setPaidAt(LocalDateTime.now());
+                payment.setPaidAt(Instant.now());
                 if (data.getReference() != null) {
                     payment.setPaymentReference(data.getReference());
                 }

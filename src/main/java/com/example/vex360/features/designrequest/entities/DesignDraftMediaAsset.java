@@ -5,8 +5,6 @@ import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
-import com.example.vex360.features.product.entities.Product;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,30 +24,36 @@ import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "design_request_products", uniqueConstraints = @UniqueConstraint(
-        name = "uk_design_request_product", columnNames = { "design_request_id", "product_id" }))
+@Table(
+        name = "design_draft_media_assets",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_design_draft_media_asset",
+                columnNames = { "draft_id", "asset_id" }))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class DesignRequestProduct {
+public class DesignDraftMediaAsset {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "design_request_id", nullable = false)
-    DesignRequest designRequest;
+    @JoinColumn(name = "draft_id", nullable = false)
+    DesignDraft draft;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "product_id", nullable = false)
-    Product product;
+    @JoinColumn(name = "asset_id", nullable = false)
+    DesignDraftAsset asset;
 
-    @Column(name = "required_from_baseline", nullable = false)
+    @Column(name = "title", length = 255)
+    String title;
+
+    @Column(name = "sort_order", nullable = false)
     @Builder.Default
-    Boolean requiredFromBaseline = false;
+    Integer sortOrder = 0;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

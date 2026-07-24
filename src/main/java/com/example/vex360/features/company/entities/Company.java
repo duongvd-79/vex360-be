@@ -80,6 +80,10 @@ public class Company {
     @Builder.Default
     Long storageUsedBytes = 0L;
 
+    @Column(name = "storage_reserved_bytes", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    @Builder.Default
+    Long storageReservedBytes = 0L;
+
     @Column(name = "storage_quota_bytes", nullable = false, columnDefinition = "BIGINT DEFAULT 524288000")
     @Builder.Default
     Long storageQuotaBytes = 524_288_000L;
