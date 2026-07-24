@@ -28,6 +28,8 @@ import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
+import com.example.vex360.features.designrequest.services.DesignDraftStorageMetricsService;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -53,6 +55,10 @@ class DesignerWorkspaceServiceUnitTest {
     DesignRequestEligibilityService eligibilityService;
     @Mock
     DesignDraftBenefitGuardService benefitGuardService;
+    @Mock
+    DesignDraftStorageMetricsService storageMetricsService;
+    @Mock
+    DesignRequestMapper designRequestMapper;
 
     private DesignerWorkspaceService service;
     private User designer;
@@ -68,8 +74,10 @@ class DesignerWorkspaceServiceUnitTest {
                 boothDesignService,
                 companyService,
                 storageService,
+                storageMetricsService,
                 eligibilityService,
-                benefitGuardService);
+                benefitGuardService,
+                designRequestMapper);
         designer = User.builder().id(UUID.randomUUID()).build();
         Company company = Company.builder()
                 .id(UUID.randomUUID())

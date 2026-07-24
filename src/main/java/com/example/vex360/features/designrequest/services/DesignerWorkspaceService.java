@@ -27,6 +27,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
@@ -63,8 +64,10 @@ public class DesignerWorkspaceService {
     private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
     private final CompanyStorageService storageService;
+    private final DesignDraftStorageMetricsService storageMetricsService;
     private final DesignRequestEligibilityService eligibilityService;
     private final DesignDraftBenefitGuardService benefitGuardService;
+    private final DesignRequestMapper designRequestMapper;
 
     /**
      * Builds the workspace for an assigned request, including the current booth,
@@ -108,7 +111,8 @@ public class DesignerWorkspaceService {
                 usageDraft == null
                         ? benefitGuardService.getBaselineUsageResponse(request)
                         : benefitGuardService.getUsageResponse(request, usageDraft),
-                storageService.getUsage(request.getCompany()));
+                storageService.getUsage(request.getCompany()),
+                storageMetricsService.calculate(usageDraft));
     }
 
     /**
@@ -272,6 +276,12 @@ public class DesignerWorkspaceService {
                 .map(DesignDraftHotspot::getMediaAsset)
                 .filter(Objects::nonNull)
                 .forEach(asset -> media.putIfAbsent(asset.getId(), asset));
+        Map<UUID, DesignDraftMediaAsset> draftMedia = new LinkedHashMap<>();
+        latest.getPanoramas().stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(DesignDraftHotspot::getDesignDraftMediaAsset)
+                .filter(item -> item != null && item.getId() != null)
+                .forEach(item -> draftMedia.putIfAbsent(item.getId(), item));
         return new ExhibitorDesignReviewWorkspaceResponseDTO(
                 request.getId(),
                 request.getStatus(),
@@ -282,7 +292,9 @@ public class DesignerWorkspaceService {
                 required,
                 optional,
                 media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList(),
-                storageService.getUsage(company));
+                draftMedia.values().stream().map(designRequestMapper::toMediaAssetResponse).toList(),
+                storageService.getUsage(company),
+                storageMetricsService.calculate(latest));
     }
 
     private DesignDraftBoothSettingsRequest toSettings(DesignDraft draft) {
@@ -317,6 +329,9 @@ public class DesignerWorkspaceService {
                 hotspot.getTargetDraftPanoramaKey(),
                 hotspot.getProduct() == null ? null : hotspot.getProduct().getId(),
                 hotspot.getMediaAsset() == null ? null : hotspot.getMediaAsset().getId(),
+                hotspot.getDesignDraftMediaAsset() == null
+                        ? null
+                        : hotspot.getDesignDraftMediaAsset().getId(),
                 hotspot.getInfoText(),
                 hotspot.getIconStyle(),
                 hotspot.getScale(),

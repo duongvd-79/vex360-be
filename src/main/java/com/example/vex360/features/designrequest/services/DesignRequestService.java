@@ -2,9 +2,11 @@ package com.example.vex360.features.designrequest.services;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
@@ -33,6 +36,7 @@ import com.example.vex360.features.designrequest.dtos.request.AssignDesignReques
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequest;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftHotspotRequest;
+import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentAnalyticsResponseDTO;
@@ -50,9 +54,11 @@ import com.example.vex360.features.designrequest.enums.DesignRequestCancellation
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -91,6 +97,7 @@ public class DesignRequestService {
 
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;
+    private final DesignDraftAssetRepository designDraftAssetRepository;
     private final MediaAssetRepository mediaAssetRepository;
     private final CompanyStorageService storageService;
     private final DesignRequestMapper designRequestMapper;
@@ -506,14 +513,24 @@ public class DesignRequestService {
         }
         draftGraphValidator.validateForSubmission(request, draft);
         draftBenefitGuardService.assertWithinSubmissionLimits(request, draft);
-        Set<UUID> acceptedMediaIds = validateAcceptedMediaIds(
-                draft,
-                approveRequest == null ? null : approveRequest.getAcceptedMediaAssetIds());
+        Set<DesignDraftMediaAsset> referencedDraftMedia = referencedDraftMedia(draft);
+        Set<UUID> referencedDraftMediaIds = referencedDraftMedia.stream()
+                .map(DesignDraftMediaAsset::getId)
+                .collect(Collectors.toSet());
+        draft.getMediaAssets().removeIf(media -> !referencedDraftMediaIds.contains(media.getId()));
+        StorageTransition storageTransition = calculateStorageTransition(request, draft, referencedDraftMedia);
+        storageService.reconcileUsage(
+                company,
+                storageTransition.releasedUsedBytes(),
+                storageTransition.addedUsedBytes(),
+                storageTransition.promotedReservedBytes());
+        Map<UUID, MediaAsset> promotedMedia = promoteReferencedMediaAssets(
+                company,
+                referencedDraftMedia);
+        replaceStagingMediaReferences(draft, promotedMedia);
         DesignRequestStatus previousStatus = request.getStatus();
         applyDraftToBooth(request, draft);
-
-        promoteApprovedMediaAssets(company, draft, acceptedMediaIds);
-        draft.getMediaAssets().removeIf(media -> !acceptedMediaIds.contains(media.getId()));
+        markApprovedPanoramaAssets(draft);
 
         request.setStatus(DesignRequestStatus.APPROVED);
         request.setApprovedAt(Instant.now());
@@ -526,12 +543,13 @@ public class DesignRequestService {
         return toResponse(saved);
     }
 
-    private void promoteApprovedMediaAssets(Company company, DesignDraft draft, Set<UUID> acceptedMediaIds) {
-        for (DesignDraftMediaAsset mediaDraft : draft.getMediaAssets()) {
-            if (!acceptedMediaIds.contains(mediaDraft.getId())) {
-                continue;
-            }
+    private Map<UUID, MediaAsset> promoteReferencedMediaAssets(
+            Company company,
+            Set<DesignDraftMediaAsset> referencedMedia) {
+        Map<UUID, MediaAsset> promoted = new HashMap<>();
+        for (DesignDraftMediaAsset mediaDraft : referencedMedia) {
             DesignDraftAsset asset = mediaDraft.getAsset();
+            validatePromotableMediaAsset(asset);
             String name = mediaDraft.getTitle() != null && !mediaDraft.getTitle().isBlank()
                     ? mediaDraft.getTitle().trim()
                     : (asset.getFileName() != null ? asset.getFileName() : "Media Asset");
@@ -546,41 +564,139 @@ public class DesignRequestService {
                     .mimeType(asset.getMimeType())
                     .fileSize(asset.getFileSize())
                     .build();
-            mediaAssetRepository.save(boothMedia);
-            storageService.promoteReservedUsage(company, asset.getFileSize());
+            promoted.put(mediaDraft.getId(), mediaAssetRepository.save(boothMedia));
             asset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED);
         }
+        return promoted;
     }
 
-    private Set<UUID> validateAcceptedMediaIds(DesignDraft draft, List<UUID> requestedIds) {
-        List<UUID> acceptedIds = requestedIds == null ? List.of() : requestedIds;
-        Set<UUID> acceptedSet = new HashSet<>(acceptedIds);
-        if (acceptedSet.size() != acceptedIds.size() || acceptedSet.contains(null)) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
-
-        Map<UUID, DesignDraftMediaAsset> submittedMedia = draft.getMediaAssets() == null
-                ? Map.of()
-                : draft.getMediaAssets().stream()
-                        .filter(media -> media.getId() != null)
-                        .collect(Collectors.toMap(DesignDraftMediaAsset::getId, Function.identity()));
-        if (!submittedMedia.keySet().containsAll(acceptedSet)) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
-        acceptedSet.stream()
-                .map(submittedMedia::get)
-                .map(DesignDraftMediaAsset::getAsset)
-                .forEach(this::validatePromotableMediaAsset);
-        return acceptedSet;
+    private Set<DesignDraftMediaAsset> referencedDraftMedia(DesignDraft draft) {
+        return draft.getPanoramas().stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(DesignDraftHotspot::getDesignDraftMediaAsset)
+                .filter(media -> media != null && media.getId() != null)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     private void validatePromotableMediaAsset(DesignDraftAsset asset) {
         if (asset == null
                 || asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT
-                || asset.getQuotaState() != DesignDraftAssetQuotaState.RESERVED) {
+                || asset.getQuotaState() == DesignDraftAssetQuotaState.NONE
+                        && asset.getAssetSource() != DesignDraftAssetSource.UPLOADED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         resolveApprovedMediaType(asset.getMimeType());
+    }
+
+    private void replaceStagingMediaReferences(
+            DesignDraft draft,
+            Map<UUID, MediaAsset> promotedMedia) {
+        draft.getPanoramas().stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .filter(hotspot -> hotspot.getDesignDraftMediaAsset() != null)
+                .forEach(hotspot -> {
+                    MediaAsset media = promotedMedia.get(hotspot.getDesignDraftMediaAsset().getId());
+                    if (media == null) {
+                        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                    }
+                    hotspot.setMediaAsset(media);
+                    hotspot.setDesignDraftMediaAsset(null);
+                });
+    }
+
+    private StorageTransition calculateStorageTransition(
+            DesignRequest request,
+            DesignDraft draft,
+            Set<DesignDraftMediaAsset> referencedMedia) {
+        List<DesignDraftAsset> allRequestAssets =
+                designDraftAssetRepository.findByDesignRequestId(request.getId());
+        Set<String> reusedPanoramaKeys = draft.getPanoramas().stream()
+                .map(DesignDraftPanorama::getImageKey)
+                .filter(key -> key != null && !key.isBlank())
+                .collect(Collectors.toSet());
+        long released = 0;
+        for (Panorama panorama : request.getBooth().getPanoramas()) {
+            if (Boolean.TRUE.equals(panorama.getIsTemplateDerived())
+                    || reusedPanoramaKeys.contains(panorama.getImageKey())) {
+                continue;
+            }
+            DesignDraftAsset legacyChargedAsset = allRequestAssets.stream()
+                    .filter(asset -> asset.getQuotaState() == DesignDraftAssetQuotaState.CHARGED)
+                    .filter(asset -> Objects.equals(asset.getPublicId(), panorama.getImageKey()))
+                    .findFirst()
+                    .orElse(null);
+            if (legacyChargedAsset != null) {
+                released += sizeOf(legacyChargedAsset);
+                legacyChargedAsset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED);
+            } else {
+                released += panorama.getFileSize() == null ? 0L : panorama.getFileSize();
+            }
+        }
+
+        for (DesignDraftAsset asset : allRequestAssets) {
+            if ((asset.getAssetType() == DesignDraftAssetType.THUMBNAIL
+                            || asset.getAssetType() == DesignDraftAssetType.BACKGROUND_MUSIC)
+                    && asset.getQuotaState() == DesignDraftAssetQuotaState.CHARGED) {
+                released += sizeOf(asset);
+                asset.setQuotaState(DesignDraftAssetQuotaState.NONE);
+            }
+        }
+
+        Map<String, DesignDraftAsset> requestAssets = allRequestAssets.stream()
+                .filter(asset -> asset.getPublicId() != null)
+                .collect(Collectors.toMap(
+                        DesignDraftAsset::getPublicId,
+                        Function.identity(),
+                        (left, right) -> left));
+        Set<DesignDraftAsset> acceptedAssets = new java.util.LinkedHashSet<>();
+        draft.getPanoramas().stream()
+                .map(DesignDraftPanorama::getImageKey)
+                .map(requestAssets::get)
+                .filter(Objects::nonNull)
+                .filter(asset -> asset.getAssetSource() == DesignDraftAssetSource.UPLOADED)
+                .forEach(acceptedAssets::add);
+        referencedMedia.stream()
+                .map(DesignDraftMediaAsset::getAsset)
+                .filter(Objects::nonNull)
+                .filter(asset -> asset.getAssetSource() == DesignDraftAssetSource.UPLOADED)
+                .forEach(acceptedAssets::add);
+
+        long added = acceptedAssets.stream()
+                .filter(asset -> asset.getQuotaState() == DesignDraftAssetQuotaState.STAGED
+                        || asset.getQuotaState() == DesignDraftAssetQuotaState.NONE)
+                .map(DesignDraftAsset::getFileSize)
+                .filter(Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .sum();
+        long promotedReserved = acceptedAssets.stream()
+                .filter(asset -> asset.getQuotaState() == DesignDraftAssetQuotaState.RESERVED)
+                .map(DesignDraftAsset::getFileSize)
+                .filter(Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .sum();
+        return new StorageTransition(released, added, promotedReserved);
+    }
+
+    private void markApprovedPanoramaAssets(DesignDraft draft) {
+        Set<String> panoramaKeys = draft.getPanoramas().stream()
+                .map(DesignDraftPanorama::getImageKey)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        designDraftAssetRepository.findByDesignRequestId(draft.getDesignRequest().getId()).stream()
+                .filter(asset -> asset.getAssetType() == DesignDraftAssetType.PANORAMA)
+                .filter(asset -> asset.getAssetSource() == DesignDraftAssetSource.UPLOADED)
+                .filter(asset -> panoramaKeys.contains(asset.getPublicId()))
+                .forEach(asset -> asset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED));
+    }
+
+    private long sizeOf(DesignDraftAsset asset) {
+        return asset.getFileSize() == null ? 0L : asset.getFileSize();
+    }
+
+    private record StorageTransition(
+            long releasedUsedBytes,
+            long addedUsedBytes,
+            long promotedReservedBytes) {
     }
 
     private MediaAssetType resolveApprovedMediaType(String mimeType) {
@@ -692,6 +808,10 @@ public class DesignRequestService {
                 .note(trimToNull(draftRequest.getNote()))
                 .build();
         draftSettingsService.applyToDraft(request, draft, draftRequest.getBoothSettings());
+        Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId = buildDraftMediaAssets(
+                request,
+                draft,
+                draftRequest.getMediaAssets());
 
         Set<String> keys = new HashSet<>();
         long defaultCount = draftRequest.getPanoramas().stream()
@@ -738,6 +858,7 @@ public class DesignRequestService {
                         request,
                         panorama,
                         panoramasByKey,
+                        draftMediaByRequestId,
                         hotspotRequest);
                 panorama.getHotspots().add(hotspot);
             }
@@ -745,6 +866,43 @@ public class DesignRequestService {
 
         draft.getPanoramas().addAll(panoramas);
         return draft;
+    }
+
+    private Map<UUID, DesignDraftMediaAsset> buildDraftMediaAssets(
+            DesignRequest request,
+            DesignDraft draft,
+            List<SubmitDesignDraftMediaAssetRequest> mediaRequests) {
+        if (mediaRequests == null || mediaRequests.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, DesignDraftMediaAsset> byRequestId = new HashMap<>();
+        Set<UUID> assetIds = new HashSet<>();
+        for (int index = 0; index < mediaRequests.size(); index++) {
+            SubmitDesignDraftMediaAssetRequest mediaRequest = mediaRequests.get(index);
+            if (mediaRequest == null || mediaRequest.getAssetId() == null
+                    || !assetIds.add(mediaRequest.getAssetId())) {
+                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            }
+            DesignDraftAsset asset = designDraftAssetService.requireDraftAsset(
+                    request,
+                    mediaRequest.getAssetId(),
+                    DesignDraftAssetType.MEDIA_ATTACHMENT);
+            String title = trimToNull(mediaRequest.getTitle());
+            if (title != null && title.length() > 255) {
+                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            }
+            DesignDraftMediaAsset media = DesignDraftMediaAsset.builder()
+                    .draft(draft)
+                    .asset(asset)
+                    .title(title)
+                    .sortOrder(index)
+                    .build();
+            draft.getMediaAssets().add(media);
+            if (mediaRequest.getId() != null) {
+                byRequestId.put(mediaRequest.getId(), media);
+            }
+        }
+        return byRequestId;
     }
 
     private int nextSubmittedVersion(DesignRequest request) {
@@ -779,6 +937,11 @@ public class DesignRequestService {
             panorama.setDraft(target);
             target.getPanoramas().add(panorama);
         }
+        target.getMediaAssets().clear();
+        for (DesignDraftMediaAsset media : source.getMediaAssets()) {
+            media.setDraft(target);
+            target.getMediaAssets().add(media);
+        }
     }
 
     private void requireDesignerCanEdit(User currentUser, DesignRequest request) {
@@ -800,6 +963,7 @@ public class DesignRequestService {
             DesignRequest designRequest,
             DesignDraftPanorama sourcePanorama,
             Map<String, DesignDraftPanorama> panoramasByKey,
+            Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
             SubmitDesignDraftHotspotRequest request) {
         if (request == null || request.getType() == null
                 || request.getXPosition() == null
@@ -823,8 +987,10 @@ public class DesignRequestService {
         switch (request.getType()) {
             case NAV -> applyDraftNavHotspot(hotspot, panoramasByKey, request);
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
-            case INFO -> applyDraftInfoHotspot(hotspot, designRequest, request);
-            case MEDIA -> applyDraftMediaHotspot(hotspot, designRequest.getCompany(), request);
+            case INFO -> applyDraftInfoHotspot(
+                    hotspot, designRequest, draftMediaByRequestId, request);
+            case MEDIA -> applyDraftMediaHotspot(
+                    hotspot, designRequest.getCompany(), draftMediaByRequestId, request);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         return hotspot;
@@ -865,6 +1031,7 @@ public class DesignRequestService {
     private void applyDraftInfoHotspot(
             DesignDraftHotspot hotspot,
             DesignRequest designRequest,
+            Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
             SubmitDesignDraftHotspotRequest request) {
         HotspotInfoContentType contentType = resolveInfoContentType(request);
         hotspot.setInfoContentType(contentType);
@@ -873,12 +1040,18 @@ public class DesignRequestService {
             case NONE -> hotspot.setInfoText(null);
             case TEXT -> hotspot.setInfoText(requireText(request.getInfoText()));
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
-            case IMAGE ->
-                hotspot.setMediaAsset(getMediaAsset(
-                        request.getMediaAssetId(), designRequest.getCompany(), MediaAssetType.IMAGE));
-            case VIDEO ->
-                hotspot.setMediaAsset(getMediaAsset(
-                        request.getMediaAssetId(), designRequest.getCompany(), MediaAssetType.VIDEO));
+            case IMAGE -> applyDraftMediaReference(
+                    hotspot,
+                    designRequest.getCompany(),
+                    draftMediaByRequestId,
+                    request,
+                    MediaAssetType.IMAGE);
+            case VIDEO -> applyDraftMediaReference(
+                    hotspot,
+                    designRequest.getCompany(),
+                    draftMediaByRequestId,
+                    request,
+                    MediaAssetType.VIDEO);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
     }
@@ -886,12 +1059,16 @@ public class DesignRequestService {
     private void applyDraftMediaHotspot(
             DesignDraftHotspot hotspot,
             Company company,
+            Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
             SubmitDesignDraftHotspotRequest request) {
-        hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, null));
+        applyDraftMediaReference(hotspot, company, draftMediaByRequestId, request, null);
         hotspot.setMediaClickAction(request.getMediaClickAction() == null
                 ? HotspotMediaClickAction.DEFAULT
                 : request.getMediaClickAction());
-        hotspot.setName(resolveName(request.getName(), hotspot.getMediaAsset().getName()));
+        String fallbackName = hotspot.getMediaAsset() != null
+                ? hotspot.getMediaAsset().getName()
+                : stagingMediaName(hotspot.getDesignDraftMediaAsset());
+        hotspot.setName(resolveName(request.getName(), fallbackName));
     }
 
     private void applyDraftToBooth(DesignRequest request, DesignDraft draft) {
@@ -904,13 +1081,26 @@ public class DesignRequestService {
     }
 
     private PanoramaDesign toPanoramaDesign(DesignDraftPanorama draftPanorama) {
+        Long fileSize = designDraftAssetRepository
+                .findByDesignRequestIdAndPublicId(
+                        draftPanorama.getDraft().getDesignRequest().getId(),
+                        draftPanorama.getImageKey())
+                .map(DesignDraftAsset::getFileSize)
+                .orElse(0L);
+        boolean templateDerived = draftPanorama.getDraft().getDesignRequest().getBooth().getPanoramas().stream()
+                .filter(panorama -> Objects.equals(panorama.getImageKey(), draftPanorama.getImageKey()))
+                .findFirst()
+                .map(Panorama::getIsTemplateDerived)
+                .orElse(false);
         return new PanoramaDesign(
                 draftPanorama.getClientKey(),
                 draftPanorama.getName(),
                 draftPanorama.getImageUrl(),
                 draftPanorama.getImageKey(),
+                fileSize,
                 draftPanorama.getOrderIndex(),
                 draftPanorama.getIsDefault(),
+                templateDerived,
                 draftPanorama.getHotspots().stream().map(this::toHotspotDesign).toList());
     }
 
@@ -951,6 +1141,37 @@ public class DesignRequestService {
         return boothDesignService.getMediaAssetForCompany(mediaAssetId, company.getId(), expectedType);
     }
 
+    private void applyDraftMediaReference(
+            DesignDraftHotspot hotspot,
+            Company company,
+            Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
+            SubmitDesignDraftHotspotRequest request,
+            MediaAssetType expectedType) {
+        boolean officialProvided = request.getMediaAssetId() != null;
+        boolean draftProvided = request.getDesignDraftMediaAssetId() != null;
+        if (officialProvided == draftProvided) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        if (officialProvided) {
+            hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, expectedType));
+            return;
+        }
+        DesignDraftMediaAsset media = draftMediaByRequestId.get(request.getDesignDraftMediaAssetId());
+        if (media == null || media.getAsset() == null
+                || expectedType != null && resolveApprovedMediaType(media.getAsset().getMimeType()) != expectedType) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        hotspot.setDesignDraftMediaAsset(media);
+    }
+
+    private String stagingMediaName(DesignDraftMediaAsset media) {
+        if (media == null || media.getAsset() == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        String title = trimToNull(media.getTitle());
+        return title == null ? media.getAsset().getFileName() : title;
+    }
+
     private HotspotInfoContentType resolveInfoContentType(SubmitDesignDraftHotspotRequest request) {
         if (request.getInfoContentType() != null) {
             return request.getInfoContentType();
@@ -958,7 +1179,7 @@ public class DesignRequestService {
         if (request.getProductId() != null) {
             return HotspotInfoContentType.PRODUCT;
         }
-        if (request.getMediaAssetId() != null) {
+        if (request.getMediaAssetId() != null || request.getDesignDraftMediaAssetId() != null) {
             return HotspotInfoContentType.IMAGE;
         }
         if (trimToNull(request.getInfoText()) != null) {

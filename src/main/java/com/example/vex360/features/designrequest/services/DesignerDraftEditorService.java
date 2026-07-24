@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
-import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
-import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
@@ -24,8 +22,10 @@ import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpsertDesignDraftHotspotRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftHotspotResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
@@ -222,11 +222,11 @@ public class DesignerDraftEditorService {
     }
 
     @Transactional
-    public HotspotResponseDTO createHotspot(
+    public DesignDraftHotspotResponseDTO createHotspot(
             User designer,
             UUID requestId,
             UUID panoramaId,
-            UpsertHotspotRequest create) {
+            UpsertDesignDraftHotspotRequest create) {
         EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftPanorama source = getPanorama(draft, panoramaId);
@@ -243,12 +243,12 @@ public class DesignerDraftEditorService {
     }
 
     @Transactional
-    public HotspotResponseDTO updateHotspot(
+    public DesignDraftHotspotResponseDTO updateHotspot(
             User designer,
             UUID requestId,
             UUID panoramaId,
             UUID hotspotId,
-            UpsertHotspotRequest update) {
+            UpsertDesignDraftHotspotRequest update) {
         EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftPanorama source = getPanorama(draft, panoramaId);
@@ -258,11 +258,12 @@ public class DesignerDraftEditorService {
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
         draftRepository.saveAndFlush(draft);
+        assetService.cleanupUnreferencedAssets(context.request());
         return previewService.toHotspotResponse(hotspot);
     }
 
     @Transactional
-    public HotspotResponseDTO deleteHotspot(
+    public DesignDraftHotspotResponseDTO deleteHotspot(
             User designer,
             UUID requestId,
             UUID panoramaId,
@@ -270,10 +271,11 @@ public class DesignerDraftEditorService {
         EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraftPanorama source = getPanorama(context.draft(), panoramaId);
         DesignDraftHotspot hotspot = getHotspot(source, hotspotId);
-        HotspotResponseDTO response = previewService.toHotspotResponse(hotspot);
+        DesignDraftHotspotResponseDTO response = previewService.toHotspotResponse(hotspot);
         source.getHotspots().remove(hotspot);
         graphValidator.validateWorkingGraph(context.request(), context.draft());
         draftRepository.saveAndFlush(context.draft());
+        assetService.cleanupUnreferencedAssets(context.request());
         return response;
     }
 
@@ -364,7 +366,7 @@ public class DesignerDraftEditorService {
             DesignRequest request,
             DesignDraft draft,
             DesignDraftHotspot hotspot,
-            UpsertHotspotRequest update) {
+            UpsertDesignDraftHotspotRequest update) {
         if (update == null || update.getType() == null
                 || update.getXPosition() == null
                 || update.getYPosition() == null
@@ -383,8 +385,8 @@ public class DesignerDraftEditorService {
         switch (update.getType()) {
             case NAV -> applyNavHotspot(draft, hotspot, update);
             case PRODUCT -> applyProductHotspot(request, hotspot, update);
-            case INFO -> applyInfoHotspot(request, hotspot, update);
-            case MEDIA -> applyMediaHotspot(request, hotspot, update);
+            case INFO -> applyInfoHotspot(request, draft, hotspot, update);
+            case MEDIA -> applyMediaHotspot(request, draft, hotspot, update);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
     }
@@ -392,7 +394,7 @@ public class DesignerDraftEditorService {
     private void applyNavHotspot(
             DesignDraft draft,
             DesignDraftHotspot hotspot,
-            UpsertHotspotRequest update) {
+            UpsertDesignDraftHotspotRequest update) {
         if (update.getTargetPanoramaId() == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
@@ -404,7 +406,7 @@ public class DesignerDraftEditorService {
     private void applyProductHotspot(
             DesignRequest request,
             DesignDraftHotspot hotspot,
-            UpsertHotspotRequest update) {
+            UpsertDesignDraftHotspotRequest update) {
         if (update.getProductId() == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
@@ -419,8 +421,9 @@ public class DesignerDraftEditorService {
 
     private void applyInfoHotspot(
             DesignRequest request,
+            DesignDraft draft,
             DesignDraftHotspot hotspot,
-            UpsertHotspotRequest update) {
+            UpsertDesignDraftHotspotRequest update) {
         HotspotInfoContentType contentType = resolveInfoContentType(update);
         hotspot.setInfoContentType(contentType);
         hotspot.setName(resolveName(update.getName(), "Info"));
@@ -436,22 +439,22 @@ public class DesignerDraftEditorService {
                 hotspot.setInfoText(text);
             }
             case PRODUCT -> applyProductHotspot(request, hotspot, update);
-            case IMAGE -> hotspot.setMediaAsset(getMediaAsset(request, update.getMediaAssetId(), MediaAssetType.IMAGE));
-            case VIDEO -> hotspot.setMediaAsset(getMediaAsset(request, update.getMediaAssetId(), MediaAssetType.VIDEO));
+            case IMAGE -> applyMediaReference(request, draft, hotspot, update, MediaAssetType.IMAGE);
+            case VIDEO -> applyMediaReference(request, draft, hotspot, update, MediaAssetType.VIDEO);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
     }
 
     private void applyMediaHotspot(
             DesignRequest request,
+            DesignDraft draft,
             DesignDraftHotspot hotspot,
-            UpsertHotspotRequest update) {
-        MediaAsset mediaAsset = getMediaAsset(request, update.getMediaAssetId(), null);
-        hotspot.setMediaAsset(mediaAsset);
+            UpsertDesignDraftHotspotRequest update) {
+        applyMediaReference(request, draft, hotspot, update, null);
         hotspot.setMediaClickAction(update.getMediaClickAction() == null
                 ? HotspotMediaClickAction.DEFAULT
                 : update.getMediaClickAction());
-        hotspot.setName(resolveName(update.getName(), mediaAsset.getName()));
+        hotspot.setName(resolveName(update.getName(), mediaName(hotspot)));
     }
 
     private MediaAsset getMediaAsset(
@@ -464,14 +467,64 @@ public class DesignerDraftEditorService {
                 expectedType);
     }
 
-    private HotspotInfoContentType resolveInfoContentType(UpsertHotspotRequest update) {
+    private void applyMediaReference(
+            DesignRequest request,
+            DesignDraft draft,
+            DesignDraftHotspot hotspot,
+            UpsertDesignDraftHotspotRequest update,
+            MediaAssetType expectedType) {
+        boolean officialProvided = update.getMediaAssetId() != null;
+        boolean draftProvided = update.getDesignDraftMediaAssetId() != null;
+        if (officialProvided == draftProvided) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        if (officialProvided) {
+            hotspot.setMediaAsset(getMediaAsset(request, update.getMediaAssetId(), expectedType));
+            return;
+        }
+        DesignDraftMediaAsset draftMedia = draft.getMediaAssets().stream()
+                .filter(media -> update.getDesignDraftMediaAssetId().equals(media.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        if (draftMedia.getAsset() == null
+                || draftMedia.getAsset().getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT
+                || expectedType != null && mediaType(draftMedia) != expectedType) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        hotspot.setDesignDraftMediaAsset(draftMedia);
+    }
+
+    private MediaAssetType mediaType(DesignDraftMediaAsset media) {
+        String mimeType = media.getAsset().getMimeType();
+        if ("video/mp4".equalsIgnoreCase(mimeType)) {
+            return MediaAssetType.VIDEO;
+        }
+        if ("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType)) {
+            return MediaAssetType.IMAGE;
+        }
+        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+    }
+
+    private String mediaName(DesignDraftHotspot hotspot) {
+        if (hotspot.getMediaAsset() != null) {
+            return hotspot.getMediaAsset().getName();
+        }
+        DesignDraftMediaAsset media = hotspot.getDesignDraftMediaAsset();
+        if (media == null || media.getAsset() == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        String title = trimToNull(media.getTitle());
+        return title == null ? media.getAsset().getFileName() : title;
+    }
+
+    private HotspotInfoContentType resolveInfoContentType(UpsertDesignDraftHotspotRequest update) {
         if (update.getInfoContentType() != null) {
             return update.getInfoContentType();
         }
         if (update.getProductId() != null) {
             return HotspotInfoContentType.PRODUCT;
         }
-        if (update.getMediaAssetId() != null) {
+        if (update.getMediaAssetId() != null || update.getDesignDraftMediaAssetId() != null) {
             return HotspotInfoContentType.IMAGE;
         }
         if (trimToNull(update.getInfoText()) != null) {
@@ -484,6 +537,7 @@ public class DesignerDraftEditorService {
         hotspot.setTargetDraftPanoramaKey(null);
         hotspot.setProduct(null);
         hotspot.setMediaAsset(null);
+        hotspot.setDesignDraftMediaAsset(null);
         hotspot.setInfoText(null);
         hotspot.setMediaClickAction(null);
         hotspot.setInfoContentType(null);
@@ -645,6 +699,13 @@ public class DesignerDraftEditorService {
     public void removeMediaAsset(User designer, UUID requestId, UUID mediaAssetId) {
         EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
+        boolean referenced = draft.getPanoramas().stream()
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(DesignDraftHotspot::getDesignDraftMediaAsset)
+                .anyMatch(media -> media != null && mediaAssetId.equals(media.getId()));
+        if (referenced) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
         boolean removed = draft.getMediaAssets().removeIf(ma -> ma.getId() != null && ma.getId().equals(mediaAssetId));
         if (!removed) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);

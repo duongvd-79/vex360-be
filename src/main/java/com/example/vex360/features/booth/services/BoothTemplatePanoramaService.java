@@ -73,6 +73,7 @@ public class BoothTemplatePanoramaService {
                 .name(request.getName().trim())
                 .imageUrl(uploaded.getUrl())
                 .imageKey(uploaded.getPublicId())
+                .fileSize(uploaded.getFileSize() == null ? image.getSize() : uploaded.getFileSize())
                 .orderIndex(request.getOrderIndex() == null ? nextOrderIndex(booth.getId()) : request.getOrderIndex())
                 .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
                 .isTemplateDerived(false)
@@ -138,6 +139,7 @@ public class BoothTemplatePanoramaService {
             oldImageKey = panorama.getImageKey();
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
+            panorama.setFileSize(uploaded.getFileSize() == null ? image.getSize() : uploaded.getFileSize());
             panorama.setIsTemplateDerived(false);
         }
 

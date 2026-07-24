@@ -27,5 +27,7 @@ public class ExhibitorDesignReviewWorkspaceResponseDTO {
     private List<ProductResponseDTO> requiredProducts;
     private List<ProductResponseDTO> optionalProducts;
     private List<MediaAssetResponseDTO> referencedMedia;
+    private List<DesignDraftMediaAssetResponseDTO> referencedDraftMedia;
     private StorageUsageResponseDTO storageUsage;
+    private DesignDraftStorageMetricsResponseDTO storageMetrics;
 }

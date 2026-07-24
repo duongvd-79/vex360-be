@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.enums.MediaAssetType;
@@ -50,6 +52,7 @@ import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
@@ -66,6 +69,7 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaState;
+import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
@@ -86,6 +90,8 @@ class DesignRequestServiceUnitTest {
     private DesignRequestRepository designRequestRepository;
     @Mock
     private DesignDraftRepository designDraftRepository;
+    @Mock
+    private DesignDraftAssetRepository designDraftAssetRepository;
     @Mock
     private BoothDesignService boothDesignService;
     @Mock
@@ -136,6 +142,7 @@ class DesignRequestServiceUnitTest {
         service = new DesignRequestService(
                 designRequestRepository,
                 designDraftRepository,
+                designDraftAssetRepository,
                 mediaAssetRepository,
                 storageService,
                 Mappers.getMapper(DesignRequestMapper.class),
@@ -296,6 +303,7 @@ class DesignRequestServiceUnitTest {
                                 3.0,
                                 null,
                                 productId,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -556,37 +564,12 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void approveDraft_RejectsUnknownSubmittedMediaId() {
+    void approveDraft_IgnoresDeprecatedAcceptedMediaIds() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
         DesignDraft draft = draft(request, null, null);
         draft.getMediaAssets().add(submittedMedia(draft, "image/jpeg", 12L));
-        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
-        when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
-                .thenReturn(Optional.of(draft));
-
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> service.approveDraft(
-                        exhibitor,
-                        requestId,
-                        new ApproveDesignDraftRequest(List.of(UUID.randomUUID()))));
-
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
-        verify(mediaAssetRepository, never()).save(any());
-    }
-
-    @Test
-    void approveDraft_PromotesOnlySelectedMediaAndMovesReservedQuota() {
-        UUID requestId = UUID.randomUUID();
-        DesignRequest request = assignedRequest(requestId);
-        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
-        DesignDraft draft = draft(request, null, null);
-        DesignDraftMediaAsset accepted = submittedMedia(draft, "video/mp4", 20L);
-        DesignDraftMediaAsset rejected = submittedMedia(draft, "image/jpeg", 12L);
-        draft.getMediaAssets().addAll(List.of(accepted, rejected));
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
@@ -597,15 +580,117 @@ class DesignRequestServiceUnitTest {
         service.approveDraft(
                 exhibitor,
                 requestId,
-                new ApproveDesignDraftRequest(List.of(accepted.getId())));
+                new ApproveDesignDraftRequest(List.of(UUID.randomUUID())));
+
+        assertTrue(draft.getMediaAssets().isEmpty());
+        verify(mediaAssetRepository, never()).save(any());
+    }
+
+    @Test
+    void approveDraft_PromotesOnlyReferencedStagedMedia() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        DesignDraft draft = draft(request, null, null);
+        DesignDraftMediaAsset accepted = submittedMedia(draft, "video/mp4", 20L);
+        DesignDraftMediaAsset rejected = submittedMedia(draft, "image/jpeg", 12L);
+        draft.getMediaAssets().addAll(List.of(accepted, rejected));
+        DesignDraftPanorama panorama = draft.getPanoramas().get(0);
+        panorama.getHotspots().get(0).setDesignDraftMediaAsset(accepted);
+        panorama.getHotspots().add(DesignDraftHotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .designDraftMediaAsset(accepted)
+                .build());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
+                .thenReturn(Optional.of(draft));
+        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset media = invocation.getArgument(0);
+            media.setId(UUID.randomUUID());
+            return media;
+        });
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.approveDraft(
+                exhibitor,
+                requestId,
+                new ApproveDesignDraftRequest(List.of(rejected.getId())));
 
         assertEquals(List.of(accepted), draft.getMediaAssets());
         assertEquals(DesignDraftAssetQuotaState.PROMOTED, accepted.getAsset().getQuotaState());
-        verify(storageService).promoteReservedUsage(company, 20L);
-        verify(storageService, never()).addUsage(company, 20L);
+        verify(storageService).reconcileUsage(company, 0L, 20L, 0L);
+        verify(storageService, never()).promoteReservedUsage(company, 20L);
         ArgumentCaptor<MediaAsset> mediaCaptor = ArgumentCaptor.forClass(MediaAsset.class);
         verify(mediaAssetRepository).save(mediaCaptor.capture());
         assertEquals(MediaAssetType.VIDEO, mediaCaptor.getValue().getType());
+        assertSame(
+                panorama.getHotspots().get(0).getMediaAsset(),
+                panorama.getHotspots().get(1).getMediaAsset());
+    }
+
+    @Test
+    void approveDraft_DoesNotPromoteOrApplyBoothWhenQuotaIsExceeded() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        DesignDraft draft = draft(request, null, null);
+        DesignDraftMediaAsset staged = submittedMedia(draft, "image/jpeg", 30L);
+        draft.getMediaAssets().add(staged);
+        draft.getPanoramas().get(0).getHotspots().get(0).setDesignDraftMediaAsset(staged);
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
+                .thenReturn(Optional.of(draft));
+        doThrow(new AppException(ErrorCode.STORAGE_QUOTA_EXCEEDED))
+                .when(storageService)
+                .reconcileUsage(company, 0L, 30L, 0L);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.approveDraft(exhibitor, requestId));
+
+        assertSame(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
+        verify(mediaAssetRepository, never()).save(any());
+        verify(boothDesignService, never()).replaceBoothContent(any(), any());
+    }
+
+    @Test
+    void approveDraft_ReleasesReplacedPanoramaInSameQuotaReconciliation() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        request.getBooth().getPanoramas().add(Panorama.builder()
+                .booth(request.getBooth())
+                .imageKey("panorama/old")
+                .fileSize(100L)
+                .isTemplateDerived(false)
+                .build());
+        DesignDraft draft = draft(request, null, null);
+        DesignDraftAsset replacement = DesignDraftAsset.builder()
+                .id(UUID.randomUUID())
+                .designRequest(request)
+                .publicId("pano-key")
+                .fileSize(110L)
+                .assetType(DesignDraftAssetType.PANORAMA)
+                .assetSource(DesignDraftAssetSource.UPLOADED)
+                .quotaState(DesignDraftAssetQuotaState.STAGED)
+                .build();
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
+                .thenReturn(Optional.of(draft));
+        when(designDraftAssetRepository.findByDesignRequestId(requestId)).thenReturn(List.of(replacement));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.approveDraft(exhibitor, requestId);
+
+        verify(storageService).reconcileUsage(company, 100L, 110L, 0L);
+        assertEquals(DesignDraftAssetQuotaState.PROMOTED, replacement.getQuotaState());
     }
 
     @Test
@@ -652,7 +737,7 @@ class DesignRequestServiceUnitTest {
                 .mimeType(mimeType)
                 .fileSize(size)
                 .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
-                .quotaState(DesignDraftAssetQuotaState.RESERVED)
+                .quotaState(DesignDraftAssetQuotaState.STAGED)
                 .build();
         return DesignDraftMediaAsset.builder()
                 .id(UUID.randomUUID())

@@ -65,6 +65,10 @@ public class DesignDraftHotspot {
     @JoinColumn(name = "media_asset_id")
     MediaAsset mediaAsset;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "design_draft_media_asset_id")
+    DesignDraftMediaAsset designDraftMediaAsset;
+
     @Column(name = "info_text", columnDefinition = "TEXT")
     String infoText;
 

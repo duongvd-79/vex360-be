@@ -138,6 +138,35 @@ class CompanyStorageServiceUnitTest {
         verify(companyRepository).save(company);
     }
 
+    @Test
+    void reconcileUsage_ReleasesOldPanoramaBeforeAddingReplacement() {
+        company.setStorageUsedBytes(480L);
+        company.setStorageReservedBytes(0L);
+        stubCompanyLock();
+        when(companyRepository.save(company)).thenReturn(company);
+
+        companyStorageService.reconcileUsage(company, 100L, 110L, 0L);
+
+        assertEquals(490L, company.getStorageUsedBytes());
+        assertEquals(0L, company.getStorageReservedBytes());
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void reconcileUsage_LeavesCountersUntouchedWhenProjectedUsageExceedsQuota() {
+        company.setStorageUsedBytes(480L);
+        company.setStorageReservedBytes(0L);
+        stubCompanyLock();
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> companyStorageService.reconcileUsage(company, 0L, 30L, 0L));
+
+        assertEquals(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertEquals(480L, company.getStorageUsedBytes());
+        assertEquals(0L, company.getStorageReservedBytes());
+    }
+
     private void stubCompanyLock() {
         when(companyRepository.findByIdForUpdate(company.getId())).thenReturn(Optional.of(company));
     }

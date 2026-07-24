@@ -145,6 +145,7 @@ public interface BoothMapper {
                 panorama.getName(),
                 panorama.getImageUrl(),
                 panorama.getImageKey(),
+                panorama.getFileSize(),
                 panorama.getOrderIndex(),
                 panorama.getIsDefault(),
                 toHotspotResponseDTOs(panorama.getHotspots()));
