@@ -47,11 +47,13 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 
+import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
 @Service
@@ -60,6 +62,7 @@ import java.util.Locale;
 public class ExhibitionServiceImpl implements ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
+    private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
@@ -69,6 +72,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -101,10 +105,19 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             }
         }
 
-        // Validate dates
+        // 1. Lock organizer row to prevent race conditions on pending count
+        userRepository.findByIdForUpdate(organizer.getId());
+
+        // Validate dates & max duration
         if (request.getEndDate().isBefore(request.getStartDate())) {
             log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
                     request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > MAX_EXHIBITION_DURATION_DAYS) {
+            log.error("Exhibition duration from {} to {} exceeds maximum allowed limit of {} days",
+                    request.getStartDate(), request.getEndDate(), MAX_EXHIBITION_DURATION_DAYS);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -120,7 +133,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_LIMIT_EXCEEDED);
         }
 
-        if (exhibitionRepository.existsByName(request.getName().trim())) {
+        if (exhibitionRepository.existsByNameIgnoreCase(request.getName().trim())) {
             log.error("Exhibition name '{}' already exists", request.getName().trim());
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
@@ -410,6 +423,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
+        if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > MAX_EXHIBITION_DURATION_DAYS) {
+            log.error("Exhibition duration from {} to {} exceeds maximum allowed limit of {} days",
+                    request.getStartDate(), request.getEndDate(), MAX_EXHIBITION_DURATION_DAYS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
             log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
@@ -428,7 +447,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         String trimmedName = request.getName().trim();
-        if (!exhibition.getName().equalsIgnoreCase(trimmedName) && exhibitionRepository.existsByName(trimmedName)) {
+        if (!exhibition.getName().equalsIgnoreCase(trimmedName)
+                && exhibitionRepository.existsByNameIgnoreCase(trimmedName)) {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
@@ -574,12 +594,21 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        for (ExhibitionPackage pkg : packages) {
+            if (pkg.getTemplate() != null && pkg.getFinalPrice().compareTo(pkg.getTemplate().getPrice()) < 0) {
+                log.error("Cannot approve exhibition {}: package {} final price {} is below template floor price {}",
+                        exhibition.getId(), pkg.getId(), pkg.getFinalPrice(), pkg.getTemplate().getPrice());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+        }
+
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         exhibition.setReviewedBy(admin);
         exhibition.setReviewedAt(Instant.now());
 
         exhibition = exhibitionRepository.save(exhibition);
-        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
     }
 
