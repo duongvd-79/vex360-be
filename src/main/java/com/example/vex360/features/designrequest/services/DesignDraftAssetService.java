@@ -128,10 +128,9 @@ public class DesignDraftAssetService {
                     .fileSize(fileSize)
                     .assetType(resolvedType)
                     .assetSource(DesignDraftAssetSource.UPLOADED)
-                    .quotaState(resolvedType == DesignDraftAssetType.PANORAMA
-                            || resolvedType == DesignDraftAssetType.MEDIA_ATTACHMENT
-                                    ? DesignDraftAssetQuotaState.STAGED
-                                    : DesignDraftAssetQuotaState.NONE)
+                    .quotaState(resolvedType == DesignDraftAssetType.MEDIA_ATTACHMENT
+                            ? DesignDraftAssetQuotaState.STAGED
+                            : DesignDraftAssetQuotaState.NONE)
                     .build());
             return toResponse(asset);
         } catch (RuntimeException exception) {

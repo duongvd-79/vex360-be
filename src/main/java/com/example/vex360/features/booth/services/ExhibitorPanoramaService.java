@@ -91,7 +91,6 @@ public class ExhibitorPanoramaService {
 
         try {
             Panorama saved = panoramaRepository.saveAndFlush(panorama);
-            companyStorageService.addUsage(booth.getCompany(), fileSize);
             return boothMapper.toPanoramaResponseDTO(saved);
         } catch (RuntimeException exception) {
             cleanupNewUpload(uploaded.getPublicId(), exception);
@@ -111,7 +110,6 @@ public class ExhibitorPanoramaService {
         Panorama panorama = getPanoramaForBoothForUpdate(panoramaId, booth);
         CloudinaryResponse uploaded = null;
         String oldImageKey = null;
-        long oldFileSize = 0L;
         long newFileSize = 0L;
 
         if (request != null) {
@@ -138,15 +136,11 @@ public class ExhibitorPanoramaService {
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
             newFileSize = uploaded.getFileSize() == null ? image.getSize() : uploaded.getFileSize();
-            oldFileSize = billableFileSize(panorama);
             panorama.setFileSize(newFileSize);
             panorama.setIsTemplateDerived(false);
         }
 
         try {
-            if (uploaded != null) {
-                companyStorageService.reconcileUsage(booth.getCompany(), oldFileSize, newFileSize, 0L);
-            }
             Panorama saved = panoramaRepository.saveAndFlush(panorama);
             if (oldImageKey != null) {
                 panoramaImageCleanupService.scheduleCleanup(oldImageKey);
@@ -171,9 +165,6 @@ public class ExhibitorPanoramaService {
         deleteIncomingHotspots(List.of(panoramaId));
         panoramaRepository.delete(panorama);
         panoramaRepository.flush();
-        if (!Boolean.TRUE.equals(panorama.getIsTemplateDerived())) {
-            companyStorageService.deductUsage(booth.getCompany(), billableFileSize(panorama));
-        }
         panoramaImageCleanupService.scheduleCleanup(oldImageKey);
         return response;
     }
@@ -199,13 +190,6 @@ public class ExhibitorPanoramaService {
         deleteIncomingHotspots(panoramaIds);
         panoramaRepository.deleteAll(panoramas);
         panoramaRepository.flush();
-        long releasedBytes = panoramas.stream()
-                .filter(panorama -> !Boolean.TRUE.equals(panorama.getIsTemplateDerived()))
-                .mapToLong(this::billableFileSize)
-                .sum();
-        if (releasedBytes > 0) {
-            companyStorageService.deductUsage(company, releasedBytes);
-        }
         panoramaImageCleanupService.scheduleCleanup(imageKeys);
     }
 
@@ -216,21 +200,6 @@ public class ExhibitorPanoramaService {
 
     private int nextOrderIndex(UUID boothId) {
         return panoramaRepository.findByBoothIdOrderByOrderIndexAsc(boothId).size();
-    }
-
-    private long billableFileSize(Panorama panorama) {
-        if (Boolean.TRUE.equals(panorama.getIsTemplateDerived())) {
-            return 0L;
-        }
-        if (panorama.getFileSize() != null) {
-            return panorama.getFileSize();
-        }
-        long backfilledSize = designDraftAssetRepository
-                .findFirstByPublicIdOrderByCreatedAtDesc(panorama.getImageKey())
-                .map(asset -> asset.getFileSize() == null ? 0L : asset.getFileSize())
-                .orElse(0L);
-        panorama.setFileSize(backfilledSize);
-        return backfilledSize;
     }
 
     private Panorama getPanoramaForBooth(UUID panoramaId, Booth booth) {

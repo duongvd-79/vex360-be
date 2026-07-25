@@ -42,16 +42,6 @@ public class DesignDraftStorageMetricsService {
         });
         Map<String, Long> totalAssets = new LinkedHashMap<>();
         Map<String, Long> newAssets = new LinkedHashMap<>();
-        for (DesignDraftPanorama panorama : draft.getPanoramas()) {
-            DesignDraftAsset asset = assetsByPublicId.get(panorama.getImageKey());
-            if (asset == null) {
-                continue;
-            }
-            addSize(totalAssets, asset.getPublicId(), asset.getFileSize());
-            if (asset.getAssetSource() == DesignDraftAssetSource.UPLOADED) {
-                addSize(newAssets, asset.getPublicId(), asset.getFileSize());
-            }
-        }
         draft.getPanoramas().stream()
                 .flatMap(panorama -> panorama.getHotspots().stream())
                 .forEach(hotspot -> addHotspotMediaSizes(hotspot, totalAssets, newAssets));

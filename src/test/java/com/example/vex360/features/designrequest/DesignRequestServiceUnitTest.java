@@ -659,7 +659,7 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void approveDraft_ReleasesReplacedPanoramaInSameQuotaReconciliation() {
+    void approveDraft_ExcludesPanoramaFromQuotaReconciliation() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
@@ -689,7 +689,7 @@ class DesignRequestServiceUnitTest {
 
         service.approveDraft(exhibitor, requestId);
 
-        verify(storageService).reconcileUsage(company, 100L, 110L, 0L);
+        verify(storageService).reconcileUsage(company, 0L, 0L, 0L);
         assertEquals(DesignDraftAssetQuotaState.PROMOTED, replacement.getQuotaState());
     }
 

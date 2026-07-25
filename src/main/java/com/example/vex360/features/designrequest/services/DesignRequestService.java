@@ -2,6 +2,7 @@ package com.example.vex360.features.designrequest.services;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -433,8 +434,8 @@ public class DesignRequestService {
         draftBenefitGuardService.assertWithinSubmissionLimits(request, workingDraft);
         DesignRequestStatus previousStatus = request.getStatus();
         workingDraft.setVersionNumber(nextSubmittedVersion(request));
+        workingDraft.setSubmittedAt(java.time.Instant.now());
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
-        request.setReviewNote(null);
         DesignRequest saved = designRequestRepository.save(request);
         designDraftAssetService.cleanupUnreferencedAssets(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
@@ -472,7 +473,13 @@ public class DesignRequestService {
         if (reviewNote == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
-        request.setReviewNote(reviewNote);
+        DesignDraft latestSubmitted = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
+                .max(Comparator.comparing(DesignDraft::getVersionNumber))
+                .orElse(null);
+        if (latestSubmitted != null) {
+            latestSubmitted.setRejectionReason(reviewNote);
+        }
         draftCloneService.cloneLatestSubmittedToWorking(request);
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
         request.setRevisionQueuedAt(null);
@@ -608,53 +615,7 @@ public class DesignRequestService {
             DesignRequest request,
             DesignDraft draft,
             Set<DesignDraftMediaAsset> referencedMedia) {
-        List<DesignDraftAsset> allRequestAssets =
-                designDraftAssetRepository.findByDesignRequestId(request.getId());
-        Set<String> reusedPanoramaKeys = draft.getPanoramas().stream()
-                .map(DesignDraftPanorama::getImageKey)
-                .filter(key -> key != null && !key.isBlank())
-                .collect(Collectors.toSet());
-        long released = 0;
-        for (Panorama panorama : request.getBooth().getPanoramas()) {
-            if (Boolean.TRUE.equals(panorama.getIsTemplateDerived())
-                    || reusedPanoramaKeys.contains(panorama.getImageKey())) {
-                continue;
-            }
-            DesignDraftAsset legacyChargedAsset = allRequestAssets.stream()
-                    .filter(asset -> asset.getQuotaState() == DesignDraftAssetQuotaState.CHARGED)
-                    .filter(asset -> Objects.equals(asset.getPublicId(), panorama.getImageKey()))
-                    .findFirst()
-                    .orElse(null);
-            if (legacyChargedAsset != null) {
-                released += sizeOf(legacyChargedAsset);
-                legacyChargedAsset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED);
-            } else {
-                released += panorama.getFileSize() == null ? 0L : panorama.getFileSize();
-            }
-        }
-
-        for (DesignDraftAsset asset : allRequestAssets) {
-            if ((asset.getAssetType() == DesignDraftAssetType.THUMBNAIL
-                            || asset.getAssetType() == DesignDraftAssetType.BACKGROUND_MUSIC)
-                    && asset.getQuotaState() == DesignDraftAssetQuotaState.CHARGED) {
-                released += sizeOf(asset);
-                asset.setQuotaState(DesignDraftAssetQuotaState.NONE);
-            }
-        }
-
-        Map<String, DesignDraftAsset> requestAssets = allRequestAssets.stream()
-                .filter(asset -> asset.getPublicId() != null)
-                .collect(Collectors.toMap(
-                        DesignDraftAsset::getPublicId,
-                        Function.identity(),
-                        (left, right) -> left));
         Set<DesignDraftAsset> acceptedAssets = new java.util.LinkedHashSet<>();
-        draft.getPanoramas().stream()
-                .map(DesignDraftPanorama::getImageKey)
-                .map(requestAssets::get)
-                .filter(Objects::nonNull)
-                .filter(asset -> asset.getAssetSource() == DesignDraftAssetSource.UPLOADED)
-                .forEach(acceptedAssets::add);
         referencedMedia.stream()
                 .map(DesignDraftMediaAsset::getAsset)
                 .filter(Objects::nonNull)
@@ -674,7 +635,7 @@ public class DesignRequestService {
                 .filter(Objects::nonNull)
                 .mapToLong(Long::longValue)
                 .sum();
-        return new StorageTransition(released, added, promotedReserved);
+        return new StorageTransition(0L, added, promotedReserved);
     }
 
     private void markApprovedPanoramaAssets(DesignDraft draft) {

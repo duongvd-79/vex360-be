@@ -183,7 +183,7 @@ class ExhibitorPanoramaServiceUnitTest {
         ArgumentCaptor<Panorama> captor = ArgumentCaptor.forClass(Panorama.class);
         verify(panoramaRepository).saveAndFlush(captor.capture());
         assertEquals(25L, captor.getValue().getFileSize());
-        verify(companyStorageService).addUsage(company, 25L);
+        verify(companyStorageService, never()).addUsage(any(), any(Long.class));
     }
 
     @Test
@@ -211,7 +211,7 @@ class ExhibitorPanoramaServiceUnitTest {
                 new UpdateExhibitorPanoramaRequest(null, null, null),
                 image);
 
-        verify(companyStorageService).reconcileUsage(company, 10L, 20L, 0L);
+        verify(companyStorageService, never()).reconcileUsage(any(), any(Long.class), any(Long.class), any(Long.class));
         verify(panoramaImageCleanupService).scheduleCleanup("booth/old");
     }
 
@@ -307,7 +307,7 @@ class ExhibitorPanoramaServiceUnitTest {
         order.verify(hotspotRepository).flush();
         order.verify(panoramaRepository).delete(panorama);
         order.verify(panoramaRepository).flush();
-        verify(companyStorageService).deductUsage(company, 15L);
+        verify(companyStorageService, never()).deductUsage(any(), any(Long.class));
     }
 
     @Test
@@ -330,7 +330,7 @@ class ExhibitorPanoramaServiceUnitTest {
         order.verify(hotspotRepository).flush();
         order.verify(panoramaRepository).deleteAll(List.of(entrance, main));
         order.verify(panoramaRepository).flush();
-        verify(companyStorageService).deductUsage(company, 20L);
+        verify(companyStorageService, never()).deductUsage(any(), any(Long.class));
         verify(panoramaImageCleanupService).scheduleCleanup(Set.of("booth/entrance", "booth/main"));
     }
 

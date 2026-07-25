@@ -68,6 +68,8 @@ public class DesignerWorkspaceService {
     private final DesignRequestEligibilityService eligibilityService;
     private final DesignDraftBenefitGuardService benefitGuardService;
     private final DesignRequestMapper designRequestMapper;
+    private final com.example.vex360.features.booth.services.BoothReviewContentAssembler boothReviewContentAssembler;
+    private final DesignDraftDiffService designDraftDiffService;
 
     /**
      * Builds the workspace for an assigned request, including the current booth,
@@ -102,7 +104,7 @@ public class DesignerWorkspaceService {
                 (int) request.getProducts().stream()
                         .filter(item -> !Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
                 request.getNote(),
-                request.getReviewNote(),
+                latestSubmitted == null ? null : latestSubmitted.getRejectionReason(),
                 request.getReviewCount(),
                 boothMapper.toBoothResponseDTO(request.getBooth()),
                 toDraftResponse(working),
@@ -135,6 +137,7 @@ public class DesignerWorkspaceService {
             String keyword,
             UUID categoryId,
             Pageable pageable) {
+        getAssignedRequest(designer, requestId);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(requestProductRepository
                 .searchAllowedProducts(requestId, ProductStatus.ACTIVE, normalizedKeyword, categoryId, pageable)
@@ -282,19 +285,81 @@ public class DesignerWorkspaceService {
                 .map(DesignDraftHotspot::getDesignDraftMediaAsset)
                 .filter(item -> item != null && item.getId() != null)
                 .forEach(item -> draftMedia.putIfAbsent(item.getId(), item));
-        return new ExhibitorDesignReviewWorkspaceResponseDTO(
-                request.getId(),
-                request.getStatus(),
-                request.getMode(),
-                eligibilityService.remainingActions(request.getBooth()),
-                boothMapper.toBoothResponseDTO(request.getBooth()),
-                toDraftResponse(latest),
-                required,
-                optional,
-                media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList(),
-                draftMedia.values().stream().map(designRequestMapper::toMediaAssetResponse).toList(),
-                storageService.getUsage(company),
-                storageMetricsService.calculate(latest));
+
+        com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO contentOverview = boothReviewContentAssembler.toDraftContentOverview(latest);
+
+        List<com.example.vex360.features.designrequest.dtos.response.DesignDraftSubmissionHistoryItemDTO> submissionHistory = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
+                .sorted(Comparator.comparing(DesignDraft::getVersionNumber))
+                .map(draft -> com.example.vex360.features.designrequest.dtos.response.DesignDraftSubmissionHistoryItemDTO.builder()
+                        .versionNumber(draft.getVersionNumber())
+                        .submittedAt(draft.getSubmittedAt() != null ? draft.getSubmittedAt() : draft.getCreatedAt())
+                        .designerNote(draft.getNote())
+                        .reviewStatus(resolveDraftReviewStatus(request, draft, latest))
+                        .rejectionReason(draft.getRejectionReason())
+                        .panoramaCount(draft.getPanoramas().size())
+                        .hotspotCount((int) draft.getPanoramas().stream().mapToLong(p -> p.getHotspots().size()).sum())
+                        .build())
+                .toList();
+
+        DesignDraft previous = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() == latest.getVersionNumber() - 1 && draft.getVersionNumber() > 0)
+                .findFirst()
+                .orElse(null);
+
+        com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeSummaryDTO changeSummary = previous != null
+                ? designDraftDiffService.compareDraftWithPrevious(latest, previous)
+                : designDraftDiffService.compareDraftWithBooth(latest, request.getBooth());
+
+        return ExhibitorDesignReviewWorkspaceResponseDTO.builder()
+                .requestId(request.getId())
+                .status(request.getStatus())
+                .mode(request.getMode())
+                .remainingDesignActions(eligibilityService.remainingActions(request.getBooth()))
+                .currentBooth(boothMapper.toBoothResponseDTO(request.getBooth()))
+                .latestSubmittedDraft(toDraftResponse(latest))
+                .requiredProducts(required)
+                .optionalProducts(optional)
+                .referencedMedia(media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList())
+                .referencedDraftMedia(draftMedia.values().stream().map(designRequestMapper::toMediaAssetResponse).toList())
+                .storageUsage(storageService.getUsage(company))
+                .storageMetrics(storageMetricsService.calculate(latest))
+                .contentOverview(contentOverview)
+                .submissionHistory(submissionHistory)
+                .changeSummary(changeSummary)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public DesignDraftWorkspaceResponseDTO getHistoricalDraftPreview(User exhibitor, UUID requestId, Integer versionNumber) {
+        Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
+        DesignRequest request = designRequestRepository.findById(requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
+        if (!request.getCompany().getId().equals(company.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (versionNumber == null || versionNumber <= 0) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        DesignDraft draft = request.getDrafts().stream()
+                .filter(d -> d.getVersionNumber() != null && d.getVersionNumber() > 0)
+                .filter(d -> Objects.equals(d.getVersionNumber(), versionNumber))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        return toDraftResponse(draft);
+    }
+
+    private DesignRequestStatus resolveDraftReviewStatus(DesignRequest request, DesignDraft draft, DesignDraft latest) {
+        if (request.getStatus() == DesignRequestStatus.APPROVED && Objects.equals(draft.getVersionNumber(), latest.getVersionNumber())) {
+            return DesignRequestStatus.APPROVED;
+        }
+        if (draft.getRejectionReason() != null || draft.getVersionNumber() < latest.getVersionNumber()) {
+            return DesignRequestStatus.REVISION_REQUESTED;
+        }
+        return DesignRequestStatus.DRAFT_SUBMITTED;
     }
 
     private DesignDraftBoothSettingsRequest toSettings(DesignDraft draft) {

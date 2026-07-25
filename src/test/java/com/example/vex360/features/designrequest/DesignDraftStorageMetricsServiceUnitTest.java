@@ -95,8 +95,8 @@ class DesignDraftStorageMetricsServiceUnitTest {
         DesignDraftStorageMetricsResponseDTO result =
                 new DesignDraftStorageMetricsService(assetRepository, storageService).calculate(draft);
 
-        assertEquals(220L, result.getProjectedTotalStorageBytes());
-        assertEquals(80L, result.getProjectedNewAssetsStorageBytes());
+        assertEquals(70L, result.getProjectedTotalStorageBytes());
+        assertEquals(30L, result.getProjectedNewAssetsStorageBytes());
         assertEquals(500L, result.getExhibitorAvailableStorageBytes());
     }
 

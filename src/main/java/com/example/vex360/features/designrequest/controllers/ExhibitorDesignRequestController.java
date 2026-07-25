@@ -148,6 +148,15 @@ public class ExhibitorDesignRequestController extends BaseController {
         return ok(workspaceService.getReviewWorkspace(userDetails.getUser(), id));
     }
 
+    @GetMapping("/{id}/drafts/{versionNumber}")
+    @Operation(summary = "Xem lại phiên bản draft cũ trong lịch sử", description = "Lấy thông tin chi tiết một phiên bản draft cũ đã được nộp dựa trên versionNumber.")
+    public ResponseEntity<ApiResponse<com.example.vex360.features.designrequest.dtos.response.DesignDraftWorkspaceResponseDTO>> getHistoricalDraftPreview(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable Integer versionNumber) {
+        return ok(workspaceService.getHistoricalDraftPreview(userDetails.getUser(), id, versionNumber));
+    }
+
     @PostMapping("/{id}/reject")
     @Operation(summary = "Exhibitor yêu cầu designer sửa bản thảo", description = "Từ chối bản thiết kế nháp hiện tại và gửi yêu cầu phản hồi để Designer chỉnh sửa lại bản thảo.")
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> rejectDraft(

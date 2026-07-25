@@ -115,7 +115,7 @@ class DesignDraftAssetServiceUnitTest {
         DesignDraftAssetResponseDTO response = service.uploadPanorama(designer, request.getId(), file);
 
         assertEquals("panorama/pano", response.getImageKey());
-        assertEquals(DesignDraftAssetQuotaState.STAGED, response.getQuotaState());
+        assertEquals(DesignDraftAssetQuotaState.NONE, response.getQuotaState());
         verifyNoInteractions(storageService);
     }
 
