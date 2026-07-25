@@ -39,4 +39,7 @@ public class CreateExhibitionRequest {
 
     @Valid
     private List<ConfigureExhibitionPackageRequest> packages;
+
+    @Valid
+    private List<SponsorRequestDTO> sponsors;
 }

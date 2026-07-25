@@ -65,9 +65,9 @@ public interface ExhibitionService {
 			RejectExhibitionRequest request);
 
 	// Sponsor Media CRU
-	ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file);
+	ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, String name, MultipartFile file);
 
-	ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file);
+	ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, String name, MultipartFile file);
 
 	ExhibitionResponseDTO deleteSponsorLogo(User organizer, UUID uuid, UUID assetId);
 

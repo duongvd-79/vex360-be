@@ -313,6 +313,24 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void createExhibition_mismatchedSponsorLogosAndNames_throwsAppException() {
+        MultipartFile keyVisual = imageFile();
+        MultipartFile logo = mock(MultipartFile.class);
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("New Expo")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(10)
+                .sponsors(List.of()) // 0 sponsors in list
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.createExhibition(organizer, request, keyVisual, List.of(logo))); // 1 logo file
+        assertEquals(com.example.vex360.shared.exceptions.ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+    }
+
+    @Test
     void uploadSponsorLogo_transactionRollback_deletesNewCloudAsset() {
         MultipartFile file = imageFile();
         registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
@@ -321,7 +339,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, file);
+        exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, "VinFast", file);
         completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(cloudService).delete("new-logo", "image");
@@ -358,7 +376,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), file);
+        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), "VinFast", file);
         verify(cloudService, never()).delete("old-logo", "image");
         completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
 
@@ -377,7 +395,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), file);
+        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), "VinFast", file);
         completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(cloudService, never()).delete("old-logo", "image");

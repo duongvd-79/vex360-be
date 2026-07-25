@@ -16,6 +16,7 @@ import com.example.vex360.shared.enums.ExhibitionAssetType;
 public interface ExhibitionAssetMapper {
 
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "name", source = "name")
     @Mapping(target = "url", source = "assetUrl")
     SponsorMediaResponseDTO toSponsorMediaResponse(ExhibitionAsset asset);
 

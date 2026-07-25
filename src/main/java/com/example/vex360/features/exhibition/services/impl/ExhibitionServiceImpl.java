@@ -59,6 +59,8 @@ import java.util.Locale;
 @Slf4j
 public class ExhibitionServiceImpl implements ExhibitionService {
 
+    private static final int MAX_SPONSORS = 15;
+
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
     private final PackageTemplateService packageTemplateService;
@@ -78,7 +80,21 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         validateImageFile(keyVisual, true);
 
-        // Validate sponsor logos if provided
+        // Validate sponsor logos and names if provided
+        int sponsorLogoCount = sponsorLogos != null ? sponsorLogos.size() : 0;
+        int sponsorRequestCount = request.getSponsors() != null ? request.getSponsors().size() : 0;
+
+        if (sponsorLogoCount > MAX_SPONSORS || sponsorRequestCount > MAX_SPONSORS) {
+            log.error("Exhibition sponsors size exceeds limit of {}", MAX_SPONSORS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (sponsorLogoCount != sponsorRequestCount) {
+            log.error("Sponsor logos count {} does not match sponsor names count {}", sponsorLogoCount,
+                    sponsorRequestCount);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
             for (MultipartFile logo : sponsorLogos) {
                 validateImageFile(logo, true);
@@ -181,12 +197,17 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Upload sponsor logos and save as ExhibitionAsset
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
-            for (MultipartFile logo : sponsorLogos) {
+            for (int i = 0; i < sponsorLogos.size(); i++) {
+                MultipartFile logo = sponsorLogos.get(i);
                 if (logo != null && !logo.isEmpty()) {
+                    String sponsorName = (request.getSponsors() != null && i < request.getSponsors().size())
+                            ? request.getSponsors().get(i).getName()
+                            : null;
                     CloudinaryResponse uploadResLogo = cloudService.upload(logo);
                     deleteCloudAssetOnRollback(uploadResLogo.getPublicId(), "image");
                     ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                             .exhibition(exhibition)
+                            .name(sponsorName)
                             .assetUrl(uploadResLogo.getUrl())
                             .publicId(uploadResLogo.getPublicId())
                             .type(ExhibitionAssetType.SPONSOR_LOGO)
@@ -663,7 +684,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file) {
+    public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, String name, MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -679,12 +700,22 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
+        long currentSponsorCount = exhibition.getAssets() == null ? 0
+                : exhibition.getAssets().stream()
+                        .filter(a -> a.getType() == ExhibitionAssetType.SPONSOR_LOGO)
+                        .count();
+        if (currentSponsorCount >= MAX_SPONSORS) {
+            log.error("Exhibition {} already reached maximum sponsor limit of {}", uuid, MAX_SPONSORS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         validateImageFile(file, true);
 
         CloudinaryResponse uploadRes = cloudService.upload(file);
         deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
         ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                 .exhibition(exhibition)
+                .name(name != null ? name.trim() : null)
                 .assetUrl(uploadRes.getUrl())
                 .publicId(uploadRes.getPublicId())
                 .type(ExhibitionAssetType.SPONSOR_LOGO)
@@ -698,7 +729,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file) {
+    public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, String name,
+            MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -722,15 +754,22 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        validateImageFile(file, true);
+        if (name != null && !name.isBlank()) {
+            asset.setName(name.trim());
+        }
 
-        String oldPublicId = asset.getPublicId();
-        CloudinaryResponse uploadRes = cloudService.upload(file);
-        deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
-        asset.setAssetUrl(uploadRes.getUrl());
-        asset.setPublicId(uploadRes.getPublicId());
+        if (file != null && !file.isEmpty()) {
+            validateImageFile(file, true);
+
+            String oldPublicId = asset.getPublicId();
+            CloudinaryResponse uploadRes = cloudService.upload(file);
+            deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
+            asset.setAssetUrl(uploadRes.getUrl());
+            asset.setPublicId(uploadRes.getPublicId());
+            deleteCloudAssetAfterCommit(oldPublicId, "image");
+        }
+
         exhibitionAssetRepository.save(asset);
-        deleteCloudAssetAfterCommit(oldPublicId, "image");
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);

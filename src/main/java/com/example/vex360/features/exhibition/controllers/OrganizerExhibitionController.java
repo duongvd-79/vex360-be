@@ -131,8 +131,9 @@ public class OrganizerExhibitionController extends BaseController {
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> uploadSponsorLogo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
+            @Parameter(description = "Tên nhà tài trợ") @RequestParam(value = "name", required = false) String name,
             @RequestPart("file") MultipartFile file) {
-        ExhibitionResponseDTO response = exhibitionService.uploadSponsorLogo(userDetails.getUser(), uuid, file);
+        ExhibitionResponseDTO response = exhibitionService.uploadSponsorLogo(userDetails.getUser(), uuid, name, file);
         return ok(response);
     }
 
@@ -142,9 +143,10 @@ public class OrganizerExhibitionController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
             @Parameter(description = "ID của ảnh logo tài trợ") @PathVariable UUID assetId,
-            @RequestPart("file") MultipartFile file) {
+            @Parameter(description = "Tên nhà tài trợ") @RequestParam(value = "name", required = false) String name,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         ExhibitionResponseDTO response = exhibitionService.updateSponsorLogo(userDetails.getUser(), uuid,
-                assetId,
+                assetId, name,
                 file);
         return ok(response);
     }
