@@ -48,6 +48,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
+import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -77,6 +78,9 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private ExhibitionMapper exhibitionMapper;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private ExhibitionServiceImpl exhibitionService;
@@ -313,21 +317,37 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void createExhibition_mismatchedSponsorLogosAndNames_throwsAppException() {
+    void createExhibition_exceedsMaxDuration_throwsAppException() {
         MultipartFile keyVisual = imageFile();
-        MultipartFile logo = mock(MultipartFile.class);
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
-                .name("New Expo")
+                .name("Long Expo")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(150)) // > 90 days
+                .estimatedBooths(10)
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
+        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+    }
+
+    @Test
+    void createExhibition_duplicateNameCaseInsensitive_throwsAppException() {
+        MultipartFile keyVisual = imageFile();
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("EXPO 2026")
                 .category("Technology")
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
-                .sponsors(List.of()) // 0 sponsors in list
                 .build();
 
+        when(exhibitionRepository.existsByNameIgnoreCase("EXPO 2026")).thenReturn(true);
+
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.createExhibition(organizer, request, keyVisual, List.of(logo))); // 1 logo file
-        assertEquals(com.example.vex360.shared.exceptions.ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+                () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
+        assertEquals(ErrorCode.EXHIBITION_NAME_DUPLICATED, ex.getErrorCode());
     }
 
     @Test

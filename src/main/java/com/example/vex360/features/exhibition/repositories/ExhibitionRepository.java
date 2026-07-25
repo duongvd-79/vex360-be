@@ -65,6 +65,8 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
 
     boolean existsByName(String name);
 
+    boolean existsByNameIgnoreCase(String name);
+
     @Query(value = """
             SELECT DISTINCT e FROM Exhibition e
             LEFT JOIN FETCH e.organizer o
