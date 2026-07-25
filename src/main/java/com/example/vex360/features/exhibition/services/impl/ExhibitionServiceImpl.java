@@ -47,6 +47,8 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
@@ -64,6 +66,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
+    private final ExhibitionTimelinePolicy timelinePolicy;
 
     @Override
     @Transactional
@@ -86,6 +89,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         if (request.getEndDate().isBefore(request.getStartDate())) {
             log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
                     request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
+            log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -381,6 +389,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
+        if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
+            log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         // Update time-window validation: must be before start date, and no exhibitors
         // registered yet
         if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
@@ -532,6 +545,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING) {
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
+        }
+
+        if (!timelinePolicy.hasMinimumLeadTime(exhibition.getStartDate())) {
+            log.error("Cannot approve exhibition {}: start date {} does not meet minimum lead time requirement",
+                    exhibition.getId(), exhibition.getStartDate());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);

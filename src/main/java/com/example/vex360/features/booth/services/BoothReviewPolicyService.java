@@ -1,7 +1,5 @@
 package com.example.vex360.features.booth.services;
 
-import java.time.Clock;
-import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -16,7 +14,9 @@ import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class BoothReviewPolicyService {
     private final BoothReviewRequestRepository boothReviewRequestRepository;
     private final PanoramaRepository panoramaRepository;
-    private final Clock clock;
+    private final ExhibitionTimelinePolicy exhibitionTimelinePolicy;
 
     public void assertEditable(Booth booth) {
         if (booth.getStatus() != BoothStatus.DRAFT) {
@@ -44,15 +44,17 @@ public class BoothReviewPolicyService {
 
     public void assertBeforeReviewDeadline(Booth booth) {
         Exhibition exhibition = getExhibition(booth);
-        LocalDate deadline = exhibition.getStartDate().minusDays(3);
-        if (!LocalDate.now(clock).isBefore(deadline)) {
+        if (!isBeforeReviewDeadline(exhibition)) {
             throw new AppException(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED);
         }
     }
 
     public void assertCanSubmitReview(Booth booth) {
         assertEditable(booth);
-        assertBeforeReviewDeadline(booth);
+        Exhibition exhibition = getExhibition(booth);
+        if (!isBeforeReviewDeadline(exhibition) && !isRejectedResubmission(booth, exhibition)) {
+            throw new AppException(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED);
+        }
         if (boothReviewRequestRepository.existsByBoothIdAndStatus(booth.getId(), BoothReviewStatus.PENDING)) {
             throw new AppException(ErrorCode.BOOTH_REVIEW_ALREADY_PENDING);
         }
@@ -60,6 +62,20 @@ public class BoothReviewPolicyService {
                 || panoramaRepository.countByBoothId(booth.getId()) == 0) {
             throw new AppException(ErrorCode.INVALID_BOOTH);
         }
+    }
+
+    private boolean isBeforeReviewDeadline(Exhibition exhibition) {
+        // ponytail: sau này triển khai trong chức năng in app notification (nhắc hạn
+        // T-7, T-3, T-1)
+        return exhibitionTimelinePolicy.isBoothPreparationOpen(exhibition);
+    }
+
+    private boolean isRejectedResubmission(Booth booth, Exhibition exhibition) {
+        boolean latestReviewWasRejected = boothReviewRequestRepository
+                .findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId())
+                .map(review -> review.getStatus() == BoothReviewStatus.REJECTED)
+                .orElse(false);
+        return latestReviewWasRejected && exhibition.getStatus() == ExhibitionStatus.REGISTRATION;
     }
 
     @Transactional(readOnly = true)

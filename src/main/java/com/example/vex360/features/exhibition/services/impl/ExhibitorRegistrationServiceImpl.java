@@ -1,6 +1,7 @@
 package com.example.vex360.features.exhibition.services.impl;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
@@ -31,12 +33,12 @@ import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
-import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,10 +51,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
+    private final ExhibitionRepository exhibitionRepository;
     private final UserService userService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
+    private final ExhibitionTimelinePolicy timelinePolicy;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
@@ -74,10 +79,14 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        Exhibition exhibition = expPackage.getExhibition();
-        if (exhibition == null || (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
-                && exhibition.getStatus() != ExhibitionStatus.PUBLISHED
-                && exhibition.getStatus() != ExhibitionStatus.ACTIVE)) {
+        Exhibition packageExhibition = expPackage.getExhibition();
+        if (packageExhibition == null) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByIdForUpdate(packageExhibition.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_INVALID_STATUS));
+        if (!timelinePolicy.isRegistrationOpen(exhibition)) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -91,7 +100,6 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (hasActiveRegistration) {
             throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
-
         PackageTemplate template = expPackage.getTemplate();
 
         // Create registration record in PENDING status with template snapshot values

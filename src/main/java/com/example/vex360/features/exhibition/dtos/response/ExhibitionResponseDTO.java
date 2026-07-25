@@ -38,4 +38,10 @@ public class ExhibitionResponseDTO {
     private String trailerVideoUrl;
     private String floorPlanUrl;
     private String guidelineUrl;
+
+    private LocalDate boothReviewDeadline;
+    private Boolean boothPreparationOpen;
+    private Long daysUntilBoothDeadline;
+    private String readinessStatus;
+    private Integer readinessBlockerCount;
 }

@@ -22,7 +22,11 @@ import com.example.vex360.shared.enums.PaymentStatus;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Month;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +34,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -41,8 +47,10 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistratio
 
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
@@ -66,6 +74,9 @@ class ExhibitorRegistrationServiceTest {
     private ExhibitionPackageRepository packageRepository;
 
     @Mock
+    private ExhibitionRepository exhibitionRepository;
+
+    @Mock
     private UserService userService;
 
     @Mock
@@ -80,6 +91,9 @@ class ExhibitorRegistrationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private ExhibitorRegistrationServiceImpl registrationService;
 
@@ -90,6 +104,9 @@ class ExhibitorRegistrationServiceTest {
     void setup() {
         ReflectionTestUtils.setField(registrationService, "returnUrl", "http://localhost:5173/payment/success");
         ReflectionTestUtils.setField(registrationService, "cancelUrl", "http://localhost:5173/payment/cancel");
+        Mockito.lenient().when(clock.instant()).thenReturn(Instant.parse("2026-01-10T00:00:00Z"));
+        Mockito.lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+        ReflectionTestUtils.setField(registrationService, "timelinePolicy", new ExhibitionTimelinePolicy(clock));
 
         companyUser = User.builder()
                 .id(UUID.randomUUID())
@@ -107,7 +124,9 @@ class ExhibitorRegistrationServiceTest {
                 .id(1)
                 .name("Expo")
                 .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
                 .build();
+        Mockito.lenient().when(exhibitionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(exhibition));
 
         paidPackage = ExhibitionPackage.builder()
                 .id(10)
@@ -148,6 +167,7 @@ class ExhibitorRegistrationServiceTest {
 
         verify(userService).getUserEntityByIdForUpdate(companyUser.getId());
         verify(packageRepository).findById(10);
+        verify(exhibitionRepository).findByIdForUpdate(1);
         verify(registrationRepository).save(any(ExhibitorRegistration.class));
     }
 
@@ -215,6 +235,7 @@ class ExhibitorRegistrationServiceTest {
                 .id(2)
                 .name("Pending Expo")
                 .status(ExhibitionStatus.PENDING)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
                 .build();
         ExhibitionPackage pendingPackage = ExhibitionPackage.builder()
                 .id(12)
@@ -225,10 +246,38 @@ class ExhibitorRegistrationServiceTest {
 
         when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
         when(packageRepository.findById(12)).thenReturn(Optional.of(pendingPackage));
+        when(exhibitionRepository.findByIdForUpdate(2)).thenReturn(Optional.of(pendingExhibition));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo");
         });
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ExhibitionStatus.class, names = { "PUBLISHED", "ACTIVE" })
+    void initializeRegistration_afterRegistrationPhase_throwsInvalidStatus(ExhibitionStatus status) {
+        paidPackage.getExhibition().setStatus(status);
+        when(userService.getUserEntityByIdForUpdate(companyUser.getId())).thenReturn(companyUser);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void initializeRegistration_afterBoothReviewDeadline_throwsInvalidStatus() {
+        paidPackage.getExhibition().setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        when(userService.getUserEntityByIdForUpdate(companyUser.getId())).thenReturn(companyUser);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
 
         assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
@@ -278,7 +327,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_Success() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_Success() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
@@ -305,7 +354,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_FailedPayment() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_FailedPayment() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
@@ -337,7 +386,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_LongDescription() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_LongDescription() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitionPackage longPackage = ExhibitorRegistrationServiceTest.this.paidPackage;
         longPackage.getExhibition().setName("Tech Exhibition Show Expo Event 2026 Very Long Name");
@@ -364,7 +413,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_ThrowsException() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_ThrowsException() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
@@ -388,7 +437,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void getRegistrationDetails_pendingPaymentWithoutCheckoutUrl_regeneratesLink() throws Exception {
+    void getRegistrationDetails_pendingPaymentWithoutCheckoutUrl_regeneratesLink() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)

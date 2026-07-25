@@ -16,8 +16,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Clock;
 import java.time.LocalDate;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,7 @@ import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -97,7 +100,12 @@ class ExhibitionServiceUnitTest {
                 .name("Expo 2026")
                 .status(ExhibitionStatus.REGISTRATION)
                 .organizer(organizer)
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
                 .build();
+
+        ReflectionTestUtils.setField(exhibitionService, "timelinePolicy",
+                new ExhibitionTimelinePolicy(Clock.systemUTC()));
     }
 
     @AfterEach
@@ -325,8 +333,8 @@ class ExhibitionServiceUnitTest {
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
                 .name("New Expo")
                 .category("Technology")
-                .startDate(LocalDate.now().plusDays(1))
-                .endDate(LocalDate.now().plusDays(2))
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
                 .build();
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
