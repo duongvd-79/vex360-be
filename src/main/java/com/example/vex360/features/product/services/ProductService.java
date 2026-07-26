@@ -44,6 +44,7 @@ import com.example.vex360.shared.services.CloudService;
 public class ProductService {
     private static final int MAX_IMAGE_CONTENT_COUNT = 5;
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
+    private static final List<String> BOOTH_STATUSES_LOCKING_PRODUCT_EDITS = List.of("PENDING", "PUBLISHED");
 
     private final CompanyService companyService;
     private final CompanyStorageService companyStorageService;
@@ -308,10 +309,12 @@ public class ProductService {
     }
 
     private void assertNotUsedByPendingBooth(UUID productId) {
-        if (productRepository.existsLockedByDesignRequest(productId)) {
+        Long lockedByDesignRequest = productRepository.existsLockedByDesignRequest(productId);
+        if (lockedByDesignRequest != null && lockedByDesignRequest > 0) {
             throw new AppException(ErrorCode.DESIGN_PRODUCT_LOCKED);
         }
-        if (productRepository.existsInBoothWithStatus(productId, "PENDING")) {
+        Long usedByBooth = productRepository.existsInBoothWithStatus(productId, BOOTH_STATUSES_LOCKING_PRODUCT_EDITS);
+        if (usedByBooth != null && usedByBooth > 0) {
             throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
         }
     }

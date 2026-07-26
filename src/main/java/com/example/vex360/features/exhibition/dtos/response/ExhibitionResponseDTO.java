@@ -38,4 +38,7 @@ public class ExhibitionResponseDTO {
     private String trailerVideoUrl;
     private String floorPlanUrl;
     private String guidelineUrl;
+
+    /** Tổng số lượt visitor vào xem triển lãm (ENTER_EXHIBITION), chỉ set ở trang chi tiết công khai. */
+    private Long visitorCount;
 }

@@ -27,6 +27,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class ProductCategoryService {
+    private static final List<String> BOOTH_STATUSES_LOCKING_PRODUCT_EDITS = List.of("PENDING", "PUBLISHED");
+
     private final CompanyService companyService;
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductRepository productRepository;
@@ -85,11 +87,14 @@ public class ProductCategoryService {
         Company company = getCompanyForCurrentUser(currentUser);
         ProductCategory category = getCategoryForCompany(categoryId, company);
         if (request.getStatus() == ProductCategoryStatus.INACTIVE) {
-            if (productRepository.existsCategoryLockedByDesignRequest(categoryId, company.getId())) {
+            Long lockedByDesignRequest = productRepository.existsCategoryLockedByDesignRequest(categoryId,
+                    company.getId());
+            if (lockedByDesignRequest != null && lockedByDesignRequest > 0) {
                 throw new AppException(ErrorCode.DESIGN_PRODUCT_LOCKED);
             }
-            if (productRepository.existsCategoryProductInBoothWithStatus(
-                    categoryId, company.getId(), "PENDING")) {
+            Long usedByBooth = productRepository.existsCategoryProductInBoothWithStatus(
+                    categoryId, company.getId(), BOOTH_STATUSES_LOCKING_PRODUCT_EDITS);
+            if (usedByBooth != null && usedByBooth > 0) {
                 throw new AppException(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH);
             }
             productRepository.updateStatusByCategoryIdAndCompanyId(

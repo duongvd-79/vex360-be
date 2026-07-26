@@ -238,13 +238,13 @@ public class DataSeeder implements ApplicationRunner {
                 User admin = userRepository.findByEmail("admin@vex360.local").orElseGet(
                                 () -> createUser("admin@vex360.local", "Quản trị hệ thống", Role.ADMIN, "0900000000",
                                                 11));
-                User organizer = createUser(MARKER_EMAIL, "Nguyễn Tổ Chức", Role.ORGANIZER, "0901111111", 12);
+                User organizer = createUser(MARKER_EMAIL, "Nguyễn Văn An", Role.ORGANIZER, "0901111111", 12);
                 User exhibitor1 = createUser("exhibitor@vex360.local", "Trần Quang Huy", Role.EXHIBITOR, "0902222222",
                                 13);
                 User exhibitor2 = createUser("exhibitor2@vex360.local", "Lê Thái Dương", Role.EXHIBITOR, "0903333333",
                                 14);
                 User designer = createUser("designer@vex360.local", "Phạm Thiên An", Role.DESIGNER, "0904444444", 15);
-                User visitor = createUser("visitor@vex360.local", "Hoàng Khách Tham Quan", Role.VISITOR, "0905555555",
+                User visitor = createUser("visitor@vex360.local", "Hoàng An Vy", Role.VISITOR, "0905555555",
                                 16);
 
                 // Phủ UserStatus (INACTIVE/PENDING/BLOCKED) và AuthProvider (GOOGLE)
@@ -309,7 +309,8 @@ public class DataSeeder implements ApplicationRunner {
                 log.info("[SEED] Đã tạo 3 package template (phủ đủ BoothListingPriority + PackageTemplateStatus)");
 
                 // ---------- 4. EXHIBITIONS (phủ đủ 6 trạng thái) ----------
-                // Ngày trải quanh "hôm nay" để triển lãm đang diễn ra và bao trùm các event seed
+                // Ngày trải quanh "hôm nay" để triển lãm đang diễn ra và bao trùm các event
+                // seed
                 Exhibition exhibition = saveExhibition(organizer,
                                 "Triển lãm Nội thất & Công nghệ VEX360 2026", "Nội thất - Công nghệ",
                                 "Triển lãm ảo quy tụ các thương hiệu nội thất và công nghệ hàng đầu Việt Nam.",
@@ -448,7 +449,8 @@ public class DataSeeder implements ApplicationRunner {
                                 .thumbnailUrl(boothThumb2.url()).thumbnailPublicId(boothThumb2.publicId())
                                 .displayTemplateKey("modern").build());
 
-                // Phủ nốt BoothStatus: DESIGNING / PENDING / ARCHIVED (booth không gắn đơn đăng ký)
+                // Phủ nốt BoothStatus: DESIGNING / PENDING / ARCHIVED (booth không gắn đơn đăng
+                // ký)
                 Uploaded boothThumb3 = upload(IMG_EXPO_BOOTHS, "seed/booth");
                 boothRepository.save(Booth.builder()
                                 .name("Gian hàng đang thiết kế").description("Đang được designer dựng nội dung.")
@@ -494,7 +496,8 @@ public class DataSeeder implements ApplicationRunner {
                 Product table = saveProduct(company1, catTable, "Bàn ăn gỗ sồi 6 chỗ", "MV-TABLE-002",
                                 "Bàn ăn mặt gỗ sồi nguyên tấm, chân sắt sơn tĩnh điện.", new BigDecimal("15200000"),
                                 IMG_TABLE);
-                // Sản phẩm này có thêm ProductContent kiểu VIDEO -> phủ ProductContentType.VIDEO
+                // Sản phẩm này có thêm ProductContent kiểu VIDEO -> phủ
+                // ProductContentType.VIDEO
                 Product sensor = saveProduct(company2, catDevice, "Cảm biến môi trường TechVina S1", "TV-SEN-001",
                                 "Đo nhiệt độ, độ ẩm, CO2 theo thời gian thực.", new BigDecimal("3200000"),
                                 IMG_SENSOR, ProductStatus.ACTIVE, VIDEO_SENSOR);
@@ -643,7 +646,8 @@ public class DataSeeder implements ApplicationRunner {
                                 .activeRequesterEmail("guest.partner2@example.com").build());
                 // Phủ nốt PartnershipRequestStatus (APPROVED/REJECTED/SUPERSEDED)
                 // và PartnershipAccountAction.UPGRADE_EXISTING_USER.
-                // activeRequesterEmail để null vì cột này unique - chỉ đơn đang "hoạt động" mới giữ giá trị.
+                // activeRequesterEmail để null vì cột này unique - chỉ đơn đang "hoạt động" mới
+                // giữ giá trị.
                 partnershipRequestRepository.save(PartnershipRequest.builder()
                                 .submittedByUser(visitor)
                                 .requesterName(visitor.getFullName()).requesterEmail(visitor.getEmail())
@@ -690,7 +694,8 @@ public class DataSeeder implements ApplicationRunner {
                 log.info("[SEED] Đã tạo 3 booth review request (phủ đủ BoothReviewStatus)");
 
                 // ---------- 20. DESIGN REQUESTS (phủ đủ 6 trạng thái + 2 mode) ----------
-                // booth2 chưa có panorama nào -> INITIAL_DESIGN; booth1 đã có nội dung/đã publish
+                // booth2 chưa có panorama nào -> INITIAL_DESIGN; booth1 đã có nội dung/đã
+                // publish
                 // -> các yêu cầu sau đó là REDESIGN.
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth2).company(company2).requestedBy(exhibitor2)
@@ -733,19 +738,22 @@ public class DataSeeder implements ApplicationRunner {
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus + DesignRequestMode)");
 
                 // ---------- 21. CHAT ROOM + MESSAGES ----------
-                ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
-                                .exhibition(exhibition).exhibitorUser(exhibitor1).visitorUser(visitor)
-                                .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
-                                .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
-                chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
-                                .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không ạ?")
-                                .build());
-                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                                .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng nhé!").build());
-                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                                .senderRole(Role.EXHIBITOR.name()).content("Bên mình có hỗ trợ giao hàng toàn quốc ạ.")
-                                .build());
-                log.info("[SEED] Đã tạo 1 chat room + 3 message");
+                // ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
+                // .exhibition(exhibition).exhibitorUser(exhibitor1).visitorUser(visitor)
+                // .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
+                // .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
+                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
+                // .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không
+                // ạ?")
+                // .build());
+                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                // .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng
+                // nhé!").build());
+                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                // .senderRole(Role.EXHIBITOR.name()).content("Bên mình có hỗ trợ giao hàng toàn
+                // quốc ạ.")
+                // .build());
+                // log.info("[SEED] Đã tạo 1 chat room + 3 message");
 
                 // ---------- 22. NOTIFICATIONS (không có repository -> dùng EntityManager)
                 // ----------
@@ -769,69 +777,89 @@ public class DataSeeder implements ApplicationRunner {
                                 .phoneNumber("0908888888").message("Cho mình xin catalogue sản phẩm.").build());
                 log.info("[SEED] Đã tạo 2 booth lead");
 
-                // ---------- 24. ANALYTICS EVENTS (rải qua nhiều ngày cho dashboard organizer + gian hàng) ----------
-                // Mỗi ngày: một số lượt BOOTH_VIEW (giờ khác nhau trong ngày) + BOOTH_LEAVE kèm thời
-                // lượng, cộng ENTER/LEAVE_EXHIBITION. Tất cả gắn với triển lãm chính và booth1 (Mộc
-                // Việt) để cả dashboard organizer lẫn trang "Thống kê gian hàng" của exhibitor1 đều
-                // có dữ liệu thật ngay khi seed xong (không cần tự click qua viewer 360 để tạo dữ liệu).
-                int[] daysAgo = { 18, 15, 12, 9, 6, 4, 2, 1 };
-                int[] viewsPerDay = { 4, 6, 5, 8, 7, 9, 8, 11 };
-                int[] visitsPerDay = { 2, 3, 2, 4, 3, 4, 3, 5 };
-                // Giờ trong ngày để rải lượt xem gian hàng -> biểu đồ "lượt xem theo giờ" có phân bố thật
+                // ---------- 24. ANALYTICS EVENTS (rải qua nhiều ngày cho dashboard organizer +
+                // gian hàng) ----------
+                // Mỗi ngày: một số lượt BOOTH_VIEW (giờ khác nhau trong ngày) + BOOTH_LEAVE kèm
+                // thời
+                // lượng, cộng ENTER/LEAVE_EXHIBITION. Tất cả gắn với triển lãm chính và booth1
+                // (Mộc
+                // Việt) để cả dashboard organizer lẫn trang "Thống kê gian hàng" của exhibitor1
+                // đều
+                // có dữ liệu thật ngay khi seed xong (không cần tự click qua viewer 360 để tạo
+                // dữ liệu).
+                // int[] daysAgo = { 18, 15, 12, 9, 6, 4, 2, 1 };
+                // int[] viewsPerDay = { 4, 6, 5, 8, 7, 9, 8, 11 };
+                // int[] visitsPerDay = { 2, 3, 2, 4, 3, 4, 3, 5 };
+                // Giờ trong ngày để rải lượt xem gian hàng -> biểu đồ "lượt xem theo giờ" có
+                // phân bố thật
                 // thay vì dồn hết vào 1 giờ cố định.
-                int[] hourSlots = { 9, 10, 11, 13, 14, 15, 17, 19, 20, 21 };
-                // Thời lượng ở booth (giây), cố tình phủ đủ 5 khoảng của histogram thời gian ở booth:
-                // <30s, 30-60s, 1-3 phút, 3-5 phút, >5 phút.
-                int[] boothDurationsSeconds = { 15, 45, 90, 150, 240, 340, 20, 100 };
-                int totalAnalyticsEvents = 0;
-                ZoneId seedZone = ZoneId.systemDefault();
-                for (int i = 0; i < daysAgo.length; i++) {
-                        Instant day = Instant.now().minus(daysAgo[i], ChronoUnit.DAYS);
-                        for (int v = 0; v < viewsPerDay[i]; v++) {
-                                int hour = hourSlots[(i + v) % hourSlots.length];
-                                Instant viewTime = day.atZone(seedZone)
-                                                .withHour(hour).withMinute(v).withSecond(0).withNano(0)
-                                                .toInstant();
-                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, visitor, exhibition, booth1, null,
-                                                null, viewTime);
-                                // BOOTH_LEAVE kèm thời lượng -> phủ histogram "thời gian ở trong booth"
-                                int duration = boothDurationsSeconds[(i + v) % boothDurationsSeconds.length];
-                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_LEAVE, visitor, exhibition, booth1, null,
-                                                duration, viewTime.plus(duration, ChronoUnit.SECONDS));
-                                totalAnalyticsEvents += 2;
-                        }
-                        Instant tenAm = day.atZone(seedZone).withHour(10).withMinute(0).withSecond(0).withNano(0)
-                                        .toInstant();
-                        for (int v = 0; v < visitsPerDay[i]; v++) {
-                                seedAnalyticsEvent(AnalyticsEventType.ENTER_EXHIBITION, visitor, exhibition, null, null,
-                                                null, tenAm.plus(v * 3L, ChronoUnit.MINUTES));
-                                // LEAVE kèm thời lượng (giây) để tính "thời lượng visit trung bình"
-                                seedAnalyticsEvent(AnalyticsEventType.LEAVE_EXHIBITION, visitor, exhibition, null, null,
-                                                480 + v * 40, tenAm.plus(v * 3L + 6, ChronoUnit.MINUTES));
-                                totalAnalyticsEvents += 2;
-                        }
-                }
+                // int[] hourSlots = { 9, 10, 11, 13, 14, 15, 17, 19, 20, 21 };
+                // // Thời lượng ở booth (giây), cố tình phủ đủ 5 khoảng của histogram thời gian
+                // ở
+                // // booth:
+                // // <30s, 30-60s, 1-3 phút, 3-5 phút, >5 phút.
+                // int[] boothDurationsSeconds = { 15, 45, 90, 150, 240, 340, 20, 100 };
+                // int totalAnalyticsEvents = 0;
+                // ZoneId seedZone = ZoneId.systemDefault();
+                // for (int i = 0; i < daysAgo.length; i++) {
+                // Instant day = Instant.now().minus(daysAgo[i], ChronoUnit.DAYS);
+                // for (int v = 0; v < viewsPerDay[i]; v++) {
+                // int hour = hourSlots[(i + v) % hourSlots.length];
+                // Instant viewTime = day.atZone(seedZone)
+                // .withHour(hour).withMinute(v).withSecond(0).withNano(0)
+                // .toInstant();
+                // seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, visitor, exhibition,
+                // booth1, null,
+                // null, viewTime);
+                // // BOOTH_LEAVE kèm thời lượng -> phủ histogram "thời gian ở trong booth"
+                // int duration = boothDurationsSeconds[(i + v) % boothDurationsSeconds.length];
+                // seedAnalyticsEvent(AnalyticsEventType.BOOTH_LEAVE, visitor, exhibition,
+                // booth1, null,
+                // duration, viewTime.plus(duration, ChronoUnit.SECONDS));
+                // totalAnalyticsEvents += 2;
+                // }
+                // Instant tenAm =
+                // day.atZone(seedZone).withHour(10).withMinute(0).withSecond(0).withNano(0)
+                // .toInstant();
+                // for (int v = 0; v < visitsPerDay[i]; v++) {
+                // seedAnalyticsEvent(AnalyticsEventType.ENTER_EXHIBITION, visitor, exhibition,
+                // null, null,
+                // null, tenAm.plus(v * 3L, ChronoUnit.MINUTES));
+                // // LEAVE kèm thời lượng (giây) để tính "thời lượng visit trung bình"
+                // seedAnalyticsEvent(AnalyticsEventType.LEAVE_EXHIBITION, visitor, exhibition,
+                // null, null,
+                // 480 + v * 40, tenAm.plus(v * 3L + 6, ChronoUnit.MINUTES));
+                // totalAnalyticsEvents += 2;
+                // }
+                // }
 
-                // Bảng xếp hạng "hotspot/sản phẩm được click nhiều nhất" ở trang thống kê gian hàng
-                // -- tên khớp với sản phẩm/hotspot đã seed ở trên để số liệu có ý nghĩa.
-                totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
-                                AnalyticsEventType.PRODUCT_CLICK, sofa.getName(), sofa, 12);
-                totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
-                                AnalyticsEventType.HOTSPOT_CLICK, "Giới thiệu gian hàng", null, 9);
-                totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
-                                AnalyticsEventType.PRODUCT_CLICK, table.getName(), table, 6);
-                totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
-                                AnalyticsEventType.HOTSPOT_CLICK, "Banner khuyến mãi", null, 4);
+                // // Bảng xếp hạng "hotspot/sản phẩm được click nhiều nhất" ở trang thống kê
+                // gian
+                // // hàng
+                // // -- tên khớp với sản phẩm/hotspot đã seed ở trên để số liệu có ý nghĩa.
+                // totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
+                // AnalyticsEventType.PRODUCT_CLICK, sofa.getName(), sofa, 12);
+                // totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
+                // AnalyticsEventType.HOTSPOT_CLICK, "Giới thiệu gian hàng", null, 9);
+                // totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
+                // AnalyticsEventType.PRODUCT_CLICK, table.getName(), table, 6);
+                // totalAnalyticsEvents += seedBoothClicks(visitor, exhibition, booth1,
+                // AnalyticsEventType.HOTSPOT_CLICK, "Banner khuyến mãi", null, 4);
 
-                // Phủ nốt CHAT_INITIATED
-                seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED, visitor, exhibition, booth1, null, 0,
-                                Instant.now().minus(2, ChronoUnit.DAYS));
-                totalAnalyticsEvents += 1;
-                log.info("[SEED] Đã tạo {} analytics event (rải qua {} ngày, phủ đủ AnalyticsEventType)",
-                                totalAnalyticsEvents, daysAgo.length);
+                // // Phủ nốt CHAT_INITIATED
+                // seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED, visitor, exhibition,
+                // booth1, null, 0,
+                // Instant.now().minus(2, ChronoUnit.DAYS));
+                // totalAnalyticsEvents += 1;
+                // log.info("[SEED] Đã tạo {} analytics event (rải qua {} ngày, phủ đủ
+                // AnalyticsEventType)",
+                // totalAnalyticsEvents, daysAgo.length);
 
-                log.info("[SEED] HOÀN TẤT. Đăng nhập bằng bất kỳ email @vex360.local với mật khẩu: {}",
-                                DEFAULT_PASSWORD);
+                // log.info("[SEED] HOÀN TẤT. Đăng nhập bằng bất kỳ email @vex360.local với mật
+                // khẩu: {}",
+                // DEFAULT_PASSWORD);
+
+                log.info("[SEED] HOÀN TẤT (đã tắt phần seed analytics event giả lập).");
         }
 
         // ================= Helpers =================
@@ -864,7 +892,8 @@ public class DataSeeder implements ApplicationRunner {
 
         private Company createCompany(User owner, String name, String industry, String description, String logoSeed,
                         CompanyStatus status) {
-                // Công ty chưa hoàn thiện hồ sơ thì để trống các trường tuỳ chọn cho đúng thực tế
+                // Công ty chưa hoàn thiện hồ sơ thì để trống các trường tuỳ chọn cho đúng thực
+                // tế
                 boolean incomplete = status == CompanyStatus.INCOMPLETE_PROFILE;
                 Uploaded logo = incomplete ? null : upload(letterLogo(name), "seed/company");
                 return companyRepository.save(Company.builder()
@@ -950,7 +979,7 @@ public class DataSeeder implements ApplicationRunner {
                         String description, BigDecimal price, String imageUrl) {
                 return saveProduct(company, category, name, sku, description, price, imageUrl,
                                 ProductStatus.ACTIVE, null);
-            }
+        }
 
         /**
          * @param imageUrl URL ảnh thật của sản phẩm (dùng cho cả thumbnail và
@@ -1013,7 +1042,8 @@ public class DataSeeder implements ApplicationRunner {
          *
          * <p>
          * Cột {@code event_time} dùng {@code @CreationTimestamp} nên khi persist,
-         * Hibernate luôn set = thời điểm hiện tại, bỏ qua giá trị ta gán. Vì vậy sau khi
+         * Hibernate luôn set = thời điểm hiện tại, bỏ qua giá trị ta gán. Vì vậy sau
+         * khi
          * persist ta chạy 1 câu UPDATE native để ghi đè về ngày mong muốn — nhờ đó dữ
          * liệu trải qua nhiều ngày cho biểu đồ.
          */
@@ -1037,8 +1067,10 @@ public class DataSeeder implements ApplicationRunner {
         }
 
         /**
-         * Seed nhiều lượt click (PRODUCT_CLICK/HOTSPOT_CLICK) cùng tên clickable, rải qua vài ngày
-         * gần đây, để bảng xếp hạng "hotspot/sản phẩm được click nhiều nhất" ở trang thống kê gian
+         * Seed nhiều lượt click (PRODUCT_CLICK/HOTSPOT_CLICK) cùng tên clickable, rải
+         * qua vài ngày
+         * gần đây, để bảng xếp hạng "hotspot/sản phẩm được click nhiều nhất" ở trang
+         * thống kê gian
          * hàng (exhibitor) có dữ liệu thật thay vì trống.
          *
          * @return số event đã tạo (bằng {@code count})
@@ -1057,7 +1089,10 @@ public class DataSeeder implements ApplicationRunner {
                 return count;
         }
 
-        /** Metadata JSON tối thiểu cho 1 lượt click — khớp format FE gửi lên ({@code {"name": "..."}}). */
+        /**
+         * Metadata JSON tối thiểu cho 1 lượt click — khớp format FE gửi lên
+         * ({@code {"name": "..."}}).
+         */
         private String clickMetadata(String name) {
                 return "{\"name\":\"" + name + "\"}";
         }

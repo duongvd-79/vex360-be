@@ -69,12 +69,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 JOIN panoramas p ON p.id = h.source_panorama_id
                 JOIN booths b ON b.id = p.booth_id
                 WHERE h.product_id = :productId
-                  AND b.status = :boothStatus
+                  AND b.status IN (:boothStatuses)
             )
             """, nativeQuery = true)
-    boolean existsInBoothWithStatus(
+    Long existsInBoothWithStatus(
             @Param("productId") UUID productId,
-            @Param("boothStatus") String boothStatus);
+            @Param("boothStatuses") Collection<String> boothStatuses);
 
     @Query(value = """
             SELECT EXISTS (
@@ -85,13 +85,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 JOIN booths b ON b.id = p.booth_id
                 WHERE product.category_id = :categoryId
                   AND product.company_id = :companyId
-                  AND b.status = :boothStatus
+                  AND b.status IN (:boothStatuses)
             )
             """, nativeQuery = true)
-    boolean existsCategoryProductInBoothWithStatus(
+    Long existsCategoryProductInBoothWithStatus(
             @Param("categoryId") UUID categoryId,
             @Param("companyId") UUID companyId,
-            @Param("boothStatus") String boothStatus);
+            @Param("boothStatuses") Collection<String> boothStatuses);
 
     @Query(value = """
             SELECT EXISTS (
@@ -103,7 +103,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                                     'REVISION_REQUESTED', 'REVISION_QUEUED')
             )
             """, nativeQuery = true)
-    boolean existsLockedByDesignRequest(@Param("productId") UUID productId);
+    Long existsLockedByDesignRequest(@Param("productId") UUID productId);
 
     @Query(value = """
             SELECT EXISTS (
@@ -117,7 +117,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                                     'REVISION_REQUESTED', 'REVISION_QUEUED')
             )
             """, nativeQuery = true)
-    boolean existsCategoryLockedByDesignRequest(
+    Long existsCategoryLockedByDesignRequest(
             @Param("categoryId") UUID categoryId,
             @Param("companyId") UUID companyId);
 }

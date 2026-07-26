@@ -89,7 +89,7 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trạng thái sản phẩm không hợp lệ.", HttpStatus.BAD_REQUEST),
     PRODUCT_USED_BY_PENDING_BOOTH("PRODUCT-008",
-            "Sản phẩm đang được sử dụng bởi một gian hàng chờ duyệt, không thể chỉnh sửa hoặc xóa.",
+            "Sản phẩm đang được sử dụng bởi một gian hàng đang chờ duyệt hoặc đã xuất bản, không thể chỉnh sửa hoặc xóa.",
             HttpStatus.CONFLICT),
 
     // BOOTH ERRORS

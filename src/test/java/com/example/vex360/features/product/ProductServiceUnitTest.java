@@ -93,7 +93,7 @@ class ProductServiceUnitTest {
     @Test
     void pendingBoothPreventsProductAndContentDeletion() {
         when(productRepository.existsInBoothWithStatus(product.getId(),
-                "PENDING")).thenReturn(true);
+                List.of("PENDING", "PUBLISHED"))).thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.deleteProduct(user, product.getId()));
@@ -107,7 +107,7 @@ class ProductServiceUnitTest {
     @Test
     void reviewHistoryDoesNotPreventPhysicalFileDeletion() {
         when(productRepository.existsInBoothWithStatus(product.getId(),
-                "PENDING")).thenReturn(false);
+                List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         when(productRepository.save(product)).thenReturn(product);
 
         service.deleteProduct(user, product.getId());
@@ -314,8 +314,8 @@ class ProductServiceUnitTest {
         request.setExistingContentIds(List.of(product.getContents().get(0).getId()));
         request.setNewContents(List.of());
 
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
         when(categoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "SKU-1", product.getId()))
@@ -331,7 +331,7 @@ class ProductServiceUnitTest {
 
     @Test
     void updateProduct_LockedByDesignRequest_ThrowsDesignProductLocked() {
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(true);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.updateProduct(user, product.getId(), new UpdateProductRequest()));
@@ -342,8 +342,8 @@ class ProductServiceUnitTest {
 
     @Test
     void updateProduct_UsedByPendingBooth_ThrowsProductUsedByPendingBooth() {
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(true);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.updateProduct(user, product.getId(), new UpdateProductRequest()));
@@ -354,8 +354,8 @@ class ProductServiceUnitTest {
 
     @Test
     void updateProduct_DuplicateSku_ThrowsProductSkuDuplicated() {
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("DUP-SKU");
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "DUP-SKU", product.getId()))
@@ -369,8 +369,8 @@ class ProductServiceUnitTest {
 
     @Test
     void updateProduct_CategoryNotFound_ThrowsProductCategoryNotFound() {
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         UUID categoryId = UUID.randomUUID();
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("SKU-1");
@@ -390,8 +390,8 @@ class ProductServiceUnitTest {
         ProductCategory category = ProductCategory.builder().id(UUID.randomUUID()).company(company)
                 .status(ProductCategoryStatus.ACTIVE).build();
         product.setCategory(category);
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("SKU-1");
         request.setCategoryId(category.getId());
@@ -412,8 +412,8 @@ class ProductServiceUnitTest {
         ProductCategory inactiveCategory = ProductCategory.builder().id(UUID.randomUUID()).company(company)
                 .status(ProductCategoryStatus.INACTIVE).build();
         product.setCategory(inactiveCategory);
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setName("Name");
         request.setSku("SKU-1");
@@ -440,8 +440,8 @@ class ProductServiceUnitTest {
                 .status(ProductCategoryStatus.ACTIVE).build();
         product.setCategory(category);
         product.setThumbnailFileSize(500L);
-        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(false);
-        when(productRepository.existsInBoothWithStatus(product.getId(), "PENDING")).thenReturn(false);
+        when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setName("Name");
         request.setSku("SKU-1");

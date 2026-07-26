@@ -180,8 +180,8 @@ class ProductCategoryServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
                 .thenReturn(Optional.of(category));
-        when(productRepository.existsCategoryProductInBoothWithStatus(categoryId, company.getId(), "PENDING"))
-                .thenReturn(true);
+        when(productRepository.existsCategoryProductInBoothWithStatus(categoryId, company.getId(),
+                List.of("PENDING", "PUBLISHED"))).thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
                 user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));
@@ -201,7 +201,7 @@ class ProductCategoryServiceUnitTest {
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
                 .thenReturn(Optional.of(category));
         when(productRepository.existsCategoryLockedByDesignRequest(categoryId, company.getId()))
-                .thenReturn(true);
+                .thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
                 user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));

@@ -9,8 +9,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.example.vex360.features.analytics.entities.AnalyticsEvent;
+import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 
 public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, Long> {
+
+    // Tổng số lượt visitor vào xem 1 triển lãm (toàn thời gian) -- hiển thị ở trang chi tiết công khai
+    long countByExhibitionIdAndEventType(Integer exhibitionId, AnalyticsEventType eventType);
 
     // Mỗi dòng = 1 ngày: [ngày, số view, số visit, thời lượng TB (giây)]
     @Query(value = """
