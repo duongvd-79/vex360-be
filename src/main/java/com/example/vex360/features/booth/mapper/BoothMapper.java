@@ -70,9 +70,11 @@ public interface BoothMapper {
     default BoothResponseDTO toBoothResponseDTO(Booth booth, List<Panorama> panoramas) {
         Company company = booth.getCompany();
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
+        User createdBy = booth.getCreatedBy();
         return new BoothResponseDTO(
                 booth.getId(),
                 company == null ? null : company.getId(),
+                createdBy == null ? null : createdBy.getId(),
                 registration == null ? null : registration.getUuid(),
                 getExhibitionUuid(registration),
                 getExhibitionName(registration),

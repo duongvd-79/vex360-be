@@ -17,6 +17,8 @@ import lombok.NoArgsConstructor;
 public class BoothResponseDTO {
     private UUID id;
     private UUID companyId;
+    // Id của user exhibitor sở hữu gian hàng - dùng ở FE để mở phòng chat trực tiếp với gian hàng
+    private UUID exhibitorUserId;
     private UUID registrationUuid;
     private UUID exhibitionUuid;
     private String exhibitionName;
