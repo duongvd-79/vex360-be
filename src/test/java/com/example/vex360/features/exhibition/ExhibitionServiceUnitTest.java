@@ -61,6 +61,8 @@ import com.example.vex360.shared.services.CloudService;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+
 @ExtendWith(MockitoExtension.class)
 class ExhibitionServiceUnitTest {
 
@@ -81,6 +83,9 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ExhibitionReviewHistoryService reviewHistoryService;
 
     @InjectMocks
     private ExhibitionServiceImpl exhibitionService;

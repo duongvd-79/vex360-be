@@ -48,6 +48,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+
 @RestController
 @RequestMapping("/api/v1/organizer/exhibitions")
 @RequiredArgsConstructor
@@ -58,6 +61,7 @@ public class OrganizerExhibitionController extends BaseController {
 
     private final ExhibitionService exhibitionService;
     private final ExhibitorRegistrationService exhibitorRegistrationService;
+    private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo triển lãm mới", description = "Tạo một sự kiện triển lãm mới và gán nhà tổ chức hiện tại làm người sở hữu. Yêu cầu số đơn pending hiện tại phải dưới 3. Bắt buộc tải lên ảnh bìa Key Visual. Cho phép tải lên danh sách ảnh logo nhà tài trợ (sponsorLogos).")
@@ -96,6 +100,16 @@ public class OrganizerExhibitionController extends BaseController {
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService
                 .getExhibitionDetailForOrganizer(userDetails.getUser(), uuid);
+        return ok(response);
+    }
+
+    @GetMapping("/{uuid}/review-history")
+    @Operation(summary = "Organizer xem lịch sử duyệt hồ sơ triển lãm của mình", description = "Trả về danh sách các vòng duyệt của hồ sơ triển lãm thuộc sở hữu của nhà tổ chức, sắp xếp từ vòng mới nhất đến cũ nhất.")
+    public ResponseEntity<ApiResponse<List<ExhibitionReviewHistoryResponseDTO>>> getReviewHistory(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
+        List<ExhibitionReviewHistoryResponseDTO> response = reviewHistoryService
+                .getReviewHistoryForOrganizer(userDetails.getUser(), uuid);
         return ok(response);
     }
 

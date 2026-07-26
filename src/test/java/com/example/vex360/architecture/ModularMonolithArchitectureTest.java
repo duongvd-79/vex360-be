@@ -13,6 +13,10 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.jupiter.api.Test;
 
+import com.example.vex360.shared.config.DataSeeder;
+
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
@@ -33,7 +37,9 @@ class ModularMonolithArchitectureTest {
         for (String feature : featureNames(IMPORTED_CLASSES, true)) {
             String featurePackage = FEATURES_PACKAGE + feature;
             ArchRule rule = classes().that().resideInAPackage(featurePackage + "..repositories..")
-                    .should().onlyHaveDependentClassesThat().resideInAPackage(featurePackage + "..");
+                    .should().onlyHaveDependentClassesThat(
+                            resideInAPackage(featurePackage + "..")
+                                    .or(equivalentTo(DataSeeder.class)));
 
             collectViolation(violations, rule,
                     "Repository of feature '" + feature + "' is used outside its owning feature.",

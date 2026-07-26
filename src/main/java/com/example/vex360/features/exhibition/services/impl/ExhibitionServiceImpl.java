@@ -49,6 +49,8 @@ import com.example.vex360.shared.dtos.CloudinaryResponse;
 
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +75,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final CloudService cloudService;
     private final ExhibitionTimelinePolicy timelinePolicy;
     private final UserRepository userRepository;
+    private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @Override
     @Transactional
@@ -230,6 +233,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 }
             }
         }
+
+        reviewHistoryService.recordInitialSubmission(exhibition, organizer,
+                uploadRes != null ? uploadRes.getUrl() : null);
 
         return exhibitionMapper.toResponse(exhibition, savedPackages);
     }
@@ -520,6 +526,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             }
         }
 
+        reviewHistoryService.recordResubmissionOrUpdate(exhibition, organizer, null);
+
         return exhibitionMapper.toResponse(exhibition, savedPackages);
     }
 
@@ -608,6 +616,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibition.setReviewedAt(Instant.now());
 
         exhibition = exhibitionRepository.save(exhibition);
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.APPROVED, null);
+
         packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
     }
@@ -647,6 +657,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         exhibition = exhibitionRepository.save(exhibition);
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.REJECTED,
+                request.getRejectedReason());
+
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
     }

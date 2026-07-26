@@ -39,6 +39,9 @@ import com.example.vex360.features.chat.entities.ChatMessage;
 import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
+import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
+import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
+import com.example.vex360.features.exhibition.repositories.ExhibitionReviewRequestRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
@@ -198,6 +201,7 @@ public class DataSeeder implements ApplicationRunner {
         private final ExhibitionRepository exhibitionRepository;
         private final ExhibitionAssetRepository exhibitionAssetRepository;
         private final ExhibitionPackageRepository exhibitionPackageRepository;
+        private final ExhibitionReviewRequestRepository exhibitionReviewRequestRepository;
         private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
         private final PaymentRepository paymentRepository;
         private final BoothRepository boothRepository;
@@ -844,7 +848,7 @@ public class DataSeeder implements ApplicationRunner {
         private Exhibition saveExhibition(User organizer, String name, String category, String description,
                         LocalDate startDate, LocalDate endDate, int estimatedBooths,
                         ExhibitionStatus status, User reviewedBy, String rejectedReason) {
-                return exhibitionRepository.save(Exhibition.builder()
+                Exhibition exhibition = exhibitionRepository.save(Exhibition.builder()
                                 .organizer(organizer).name(name).category(category).description(description)
                                 .startDate(startDate).endDate(endDate).estimatedBooths(estimatedBooths)
                                 .status(status)
@@ -853,6 +857,32 @@ public class DataSeeder implements ApplicationRunner {
                                 .rejectedReason(rejectedReason)
                                 .rejectionCount(rejectedReason != null ? 1 : 0)
                                 .build());
+
+                ExhibitionReviewStatus reviewStatus = ExhibitionReviewStatus.PENDING;
+                if (status == ExhibitionStatus.REJECTED) {
+                        reviewStatus = ExhibitionReviewStatus.REJECTED;
+                } else if (status != ExhibitionStatus.PENDING) {
+                        reviewStatus = ExhibitionReviewStatus.APPROVED;
+                }
+
+                String snapshotJson = String.format(
+                                "{\"name\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"startDate\":\"%s\",\"endDate\":\"%s\",\"estimatedBooths\":%d}",
+                                name, category, description != null ? description : "", startDate, endDate, estimatedBooths);
+
+                exhibitionReviewRequestRepository.save(ExhibitionReviewRequest.builder()
+                                .exhibition(exhibition)
+                                .versionNumber(1)
+                                .status(reviewStatus)
+                                .submittedBy(organizer)
+                                .submittedAt(Instant.now().minus(5, ChronoUnit.DAYS))
+                                .reviewedBy(reviewedBy)
+                                .reviewedAt(reviewedBy != null ? Instant.now().minus(2, ChronoUnit.DAYS) : null)
+                                .rejectedReason(rejectedReason)
+                                .contentSnapshotJson(snapshotJson)
+                                .legacyIncomplete(true)
+                                .build());
+
+                return exhibition;
         }
 
         private ExhibitionPackage savePackage(PackageTemplate template, Exhibition exhibition, String finalPrice) {
