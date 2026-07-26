@@ -192,6 +192,27 @@ class ProductCategoryServiceUnitTest {
     }
 
     @Test
+    void updateCategoryStatus_LockedByDesignRequest_ThrowsDesignProductLocked() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder()
+                .id(categoryId).company(company).name("Locked category")
+                .status(ProductCategoryStatus.ACTIVE).build();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productRepository.existsCategoryLockedByDesignRequest(categoryId, company.getId()))
+                .thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
+                user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));
+
+        assertSame(ErrorCode.DESIGN_PRODUCT_LOCKED, exception.getErrorCode());
+        verify(productRepository, never()).existsCategoryProductInBoothWithStatus(any(), any(), any());
+        verify(productRepository, never()).updateStatusByCategoryIdAndCompanyId(any(), any(), any());
+        verify(productCategoryRepository, never()).save(any());
+    }
+
+    @Test
     void getCategories_StatusNull_ReturnsAllCategories() {
         ProductCategory category = ProductCategory.builder().id(UUID.randomUUID()).name("Electronics").company(company)
                 .build();
