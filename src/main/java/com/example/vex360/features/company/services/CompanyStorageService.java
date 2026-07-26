@@ -94,6 +94,31 @@ public class CompanyStorageService {
         companyRepository.save(locked);
     }
 
+    @Transactional
+    public void reconcileUsage(
+            Company company,
+            long releasedUsedBytes,
+            long addedUsedBytes,
+            long promotedReservedBytes) {
+        validateBytes(releasedUsedBytes);
+        validateBytes(addedUsedBytes);
+        validateBytes(promotedReservedBytes);
+        Company locked = lock(company);
+        if (reserved(locked) < promotedReservedBytes) {
+            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+        }
+        long newReserved = reserved(locked) - promotedReservedBytes;
+        long newUsed = Math.max(0, used(locked) - releasedUsedBytes)
+                + addedUsedBytes
+                + promotedReservedBytes;
+        if (newUsed + newReserved > quota(locked)) {
+            throw new AppException(ErrorCode.STORAGE_QUOTA_EXCEEDED);
+        }
+        locked.setStorageReservedBytes(newReserved);
+        locked.setStorageUsedBytes(newUsed);
+        companyRepository.save(locked);
+    }
+
     public StorageUsageResponseDTO getUsage(Company company) {
         long usedBytes = used(company);
         long reservedBytes = reserved(company);

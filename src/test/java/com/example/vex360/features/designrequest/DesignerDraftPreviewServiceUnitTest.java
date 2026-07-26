@@ -127,6 +127,7 @@ class DesignerDraftPreviewServiceUnitTest {
                 "Official panorama",
                 "https://cdn/official.jpg",
                 "official/key",
+                0L,
                 0,
                 true,
                 List.of())));

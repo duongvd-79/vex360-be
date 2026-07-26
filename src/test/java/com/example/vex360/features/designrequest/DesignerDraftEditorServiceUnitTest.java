@@ -17,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotType;
@@ -25,6 +24,7 @@ import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpsertDesignDraftHotspotRequest;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
@@ -182,7 +182,7 @@ class DesignerDraftEditorServiceUnitTest {
         DesignDraftPanorama panorama = panorama("main", 0, true);
         draft.getPanoramas().add(panorama);
         when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
-        UpsertHotspotRequest create = new UpsertHotspotRequest();
+        UpsertDesignDraftHotspotRequest create = new UpsertDesignDraftHotspotRequest();
         create.setType(HotspotType.INFO);
         create.setName("About us");
         create.setXPosition(1.0);
@@ -201,6 +201,79 @@ class DesignerDraftEditorServiceUnitTest {
         assertNull(hotspot.getProduct());
         assertNull(hotspot.getMediaAsset());
         verify(benefitGuardService).assertMutationAllowed(request, emptyUsage, draft);
+    }
+
+    @Test
+    void createInfoImageHotspotCanReferenceStagedMediaFromWorkingDraft() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+        UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.INFO);
+        create.setInfoContentType(HotspotInfoContentType.IMAGE);
+        create.setDesignDraftMediaAssetId(stagedMedia.getId());
+
+        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+
+        DesignDraftHotspot hotspot = panorama.getHotspots().get(0);
+        assertSame(stagedMedia, hotspot.getDesignDraftMediaAsset());
+        assertNull(hotspot.getMediaAsset());
+    }
+
+    @Test
+    void createHotspotRejectsOfficialAndStagedMediaIdsTogether() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/jpeg");
+        draft.getMediaAssets().add(stagedMedia);
+        UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.INFO);
+        create.setInfoContentType(HotspotInfoContentType.IMAGE);
+        create.setMediaAssetId(UUID.randomUUID());
+        create.setDesignDraftMediaAssetId(stagedMedia.getId());
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.createHotspot(designer, request.getId(), panorama.getId(), create));
+
+        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertTrue(panorama.getHotspots().isEmpty());
+    }
+
+    @Test
+    void createInfoImageHotspotRejectsStagedVideoOrForeignDraftMedia() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedVideo = stagedMedia("video/mp4");
+        draft.getMediaAssets().add(stagedVideo);
+        UpsertDesignDraftHotspotRequest wrongType = hotspotRequest(HotspotType.INFO);
+        wrongType.setInfoContentType(HotspotInfoContentType.IMAGE);
+        wrongType.setDesignDraftMediaAssetId(stagedVideo.getId());
+
+        assertSame(
+                ErrorCode.INVALID_DESIGN_DRAFT,
+                assertThrows(
+                                AppException.class,
+                                () -> service.createHotspot(
+                                        designer,
+                                        request.getId(),
+                                        panorama.getId(),
+                                        wrongType))
+                        .getErrorCode());
+
+        UpsertDesignDraftHotspotRequest foreignMedia = hotspotRequest(HotspotType.INFO);
+        foreignMedia.setInfoContentType(HotspotInfoContentType.IMAGE);
+        foreignMedia.setDesignDraftMediaAssetId(UUID.randomUUID());
+        assertSame(
+                ErrorCode.INVALID_DESIGN_DRAFT,
+                assertThrows(
+                                AppException.class,
+                                () -> service.createHotspot(
+                                        designer,
+                                        request.getId(),
+                                        panorama.getId(),
+                                        foreignMedia))
+                        .getErrorCode());
     }
 
     @Test
@@ -384,6 +457,32 @@ class DesignerDraftEditorServiceUnitTest {
 
         assertTrue(draft.getMediaAssets().isEmpty());
         verify(assetService).cleanupUnreferencedAssets(request);
+    }
+
+    private DesignDraftMediaAsset stagedMedia(String mimeType) {
+        DesignDraftAsset asset = DesignDraftAsset.builder()
+                .id(UUID.randomUUID())
+                .designRequest(request)
+                .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                .mimeType(mimeType)
+                .fileName("attachment")
+                .build();
+        return DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(asset)
+                .title("Attachment")
+                .build();
+    }
+
+    private UpsertDesignDraftHotspotRequest hotspotRequest(HotspotType type) {
+        UpsertDesignDraftHotspotRequest request = new UpsertDesignDraftHotspotRequest();
+        request.setType(type);
+        request.setName("Hotspot");
+        request.setXPosition(1.0);
+        request.setYPosition(2.0);
+        request.setZPosition(3.0);
+        return request;
     }
 
     private DesignDraftPanorama panorama(String key, int order, boolean isDefault) {

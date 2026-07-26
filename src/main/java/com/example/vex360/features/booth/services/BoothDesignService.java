@@ -112,9 +112,10 @@ public class BoothDesignService {
                     .name(panoramaDesign.name())
                     .imageUrl(panoramaDesign.imageUrl())
                     .imageKey(panoramaDesign.imageKey())
+                    .fileSize(panoramaDesign.fileSize())
                     .orderIndex(panoramaDesign.orderIndex())
                     .isDefault(panoramaDesign.isDefault())
-                    .isTemplateDerived(false)
+                    .isTemplateDerived(Boolean.TRUE.equals(panoramaDesign.templateDerived()))
                     .build();
             Panorama saved = panoramaRepository.save(panorama);
             appliedPanoramasByKey.put(panoramaDesign.clientKey(), saved);
@@ -178,8 +179,10 @@ public class BoothDesignService {
             String name,
             String imageUrl,
             String imageKey,
+            Long fileSize,
             Integer orderIndex,
             Boolean isDefault,
+            Boolean templateDerived,
             List<HotspotDesign> hotspots) {
     }
 

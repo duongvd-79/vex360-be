@@ -19,7 +19,9 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -35,11 +37,13 @@ public class ExhibitorPanoramaService {
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
     private final CompanyService companyService;
+    private final CompanyStorageService companyStorageService;
     private final CloudService cloudService;
     private final PanoramaImageCleanupService panoramaImageCleanupService;
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
     private final BoothReviewPolicyService boothReviewPolicyService;
+    private final DesignDraftAssetRepository designDraftAssetRepository;
 
     @Transactional(readOnly = true)
     public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
@@ -67,11 +71,13 @@ public class ExhibitorPanoramaService {
         boothBenefitGuardService.assertCanAddPanorama(booth);
 
         CloudinaryResponse uploaded = cloudService.uploadToFolder(image, FileUploadUtils.PANORAMA_FOLDER);
+        long fileSize = uploaded.getFileSize() == null ? image.getSize() : uploaded.getFileSize();
         Panorama panorama = Panorama.builder()
                 .booth(booth)
                 .name(request.getName().trim())
                 .imageUrl(uploaded.getUrl())
                 .imageKey(uploaded.getPublicId())
+                .fileSize(fileSize)
                 .orderIndex(request.getOrderIndex() == null ? nextOrderIndex(booth.getId()) : request.getOrderIndex())
                 .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
                 .isTemplateDerived(false)
@@ -84,7 +90,8 @@ public class ExhibitorPanoramaService {
         }
 
         try {
-            return boothMapper.toPanoramaResponseDTO(panoramaRepository.saveAndFlush(panorama));
+            Panorama saved = panoramaRepository.saveAndFlush(panorama);
+            return boothMapper.toPanoramaResponseDTO(saved);
         } catch (RuntimeException exception) {
             cleanupNewUpload(uploaded.getPublicId(), exception);
             throw exception;
@@ -103,6 +110,7 @@ public class ExhibitorPanoramaService {
         Panorama panorama = getPanoramaForBoothForUpdate(panoramaId, booth);
         CloudinaryResponse uploaded = null;
         String oldImageKey = null;
+        long newFileSize = 0L;
 
         if (request != null) {
             if (request.getName() != null) {
@@ -127,6 +135,8 @@ public class ExhibitorPanoramaService {
             oldImageKey = panorama.getImageKey();
             panorama.setImageUrl(uploaded.getUrl());
             panorama.setImageKey(uploaded.getPublicId());
+            newFileSize = uploaded.getFileSize() == null ? image.getSize() : uploaded.getFileSize();
+            panorama.setFileSize(newFileSize);
             panorama.setIsTemplateDerived(false);
         }
 

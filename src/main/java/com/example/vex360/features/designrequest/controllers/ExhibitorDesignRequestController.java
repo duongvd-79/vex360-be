@@ -132,7 +132,7 @@ public class ExhibitorDesignRequestController extends BaseController {
      * "Duyệt bản thảo thiết kế mới nhất của Designer và tự động áp dụng bản thiết kế 3D này vào booth chính thức. Có thể truyền danh sách acceptedMediaAssetIds để lựa chọn tệp media asset đính kèm."
      * )
      */
-    @Operation(summary = "Approve the latest design draft", description = "Applies the latest submitted draft to the booth. Only DesignDraftMediaAsset IDs listed in acceptedMediaAssetIds become company media; an omitted, null, or empty list accepts no media.")
+    @Operation(summary = "Approve the latest design draft", description = "Applies the latest submitted draft to the booth. Staging media referenced by submitted hotspots is promoted automatically; acceptedMediaAssetIds is deprecated and ignored.")
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> approveDraft(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
@@ -146,6 +146,15 @@ public class ExhibitorDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id) {
         return ok(workspaceService.getReviewWorkspace(userDetails.getUser(), id));
+    }
+
+    @GetMapping("/{id}/drafts/{versionNumber}")
+    @Operation(summary = "Xem lại phiên bản draft cũ trong lịch sử", description = "Lấy thông tin chi tiết một phiên bản draft cũ đã được nộp dựa trên versionNumber.")
+    public ResponseEntity<ApiResponse<com.example.vex360.features.designrequest.dtos.response.DesignDraftWorkspaceResponseDTO>> getHistoricalDraftPreview(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable Integer versionNumber) {
+        return ok(workspaceService.getHistoricalDraftPreview(userDetails.getUser(), id, versionNumber));
     }
 
     @PostMapping("/{id}/reject")

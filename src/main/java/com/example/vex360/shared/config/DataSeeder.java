@@ -720,7 +720,6 @@ public class DataSeeder implements ApplicationRunner {
                                 .assignedDesigner(designer).status(DesignRequestStatus.REVISION_REQUESTED)
                                 .mode(DesignRequestMode.REDESIGN)
                                 .note("Yêu cầu chỉnh lại bố cục khu trưng bày.")
-                                .reviewNote("Vui lòng tăng khoảng trống lối đi và đổi tông màu sáng hơn.")
                                 .reviewCount(1).assignedAt(Instant.now().minus(5, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)

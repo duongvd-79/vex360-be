@@ -14,6 +14,7 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.product.entities.Product;
@@ -122,6 +123,7 @@ public class DesignDraftGraphValidator {
                 || !panoramaKeys.contains(targetKey)
                 || hotspot.getProduct() != null
                 || hotspot.getMediaAsset() != null
+                || hotspot.getDesignDraftMediaAsset() != null
                 || isText(hotspot.getInfoText())
                 || hotspot.getInfoContentType() != null
                 || hotspot.getMediaClickAction() != null
@@ -136,6 +138,7 @@ public class DesignDraftGraphValidator {
             Set<UUID> allowedProductIds) {
         if (isText(hotspot.getTargetDraftPanoramaKey())
                 || hotspot.getMediaAsset() != null
+                || hotspot.getDesignDraftMediaAsset() != null
                 || isText(hotspot.getInfoText())
                 || hotspot.getInfoContentType() != null
                 || hotspot.getMediaClickAction() != null) {
@@ -158,12 +161,14 @@ public class DesignDraftGraphValidator {
         HotspotInfoContentType contentType = hotspot.getInfoContentType();
         switch (contentType) {
             case NONE -> {
-                if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null || hotspot.getMediaAsset() != null) {
+                if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null
+                        || hotspot.getMediaAsset() != null || hotspot.getDesignDraftMediaAsset() != null) {
                     invalidDraft();
                 }
             }
             case TEXT -> {
-                if (!isText(hotspot.getInfoText()) || hotspot.getProduct() != null || hotspot.getMediaAsset() != null) {
+                if (!isText(hotspot.getInfoText()) || hotspot.getProduct() != null
+                        || hotspot.getMediaAsset() != null || hotspot.getDesignDraftMediaAsset() != null) {
                     invalidDraft();
                 }
             }
@@ -171,16 +176,17 @@ public class DesignDraftGraphValidator {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
                     invalidDraft();
                 }
-                validateMedia(request, hotspot.getMediaAsset(), MediaAssetType.IMAGE);
+                validateMediaReference(request, hotspot, MediaAssetType.IMAGE);
             }
             case VIDEO -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
                     invalidDraft();
                 }
-                validateMedia(request, hotspot.getMediaAsset(), MediaAssetType.VIDEO);
+                validateMediaReference(request, hotspot, MediaAssetType.VIDEO);
             }
             case PRODUCT -> {
-                if (isText(hotspot.getInfoText()) || hotspot.getMediaAsset() != null) {
+                if (isText(hotspot.getInfoText()) || hotspot.getMediaAsset() != null
+                        || hotspot.getDesignDraftMediaAsset() != null) {
                     invalidDraft();
                 }
                 validateProduct(request, hotspot.getProduct(), allowedProductIds);
@@ -197,7 +203,7 @@ public class DesignDraftGraphValidator {
                 || hotspot.getMediaClickAction() == null) {
             invalidDraft();
         }
-        validateMedia(request, hotspot.getMediaAsset(), null);
+        validateMediaReference(request, hotspot, null);
     }
 
     private void validateProduct(DesignRequest request, Product product, Set<UUID> allowedProductIds) {
@@ -218,6 +224,49 @@ public class DesignDraftGraphValidator {
                 || expectedType != null && mediaAsset.getType() != expectedType) {
             invalidDraft();
         }
+    }
+
+    private void validateMediaReference(
+            DesignRequest request,
+            DesignDraftHotspot hotspot,
+            MediaAssetType expectedType) {
+        boolean official = hotspot.getMediaAsset() != null;
+        boolean staging = hotspot.getDesignDraftMediaAsset() != null;
+        if (official == staging) {
+            invalidDraft();
+        }
+        if (official) {
+            validateMedia(request, hotspot.getMediaAsset(), expectedType);
+            return;
+        }
+        DesignDraftMediaAsset media = hotspot.getDesignDraftMediaAsset();
+        if (media.getId() == null
+                || media.getDraft() == null
+                || hotspot.getSourcePanorama() == null
+                || hotspot.getSourcePanorama().getDraft() == null
+                || !sameEntity(
+                        media.getDraft().getId(),
+                        hotspot.getSourcePanorama().getDraft().getId(),
+                        media.getDraft(),
+                        hotspot.getSourcePanorama().getDraft())
+                || media.getAsset() == null
+                || media.getAsset().getAssetType()
+                        != com.example.vex360.features.designrequest.enums.DesignDraftAssetType.MEDIA_ATTACHMENT
+                || expectedType != null && stagingMediaType(media) != expectedType) {
+            invalidDraft();
+        }
+    }
+
+    private MediaAssetType stagingMediaType(DesignDraftMediaAsset media) {
+        String mimeType = media.getAsset().getMimeType();
+        if ("video/mp4".equalsIgnoreCase(mimeType)) {
+            return MediaAssetType.VIDEO;
+        }
+        if ("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType)) {
+            return MediaAssetType.IMAGE;
+        }
+        invalidDraft();
+        return null;
     }
 
     private Set<UUID> allowedProductIds(DesignRequest request) {

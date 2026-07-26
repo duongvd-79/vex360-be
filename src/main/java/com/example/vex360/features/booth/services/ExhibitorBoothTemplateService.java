@@ -118,6 +118,7 @@ public class ExhibitorBoothTemplateService {
                         .name(source.getName())
                         .imageUrl(source.getImageUrl())
                         .imageKey(source.getImageKey())
+                        .fileSize(source.getFileSize())
                         .orderIndex(source.getOrderIndex())
                         .isDefault(source.getIsDefault())
                         .isTemplateDerived(true)

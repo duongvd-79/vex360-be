@@ -15,6 +15,7 @@ public class PanoramaResponseDTO {
     private String name;
     private String imageUrl;
     private String imageKey;
+    private Long fileSize;
     private Integer orderIndex;
     private Boolean isDefault;
     private List<HotspotResponseDTO> hotspots;

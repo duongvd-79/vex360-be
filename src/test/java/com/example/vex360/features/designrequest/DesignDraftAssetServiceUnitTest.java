@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -34,6 +35,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftMediaAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
@@ -52,6 +54,8 @@ import com.example.vex360.shared.services.CloudService;
 class DesignDraftAssetServiceUnitTest {
     @Mock
     DesignDraftAssetRepository assetRepository;
+    @Mock
+    DesignDraftMediaAssetRepository draftMediaAssetRepository;
     @Mock
     DesignerWorkspaceService workspaceService;
     @Mock
@@ -72,6 +76,7 @@ class DesignDraftAssetServiceUnitTest {
     void setup() {
         service = new DesignDraftAssetService(
                 assetRepository,
+                draftMediaAssetRepository,
                 workspaceService,
                 storageService,
                 cloudService,
@@ -89,7 +94,7 @@ class DesignDraftAssetServiceUnitTest {
     }
 
     @Test
-    void uploadPanoramaChargesExhibitorCompanyQuota() {
+    void uploadPanoramaStagesWithoutChangingCompanyQuota() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "pano.jpg", "image/jpeg", "image".getBytes());
         CloudinaryResponse upload = CloudinaryResponse.builder()
@@ -110,12 +115,12 @@ class DesignDraftAssetServiceUnitTest {
         DesignDraftAssetResponseDTO response = service.uploadPanorama(designer, request.getId(), file);
 
         assertEquals("panorama/pano", response.getImageKey());
-        verify(storageService).checkQuota(company, 5L);
-        verify(storageService).addUsage(company, 5L);
+        assertEquals(DesignDraftAssetQuotaState.NONE, response.getQuotaState());
+        verifyNoInteractions(storageService);
     }
 
     @Test
-    void uploadMediaReservesQuotaWithoutChargingUsage() {
+    void uploadMediaStagesWithoutChangingCompanyQuota() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "intro.mp4", "video/mp4", "video".getBytes());
         CloudinaryResponse upload = CloudinaryResponse.builder()
@@ -135,9 +140,8 @@ class DesignDraftAssetServiceUnitTest {
                 file,
                 DesignDraftAssetType.MEDIA_ATTACHMENT);
 
-        assertEquals(DesignDraftAssetQuotaState.RESERVED, response.getQuotaState());
-        verify(storageService).reserveUsage(company, 5L);
-        verify(storageService, never()).addUsage(company, 5L);
+        assertEquals(DesignDraftAssetQuotaState.STAGED, response.getQuotaState());
+        verifyNoInteractions(storageService);
     }
 
     @Test
@@ -312,6 +316,75 @@ class DesignDraftAssetServiceUnitTest {
 
         assertEquals(1, assets.getContent().size());
         assertEquals(asset.getId(), assets.getContent().get(0).getId());
+    }
+
+    @Test
+    void renameMediaAssetUpdatesDisplayNameOnly() {
+        DesignDraftAsset asset = asset("design-media/intro");
+        asset.setAssetType(DesignDraftAssetType.MEDIA_ATTACHMENT);
+        DesignDraft draft = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        draft.getMediaAssets().add(com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(asset)
+                .title("Old title")
+                .build());
+        request.getDrafts().add(draft);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(assetRepository.findByIdAndDesignRequestId(asset.getId(), request.getId()))
+                .thenReturn(Optional.of(asset));
+        when(assetRepository.save(asset)).thenReturn(asset);
+
+        DesignDraftAssetResponseDTO response =
+                service.renameAsset(designer, request.getId(), asset.getId(), "  Welcome video  ");
+
+        assertEquals("Welcome video", response.getFileName());
+        assertEquals("Welcome video", draft.getMediaAssets().get(0).getTitle());
+        assertEquals("https://cdn.example/design-media/intro", asset.getUrl());
+        assertEquals("design-media/intro", asset.getPublicId());
+        assertEquals("image/jpeg", asset.getMimeType());
+    }
+
+    @Test
+    void renameMediaAssetRejectsBlankOrOverlongName() {
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        assertSame(
+                ErrorCode.INVALID_DESIGN_DRAFT,
+                assertThrows(
+                                AppException.class,
+                                () -> service.renameAsset(designer, request.getId(), UUID.randomUUID(), "  "))
+                        .getErrorCode());
+        assertSame(
+                ErrorCode.INVALID_DESIGN_DRAFT,
+                assertThrows(
+                                AppException.class,
+                                () -> service.renameAsset(
+                                        designer,
+                                        request.getId(),
+                                        UUID.randomUUID(),
+                                        "x".repeat(256)))
+                        .getErrorCode());
+        verify(assetRepository, never()).save(any());
+    }
+
+    @Test
+    void renameAssetRejectsNonMediaAsset() {
+        DesignDraftAsset asset = asset("panorama/pano");
+        asset.setAssetType(DesignDraftAssetType.PANORAMA);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(assetRepository.findByIdAndDesignRequestId(asset.getId(), request.getId()))
+                .thenReturn(Optional.of(asset));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.renameAsset(designer, request.getId(), asset.getId(), "New name"));
+
+        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        verify(assetRepository, never()).save(any());
     }
 
     private DesignDraftAsset asset(String publicId) {

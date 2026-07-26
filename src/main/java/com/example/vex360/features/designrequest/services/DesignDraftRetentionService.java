@@ -32,7 +32,7 @@ public class DesignDraftRetentionService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
 
-        request.getDrafts().removeIf(draft -> !sameDraft(draft, approvedDraft));
+        request.getDrafts().removeIf(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() <= 0);
         List<DesignRequest> previousApprovedRequests = designRequestRepository
                 .findByBoothIdAndStatusAndIdNot(
                         request.getBooth().getId(),

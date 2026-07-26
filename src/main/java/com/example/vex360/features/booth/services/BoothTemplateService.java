@@ -164,6 +164,9 @@ public class BoothTemplateService {
                     .name(panoramaRequest.getName().trim())
                     .imageUrl(uploaded.getUrl())
                     .imageKey(uploaded.getPublicId())
+                    .fileSize(uploaded.getFileSize() == null
+                            ? panoramaFiles.get(panoramaRequest.getFileKey()).getSize()
+                            : uploaded.getFileSize())
                     .orderIndex(panoramaRequest.getOrderIndex() == null ? i : panoramaRequest.getOrderIndex())
                     .isDefault(Boolean.TRUE.equals(panoramaRequest.getIsDefault()))
                     .isTemplateDerived(false)

@@ -55,6 +55,9 @@ public class Panorama {
     @Column(name = "image_key", length = 500)
     String imageKey;
 
+    @Column(name = "file_size")
+    Long fileSize;
+
     @Column(name = "order_index", nullable = false)
     Integer orderIndex;
 

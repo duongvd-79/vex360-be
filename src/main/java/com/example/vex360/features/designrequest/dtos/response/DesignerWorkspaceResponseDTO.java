@@ -32,4 +32,5 @@ public class DesignerWorkspaceResponseDTO {
     private Boolean editable;
     private DesignDraftBenefitUsageResponseDTO benefitUsage;
     private StorageUsageResponseDTO storageUsage;
+    private DesignDraftStorageMetricsResponseDTO storageMetrics;
 }

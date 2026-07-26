@@ -17,5 +17,6 @@ public class BoothReviewPanoramaItemDTO {
     private String imageUrl;
     private Integer orderIndex;
     private Boolean isDefault;
+    private Long fileSize;
     private Integer hotspotCount;
 }
