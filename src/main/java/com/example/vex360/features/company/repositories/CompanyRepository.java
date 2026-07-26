@@ -19,4 +19,8 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT company FROM Company company WHERE company.id = :id")
     Optional<Company> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT company FROM Company company WHERE company.ownerUser.id = :ownerUserId")
+    Optional<Company> findByOwnerUserIdForUpdate(@Param("ownerUserId") UUID ownerUserId);
 }

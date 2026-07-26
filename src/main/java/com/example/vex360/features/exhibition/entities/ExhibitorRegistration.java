@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.entities;
 
+import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.user.entities.User;
 
 import java.math.BigDecimal;
@@ -52,8 +53,8 @@ public class ExhibitorRegistration {
     ExhibitionPackage exhibitionPackage;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "company_user_id", nullable = false)
-    User company;
+    @JoinColumn(name = "company_id", nullable = false)
+    Company company;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
