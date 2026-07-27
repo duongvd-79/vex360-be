@@ -229,6 +229,11 @@ public class DesignRequestService {
                 .map(this::toResponse));
     }
 
+    @Transactional(readOnly = true)
+    public long countPendingRequests() {
+        return designRequestRepository.countByStatus(DesignRequestStatus.PENDING);
+    }
+
     /**
      * Lists requests assigned to the authenticated Designer.
      *

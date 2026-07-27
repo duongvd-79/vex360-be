@@ -33,7 +33,6 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
-import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -321,21 +320,6 @@ class UserServiceUnitTest {
         assertEquals(10, response.getSize());
         assertEquals(1, response.getTotalElements());
         verify(userRepository).searchUsers(eq("user"), eq(Role.VISITOR), eq(UserStatus.ACTIVE), eq(pageable));
-    }
-
-    @Test
-    void getUserSummaryReturnsCounts() {
-        when(userRepository.count()).thenReturn(1284L);
-        when(userRepository.countByStatus(UserStatus.ACTIVE)).thenReturn(1102L);
-        when(userRepository.countByRole(Role.ADMIN)).thenReturn(12L);
-        when(userRepository.countByStatus(UserStatus.PENDING)).thenReturn(45L);
-
-        UserSummaryResponseDTO response = userService.getUserSummary();
-
-        assertEquals(1284L, response.getTotalUsers());
-        assertEquals(1102L, response.getActiveUsers());
-        assertEquals(12L, response.getAdminUsers());
-        assertEquals(45L, response.getPendingUsers());
     }
 
     // ==========================================

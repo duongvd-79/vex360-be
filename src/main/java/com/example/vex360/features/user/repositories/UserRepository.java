@@ -38,9 +38,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("status") UserStatus status,
             Pageable pageable);
 
-    long countByStatus(UserStatus status);
-
-    long countByRole(Role role);
-
     List<User> findByRoleAndStatusOrderByFullNameAsc(Role role, UserStatus status);
 }

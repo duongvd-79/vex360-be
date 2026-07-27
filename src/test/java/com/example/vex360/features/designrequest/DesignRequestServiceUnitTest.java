@@ -210,6 +210,16 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
+    void countPendingRequestsReturnsPendingCount() {
+        when(designRequestRepository.countByStatus(DesignRequestStatus.PENDING)).thenReturn(8L);
+
+        long count = service.countPendingRequests();
+
+        assertEquals(8L, count);
+        verify(designRequestRepository).countByStatus(DesignRequestStatus.PENDING);
+    }
+
+    @Test
     void getRequestsForExhibitorNormalizesKeywordAndKeepsRequestedSort() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by(
                 Sort.Order.desc("createdAt"),

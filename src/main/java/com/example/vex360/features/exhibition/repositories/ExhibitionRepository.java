@@ -78,8 +78,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
         return searchExhibitions(keyword, statuses, category, startDate, endDate, pageable);
     }
 
-    @Query("SELECT e.status, COUNT(e) FROM Exhibition e GROUP BY e.status")
-    List<Object[]> countExhibitionsByStatus();
+    long countByStatus(ExhibitionStatus status);
 
     long countByOrganizerIdAndStatus(UUID organizerId, ExhibitionStatus status);
 

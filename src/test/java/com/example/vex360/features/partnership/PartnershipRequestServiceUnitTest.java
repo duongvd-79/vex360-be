@@ -36,7 +36,6 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
-import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
@@ -445,18 +444,13 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void getRequestSummaryCountsRequestsByStatus() {
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.AWAITING_VERIFICATION)).thenReturn(6L);
+    void countPendingRequestsReturnsPendingCount() {
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING)).thenReturn(5L);
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED)).thenReturn(4L);
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED)).thenReturn(3L);
 
-        PartnershipRequestSummaryResponseDTO response = partnershipRequestService.getRequestSummary();
+        long count = partnershipRequestService.countPendingRequests();
 
-        assertEquals(6L, response.getAwaitingVerificationRequests());
-        assertEquals(5L, response.getPendingRequests());
-        assertEquals(4L, response.getApprovedRequests());
-        assertEquals(3L, response.getRejectedRequests());
+        assertEquals(5L, count);
+        verify(partnershipRequestRepository).countByStatus(PartnershipRequestStatus.PENDING);
     }
 
     @Test

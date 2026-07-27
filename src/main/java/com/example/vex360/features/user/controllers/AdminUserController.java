@@ -20,7 +20,6 @@ import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateRoleRequest;
 import com.example.vex360.features.user.dtos.request.UpdateStatusRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
-import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -62,15 +61,6 @@ public class AdminUserController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "email") Pageable pageable) {
         PageResponse<UserResponseDTO> users = userService.getUsers(keyword, role, status, pageable);
         return ok(users);
-    }
-
-    @GetMapping("/summary")
-    @Operation(
-            summary = "Admin xem thong ke user",
-            description = "Tra ver tong so user, so tai khoan active, so tai khoan admin va so tai khoan pending.")
-    public ResponseEntity<ApiResponse<UserSummaryResponseDTO>> getUserSummary() {
-        UserSummaryResponseDTO summary = userService.getUserSummary();
-        return ok(summary);
     }
 
     @GetMapping("/{id}")

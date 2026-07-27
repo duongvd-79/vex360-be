@@ -13,7 +13,6 @@ import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionReque
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.user.entities.User;
@@ -34,7 +33,7 @@ public interface ExhibitionService {
 			String keyword, AdminExhibitionStatusFilter status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-	ExhibitionSummaryResponseDTO getExhibitionSummary();
+	long countPendingExhibitions();
 
 	ExhibitionResponseDTO getExhibitionDetailForAdmin(UUID uuid);
 

@@ -17,7 +17,6 @@ import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
 import com.example.vex360.features.user.dtos.request.CreateUserRequest;
 import com.example.vex360.features.user.dtos.request.UpdateProfileRequest;
 import com.example.vex360.features.user.dtos.response.UserResponseDTO;
-import com.example.vex360.features.user.dtos.response.UserSummaryResponseDTO;
 import com.example.vex360.features.user.mapper.UserMapper;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -78,15 +77,6 @@ public class UserService {
         Page<UserResponseDTO> users = userRepository.searchUsers(normalizeKeyword(keyword), role, status, pageable)
                 .map(userMapper::toUserResponseDTO);
         return PageResponse.from(users);
-    }
-
-    @Transactional(readOnly = true)
-    public UserSummaryResponseDTO getUserSummary() {
-        return new UserSummaryResponseDTO(
-                userRepository.count(),
-                userRepository.countByStatus(UserStatus.ACTIVE),
-                userRepository.countByRole(Role.ADMIN),
-                userRepository.countByStatus(UserStatus.PENDING));
     }
 
     @Transactional(readOnly = true)
