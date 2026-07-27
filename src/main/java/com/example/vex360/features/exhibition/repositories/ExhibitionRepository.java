@@ -60,13 +60,23 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
         AND (:startDate IS NULL OR e.startDate >= :startDate)
         AND (:endDate IS NULL OR e.endDate <= :endDate)
       """)
-    Page<Exhibition> searchAdminExhibitions(
+    Page<Exhibition> searchExhibitions(
             @Param("keyword") String keyword,
             @Param("statuses") List<ExhibitionStatus> statuses,
             @Param("category") String category,
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate,
             Pageable pageable);
+
+    default Page<Exhibition> searchAdminExhibitions(
+            String keyword,
+            List<ExhibitionStatus> statuses,
+            String category,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            Pageable pageable) {
+        return searchExhibitions(keyword, statuses, category, startDate, endDate, pageable);
+    }
 
     @Query("SELECT e.status, COUNT(e) FROM Exhibition e GROUP BY e.status")
     List<Object[]> countExhibitionsByStatus();

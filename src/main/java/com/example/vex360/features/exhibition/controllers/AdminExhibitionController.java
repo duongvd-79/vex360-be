@@ -1,8 +1,11 @@
 package com.example.vex360.features.exhibition.controllers;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;

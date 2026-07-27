@@ -283,7 +283,7 @@ class DesignRequestServiceUnitTest {
         service.cancelRequest(exhibitor, requestId);
 
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
-        assertEquals(DesignRequestStatus.CANCELLED, request.getStatus());
+        assertEquals(DesignRequestStatus.CANCELED, request.getStatus());
     }
 
     @Test
@@ -538,7 +538,7 @@ class DesignRequestServiceUnitTest {
 
         service.decideCancellation(requestId, true, "Approved");
 
-        assertEquals(DesignRequestStatus.CANCELLED, request.getStatus());
+        assertEquals(DesignRequestStatus.CANCELED, request.getStatus());
         assertTrue(request.getDrafts().isEmpty());
         verify(designDraftRepository).flush();
         verify(designDraftAssetService).cleanupAfterApproval(request);

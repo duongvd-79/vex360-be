@@ -1019,7 +1019,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistrationResponseDTO result = registrationService.cancelRegistration(companyUser, registrationUuid);
 
         assertNotNull(result);
-        assertEquals("CANCELLED", result.getStatus());
+        assertEquals("CANCELED", result.getStatus());
         assertEquals("FAILED", result.getPaymentStatus());
     }
 

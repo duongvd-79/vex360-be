@@ -7,5 +7,5 @@ public enum DesignRequestStatus {
     REVISION_REQUESTED,
     REVISION_QUEUED,
     APPROVED,
-    CANCELLED
+    CANCELED
 }

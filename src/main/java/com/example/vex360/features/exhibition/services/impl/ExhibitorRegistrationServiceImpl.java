@@ -391,7 +391,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
-        registration.setStatus(ExhibitorRegistrationStatus.CANCELLED);
+        registration.setStatus(ExhibitorRegistrationStatus.CANCELED);
         registration = registrationRepository.save(registration);
 
         List<Payment> pendingPayments = paymentRepository

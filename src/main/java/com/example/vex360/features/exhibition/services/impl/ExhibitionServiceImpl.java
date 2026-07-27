@@ -829,7 +829,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         exhibitionAssetRepository.save(asset);
-        deleteCloudAssetAfterCommit(oldPublicId, "image");
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);

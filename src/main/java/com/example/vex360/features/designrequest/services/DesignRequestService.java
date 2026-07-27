@@ -266,7 +266,7 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
         DesignRequestStatus previousStatus = request.getStatus();
-        request.setStatus(DesignRequestStatus.CANCELLED);
+        request.setStatus(DesignRequestStatus.CANCELED);
         request.setQuotaCharged(false);
         request.setCanceledAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
@@ -287,7 +287,7 @@ public class DesignRequestService {
             return cancelRequest(currentUser, id);
         }
         if (request.getStatus() == DesignRequestStatus.APPROVED
-                || request.getStatus() == DesignRequestStatus.CANCELLED
+                || request.getStatus() == DesignRequestStatus.CANCELED
                 || request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
@@ -318,7 +318,7 @@ public class DesignRequestService {
         if (approve) {
             DesignRequestStatus previousStatus = request.getStatus();
             request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
-            request.setStatus(DesignRequestStatus.CANCELLED);
+            request.setStatus(DesignRequestStatus.CANCELED);
             request.setCanceledAt(Instant.now());
             request.getBooth().setStatus(BoothStatus.DRAFT);
             request.getDrafts().clear();
@@ -680,20 +680,20 @@ public class DesignRequestService {
     /**
      * Forces cleanup of design assets no longer used by the current booth. The
      * caller must enforce the Admin authorization boundary; this operation only
-     * accepts APPROVED or CANCELLED requests.
+     * accepts APPROVED or CANCELED requests.
      *
      * @param id terminal design request identifier
      * @return number of assets deleted
-     * @throws AppException if the request is not APPROVED or CANCELLED
+     * @throws AppException if the request is not APPROVED or CANCELED
      */
     @Transactional
     public int cleanupTerminalAssets(UUID id) {
         DesignRequest request = getRequest(id);
         if (request.getStatus() != DesignRequestStatus.APPROVED
-                && request.getStatus() != DesignRequestStatus.CANCELLED) {
+                && request.getStatus() != DesignRequestStatus.CANCELED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
-        if (request.getStatus() == DesignRequestStatus.CANCELLED && !request.getDrafts().isEmpty()) {
+        if (request.getStatus() == DesignRequestStatus.CANCELED && !request.getDrafts().isEmpty()) {
             request.getDrafts().clear();
             designDraftRepository.flush();
         }
@@ -721,7 +721,7 @@ public class DesignRequestService {
                 designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode),
-                designRequestRepository.countFiltered(DesignRequestStatus.CANCELLED, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode),
                 workloads);
     }
 
