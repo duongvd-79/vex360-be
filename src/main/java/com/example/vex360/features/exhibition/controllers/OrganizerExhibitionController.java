@@ -48,6 +48,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+
 @RestController
 @RequestMapping("/api/v1/organizer/exhibitions")
 @RequiredArgsConstructor
@@ -58,6 +61,7 @@ public class OrganizerExhibitionController extends BaseController {
 
     private final ExhibitionService exhibitionService;
     private final ExhibitorRegistrationService exhibitorRegistrationService;
+    private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo triển lãm mới", description = "Tạo một sự kiện triển lãm mới và gán nhà tổ chức hiện tại làm người sở hữu. Yêu cầu số đơn pending hiện tại phải dưới 3. Bắt buộc tải lên ảnh bìa Key Visual. Cho phép tải lên danh sách ảnh logo nhà tài trợ (sponsorLogos).")
@@ -99,6 +103,16 @@ public class OrganizerExhibitionController extends BaseController {
         return ok(response);
     }
 
+    @GetMapping("/{uuid}/review-history")
+    @Operation(summary = "Organizer xem lịch sử duyệt hồ sơ triển lãm của mình", description = "Trả về danh sách các vòng duyệt của hồ sơ triển lãm thuộc sở hữu của nhà tổ chức, sắp xếp từ vòng mới nhất đến cũ nhất.")
+    public ResponseEntity<ApiResponse<List<ExhibitionReviewHistoryResponseDTO>>> getReviewHistory(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
+        List<ExhibitionReviewHistoryResponseDTO> response = reviewHistoryService
+                .getReviewHistoryForOrganizer(userDetails.getUser(), uuid);
+        return ok(response);
+    }
+
     @PutMapping(path = "/{uuid}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật đơn đăng ký triển lãm", description = "Cập nhật thông tin chi tiết của đơn đăng ký triển lãm (chỉ được phép khi đơn đang ở trạng thái PENDING). Không cho phép thay đổi trạng thái hoặc hủy đơn tại đây. Cho phép cập nhật lại Key Visual.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> updateExhibition(
@@ -131,8 +145,9 @@ public class OrganizerExhibitionController extends BaseController {
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> uploadSponsorLogo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
+            @Parameter(description = "Tên nhà tài trợ") @RequestParam(value = "name", required = false) String name,
             @RequestPart("file") MultipartFile file) {
-        ExhibitionResponseDTO response = exhibitionService.uploadSponsorLogo(userDetails.getUser(), uuid, file);
+        ExhibitionResponseDTO response = exhibitionService.uploadSponsorLogo(userDetails.getUser(), uuid, name, file);
         return ok(response);
     }
 
@@ -142,9 +157,10 @@ public class OrganizerExhibitionController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
             @Parameter(description = "ID của ảnh logo tài trợ") @PathVariable UUID assetId,
-            @RequestPart("file") MultipartFile file) {
+            @Parameter(description = "Tên nhà tài trợ") @RequestParam(value = "name", required = false) String name,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         ExhibitionResponseDTO response = exhibitionService.updateSponsorLogo(userDetails.getUser(), uuid,
-                assetId,
+                assetId, name,
                 file);
         return ok(response);
     }
@@ -198,13 +214,24 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     // Exhibitor Registration Management
+    @GetMapping("/{exhibitionUuid}/registrations")
+    @Operation(summary = "Xem danh sách đăng ký của doanh nghiệp theo triển lãm", description = "Lấy danh sách các đơn đăng ký tham gia một triển lãm do nhà tổ chức sở hữu, hỗ trợ phân trang, lọc, tìm kiếm và sắp xếp.")
+    public ResponseEntity<ApiResponse<PageResponse<ExhibitorRegistrationResponseDTO>>> getExhibitorRegistrationsByExhibition(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "UUID triển lãm") @PathVariable UUID exhibitionUuid,
+            @Parameter(description = "Trạng thái đơn đăng ký") @RequestParam(required = false) ExhibitorRegistrationStatus status,
+            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc email") @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return getExhibitorRegistrations(userDetails, exhibitionUuid, status, keyword, pageable);
+    }
+
     @GetMapping("/registrations")
     @Operation(summary = "Xem danh sách đăng ký của các doanh nghiệp", description = "Lấy danh sách các đơn đăng ký tham gia gian hàng của doanh nghiệp (Exhibitor) đăng ký vào các triển lãm do tôi tổ chức, hỗ trợ phân trang, lọc và tìm kiếm.")
     public ResponseEntity<ApiResponse<PageResponse<ExhibitorRegistrationResponseDTO>>> getExhibitorRegistrations(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID triển lãm") @RequestParam(required = false) UUID exhibitionUuid,
             @Parameter(description = "Trạng thái đơn đăng ký") @RequestParam(required = false) ExhibitorRegistrationStatus status,
-            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc tên triển lãm") @RequestParam(required = false) String keyword,
+            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc email") @RequestParam(required = false) String keyword,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitorRegistrationResponseDTO> response = exhibitorRegistrationService
                 .getRegistrationsForOrganizer(userDetails.getUser(), exhibitionUuid, status, keyword,

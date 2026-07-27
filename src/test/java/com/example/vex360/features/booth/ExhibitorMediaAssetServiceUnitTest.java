@@ -104,11 +104,68 @@ class ExhibitorMediaAssetServiceUnitTest {
         Page<MediaAsset> page = new PageImpl<>(List.of(mediaAsset));
         when(mediaAssetRepository.findByCompanyId(company.getId(), pageable)).thenReturn(page);
 
-        PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, pageable);
+        PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, null, pageable);
 
         assertNotNull(response);
         assertEquals(1, response.getContent().size());
         assertEquals("Logo", response.getContent().get(0).getName());
+    }
+
+    @Test
+    void testGetMediaAssets_FiltersImageCaseInsensitively() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<MediaAsset> page = new PageImpl<>(List.of(mediaAsset), pageable, 1);
+        when(mediaAssetRepository.findByCompanyIdAndType(
+                company.getId(), MediaAssetType.IMAGE, pageable)).thenReturn(page);
+
+        PageResponse<MediaAssetResponseDTO> response =
+                mediaAssetService.getMediaAssets(currentUser, " ImAgE ", pageable);
+
+        assertEquals(1, response.getContent().size());
+        verify(mediaAssetRepository).findByCompanyIdAndType(
+                company.getId(), MediaAssetType.IMAGE, pageable);
+    }
+
+    @Test
+    void testGetMediaAssets_FiltersVideoCaseInsensitively() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(mediaAssetRepository.findByCompanyIdAndType(
+                company.getId(), MediaAssetType.VIDEO, pageable)).thenReturn(Page.empty(pageable));
+
+        PageResponse<MediaAssetResponseDTO> response =
+                mediaAssetService.getMediaAssets(currentUser, "video", pageable);
+
+        assertEquals(0, response.getContent().size());
+        verify(mediaAssetRepository).findByCompanyIdAndType(
+                company.getId(), MediaAssetType.VIDEO, pageable);
+    }
+
+    @Test
+    void testGetMediaAssets_AllDoesNotFilterByType() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(mediaAssetRepository.findByCompanyId(company.getId(), pageable)).thenReturn(Page.empty(pageable));
+
+        mediaAssetService.getMediaAssets(currentUser, " ALL ", pageable);
+
+        verify(mediaAssetRepository).findByCompanyId(company.getId(), pageable);
+        verify(mediaAssetRepository, never()).findByCompanyIdAndType(any(), any(), any());
+    }
+
+    @Test
+    void testGetMediaAssets_InvalidFilterType_ThrowsValidationException() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        Pageable pageable = PageRequest.of(0, 10);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> mediaAssetService.getMediaAssets(currentUser, "audio", pageable));
+
+        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        verify(mediaAssetRepository, never()).findByCompanyId(any(), any());
+        verify(mediaAssetRepository, never()).findByCompanyIdAndType(any(), any(), any());
     }
 
     @Test

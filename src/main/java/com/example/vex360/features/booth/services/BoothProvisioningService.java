@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -18,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BoothProvisioningService {
     private final BoothRepository boothRepository;
-    private final CompanyService companyService;
 
     @Transactional
     public Optional<Booth> ensureBoothForApprovedRegistration(ExhibitorRegistration registration) {
@@ -34,14 +32,14 @@ public class BoothProvisioningService {
             return existingBooth;
         }
 
-        Company company = companyService.getCompanyEntityForCurrentUser(registration.getCompany());
+        Company company = registration.getCompany();
 
         Booth booth = Booth.builder()
-                .name(company.getName())
+                .name(company != null ? company.getName() : null)
                 .description(null)
                 .status(BoothStatus.DRAFT)
                 .isTemplate(false)
-                .createdBy(registration.getCompany())
+                .createdBy(company != null ? company.getOwnerUser() : null)
                 .company(company)
                 .exhibitorRegistration(registration)
                 .build();

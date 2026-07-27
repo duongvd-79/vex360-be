@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
@@ -31,16 +32,19 @@ import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
-import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.company.services.CompanyService;
 
 @Service
 @RequiredArgsConstructor
@@ -49,10 +53,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
+    private final ExhibitionRepository exhibitionRepository;
     private final UserService userService;
+    private final CompanyService companyService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ExhibitionTimelinePolicy timelinePolicy;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
@@ -65,33 +72,48 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Transactional
     public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
             String participationReason) {
-        User company = userService.getUserEntityByIdForUpdate(companyUserId);
+        User exhibitorUser = userService.getUserEntityById(companyUserId);
+        Company company = companyService.getCompanyEntityForCurrentUserForUpdate(exhibitorUser);
 
         ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition package not found for ID: {}", exhibitionPackageId);
+                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
+                });
 
         if (expPackage.getStatus() != ExhibitionPackageStatus.ACTIVE) {
+            log.error("Exhibition package {} is not active (status: {})", exhibitionPackageId, expPackage.getStatus());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        Exhibition exhibition = expPackage.getExhibition();
-        if (exhibition == null || (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
-                && exhibition.getStatus() != ExhibitionStatus.PUBLISHED
-                && exhibition.getStatus() != ExhibitionStatus.ACTIVE)) {
+        Exhibition packageExhibition = expPackage.getExhibition();
+        if (packageExhibition == null) {
+            log.error("Exhibition package {} has no associated exhibition", exhibitionPackageId);
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        Exhibition exhibition = exhibitionRepository.findByIdForUpdate(packageExhibition.getId())
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for ID: {}", packageExhibition.getId());
+                    return new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+                });
+        if (!timelinePolicy.isRegistrationOpen(exhibition)) {
+            log.error("Registration is closed for exhibition {}", exhibition.getId());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
         boolean hasActiveRegistration = registrationRepository.existsActiveRegistration(
-                companyUserId,
+                company.getId(),
                 exhibition.getId(),
                 List.of(
                         ExhibitorRegistrationStatus.PENDING,
                         ExhibitorRegistrationStatus.PENDING_PAYMENT,
                         ExhibitorRegistrationStatus.APPROVED));
         if (hasActiveRegistration) {
+            log.error("Company {} already has an active registration for exhibition {}", company.getId(),
+                    exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
-
         PackageTemplate template = expPackage.getTemplate();
 
         // Create registration record in PENDING status with template snapshot values
@@ -117,10 +139,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Override
     @Transactional
     public ExhibitorRegistrationResponseDTO getRegistrationDetails(UUID registrationUuid, UUID companyUserId) {
-        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+        User exhibitorUser = userService.getUserEntityById(companyUserId);
+        Company company = companyService.getCompanyEntityForCurrentUser(exhibitorUser);
 
-        if (!registration.getCompany().getId().equals(companyUserId)) {
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
+                .orElseThrow(() -> {
+                    log.error("Exhibitor registration not found for UUID: {}", registrationUuid);
+                    return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+                });
+
+        if (!registration.getCompany().getId().equals(company.getId())) {
+            log.error("Company {} is not authorized to access registration {}", company.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
@@ -185,11 +214,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             User organizer, UUID exhibitionUuid, ExhibitorRegistrationStatus status, String keyword,
             Pageable pageable) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Page<ExhibitorRegistration> page = registrationRepository.searchForOrganizer(
-                organizer.getId(), exhibitionUuid, status, keyword, pageable);
+                organizer.getId(), exhibitionUuid, status,
+                keyword == null || keyword.isBlank() ? null : keyword.trim(), pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
@@ -226,11 +257,15 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     public PageResponse<ExhibitorRegistrationResponseDTO> getRegistrationsForExhibitor(
             User exhibitor, ExhibitorRegistrationStatus status, String keyword, Pageable pageable) {
         if (exhibitor == null || exhibitor.getId() == null) {
+            log.error("Exhibitor authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
+        Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
+
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
-                exhibitor.getId(), status, keyword, pageable);
+                company.getId(), status, normalizedKeyword, pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
@@ -264,18 +299,24 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Transactional
     public ExhibitorRegistrationResponseDTO approveRegistration(User organizer, UUID registrationUuid) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Registration not found for UUID: {}", registrationUuid);
+                    return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+                });
 
         // Check ownership
         if (!registration.getExhibitionPackage().getExhibition().getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized to approve registration {}", organizer.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING) {
+            log.error("Cannot approve registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -320,24 +361,31 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     public ExhibitorRegistrationResponseDTO rejectRegistration(User organizer, UUID registrationUuid,
             String rejectedReason) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Registration not found for UUID: {}", registrationUuid);
+                    return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+                });
 
         // Check ownership
         if (!registration.getExhibitionPackage().getExhibition().getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized to reject registration {}", organizer.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
+            log.error("Cannot reject registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
         String normalizedReason = rejectedReason == null ? null : rejectedReason.trim();
         if (normalizedReason == null || normalizedReason.isEmpty()) {
+            log.error("Rejection reason is required for rejecting registration {}", registrationUuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -356,18 +404,26 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Transactional
     public ExhibitorRegistrationResponseDTO cancelRegistration(User exhibitor, UUID registrationUuid) {
         if (exhibitor == null || exhibitor.getId() == null) {
+            log.error("Exhibitor authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+        Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
 
-        if (!registration.getCompany().getId().equals(exhibitor.getId())) {
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
+                .orElseThrow(() -> {
+                    log.error("Registration not found for UUID: {}", registrationUuid);
+                    return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+                });
+
+        if (!registration.getCompany().getId().equals(company.getId())) {
+            log.error("Company {} is not authorized to cancel registration {}", company.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
+            log.error("Cannot cancel registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -390,18 +446,19 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     }
 
     private ExhibitorRegistrationResponseDTO mapToResponse(ExhibitorRegistration registration, Payment payment) {
+        User owner = registration.getCompany().getOwnerUser();
         return ExhibitorRegistrationResponseDTO.builder()
                 .id(registration.getId())
                 .uuid(registration.getUuid())
                 .exhibitionPackageId(registration.getExhibitionPackage().getId())
-                .companyUserId(registration.getCompany().getId())
+                .companyUserId(owner != null ? owner.getId() : null)
                 .status(registration.getStatus().name())
                 .submittedAt(registration.getSubmittedAt())
                 .checkoutUrl(payment != null ? payment.getCheckoutUrl() : null)
                 .paymentStatus(payment != null ? payment.getStatus().name() : null)
                 .orderCode(payment != null ? payment.getOrderCode() : null)
-                .companyName(registration.getCompany().getFullName())
-                .companyEmail(registration.getCompany().getEmail())
+                .companyName(registration.getCompany().getName())
+                .companyEmail(owner != null ? owner.getEmail() : null)
                 .packageName(registration.getPackageNameSnapshot() != null ? registration.getPackageNameSnapshot()
                         : registration.getExhibitionPackage().getTemplate().getName())
                 .priceSnapshot(registration.getPriceSnapshot())

@@ -40,6 +40,9 @@ import com.example.vex360.features.chat.entities.ChatMessage;
 import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
+import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
+import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
+import com.example.vex360.features.exhibition.repositories.ExhibitionReviewRequestRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
@@ -198,6 +201,7 @@ public class DataSeeder implements ApplicationRunner {
         private final CompanyRepository companyRepository;
         private final PackageTemplateRepository packageTemplateRepository;
         private final ExhibitionRepository exhibitionRepository;
+        private final ExhibitionReviewRequestRepository exhibitionReviewRequestRepository;
         private final ExhibitionAssetRepository exhibitionAssetRepository;
         private final ExhibitionPackageRepository exhibitionPackageRepository;
         private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
@@ -387,20 +391,20 @@ public class DataSeeder implements ApplicationRunner {
 
                 // ---------- 7. EXHIBITOR REGISTRATIONS (phủ đủ 5 trạng thái) ----------
                 ExhibitorRegistration reg1 = exhibitorRegistrationRepository.save(buildRegistration(
-                                premiumPackage, exhibitor1, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                premiumPackage, company1, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
                                 admin, "Chúng tôi muốn giới thiệu bộ sưu tập nội thất gỗ mới.", null));
                 ExhibitorRegistration reg2 = exhibitorRegistrationRepository.save(buildRegistration(
-                                basicPackage, exhibitor2, basicTemplate, ExhibitorRegistrationStatus.PENDING_PAYMENT,
+                                basicPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING_PAYMENT,
                                 null, "TechVina mong muốn tiếp cận khách hàng doanh nghiệp.", null));
                 ExhibitorRegistration reg3 = exhibitorRegistrationRepository.save(buildRegistration(
-                                regPackage, exhibitor2, basicTemplate, ExhibitorRegistrationStatus.PENDING,
+                                regPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING,
                                 null, "TechVina muốn trưng bày giải pháp vật liệu thông minh.", null));
                 ExhibitorRegistration reg4 = exhibitorRegistrationRepository.save(buildRegistration(
-                                regPackage, exhibitor1, basicTemplate, ExhibitorRegistrationStatus.REJECTED,
+                                regPackage, company1, basicTemplate, ExhibitorRegistrationStatus.REJECTED,
                                 organizer, "Mộc Việt đăng ký gian hàng nội thất gỗ.",
                                 "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm."));
                 ExhibitorRegistration reg5 = exhibitorRegistrationRepository.save(buildRegistration(
-                                completedPackage, exhibitor2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
+                                completedPackage, company2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
                                 null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null));
                 log.info("[SEED] Đã tạo 5 exhibitor registration "
                                 + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
@@ -911,7 +915,7 @@ public class DataSeeder implements ApplicationRunner {
         private Exhibition saveExhibition(User organizer, String name, String category, String description,
                         LocalDate startDate, LocalDate endDate, int estimatedBooths,
                         ExhibitionStatus status, User reviewedBy, String rejectedReason) {
-                return exhibitionRepository.save(Exhibition.builder()
+                Exhibition exhibition = exhibitionRepository.save(Exhibition.builder()
                                 .organizer(organizer).name(name).category(category).description(description)
                                 .startDate(startDate).endDate(endDate).estimatedBooths(estimatedBooths)
                                 .status(status)
@@ -920,6 +924,32 @@ public class DataSeeder implements ApplicationRunner {
                                 .rejectedReason(rejectedReason)
                                 .rejectionCount(rejectedReason != null ? 1 : 0)
                                 .build());
+
+                ExhibitionReviewStatus reviewStatus = ExhibitionReviewStatus.PENDING;
+                if (status == ExhibitionStatus.REJECTED) {
+                        reviewStatus = ExhibitionReviewStatus.REJECTED;
+                } else if (status != ExhibitionStatus.PENDING) {
+                        reviewStatus = ExhibitionReviewStatus.APPROVED;
+                }
+
+                String snapshotJson = String.format(
+                                "{\"name\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"startDate\":\"%s\",\"endDate\":\"%s\",\"estimatedBooths\":%d}",
+                                name, category, description != null ? description : "", startDate, endDate, estimatedBooths);
+
+                exhibitionReviewRequestRepository.save(ExhibitionReviewRequest.builder()
+                                .exhibition(exhibition)
+                                .versionNumber(1)
+                                .status(reviewStatus)
+                                .submittedBy(organizer)
+                                .submittedAt(Instant.now().minus(5, ChronoUnit.DAYS))
+                                .reviewedBy(reviewedBy)
+                                .reviewedAt(reviewedBy != null ? Instant.now().minus(2, ChronoUnit.DAYS) : null)
+                                .rejectedReason(rejectedReason)
+                                .contentSnapshotJson(snapshotJson)
+                                .legacyIncomplete(true)
+                                .build());
+
+                return exhibition;
         }
 
         private ExhibitionPackage savePackage(PackageTemplate template, Exhibition exhibition, String finalPrice) {
@@ -934,11 +964,11 @@ public class DataSeeder implements ApplicationRunner {
                                 .status(status).build());
         }
 
-        private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, User exhibitor,
+        private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, Company company,
                         PackageTemplate template, ExhibitorRegistrationStatus status, User reviewedBy,
                         String reason, String rejectedReason) {
                 return ExhibitorRegistration.builder()
-                                .exhibitionPackage(pkg).company(exhibitor).status(status)
+                                .exhibitionPackage(pkg).company(company).status(status)
                                 .reviewedBy(reviewedBy).participationReason(reason)
                                 .rejectedReason(rejectedReason)
                                 .packageNameSnapshot(template.getName())

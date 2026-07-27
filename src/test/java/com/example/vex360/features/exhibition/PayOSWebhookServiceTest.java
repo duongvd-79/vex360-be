@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
+import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -69,6 +71,8 @@ class PayOSWebhookServiceTest {
         pendingRegistration = ExhibitorRegistration.builder()
                 .id(1)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .company(Company.builder().id(UUID.randomUUID())
+                        .name("Test Co").build())
                 .build();
 
         pendingPayment = Payment.builder()

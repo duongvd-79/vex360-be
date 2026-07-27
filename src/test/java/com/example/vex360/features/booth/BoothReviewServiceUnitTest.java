@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +24,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
@@ -53,11 +56,13 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.entities.ProductContent;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import tools.jackson.databind.json.JsonMapper;
@@ -74,6 +79,8 @@ class BoothReviewServiceUnitTest {
     BoothReviewPolicyService policyService;
     @Mock
     BoothReviewContentAssembler contentAssembler;
+    @Mock
+    ExhibitionRepository exhibitionRepository;
 
     private BoothReviewService service;
     private User exhibitor;
@@ -95,6 +102,7 @@ class BoothReviewServiceUnitTest {
                 new BoothReviewSnapshotFactory(),
                 new BoothReviewDiffService(JsonMapper.builder().build()),
                 contentAssembler,
+                exhibitionRepository,
                 clock);
         exhibitor = User.builder().id(UUID.randomUUID()).fullName("Exhibitor Owner").build();
         organizer = User.builder().id(UUID.randomUUID()).build();
@@ -138,13 +146,47 @@ class BoothReviewServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
                 .thenReturn(Optional.of(booth));
+        when(exhibitionRepository.findByIdForUpdate(1))
+                .thenReturn(Optional.of(booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()));
         when(boothRepository.save(booth)).thenReturn(booth);
 
         BoothResponseDTO response = service.startEdit(exhibitor, booth.getId());
 
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertEquals(BoothStatus.DRAFT, response.getStatus());
+        verify(exhibitionRepository).findByIdForUpdate(1);
         verify(policyService).assertBeforeReviewDeadline(booth);
+    }
+
+    @Test
+    void getBoothsForOrganizerNormalizesKeywordAndPreservesPagination() {
+        PageRequest pageable = PageRequest.of(1, 10, Sort.by(Sort.Order.desc("updatedAt")));
+        when(boothRepository.searchForOrganizer(
+                exhibitionUuid, organizer.getId(), "Exhibitor Owner", BoothStatus.PENDING, pageable))
+                .thenReturn(new PageImpl<>(List.of(booth), pageable, 21));
+
+        var response = service.getBoothsForOrganizer(
+                organizer, exhibitionUuid, "  Exhibitor Owner  ", BoothStatus.PENDING, pageable);
+
+        assertEquals(1, response.getPage());
+        assertEquals(10, response.getSize());
+        assertEquals(21, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        verify(boothRepository).searchForOrganizer(
+                exhibitionUuid, organizer.getId(), "Exhibitor Owner", BoothStatus.PENDING, pageable);
+    }
+
+    @Test
+    void getBoothsForOrganizerTreatsBlankKeywordAsNoFilter() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(boothRepository.searchForOrganizer(
+                exhibitionUuid, organizer.getId(), null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        service.getBoothsForOrganizer(organizer, exhibitionUuid, "   ", null, pageable);
+
+        verify(boothRepository).searchForOrganizer(
+                exhibitionUuid, organizer.getId(), null, null, pageable);
     }
 
     @Test
@@ -317,7 +359,8 @@ class BoothReviewServiceUnitTest {
     }
 
     private Booth booth(BoothStatus status) {
-        Exhibition exhibition = Exhibition.builder().uuid(exhibitionUuid).name("Expo")
+        Exhibition exhibition = Exhibition.builder().id(1).uuid(exhibitionUuid).name("Expo")
+                .status(ExhibitionStatus.REGISTRATION)
                 .organizer(organizer).startDate(LocalDate.now(clock)).endDate(LocalDate.now(clock).plusDays(1)).build();
         ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder().exhibition(exhibition).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()

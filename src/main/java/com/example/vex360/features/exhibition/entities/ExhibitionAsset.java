@@ -48,6 +48,9 @@ public class ExhibitionAsset {
     @Column(name = "public_id", nullable = false, length = 500)
     String publicId;
 
+    @Column(name = "name")
+    String name;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "asset_type", nullable = false, columnDefinition = "VARCHAR(50)")
     ExhibitionAssetType type;

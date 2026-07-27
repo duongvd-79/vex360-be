@@ -22,8 +22,13 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -40,12 +45,19 @@ public class BoothReviewService {
     private final BoothReviewSnapshotFactory snapshotFactory;
     private final BoothReviewDiffService diffService;
     private final BoothReviewContentAssembler contentAssembler;
+    private final ExhibitionRepository exhibitionRepository;
     private final Clock clock;
 
     @Transactional
     public BoothResponseDTO startEdit(User currentUser, UUID boothId) {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
+        Exhibition exhibition = getExhibition(booth);
+        Exhibition lockedExhibition = exhibitionRepository.findByIdForUpdate(exhibition.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_INVALID_STATUS));
+        if (lockedExhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
         if (booth.getStatus() != BoothStatus.PUBLISHED) {
             throw new AppException(ErrorCode.INVALID_BOOTH_REVIEW_STATUS);
         }
@@ -193,6 +205,7 @@ public class BoothReviewService {
                 request,
                 diffService.readSummary(request.getChangeSummaryJson()));
     }
+
     private Booth getOrganizerBooth(User organizer, UUID exhibitionUuid, UUID boothId) {
         assertAuthenticated(organizer);
         return boothRepository.findDetailForOrganizer(boothId, exhibitionUuid, organizer.getId())
@@ -227,6 +240,15 @@ public class BoothReviewService {
 
     private Company getCompanyForCurrentUser(User currentUser) {
         return companyService.getCompanyEntityForCurrentUser(currentUser);
+    }
+
+    private Exhibition getExhibition(Booth booth) {
+        ExhibitorRegistration registration = booth.getExhibitorRegistration();
+        ExhibitionPackage exhibitionPackage = registration == null ? null : registration.getExhibitionPackage();
+        if (exhibitionPackage == null || exhibitionPackage.getExhibition() == null) {
+            throw new AppException(ErrorCode.INVALID_BOOTH);
+        }
+        return exhibitionPackage.getExhibition();
     }
 
     private String normalizeKeyword(String keyword) {

@@ -1,5 +1,8 @@
 package com.example.vex360.features.booth.mapper;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -70,6 +73,12 @@ public interface BoothMapper {
     default BoothResponseDTO toBoothResponseDTO(Booth booth, List<Panorama> panoramas) {
         Company company = booth.getCompany();
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
+        Exhibition exhibition = getExhibition(registration);
+        LocalDate deadline = (exhibition == null || exhibition.getStartDate() == null) ? null
+                : exhibition.getStartDate().minusDays(3);
+        Boolean isOpen = deadline == null ? null : !LocalDate.now(Clock.systemUTC()).isAfter(deadline);
+        Long daysUntil = deadline == null ? null : ChronoUnit.DAYS.between(LocalDate.now(Clock.systemUTC()), deadline);
+
         User createdBy = booth.getCreatedBy();
         return new BoothResponseDTO(
                 booth.getId(),
@@ -92,7 +101,10 @@ public interface BoothMapper {
                 company == null ? null : company.getName(),
                 company == null ? null : company.getIndustry(),
                 company == null ? null : company.getEmail(),
-                toPanoramaResponseDTOs(panoramas));
+                toPanoramaResponseDTOs(panoramas),
+                deadline,
+                isOpen,
+                daysUntil);
     }
 
     private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {

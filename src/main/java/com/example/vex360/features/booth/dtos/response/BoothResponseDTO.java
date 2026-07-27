@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth.dtos.response;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,4 +38,7 @@ public class BoothResponseDTO {
     private String companyIndustry;
     private String companyEmail;
     private List<PanoramaResponseDTO> panoramas;
+    private LocalDate boothReviewDeadline;
+    private Boolean boothPreparationOpen;
+    private Long daysUntilBoothDeadline;
 }

@@ -13,5 +13,6 @@ import lombok.NoArgsConstructor;
 @Builder
 public class SponsorMediaResponseDTO {
     private UUID id;
+    private String name;
     private String url;
 }

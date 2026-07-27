@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 import com.example.vex360.shared.exceptions.AppException;
@@ -22,7 +23,11 @@ import com.example.vex360.shared.enums.PaymentStatus;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Month;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +35,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -40,9 +47,13 @@ import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 
 import com.example.vex360.features.booth.services.BoothProvisioningService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
@@ -66,7 +77,13 @@ class ExhibitorRegistrationServiceTest {
     private ExhibitionPackageRepository packageRepository;
 
     @Mock
+    private ExhibitionRepository exhibitionRepository;
+
+    @Mock
     private UserService userService;
+
+    @Mock
+    private CompanyService companyService;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -80,21 +97,34 @@ class ExhibitorRegistrationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private ExhibitorRegistrationServiceImpl registrationService;
 
     private User companyUser;
+    private Company company;
     private ExhibitionPackage paidPackage;
 
     @BeforeEach
     void setup() {
         ReflectionTestUtils.setField(registrationService, "returnUrl", "http://localhost:5173/payment/success");
         ReflectionTestUtils.setField(registrationService, "cancelUrl", "http://localhost:5173/payment/cancel");
+        Mockito.lenient().when(clock.instant()).thenReturn(Instant.parse("2026-01-10T00:00:00Z"));
+        Mockito.lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+        ReflectionTestUtils.setField(registrationService, "timelinePolicy", new ExhibitionTimelinePolicy(clock));
 
         companyUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("company@example.com")
                 .fullName("Test Company")
+                .build();
+
+        company = Company.builder()
+                .id(UUID.randomUUID())
+                .name("Test Company")
+                .ownerUser(companyUser)
                 .build();
 
         PackageTemplate template = PackageTemplate.builder()
@@ -107,7 +137,9 @@ class ExhibitorRegistrationServiceTest {
                 .id(1)
                 .name("Expo")
                 .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
                 .build();
+        Mockito.lenient().when(exhibitionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(exhibition));
 
         paidPackage = ExhibitionPackage.builder()
                 .id(10)
@@ -131,9 +163,10 @@ class ExhibitorRegistrationServiceTest {
 
     @Test
     void testInitializeRegistration_Success() {
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
-        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
                 .thenReturn(false);
         when(registrationRepository.save(any(ExhibitorRegistration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -143,19 +176,22 @@ class ExhibitorRegistrationServiceTest {
 
         assertNotNull(registration);
         assertEquals(ExhibitorRegistrationStatus.PENDING, registration.getStatus());
-        assertEquals(companyUser, registration.getCompany());
+        assertEquals(company, registration.getCompany());
         assertEquals(paidPackage, registration.getExhibitionPackage());
 
-        verify(userService).getUserEntityByIdForUpdate(companyUser.getId());
+        verify(userService).getUserEntityById(companyUser.getId());
+        verify(companyService).getCompanyEntityForCurrentUserForUpdate(companyUser);
         verify(packageRepository).findById(10);
+        verify(exhibitionRepository).findByIdForUpdate(1);
         verify(registrationRepository).save(any(ExhibitorRegistration.class));
     }
 
     @Test
     void initializeRegistration_savesTrimmedParticipationReason() {
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
-        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
                 .thenReturn(false);
         when(registrationRepository.save(any(ExhibitorRegistration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -168,9 +204,10 @@ class ExhibitorRegistrationServiceTest {
 
     @Test
     void initializeRegistration_duplicateActiveRegistration_throwsRegistrationAlreadyExists() {
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
-        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
                 .thenReturn(true);
 
         AppException exception = assertThrows(AppException.class,
@@ -182,9 +219,10 @@ class ExhibitorRegistrationServiceTest {
 
     @Test
     void initializeRegistration_rejectedOrCanceledExistingRegistration_allowsNewRegistration() {
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
-        when(registrationRepository.existsActiveRegistration(eq(companyUser.getId()), eq(1), any()))
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
                 .thenReturn(false);
         when(registrationRepository.save(any(ExhibitorRegistration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -198,7 +236,8 @@ class ExhibitorRegistrationServiceTest {
 
     @Test
     void testInitializeRegistration_PackageNotFound_ThrowsException() {
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(999)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
@@ -215,6 +254,7 @@ class ExhibitorRegistrationServiceTest {
                 .id(2)
                 .name("Pending Expo")
                 .status(ExhibitionStatus.PENDING)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
                 .build();
         ExhibitionPackage pendingPackage = ExhibitionPackage.builder()
                 .id(12)
@@ -223,8 +263,10 @@ class ExhibitorRegistrationServiceTest {
                 .status(ExhibitionPackageStatus.ACTIVE)
                 .build();
 
-        when(userService.getUserEntityByIdForUpdate(any(UUID.class))).thenReturn(companyUser);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(12)).thenReturn(Optional.of(pendingPackage));
+        when(exhibitionRepository.findByIdForUpdate(2)).thenReturn(Optional.of(pendingExhibition));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo");
@@ -234,10 +276,40 @@ class ExhibitorRegistrationServiceTest {
         verify(registrationRepository, never()).save(any());
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ExhibitionStatus.class, names = { "PUBLISHED", "ACTIVE" })
+    void initializeRegistration_afterRegistrationPhase_throwsInvalidStatus(ExhibitionStatus status) {
+        paidPackage.getExhibition().setStatus(status);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void initializeRegistration_afterBoothReviewDeadline_throwsInvalidStatus() {
+        paidPackage.getExhibition().setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        verify(registrationRepository, never()).save(any());
+    }
+
     @Test
     void initializeRegistration_inactivePackage_throwsValidationFailed() {
         paidPackage.setStatus(ExhibitionPackageStatus.INACTIVE);
-        when(userService.getUserEntityByIdForUpdate(companyUser.getId())).thenReturn(companyUser);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
 
         AppException exception = assertThrows(AppException.class,
@@ -250,6 +322,8 @@ class ExhibitorRegistrationServiceTest {
     @Test
     void testGetRegistrationDetails_RegistrationNotFound_ThrowsException() {
         UUID registrationUuid = UUID.randomUUID();
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
@@ -262,12 +336,14 @@ class ExhibitorRegistrationServiceTest {
     @Test
     void testGetRegistrationDetails_UnauthorizedUser_ThrowsException() {
         UUID registrationUuid = UUID.randomUUID();
-        User anotherCompany = User.builder().id(UUID.randomUUID()).build();
+        Company anotherCompany = Company.builder().id(UUID.randomUUID()).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .company(anotherCompany)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
@@ -278,16 +354,18 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_Success() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_Success() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -305,12 +383,12 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_FailedPayment() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_FailedPayment() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
@@ -320,6 +398,8 @@ class ExhibitorRegistrationServiceTest {
                 .status(PaymentStatus.FAILED)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
                 .thenReturn(Optional.of(failedPayment));
@@ -337,18 +417,20 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_LongDescription() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_LongDescription() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitionPackage longPackage = ExhibitorRegistrationServiceTest.this.paidPackage;
         longPackage.getExhibition().setName("Tech Exhibition Show Expo Event 2026 Very Long Name");
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(longPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -364,16 +446,18 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_ThrowsException() throws Exception {
+    void testGetRegistrationDetails_PendingPayment_GeneratePayOSLink_ThrowsException() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -388,12 +472,12 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void getRegistrationDetails_pendingPaymentWithoutCheckoutUrl_regeneratesLink() throws Exception {
+    void getRegistrationDetails_pendingPaymentWithoutCheckoutUrl_regeneratesLink() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
@@ -403,6 +487,8 @@ class ExhibitorRegistrationServiceTest {
                 .checkoutUrl(null)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
                 .thenReturn(Optional.of(stuckPayment));
@@ -452,13 +538,52 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void testGetRegistrationsForOrganizer_NormalizesKeywordAndPreservesMultiSort() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID exhibitionUuid = UUID.randomUUID();
+        PageRequest pageRequest = PageRequest.of(1, 10, Sort.by(
+                Sort.Order.asc("company.fullName"),
+                Sort.Order.desc("submittedAt"),
+                Sort.Order.asc("status")));
+        when(registrationRepository.searchForOrganizer(
+                organizer.getId(), exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "Acme", pageRequest))
+                .thenReturn(new PageImpl<>(List.of(), pageRequest, 25));
+
+        var response = registrationService.getRegistrationsForOrganizer(
+                organizer, exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "  Acme  ", pageRequest);
+
+        assertEquals(1, response.getPage());
+        assertEquals(10, response.getSize());
+        assertEquals(25, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        verify(registrationRepository).searchForOrganizer(
+                organizer.getId(), exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "Acme", pageRequest);
+    }
+
+    @Test
+    void testGetRegistrationsForOrganizer_BlankKeywordDisablesSearch() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID exhibitionUuid = UUID.randomUUID();
+        PageRequest pageRequest = PageRequest.of(0, 10);
+        when(registrationRepository.searchForOrganizer(
+                organizer.getId(), exhibitionUuid, null, null, pageRequest))
+                .thenReturn(new PageImpl<>(List.of(), pageRequest, 0));
+
+        registrationService.getRegistrationsForOrganizer(
+                organizer, exhibitionUuid, null, "   ", pageRequest);
+
+        verify(registrationRepository).searchForOrganizer(
+                organizer.getId(), exhibitionUuid, null, null, pageRequest);
+    }
+
+    @Test
     void testGetRegistrationsForOrganizer_WithPayments_ReturnsPage() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
         PageRequest pageRequest = PageRequest.of(0, 10);
-        ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(companyUser)
+        ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(company)
                 .exhibitionPackage(paidPackage).status(ExhibitorRegistrationStatus.PENDING).build();
-        ExhibitorRegistration reg2 = ExhibitorRegistration.builder().id(2).uuid(UUID.randomUUID()).company(companyUser)
+        ExhibitorRegistration reg2 = ExhibitorRegistration.builder().id(2).uuid(UUID.randomUUID()).company(company)
                 .exhibitionPackage(paidPackage).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.searchForOrganizer(organizer.getId(), exhibitionUuid,
@@ -548,7 +673,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -569,7 +694,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.ZERO).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -591,7 +716,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING_PAYMENT).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING_PAYMENT).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -610,7 +735,7 @@ class ExhibitorRegistrationServiceTest {
         Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
 
@@ -627,7 +752,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
                 .participationReason("Meet buyers")
@@ -636,6 +761,8 @@ class ExhibitorRegistrationServiceTest {
                 .currencySnapshot("VND")
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
 
@@ -653,11 +780,13 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
 
@@ -674,7 +803,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
@@ -685,6 +814,8 @@ class ExhibitorRegistrationServiceTest {
                 .checkoutUrl("oldCheckoutUrl")
                 .build();
 
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
                 .thenReturn(Optional.of(pendingPayment));
@@ -701,7 +832,7 @@ class ExhibitorRegistrationServiceTest {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
         PageRequest pageRequest = PageRequest.of(0, 10);
-        ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(companyUser)
+        ExhibitorRegistration reg1 = ExhibitorRegistration.builder().id(1).uuid(UUID.randomUUID()).company(company)
                 .exhibitionPackage(paidPackage).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.searchForOrganizer(organizer.getId(), exhibitionUuid,
@@ -734,7 +865,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.APPROVED).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.APPROVED).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
 
@@ -753,7 +884,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(companyUser).status(ExhibitorRegistrationStatus.PENDING).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -823,18 +954,19 @@ class ExhibitorRegistrationServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
                 .build();
         Page<ExhibitorRegistration> page = new PageImpl<>(List.of(registration), pageable, 1);
 
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.searchForExhibitor(
-                eq(companyUser.getId()), eq(ExhibitorRegistrationStatus.PENDING), eq("Expo"), eq(pageable)))
+                eq(company.getId()), eq(ExhibitorRegistrationStatus.PENDING), eq("Expo"), eq(pageable)))
                 .thenReturn(page);
 
         PageResponse<ExhibitorRegistrationResponseDTO> result = registrationService.getRegistrationsForExhibitor(
-                companyUser, ExhibitorRegistrationStatus.PENDING, "Expo", pageable);
+                companyUser, ExhibitorRegistrationStatus.PENDING, "  Expo  ", pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
@@ -865,7 +997,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .exhibitionPackage(paidPackage)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
@@ -876,6 +1008,7 @@ class ExhibitorRegistrationServiceTest {
                 .status(PaymentStatus.PENDING)
                 .build();
 
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
         when(paymentRepository.findByExhibitorRegistrationIdForUpdate(1)).thenReturn(List.of(pendingPayment));
@@ -893,13 +1026,14 @@ class ExhibitorRegistrationServiceTest {
     @Test
     void testCancelRegistration_Unauthorized_ThrowsException() {
         UUID registrationUuid = UUID.randomUUID();
-        User differentUser = User.builder().id(UUID.randomUUID()).build();
+        Company differentCompany = Company.builder().id(UUID.randomUUID()).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(differentUser)
+                .company(differentCompany)
                 .build();
 
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
@@ -914,10 +1048,11 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
                 .uuid(registrationUuid)
-                .company(companyUser)
+                .company(company)
                 .status(ExhibitorRegistrationStatus.APPROVED)
                 .build();
 
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
