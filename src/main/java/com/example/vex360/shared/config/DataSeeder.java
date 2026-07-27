@@ -385,9 +385,10 @@ public class DataSeeder implements ApplicationRunner {
                 savePackage(premiumTemplate, exhRegistration, "12000000");
                 savePackage(basicTemplate, exhActive, "6000000");
                 ExhibitionPackage completedPackage = savePackage(basicTemplate, exhCompleted, "4000000");
-                // Phủ ExhibitionPackageStatus.INACTIVE
+                // Gói active để tạo booth mock; vẫn giữ thêm một gói inactive để phủ enum.
+                ExhibitionPackage completedPremiumPackage = savePackage(premiumTemplate, exhCompleted, "11000000");
                 savePackage(premiumTemplate, exhCompleted, "11000000", ExhibitionPackageStatus.INACTIVE);
-                log.info("[SEED] Đã tạo 7 exhibition package (phủ đủ ExhibitionPackageStatus)");
+                log.info("[SEED] Đã tạo 8 exhibition package (phủ đủ ExhibitionPackageStatus)");
 
                 // ---------- 7. EXHIBITOR REGISTRATIONS (phủ đủ 5 trạng thái) ----------
                 ExhibitorRegistration reg1 = exhibitorRegistrationRepository.save(buildRegistration(
@@ -406,6 +407,12 @@ public class DataSeeder implements ApplicationRunner {
                 ExhibitorRegistration reg5 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPackage, company2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
                                 null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null));
+                ExhibitorRegistration completedReg1 = exhibitorRegistrationRepository.save(buildRegistration(
+                                completedPackage, company1, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null));
+                ExhibitorRegistration completedReg2 = exhibitorRegistrationRepository.save(buildRegistration(
+                                completedPremiumPackage, company2, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null));
                 log.info("[SEED] Đã tạo 5 exhibitor registration "
                                 + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
 
@@ -434,6 +441,20 @@ public class DataSeeder implements ApplicationRunner {
                                 .systemFee(new BigDecimal("400000")).organizerPayout(new BigDecimal("3600000"))
                                 .currency("VND").paymentProvider("PAYOS")
                                 .status(PaymentStatus.EXPIRED).build());
+                Instant completedPaymentTime = exhCompleted.getStartDate().plusDays(2)
+                                .atTime(10, 0).atZone(ZoneId.systemDefault()).toInstant();
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(completedReg1).paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("4000000"))
+                                .systemFee(new BigDecimal("400000")).organizerPayout(new BigDecimal("3600000"))
+                                .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-AUTUMN-001")
+                                .status(PaymentStatus.PAID).paidAt(completedPaymentTime).build());
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(completedReg2).paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("11000000"))
+                                .systemFee(new BigDecimal("1100000")).organizerPayout(new BigDecimal("9900000"))
+                                .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-AUTUMN-002")
+                                .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS)).build());
                 log.info("[SEED] Đã tạo 4 payment (PAID/PENDING/FAILED/EXPIRED)");
 
                 // ---------- 9. BOOTHS ----------
@@ -450,6 +471,23 @@ public class DataSeeder implements ApplicationRunner {
                                 .name("Gian hàng TechVina").description("Trưng bày thiết bị công nghệ thông minh.")
                                 .status(BoothStatus.DRAFT).isTemplate(false)
                                 .createdBy(exhibitor2).company(company2).exhibitorRegistration(reg2)
+                                .thumbnailUrl(boothThumb2.url()).thumbnailPublicId(boothThumb2.publicId())
+                                .displayTemplateKey("modern").build());
+
+                // Booth thuộc "Triển lãm Nội thất Mùa Thu 2025" để trang chi tiết triển
+                // lãm có leaderboard và dữ liệu analytics độc lập với triển lãm chính.
+                Booth completedBooth1 = boothRepository.save(Booth.builder()
+                                .name("Mộc Việt - Bộ sưu tập Mùa Thu")
+                                .description("Nội thất gỗ tự nhiên cho không gian sống mùa thu.")
+                                .status(BoothStatus.PUBLISHED).isTemplate(false)
+                                .createdBy(exhibitor1).company(company1).exhibitorRegistration(completedReg1)
+                                .thumbnailUrl(boothThumb1.url()).thumbnailPublicId(boothThumb1.publicId())
+                                .displayTemplateKey("classic").build());
+                Booth completedBooth2 = boothRepository.save(Booth.builder()
+                                .name("TechVina Home - Nhà thông minh")
+                                .description("Thiết bị thông minh cho không gian nội thất hiện đại.")
+                                .status(BoothStatus.PUBLISHED).isTemplate(false)
+                                .createdBy(exhibitor2).company(company2).exhibitorRegistration(completedReg2)
                                 .thumbnailUrl(boothThumb2.url()).thumbnailPublicId(boothThumb2.publicId())
                                 .displayTemplateKey("modern").build());
 
@@ -780,7 +818,60 @@ public class DataSeeder implements ApplicationRunner {
                                 .phoneNumber("0908888888").message("Cho mình xin catalogue sản phẩm.").build());
                 log.info("[SEED] Đã tạo 2 booth lead");
 
-                // ---------- 24. ANALYTICS EVENTS (rải qua nhiều ngày cho dashboard organizer +
+                // ---------- 24. ANALYTICS: TRIỂN LÃM NỘI THẤT MÙA THU 2025 ----------
+                // Rải event đúng trong thời gian triển lãm đã kết thúc. Nhờ đó tab Analytics
+                // của /organizer/dashboard/exhibitions/{id} có đầy đủ KPI, chart và ranking.
+                User[] autumnVisitors = { visitor, exhibitor1, exhibitor2 };
+                Booth[] autumnBooths = { completedBooth1, completedBooth2 };
+                int[] autumnDays = { 2, 5, 9, 14, 19, 24 };
+                int[] autumnViews = { 6, 9, 7, 12, 10, 14 };
+                int autumnAnalyticsEvents = 0;
+                ZoneId seedZone = ZoneId.systemDefault();
+                for (int dayIndex = 0; dayIndex < autumnDays.length; dayIndex++) {
+                        Instant dayStart = exhCompleted.getStartDate().plusDays(autumnDays[dayIndex])
+                                        .atStartOfDay(seedZone).toInstant();
+
+                        // Mỗi ngày có ba khách vào/ra triển lãm để KPI khách duy nhất và thời
+                        // lượng truy cập trung bình có dữ liệu.
+                        for (int visitorIndex = 0; visitorIndex < autumnVisitors.length; visitorIndex++) {
+                                Instant entryTime = dayStart.plus(9 + visitorIndex * 2L, ChronoUnit.HOURS);
+                                int exhibitionDuration = 420 + dayIndex * 25 + visitorIndex * 35;
+                                seedAnalyticsEvent(AnalyticsEventType.ENTER_EXHIBITION, autumnVisitors[visitorIndex],
+                                                exhCompleted, null, null, null, entryTime);
+                                seedAnalyticsEvent(AnalyticsEventType.LEAVE_EXHIBITION, autumnVisitors[visitorIndex],
+                                                exhCompleted, null, null, exhibitionDuration,
+                                                entryTime.plus(exhibitionDuration, ChronoUnit.SECONDS));
+                                autumnAnalyticsEvents += 2;
+                        }
+
+                        // Booth 1 được xem nhiều hơn booth 2 để leaderboard có thứ hạng rõ ràng.
+                        for (int viewIndex = 0; viewIndex < autumnViews[dayIndex]; viewIndex++) {
+                                Booth booth = viewIndex % 3 == 0 ? completedBooth2 : completedBooth1;
+                                User eventUser = autumnVisitors[viewIndex % autumnVisitors.length];
+                                Instant viewTime = dayStart.plus(10 + (viewIndex % 8), ChronoUnit.HOURS)
+                                                .plus(viewIndex * 4L, ChronoUnit.MINUTES);
+                                int boothDuration = 75 + ((dayIndex + viewIndex) % 5) * 55;
+                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, eventUser, exhCompleted, booth,
+                                                null, null, viewTime);
+                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_LEAVE, eventUser, exhCompleted, booth,
+                                                null, boothDuration, viewTime.plus(boothDuration, ChronoUnit.SECONDS));
+                                autumnAnalyticsEvents += 2;
+                        }
+
+                        // Chat được gắn booth để cột "Phiên chat" của leaderboard có dữ liệu.
+                        for (int chatIndex = 0; chatIndex < 1 + (dayIndex % 2); chatIndex++) {
+                                Booth booth = chatIndex == 0 ? completedBooth1 : completedBooth2;
+                                seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED,
+                                                autumnVisitors[(dayIndex + chatIndex) % autumnVisitors.length],
+                                                exhCompleted, booth, null, null,
+                                                dayStart.plus(16 + chatIndex, ChronoUnit.HOURS));
+                                autumnAnalyticsEvents++;
+                        }
+                }
+                log.info("[SEED] Đã tạo {} analytics event cho Triển lãm Nội thất Mùa Thu 2025",
+                                autumnAnalyticsEvents);
+
+                // ---------- 25. ANALYTICS EVENTS (rải qua nhiều ngày cho dashboard organizer +
                 // gian hàng) ----------
                 // Mỗi ngày: một số lượt BOOTH_VIEW (giờ khác nhau trong ngày) + BOOTH_LEAVE kèm
                 // thời

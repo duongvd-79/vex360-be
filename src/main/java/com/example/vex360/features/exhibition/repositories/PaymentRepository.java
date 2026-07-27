@@ -34,4 +34,45 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     Optional<Payment> findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(Integer exhibitorRegistrationId);
 
     List<Payment> findByExhibitorRegistrationIdIn(List<Integer> exhibitorRegistrationIds);
+
+    /**
+     * Doanh thu bán gói đã thanh toán theo từng ngày của một triển lãm — dùng cho
+     * biểu đồ doanh thu ở dashboard ban tổ chức.
+     * Mỗi dòng = 1 ngày: [ngày, tổng tiền đã thanh toán].
+     */
+    @Query(value = """
+            SELECT DATE(p.paid_at) AS day,
+                   COALESCE(SUM(p.amount), 0) AS revenue
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id = :exhibitionId
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY DATE(p.paid_at)
+            ORDER BY day
+            """, nativeQuery = true)
+    List<Object[]> aggregateDailyRevenue(
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    /** Số payment record PAID (một registration có thể có nhiều record) và doanh thu theo gói. */
+    @Query(value = """
+            SELECT r.package_name_snapshot AS package_name,
+                   COUNT(p.id) AS quantity,
+                   COALESCE(SUM(p.amount), 0) AS revenue
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id = :exhibitionId
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY r.package_name_snapshot
+            ORDER BY revenue DESC
+            """, nativeQuery = true)
+    List<Object[]> aggregatePaidPackageRevenue(
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
 }

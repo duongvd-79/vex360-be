@@ -5,9 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -24,7 +26,10 @@ import com.example.vex360.features.analytics.dtos.response.BoothAnalyticsDetailD
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsDetailDTO;
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsOverviewDTO;
 import com.example.vex360.features.analytics.dtos.response.ExhibitorDashboardOverviewDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingItemDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingPageDTO;
 import com.example.vex360.features.analytics.entities.AnalyticsEvent;
+import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
@@ -36,6 +41,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
@@ -62,6 +68,7 @@ public class AnalyticsService {
     private final UserService userService;
     private final ChatRoomRepository chatRoomRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+    private final PaymentRepository paymentRepository;
 
     @Transactional
     public void recordEvent(User currentUser, RecordAnalyticsEventRequest request) {
@@ -115,21 +122,31 @@ public class AnalyticsService {
             return List.of();
         }
 
-        // Đếm booth GOM 1 lần cho tất cả triển lãm -> tránh N+1 query
+        // Đếm booth + lượt vào triển lãm GOM 1 lần cho tất cả triển lãm -> tránh N+1 query
         List<Integer> ids = exhibitions.stream().map(Exhibition::getId).toList();
         Map<Integer, Long> boothCountById = new HashMap<>();
         for (Object[] row : boothRepository.countBoothsGroupedByExhibition(ids)) {
             boothCountById.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
         }
+        Map<Integer, Long> visitCountById = new HashMap<>();
+        for (Object[] row : analyticsEventRepository.countVisitsGroupedByExhibition(ids)) {
+            visitCountById.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
+        }
 
         return exhibitions.stream()
                 .map(exhibition -> toOverviewDTO(exhibition,
-                        boothCountById.getOrDefault(exhibition.getId(), 0L)))
+                        boothCountById.getOrDefault(exhibition.getId(), 0L),
+                        visitCountById.getOrDefault(exhibition.getId(), 0L)))
                 .toList();
     }
 
     /** Biến 1 Exhibition thành 1 OverviewDTO (nhận sẵn số booth để tránh query lặp). */
     private ExhibitionAnalyticsOverviewDTO toOverviewDTO(Exhibition exhibition, long boothCount) {
+        return toOverviewDTO(exhibition, boothCount, 0L);
+    }
+
+    /** Bản đầy đủ, có kèm tổng lượt vào triển lãm để xếp hạng ở màn tổng quan. */
+    private ExhibitionAnalyticsOverviewDTO toOverviewDTO(Exhibition exhibition, long boothCount, long totalVisits) {
         return ExhibitionAnalyticsOverviewDTO.builder()
                 .id(exhibition.getUuid().toString())
                 .code("EXH-" + String.format("%03d", exhibition.getId()))
@@ -139,6 +156,8 @@ public class AnalyticsService {
                 .startDate(exhibition.getStartDate())
                 .endDate(exhibition.getEndDate())
                 .boothCount(boothCount)
+                .estimatedBooths(exhibition.getEstimatedBooths())
+                .totalVisits(totalVisits)
                 .build();
     }
 
@@ -176,39 +195,50 @@ public class AnalyticsService {
         long boothCount = boothRepository.countBoothsByExhibitionId(exhibitionId);
         List<Object[]> dailyRows = analyticsEventRepository.aggregateDailyMetrics(exhibitionId, startDateTime,
                 endDateTime);
-        List<Object[]> chatRows = chatRoomRepository.countDailyChats(exhibitionId, startDateTime, endDateTime);
-        List<Object[]> packageRows = exhibitorRegistrationRepository.aggregatePackageSales(exhibitionId,
-                ExhibitorRegistrationStatus.APPROVED);
+        List<Object[]> revenueRows = paymentRepository.aggregateDailyRevenue(exhibitionId, startDateTime,
+                endDateTime);
+        List<Object[]> packageRows = paymentRepository.aggregatePaidPackageRevenue(exhibitionId,
+                startDateTime, endDateTime);
+        List<Object[]> visitorsByHourRows = analyticsEventRepository.aggregateExhibitionVisitorsByHour(
+                exhibitionId, startDateTime, endDateTime);
 
-        // Chặng 4: gộp view/visit/thời lượng + chat theo từng ngày -> chart (TreeMap tự sort theo ngày)
+        // Mức độ lấp đầy gian hàng: tính riêng, KHÔNG phụ thuộc khoảng ngày lọc, vì
+        // đây là trạng thái hiện tại của triển lãm chứ không phải số liệu theo thời gian.
+        long approvedBoothCount = exhibitorRegistrationRepository
+                .countByExhibitionPackageExhibitionIdAndStatus(exhibitionId, ExhibitorRegistrationStatus.APPROVED);
+        Integer estimatedBooths = exhibition.getEstimatedBooths();
+        double boothFillRatePercent = (estimatedBooths == null || estimatedBooths <= 0)
+                ? 0.0
+                : (approvedBoothCount * 100.0) / estimatedBooths;
+
+        // Chặng 4: gộp lượt vào triển lãm + doanh thu theo từng ngày -> chart
+        // (TreeMap tự sort theo ngày). Cố ý KHÔNG lấy lượt xem/chat từng gian hàng —
+        // đó là thống kê của exhibitor, organizer nhìn ở tầng triển lãm.
         Map<String, ExhibitionAnalyticsDetailDTO.ChartPoint> chartByDate = new TreeMap<>();
 
         for (Object[] row : dailyRows) {
             String dateKey = row[0].toString();
-            long views = ((Number) row[1]).longValue();
             long visits = ((Number) row[2]).longValue();
             double avgSeconds = row[3] == null ? 0.0 : ((Number) row[3]).doubleValue();
             chartByDate.put(dateKey, ExhibitionAnalyticsDetailDTO.ChartPoint.builder()
                     .date(dateKey)
-                    .views(views)
                     .visits(visits)
-                    .chats(0)
+                    .revenue(0)
                     .averageVisitDurationMinutes(avgSeconds / 60.0) // giây -> phút
                     .build());
         }
 
-        for (Object[] row : chatRows) {
+        for (Object[] row : revenueRows) {
             String dateKey = row[0].toString();
-            long chats = ((Number) row[1]).longValue();
+            long revenue = row[1] == null ? 0L : ((Number) row[1]).longValue();
             ExhibitionAnalyticsDetailDTO.ChartPoint point = chartByDate.get(dateKey);
             if (point != null) {
-                point.setChats(chats);
+                point.setRevenue(revenue);
             } else {
                 chartByDate.put(dateKey, ExhibitionAnalyticsDetailDTO.ChartPoint.builder()
                         .date(dateKey)
-                        .views(0)
                         .visits(0)
-                        .chats(chats)
+                        .revenue(revenue)
                         .averageVisitDurationMinutes(0.0)
                         .build());
             }
@@ -216,8 +246,10 @@ public class AnalyticsService {
 
         List<ExhibitionAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
 
-        // Không có dữ liệu trong kỳ -> trả về hasData=false (frontend hiện "Không có dữ liệu")
-        if (chart.isEmpty()) {
+        // Chỉ coi là "chưa có dữ liệu" khi vừa không có lượt truy cập/doanh thu nào,
+        // vừa chưa duyệt gian hàng nào — nếu đã có gian hàng được duyệt thì organizer
+        // vẫn cần thấy tỷ lệ lấp đầy dù chưa có khách vào.
+        if (chart.isEmpty() && approvedBoothCount == 0) {
             return ExhibitionAnalyticsDetailDTO.builder()
                     .exhibition(toOverviewDTO(exhibition, boothCount))
                     .startDate(rangeStart.toString())
@@ -227,31 +259,47 @@ public class AnalyticsService {
                     .message("Không có dữ liệu thống kê cho triển lãm đã chọn trong khoảng thời gian này.")
                     .metrics(null)
                     .chart(List.of())
+                    .visitorsByHour(List.of())
                     .packages(List.of())
                     .build();
         }
 
-        // Chặng 5: cộng dồn từ chart -> số tổng view/visit/chat
-        long totalViews = 0;
+        // Chặng 5: cộng dồn từ chart -> tổng lượt vào triển lãm + tổng doanh thu trong kỳ
         long totalVisits = 0;
-        long totalChats = 0;
+        long totalRevenue = 0;
         for (ExhibitionAnalyticsDetailDTO.ChartPoint p : chart) {
-            totalViews += p.getViews();
             totalVisits += p.getVisits();
-            totalChats += p.getChats();
+            totalRevenue += p.getRevenue();
         }
         // Thời lượng visit TB = AVG trên TOÀN BỘ lượt rời (trung bình có trọng số,
         // không phải trung-bình-của-trung-bình theo ngày)
         Double avgDurationSeconds = analyticsEventRepository.averageVisitDurationSeconds(
                 exhibitionId, startDateTime, endDateTime);
         double averageVisitDurationMinutes = avgDurationSeconds == null ? 0.0 : avgDurationSeconds / 60.0;
+        long uniqueVisitorCount = analyticsEventRepository.countUniqueVisitors(
+                exhibitionId, startDateTime, endDateTime);
 
         ExhibitionAnalyticsDetailDTO.Metrics metrics = ExhibitionAnalyticsDetailDTO.Metrics.builder()
-                .totalViews(totalViews)
+                .approvedBoothCount(approvedBoothCount)
+                .estimatedBooths(estimatedBooths)
+                .boothFillRatePercent(boothFillRatePercent)
+                .totalRevenue(totalRevenue)
                 .totalVisits(totalVisits)
-                .totalChats(totalChats)
+                .uniqueVisitorCount(uniqueVisitorCount)
                 .averageVisitDurationMinutes(averageVisitDurationMinutes)
                 .build();
+        long[] visitorsByHour = new long[24];
+        for (Object[] row : visitorsByHourRows) {
+            int hour = ((Number) row[0]).intValue();
+            if (hour >= 0 && hour < visitorsByHour.length) {
+                visitorsByHour[hour] = ((Number) row[1]).longValue();
+            }
+        }
+        List<ExhibitionAnalyticsDetailDTO.HourPoint> hourPoints = new ArrayList<>();
+        for (int hour = 0; hour < visitorsByHour.length; hour++) {
+            hourPoints.add(ExhibitionAnalyticsDetailDTO.HourPoint.builder()
+                    .hour(hour).visitors(visitorsByHour[hour]).build());
+        }
 
         // Chặng 6: doanh số theo gói
         List<ExhibitionAnalyticsDetailDTO.PackageSummary> packages = new ArrayList<>();
@@ -277,7 +325,105 @@ public class AnalyticsService {
                 .message("")
                 .metrics(metrics)
                 .chart(chart)
+                .visitorsByHour(hourPoints)
                 .packages(packages)
+                .build();
+    }
+
+    /**
+     * Bảng xếp hạng gian hàng của một triển lãm do organizer quản lý, sắp xếp theo
+     * lượt xem giảm dần để thấy ngay gian hàng nào đang thu hút nhất.
+     */
+    @Transactional(readOnly = true)
+    public List<OrganizerBoothRankingItemDTO> getOrganizerBoothRanking(User organizer, UUID exhibitionUuid,
+            LocalDate startDate, LocalDate endDate) {
+        return getOrganizerBoothRankingPage(organizer, exhibitionUuid, startDate, endDate, "", "viewCount", "desc", "all", 0,
+                Integer.MAX_VALUE).getItems();
+    }
+
+    @Transactional(readOnly = true)
+    public OrganizerBoothRankingPageDTO getOrganizerBoothRankingPage(User organizer, UUID exhibitionUuid,
+            LocalDate startDate, LocalDate endDate, String keyword, String sortBy, String sortDirection,
+            String interaction, int page, int size) {
+        Exhibition exhibition = exhibitionRepository.findByUuid(exhibitionUuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        // Mặc định 30 ngày gần nhất nếu client không gửi khoảng ngày
+        LocalDate rangeEnd = endDate != null ? endDate : LocalDate.now();
+        LocalDate rangeStart = startDate != null ? startDate : rangeEnd.minusDays(29);
+        Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
+
+        List<Object[]> rows = analyticsEventRepository.aggregateBoothRankingForOrganizer(
+                List.of(exhibition.getId()),
+                AnalyticsEventType.BOOTH_VIEW,
+                AnalyticsEventType.CHAT_INITIATED,
+                AnalyticsEventType.BOOTH_LEAVE,
+                startDateTime,
+                endDateTime);
+
+        Map<UUID, OrganizerBoothRankingItemDTO> itemsByBooth = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            double avgSeconds = row[7] == null ? 0.0 : ((Number) row[7]).doubleValue();
+            OrganizerBoothRankingItemDTO item = OrganizerBoothRankingItemDTO.builder()
+                    .boothId((UUID) row[0])
+                    .boothName((String) row[1])
+                    .exhibitionUuid(row[2] == null ? null : row[2].toString())
+                    .exhibitionName((String) row[3])
+                    .visitorCount(((Number) row[4]).longValue())
+                    .viewCount(((Number) row[5]).longValue())
+                    .chatCount(((Number) row[6]).longValue())
+                    .averageTimeInBoothMinutes(avgSeconds / 60.0) // giây -> phút
+                    .build();
+            itemsByBooth.put(item.getBoothId(), item);
+        }
+        for (Booth booth : boothRepository.findBoothsByExhibitionId(exhibition.getId())) {
+            itemsByBooth.putIfAbsent(booth.getId(), OrganizerBoothRankingItemDTO.builder()
+                    .boothId(booth.getId()).boothName(booth.getName())
+                    .exhibitionUuid(exhibition.getUuid().toString()).exhibitionName(exhibition.getName())
+                    .visitorCount(0).viewCount(0).chatCount(0).averageTimeInBoothMinutes(0).build());
+        }
+        List<OrganizerBoothRankingItemDTO> items = new ArrayList<>(itemsByBooth.values());
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+        if (!normalizedKeyword.isEmpty()) {
+            items.removeIf(item -> item.getBoothName() == null
+                    || !item.getBoothName().toLowerCase(Locale.ROOT).contains(normalizedKeyword));
+        }
+        if ("withInteraction".equalsIgnoreCase(interaction) || "withoutInteraction".equalsIgnoreCase(interaction)) {
+            boolean withInteraction = "withInteraction".equalsIgnoreCase(interaction);
+            items.removeIf(item -> {
+                boolean hasInteraction = item.getViewCount() > 0 || item.getVisitorCount() > 0
+                        || item.getChatCount() > 0 || item.getAverageTimeInBoothMinutes() > 0;
+                return withInteraction != hasInteraction;
+            });
+        }
+
+        Comparator<OrganizerBoothRankingItemDTO> comparator = switch (sortBy == null ? "viewCount" : sortBy) {
+            case "visitorCount" -> Comparator.comparingLong(OrganizerBoothRankingItemDTO::getVisitorCount);
+            case "chatCount" -> Comparator.comparingLong(OrganizerBoothRankingItemDTO::getChatCount);
+            case "averageTimeInBoothMinutes" -> Comparator
+                    .comparingDouble(OrganizerBoothRankingItemDTO::getAverageTimeInBoothMinutes);
+            default -> Comparator.comparingLong(OrganizerBoothRankingItemDTO::getViewCount);
+        };
+        if (!"asc".equalsIgnoreCase(sortDirection)) {
+            comparator = comparator.reversed();
+        }
+        comparator = comparator.thenComparing(item -> item.getBoothName() == null ? "" : item.getBoothName(),
+                String.CASE_INSENSITIVE_ORDER);
+        items.sort(comparator);
+
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        int fromIndex = Math.min(safePage * safeSize, items.size());
+        int toIndex = Math.min(fromIndex + safeSize, items.size());
+        return OrganizerBoothRankingPageDTO.builder()
+                .items(items.subList(fromIndex, toIndex))
+                .total(items.size())
+                .page(safePage)
+                .size(safeSize)
                 .build();
     }
 

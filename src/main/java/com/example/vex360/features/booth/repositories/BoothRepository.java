@@ -175,6 +175,13 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
   long countBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
 
   @Query("""
+      SELECT b FROM Booth b
+      WHERE b.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
+        AND b.isTemplate = false
+      """)
+  List<Booth> findBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
+
+  @Query("""
       SELECT e.id, COUNT(b)
       FROM Booth b
       JOIN b.exhibitorRegistration r

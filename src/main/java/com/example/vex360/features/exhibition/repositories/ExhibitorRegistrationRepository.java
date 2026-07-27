@@ -120,4 +120,12 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             @Param("exhibitionId") Integer exhibitionId,
             @Param("status") ExhibitorRegistrationStatus status);
 
+        /**
+         * Đếm số đơn đăng ký gian hàng ở một trạng thái của triển lãm — dùng để tính
+         * tỷ lệ lấp đầy gian hàng (đã duyệt / dự kiến) ở dashboard ban tổ chức.
+         */
+        long countByExhibitionPackageExhibitionIdAndStatus(
+                        Integer exhibitionId,
+                        ExhibitorRegistrationStatus status);
+
 }

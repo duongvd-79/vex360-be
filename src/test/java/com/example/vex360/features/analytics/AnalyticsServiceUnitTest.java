@@ -27,6 +27,7 @@ import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
@@ -50,9 +51,11 @@ class AnalyticsServiceUnitTest {
     ChatRoomRepository chatRoomRepository;
     @Mock
     ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+    @Mock
+    PaymentRepository paymentRepository;
 
     @InjectMocks
-    AnalyticsService analyticsService; // Mockito tự tiêm 7 mock trên vào
+    AnalyticsService analyticsService; // Mockito tự tiêm các mock trên vào
 
     User organizer;
     Exhibition exhibition;
@@ -64,6 +67,7 @@ class AnalyticsServiceUnitTest {
                 .id(1).uuid(UUID.randomUUID()).name("Demo")
                 .organizer(organizer) // QUAN TRỌNG: cùng organizer để pass kiểm tra quyền
                 .status(ExhibitionStatus.ACTIVE)
+                .estimatedBooths(10) // mẫu số để tính tỷ lệ lấp đầy gian hàng
                 .startDate(LocalDate.now().minusDays(5))
                 .endDate(LocalDate.now())
                 .build();
@@ -86,28 +90,63 @@ class AnalyticsServiceUnitTest {
     void getExhibitionAnalytics_withData_aggregatesCorrectly() {
         when(exhibitionRepository.findByUuid(any())).thenReturn(Optional.of(exhibition));
         when(boothRepository.countBoothsByExhibitionId(1)).thenReturn(3L);
+        // Cột [1] (lượt xem gian hàng) cố ý bị bỏ qua: đó là số liệu của exhibitor,
+        // organizer chỉ dùng cột [2] = lượt vào triển lãm và cột [3] = thời lượng TB.
         when(analyticsEventRepository.aggregateDailyMetrics(anyInt(), any(), any()))
                 .thenReturn(List.of(
                         new Object[] { "2026-06-01", 10L, 4L, 600.0 },
                         new Object[] { "2026-06-02", 20L, 6L, 300.0 }));
-        when(chatRoomRepository.countDailyChats(anyInt(), any(), any()))
-                .thenReturn(List.<Object[]>of(new Object[] { "2026-06-01", 3L }));
+        when(paymentRepository.aggregateDailyRevenue(anyInt(), any(), any()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[] { "2026-06-01", BigDecimal.valueOf(5_000_000) },
+                        new Object[] { "2026-06-02", BigDecimal.valueOf(3_000_000) }));
+        when(exhibitorRegistrationRepository.countByExhibitionPackageExhibitionIdAndStatus(anyInt(), any()))
+                .thenReturn(4L);
         // Thời lượng TB giờ lấy trực tiếp từ query (AVG toàn bộ lượt rời), tính bằng giây
         when(analyticsEventRepository.averageVisitDurationSeconds(anyInt(), any(), any()))
                 .thenReturn(450.0); // 450 giây = 7.5 phút
-        when(exhibitorRegistrationRepository.aggregatePackageSales(anyInt(), any()))
+        when(analyticsEventRepository.countUniqueVisitors(anyInt(), any(), any()))
+                .thenReturn(7L);
+        when(paymentRepository.aggregatePaidPackageRevenue(anyInt(), any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[] { "Gói Cơ Bản", 2L, BigDecimal.valueOf(10_000_000) }));
 
         var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null, null);
 
         assertTrue(dto.isHasData());
-        assertEquals(30, dto.getMetrics().getTotalViews()); // 10 + 20
         assertEquals(10, dto.getMetrics().getTotalVisits()); // 4 + 6
-        assertEquals(3, dto.getMetrics().getTotalChats());
-        assertEquals(7.5, dto.getMetrics().getAverageVisitDurationMinutes()); // (600/60 + 300/60)/2
+        assertEquals(7, dto.getMetrics().getUniqueVisitorCount());
+        assertEquals(7.5, dto.getMetrics().getAverageVisitDurationMinutes());
+        assertEquals(8_000_000, dto.getMetrics().getTotalRevenue()); // 5tr + 3tr
+        assertEquals(4, dto.getMetrics().getApprovedBoothCount());
+        assertEquals(10, dto.getMetrics().getEstimatedBooths());
+        assertEquals(40.0, dto.getMetrics().getBoothFillRatePercent()); // 4/10
         assertEquals(2, dto.getChart().size());
         assertEquals("2026-06-01", dto.getChart().get(0).getDate()); // TreeMap sort tăng dần
+        assertEquals(5_000_000, dto.getChart().get(0).getRevenue());
         assertEquals(1, dto.getPackages().size());
         assertEquals(10_000_000, dto.getPackages().get(0).getRevenue());
+    }
+
+    @Test
+    void getExhibitionAnalytics_noTrafficButHasApprovedBooths_stillReturnsFillRate() {
+        // Triển lãm đã bán được gian hàng nhưng chưa có khách nào vào: organizer vẫn
+        // cần thấy tỷ lệ lấp đầy thay vì màn hình trống "chưa có dữ liệu".
+        when(exhibitionRepository.findByUuid(any())).thenReturn(Optional.of(exhibition));
+        when(boothRepository.countBoothsByExhibitionId(1)).thenReturn(2L);
+        when(analyticsEventRepository.aggregateDailyMetrics(anyInt(), any(), any())).thenReturn(List.of());
+        when(paymentRepository.aggregateDailyRevenue(anyInt(), any(), any())).thenReturn(List.of());
+        when(exhibitorRegistrationRepository.countByExhibitionPackageExhibitionIdAndStatus(anyInt(), any()))
+                .thenReturn(2L);
+        when(analyticsEventRepository.averageVisitDurationSeconds(anyInt(), any(), any())).thenReturn(null);
+        when(analyticsEventRepository.countUniqueVisitors(anyInt(), any(), any())).thenReturn(0L);
+        when(paymentRepository.aggregatePaidPackageRevenue(anyInt(), any(), any())).thenReturn(List.of());
+
+        var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null, null);
+
+        assertTrue(dto.isHasData());
+        assertEquals(2, dto.getMetrics().getApprovedBoothCount());
+        assertEquals(20.0, dto.getMetrics().getBoothFillRatePercent()); // 2/10
+        assertEquals(0, dto.getMetrics().getTotalVisits());
+        assertTrue(dto.getChart().isEmpty());
     }
 }
