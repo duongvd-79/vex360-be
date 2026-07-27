@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 import com.example.vex360.shared.exceptions.AppException;
@@ -537,6 +538,45 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void testGetRegistrationsForOrganizer_NormalizesKeywordAndPreservesMultiSort() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID exhibitionUuid = UUID.randomUUID();
+        PageRequest pageRequest = PageRequest.of(1, 10, Sort.by(
+                Sort.Order.asc("company.fullName"),
+                Sort.Order.desc("submittedAt"),
+                Sort.Order.asc("status")));
+        when(registrationRepository.searchForOrganizer(
+                organizer.getId(), exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "Acme", pageRequest))
+                .thenReturn(new PageImpl<>(List.of(), pageRequest, 25));
+
+        var response = registrationService.getRegistrationsForOrganizer(
+                organizer, exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "  Acme  ", pageRequest);
+
+        assertEquals(1, response.getPage());
+        assertEquals(10, response.getSize());
+        assertEquals(25, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        verify(registrationRepository).searchForOrganizer(
+                organizer.getId(), exhibitionUuid, ExhibitorRegistrationStatus.APPROVED, "Acme", pageRequest);
+    }
+
+    @Test
+    void testGetRegistrationsForOrganizer_BlankKeywordDisablesSearch() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID exhibitionUuid = UUID.randomUUID();
+        PageRequest pageRequest = PageRequest.of(0, 10);
+        when(registrationRepository.searchForOrganizer(
+                organizer.getId(), exhibitionUuid, null, null, pageRequest))
+                .thenReturn(new PageImpl<>(List.of(), pageRequest, 0));
+
+        registrationService.getRegistrationsForOrganizer(
+                organizer, exhibitionUuid, null, "   ", pageRequest);
+
+        verify(registrationRepository).searchForOrganizer(
+                organizer.getId(), exhibitionUuid, null, null, pageRequest);
+    }
+
+    @Test
     void testGetRegistrationsForOrganizer_WithPayments_ReturnsPage() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID exhibitionUuid = UUID.randomUUID();
@@ -926,7 +966,7 @@ class ExhibitorRegistrationServiceTest {
                 .thenReturn(page);
 
         PageResponse<ExhibitorRegistrationResponseDTO> result = registrationService.getRegistrationsForExhibitor(
-                companyUser, ExhibitorRegistrationStatus.PENDING, "Expo", pageable);
+                companyUser, ExhibitorRegistrationStatus.PENDING, "  Expo  ", pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getContent().size());

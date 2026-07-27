@@ -21,9 +21,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.vex360.features.company.dtos.request.CreateStoragePackageOrderRequest;
+import com.example.vex360.features.company.dtos.response.AdminStoragePackageOrderResponseDTO;
 import com.example.vex360.features.company.dtos.response.StoragePackageOrderResponseDTO;
 import com.example.vex360.features.company.dtos.response.StoragePackageResponseDTO;
 import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
@@ -36,8 +40,10 @@ import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.StoragePackageService;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 
 @ExtendWith(MockitoExtension.class)
 class StoragePackageServiceUnitTest {
@@ -93,6 +99,53 @@ class StoragePackageServiceUnitTest {
         assertEquals("Gold package", response.get(0).getName());
         assertEquals(2000L, response.get(0).getQuotaBytes());
         assertEquals(100000L, response.get(0).getPriceVnd());
+    }
+
+    @Test
+    void listAllPackagesSupportsCreatedAtSortAndReturnsPage() {
+        PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+        when(storagePackageRepository.searchForAdmin("Gold", true, pageable))
+                .thenReturn(new PageImpl<>(List.of(storagePackage), pageable, 1));
+
+        PageResponse<StoragePackageResponseDTO> response = storagePackageService
+                .listAllPackages(" Gold ", "active", pageable);
+
+        assertEquals(1, response.getTotalElements());
+        assertEquals("Gold package", response.getContent().get(0).getName());
+        verify(storagePackageRepository).searchForAdmin("Gold", true, pageable);
+    }
+
+    @Test
+    void listAllOrdersSearchesAtDatabaseAndRemapsCompanyNameSort() {
+        PageRequest requestedPageable = PageRequest.of(
+                1, 10, Sort.by(
+                        Sort.Order.asc("companyName"),
+                        Sort.Order.desc("createdAt")));
+        PageRequest mappedPageable = PageRequest.of(
+                1, 10, Sort.by(
+                        Sort.Order.asc("company.name"),
+                        Sort.Order.desc("createdAt")));
+        StoragePackageOrder order = StoragePackageOrder.builder()
+                .id(7)
+                .orderCode(123456L)
+                .company(company)
+                .storagePackage(storagePackage)
+                .amountVnd(100000L)
+                .status(StoragePackageOrderStatus.PAID)
+                .build();
+        when(storagePackageOrderRepository.searchForAdmin(
+                "Company", StoragePackageOrderStatus.PAID, mappedPageable))
+                .thenReturn(new PageImpl<>(List.of(order), mappedPageable, 11));
+
+        PageResponse<AdminStoragePackageOrderResponseDTO> response = storagePackageService
+                .listAllOrders(" Company ", StoragePackageOrderStatus.PAID, requestedPageable);
+
+        assertEquals(11, response.getTotalElements());
+        assertEquals(1, response.getPage());
+        assertEquals("Company X", response.getContent().get(0).getCompanyName());
+        assertEquals(Long.valueOf(123456L), response.getContent().get(0).getOrderCode());
+        verify(storagePackageOrderRepository).searchForAdmin(
+                "Company", StoragePackageOrderStatus.PAID, mappedPageable);
     }
 
     @Test

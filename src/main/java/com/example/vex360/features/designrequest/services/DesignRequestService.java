@@ -74,6 +74,7 @@ import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.PageableUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -94,6 +95,10 @@ import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 @Service
 @RequiredArgsConstructor
 public class DesignRequestService {
+    private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
+            "boothName", "booth.name",
+            "customerCompany", "company.name",
+            "assignedDesignerName", "assignedDesigner.fullName");
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
 
     private final DesignRequestRepository designRequestRepository;
@@ -195,31 +200,32 @@ public class DesignRequestService {
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForExhibitor(
             User currentUser,
+            String keyword,
             DesignRequestStatus status,
             Pageable pageable) {
         Company company = getCompanyForCurrentUser(currentUser);
         Page<DesignRequestResponseDTO> page = designRequestRepository
-                .searchForCompany(company.getId(), status, pageable)
+                .searchForCompany(company.getId(), trimToNull(keyword), status, pageable)
                 .map(this::toResponse);
         return PageResponse.from(page);
     }
 
     /**
      * Lists all design requests for Admin management, optionally filtered by
-     * request status and assigned Designer.
+     * request status.
      *
-     * @param status     optional request-status filter
-     * @param designerId optional assigned Designer identifier
-     * @param pageable   pagination and sorting options
+     * @param status   optional request-status filter
+     * @param pageable pagination and sorting options
      * @return a page of matching design requests
      */
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForAdmin(
+            String keyword,
             DesignRequestStatus status,
-            UUID designerId,
-            DesignRequestMode mode,
             Pageable pageable) {
-        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, mode, pageable)
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
+        return PageResponse.from(designRequestRepository
+                .searchForAdmin(trimToNull(keyword), status, mappedPageable)
                 .map(this::toResponse));
     }
 

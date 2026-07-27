@@ -201,9 +201,9 @@ public class DataSeeder implements ApplicationRunner {
         private final CompanyRepository companyRepository;
         private final PackageTemplateRepository packageTemplateRepository;
         private final ExhibitionRepository exhibitionRepository;
+        private final ExhibitionReviewRequestRepository exhibitionReviewRequestRepository;
         private final ExhibitionAssetRepository exhibitionAssetRepository;
         private final ExhibitionPackageRepository exhibitionPackageRepository;
-        private final ExhibitionReviewRequestRepository exhibitionReviewRequestRepository;
         private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
         private final PaymentRepository paymentRepository;
         private final BoothRepository boothRepository;

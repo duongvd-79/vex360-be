@@ -24,6 +24,7 @@ import com.example.vex360.shared.dtos.PageResponse;
 
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
@@ -46,6 +47,7 @@ import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
+import com.example.vex360.shared.utils.PageableUtils;
 
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
@@ -65,6 +67,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
     private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
+
+    private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
+            "organizerName", "organizer.fullName",
+            "exhibitionName", "name",
+            "expectedBoothCount", "estimatedBooths");
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
@@ -273,17 +280,27 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
-            String keyword, ExhibitionStatus status, String category,
+            String keyword, AdminExhibitionStatusFilter status, String category,
             LocalDate startDate, LocalDate endDate, Pageable pageable) {
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
         String normalizedCategory = (category == null || category.isBlank()) ? null : category.trim();
 
-        List<ExhibitionStatus> statuses = (status != null)
-                ? List.of(status)
-                : List.of(ExhibitionStatus.values());
+        List<ExhibitionStatus> statuses;
+        if (status == null) {
+            statuses = List.of(ExhibitionStatus.values());
+        } else if (status == AdminExhibitionStatusFilter.APPROVED) {
+            statuses = List.of(
+                    ExhibitionStatus.REGISTRATION,
+                    ExhibitionStatus.PUBLISHED,
+                    ExhibitionStatus.ACTIVE,
+                    ExhibitionStatus.COMPLETED);
+        } else {
+            statuses = List.of(ExhibitionStatus.valueOf(status.name()));
+        }
 
-        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
-                normalizedKeyword, statuses, normalizedCategory, startDate, endDate, pageable)
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
+        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
+                normalizedKeyword, statuses, normalizedCategory, startDate, endDate, mappedPageable)
                 .map(exhibitionMapper::toResponse);
 
         return PageResponse.from(exhibitions);
@@ -1135,14 +1152,19 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ExhibitionResponseDTO> searchExhibitionsForVisitor(
-            String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable) {
+            String keyword, ExhibitionStatus status, String category,
+            LocalDate startDate, LocalDate endDate, Pageable pageable) {
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
         String normalizedCategory = (category == null || category.isBlank()) ? null : category.trim();
 
-        List<ExhibitionStatus> visitorStatuses = List.of(
+        List<ExhibitionStatus> publicStatuses = List.of(
                 ExhibitionStatus.PUBLISHED,
                 ExhibitionStatus.ACTIVE,
                 ExhibitionStatus.COMPLETED);
+        if (status != null && !publicStatuses.contains(status)) {
+            return PageResponse.from(Page.empty(pageable));
+        }
+        List<ExhibitionStatus> visitorStatuses = status == null ? publicStatuses : List.of(status);
 
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
                 normalizedKeyword, visitorStatuses, normalizedCategory, startDate, endDate, pageable)

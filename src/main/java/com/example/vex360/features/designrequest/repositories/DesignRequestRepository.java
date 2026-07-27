@@ -23,8 +23,8 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             LEFT JOIN FETCH dr.booth booth
             LEFT JOIN FETCH booth.exhibitorRegistration registration
             LEFT JOIN FETCH registration.exhibitionPackage exhibitionPackage
-            LEFT JOIN FETCH exhibitionPackage.exhibition
-            LEFT JOIN FETCH dr.assignedDesigner
+            LEFT JOIN FETCH exhibitionPackage.exhibition exhibition
+            LEFT JOIN FETCH dr.assignedDesigner assignedDesigner
             """;
 
     List<DesignRequestStatus> SLOT_OCCUPYING_STATUSES = List.of(
@@ -45,31 +45,55 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     @Query(value = REQUEST_DETAILS_QUERY + """
             WHERE dr.company.id = :companyId
+              AND (:keyword IS NULL
+                OR LOWER(booth.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(assignedDesigner.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:status IS NULL OR dr.status = :status)
             """, countQuery = """
             SELECT COUNT(dr) FROM DesignRequest dr
+            LEFT JOIN dr.booth booth
+            LEFT JOIN booth.exhibitorRegistration registration
+            LEFT JOIN registration.exhibitionPackage exhibitionPackage
+            LEFT JOIN exhibitionPackage.exhibition exhibition
+            LEFT JOIN dr.assignedDesigner assignedDesigner
             WHERE dr.company.id = :companyId
+              AND (:keyword IS NULL
+                OR LOWER(booth.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(assignedDesigner.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:status IS NULL OR dr.status = :status)
             """)
     Page<DesignRequest> searchForCompany(
             @Param("companyId") UUID companyId,
+            @Param("keyword") String keyword,
             @Param("status") DesignRequestStatus status,
             Pageable pageable);
 
     @Query(value = REQUEST_DETAILS_QUERY + """
-            WHERE (:status IS NULL OR dr.status = :status)
-              AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
-              AND (:mode IS NULL OR dr.mode = :mode)
+            WHERE (:keyword IS NULL
+                OR LOWER(booth.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(dr.company.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(assignedDesigner.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:status IS NULL OR dr.status = :status)
             """, countQuery = """
             SELECT COUNT(dr) FROM DesignRequest dr
-            WHERE (:status IS NULL OR dr.status = :status)
-              AND (:designerId IS NULL OR dr.assignedDesigner.id = :designerId)
-              AND (:mode IS NULL OR dr.mode = :mode)
+            LEFT JOIN dr.booth booth
+            LEFT JOIN booth.exhibitorRegistration registration
+            LEFT JOIN registration.exhibitionPackage exhibitionPackage
+            LEFT JOIN exhibitionPackage.exhibition exhibition
+            LEFT JOIN dr.assignedDesigner assignedDesigner
+            WHERE (:keyword IS NULL
+                OR LOWER(booth.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(dr.company.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(assignedDesigner.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:status IS NULL OR dr.status = :status)
             """)
     Page<DesignRequest> searchForAdmin(
+            @Param("keyword") String keyword,
             @Param("status") DesignRequestStatus status,
-            @Param("designerId") UUID designerId,
-            @Param("mode") DesignRequestMode mode,
             Pageable pageable);
 
     @Query(value = REQUEST_DETAILS_QUERY + """

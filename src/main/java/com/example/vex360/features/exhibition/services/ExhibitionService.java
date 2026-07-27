@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
@@ -30,7 +31,7 @@ public interface ExhibitionService {
 			ConfigureExhibitionPackageRequest request);
 
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
-			String keyword, ExhibitionStatus status, String category,
+			String keyword, AdminExhibitionStatusFilter status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
 	ExhibitionSummaryResponseDTO getExhibitionSummary();
@@ -47,7 +48,8 @@ public interface ExhibitionService {
 			MultipartFile keyVisual);
 
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForVisitor(
-			String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable);
+			String keyword, ExhibitionStatus status, String category,
+			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForExhibitor(
 			String keyword, String category, LocalDate startDate, LocalDate endDate, Pageable pageable);
