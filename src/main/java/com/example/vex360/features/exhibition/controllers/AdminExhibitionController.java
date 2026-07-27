@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
@@ -27,7 +28,6 @@ import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.enums.ExhibitionStatus;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -47,12 +47,12 @@ public class AdminExhibitionController extends BaseController {
     @GetMapping
     @Operation(
             summary = "Admin xem danh sách yêu cầu mở triển lãm",
-            description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo từ khóa (tên triển lãm, tên/email organizer), lọc theo status, category, và thời gian diễn ra (startDate, endDate). Mặc định sắp xếp theo ngày tạo giảm dần.")
+            description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo tên triển lãm, tên/email organizer hoặc tên tổ chức; lọc theo status, category và thời gian diễn ra. APPROVED đại diện cho REGISTRATION/PUBLISHED/ACTIVE/COMPLETED.")
     public ResponseEntity<ApiResponse<PageResponse<ExhibitionResponseDTO>>> getExhibitions(
-            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên organizer, email organizer)")
+            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên/email organizer, tên tổ chức)")
             @RequestParam(required = false) String keyword,
-            @Parameter(description = "Trạng thái của triển lãm")
-            @RequestParam(required = false) ExhibitionStatus status,
+            @Parameter(description = "Trạng thái của triển lãm; APPROVED lấy các trạng thái đã được duyệt")
+            @RequestParam(required = false) AdminExhibitionStatusFilter status,
             @Parameter(description = "Lĩnh vực/danh mục của triển lãm")
             @RequestParam(required = false) String category,
             @Parameter(description = "Ngày bắt đầu triển lãm (từ ngày)")

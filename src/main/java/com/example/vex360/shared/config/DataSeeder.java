@@ -397,10 +397,10 @@ public class DataSeeder implements ApplicationRunner {
                                 organizer, "Mộc Việt đăng ký gian hàng nội thất gỗ.",
                                 "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm."));
                 ExhibitorRegistration reg5 = exhibitorRegistrationRepository.save(buildRegistration(
-                                completedPackage, exhibitor2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
+                                completedPackage, exhibitor2, basicTemplate, ExhibitorRegistrationStatus.CANCELLED,
                                 null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null));
                 log.info("[SEED] Đã tạo 5 exhibitor registration "
-                                + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
+                                + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELLED)");
 
                 // ---------- 8. PAYMENTS ----------
                 paymentRepository.save(Payment.builder()
@@ -716,7 +716,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .approvedAt(Instant.now().minus(7, ChronoUnit.DAYS)).build());
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth2).company(company2).requestedBy(exhibitor2)
-                                .status(DesignRequestStatus.CANCELED)
+                                .status(DesignRequestStatus.CANCELLED)
                                 .note("Exhibitor tự huỷ do đổi kế hoạch.")
                                 .reviewCount(0).canceledAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus)");

@@ -23,7 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
@@ -145,6 +147,37 @@ class BoothReviewServiceUnitTest {
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertEquals(BoothStatus.DRAFT, response.getStatus());
         verify(policyService).assertBeforeReviewDeadline(booth);
+    }
+
+    @Test
+    void getBoothsForOrganizerNormalizesKeywordAndPreservesPagination() {
+        PageRequest pageable = PageRequest.of(1, 10, Sort.by(Sort.Order.desc("updatedAt")));
+        when(boothRepository.searchForOrganizer(
+                exhibitionUuid, organizer.getId(), "Exhibitor Owner", BoothStatus.PENDING, pageable))
+                .thenReturn(new PageImpl<>(List.of(booth), pageable, 21));
+
+        var response = service.getBoothsForOrganizer(
+                organizer, exhibitionUuid, "  Exhibitor Owner  ", BoothStatus.PENDING, pageable);
+
+        assertEquals(1, response.getPage());
+        assertEquals(10, response.getSize());
+        assertEquals(21, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        verify(boothRepository).searchForOrganizer(
+                exhibitionUuid, organizer.getId(), "Exhibitor Owner", BoothStatus.PENDING, pageable);
+    }
+
+    @Test
+    void getBoothsForOrganizerTreatsBlankKeywordAsNoFilter() {
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(boothRepository.searchForOrganizer(
+                exhibitionUuid, organizer.getId(), null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        service.getBoothsForOrganizer(organizer, exhibitionUuid, "   ", null, pageable);
+
+        verify(boothRepository).searchForOrganizer(
+                exhibitionUuid, organizer.getId(), null, null, pageable);
     }
 
     @Test

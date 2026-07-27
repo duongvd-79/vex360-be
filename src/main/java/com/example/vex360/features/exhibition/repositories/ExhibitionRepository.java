@@ -22,6 +22,48 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
       WHERE (:keyword IS NULL
           OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
           OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR EXISTS (
+              SELECT c.id FROM Company c
+              WHERE c.ownerUser = o
+                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          ))
+        AND (e.status IN :statuses)
+        AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+        AND (:startDate IS NULL OR e.startDate >= :startDate)
+        AND (:endDate IS NULL OR e.endDate <= :endDate)
+      """, countQuery = """
+      SELECT COUNT(e) FROM Exhibition e
+      LEFT JOIN e.organizer o
+      WHERE (:keyword IS NULL
+          OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR EXISTS (
+              SELECT c.id FROM Company c
+              WHERE c.ownerUser = o
+                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          ))
+        AND (e.status IN :statuses)
+        AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+        AND (:startDate IS NULL OR e.startDate >= :startDate)
+        AND (:endDate IS NULL OR e.endDate <= :endDate)
+      """)
+  Page<Exhibition> searchAdminExhibitions(
+      @Param("keyword") String keyword,
+      @Param("statuses") List<ExhibitionStatus> statuses,
+      @Param("category") String category,
+      @Param("startDate") java.time.LocalDate startDate,
+      @Param("endDate") java.time.LocalDate endDate,
+      Pageable pageable);
+
+  @Query(value = """
+      SELECT DISTINCT e FROM Exhibition e
+      LEFT JOIN FETCH e.organizer o
+      LEFT JOIN FETCH e.reviewedBy r
+      WHERE (:keyword IS NULL
+          OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
           OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
         AND (e.status IN :statuses)
         AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))

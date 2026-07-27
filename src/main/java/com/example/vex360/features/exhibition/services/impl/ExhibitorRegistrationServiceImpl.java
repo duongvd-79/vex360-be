@@ -189,7 +189,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         }
 
         Page<ExhibitorRegistration> page = registrationRepository.searchForOrganizer(
-                organizer.getId(), exhibitionUuid, status, keyword, pageable);
+                organizer.getId(), exhibitionUuid, status,
+                keyword == null || keyword.isBlank() ? null : keyword.trim(), pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
@@ -229,8 +230,9 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
-                exhibitor.getId(), status, keyword, pageable);
+                exhibitor.getId(), status, normalizedKeyword, pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
@@ -371,7 +373,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
-        registration.setStatus(ExhibitorRegistrationStatus.CANCELED);
+        registration.setStatus(ExhibitorRegistrationStatus.CANCELLED);
         registration = registrationRepository.save(registration);
 
         List<Payment> pendingPayments = paymentRepository

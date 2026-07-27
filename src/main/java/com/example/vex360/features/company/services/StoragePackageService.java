@@ -2,10 +2,14 @@ package com.example.vex360.features.company.services;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,8 +29,10 @@ import com.example.vex360.features.exhibition.events.StoragePackagePaymentComple
 import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.PageableUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +41,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class StoragePackageService {
+
+    private static final Map<String, String> ORDER_SORT_ALIASES = Map.of(
+            "companyName", "company.name");
 
     private final StoragePackageRepository storagePackageRepository;
     private final StoragePackageOrderRepository storagePackageOrderRepository;
@@ -57,11 +66,13 @@ public class StoragePackageService {
                 .toList();
     }
 
-    public List<StoragePackageResponseDTO> listAllPackages() {
-        return storagePackageRepository.findAllByOrderByPriceVndAsc()
-                .stream()
-                .map(this::toDTO)
-                .toList();
+    @Transactional(readOnly = true)
+    public PageResponse<StoragePackageResponseDTO> listAllPackages(
+            String keyword, String status, Pageable pageable) {
+        Page<StoragePackageResponseDTO> packages = storagePackageRepository
+                .searchForAdmin(normalizeKeyword(keyword), parseActiveStatus(status), pageable)
+                .map(this::toDTO);
+        return PageResponse.from(packages);
     }
 
     @Transactional
@@ -181,9 +192,11 @@ public class StoragePackageService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminStoragePackageOrderResponseDTO> listAllOrders() {
-        return storagePackageOrderRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
+    public PageResponse<AdminStoragePackageOrderResponseDTO> listAllOrders(
+            String keyword, StoragePackageOrderStatus status, Pageable pageable) {
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, ORDER_SORT_ALIASES);
+        Page<AdminStoragePackageOrderResponseDTO> orders = storagePackageOrderRepository
+                .searchForAdmin(normalizeKeyword(keyword), status, mappedPageable)
                 .map(o -> AdminStoragePackageOrderResponseDTO.builder()
                         .id(o.getId())
                         .orderCode(o.getOrderCode())
@@ -194,8 +207,27 @@ public class StoragePackageService {
                         .status(o.getStatus().name())
                         .paidAt(o.getPaidAt())
                         .createdAt(o.getCreatedAt())
-                        .build())
-                .toList();
+                        .build());
+        return PageResponse.from(orders);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim();
+    }
+
+    private Boolean parseActiveStatus(String status) {
+        if (status == null || status.isBlank() || "all".equalsIgnoreCase(status.trim())) {
+            return null;
+        }
+
+        return switch (status.trim().toLowerCase(Locale.ROOT)) {
+            case "active", "true" -> true;
+            case "inactive", "false" -> false;
+            default -> throw new AppException(ErrorCode.VALIDATION_FAILED);
+        };
     }
 
 }

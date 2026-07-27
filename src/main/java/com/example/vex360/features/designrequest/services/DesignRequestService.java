@@ -74,6 +74,7 @@ import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.utils.PageableUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -94,6 +95,10 @@ import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 @Service
 @RequiredArgsConstructor
 public class DesignRequestService {
+    private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
+            "boothName", "booth.name",
+            "customerCompany", "company.name",
+            "assignedDesignerName", "assignedDesigner.fullName");
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
 
     private final DesignRequestRepository designRequestRepository;
@@ -195,31 +200,32 @@ public class DesignRequestService {
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForExhibitor(
             User currentUser,
+            String keyword,
             DesignRequestStatus status,
             Pageable pageable) {
         Company company = getCompanyForCurrentUser(currentUser);
         Page<DesignRequestResponseDTO> page = designRequestRepository
-                .searchForCompany(company.getId(), status, pageable)
+                .searchForCompany(company.getId(), trimToNull(keyword), status, pageable)
                 .map(this::toResponse);
         return PageResponse.from(page);
     }
 
     /**
      * Lists all design requests for Admin management, optionally filtered by
-     * request status and assigned Designer.
+     * request status.
      *
-     * @param status     optional request-status filter
-     * @param designerId optional assigned Designer identifier
-     * @param pageable   pagination and sorting options
+     * @param status   optional request-status filter
+     * @param pageable pagination and sorting options
      * @return a page of matching design requests
      */
     @Transactional(readOnly = true)
     public PageResponse<DesignRequestResponseDTO> getRequestsForAdmin(
+            String keyword,
             DesignRequestStatus status,
-            UUID designerId,
-            DesignRequestMode mode,
             Pageable pageable) {
-        return PageResponse.from(designRequestRepository.searchForAdmin(status, designerId, mode, pageable)
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
+        return PageResponse.from(designRequestRepository
+                .searchForAdmin(trimToNull(keyword), status, mappedPageable)
                 .map(this::toResponse));
     }
 
@@ -260,7 +266,7 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
         DesignRequestStatus previousStatus = request.getStatus();
-        request.setStatus(DesignRequestStatus.CANCELED);
+        request.setStatus(DesignRequestStatus.CANCELLED);
         request.setQuotaCharged(false);
         request.setCanceledAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
@@ -281,7 +287,7 @@ public class DesignRequestService {
             return cancelRequest(currentUser, id);
         }
         if (request.getStatus() == DesignRequestStatus.APPROVED
-                || request.getStatus() == DesignRequestStatus.CANCELED
+                || request.getStatus() == DesignRequestStatus.CANCELLED
                 || request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
@@ -312,7 +318,7 @@ public class DesignRequestService {
         if (approve) {
             DesignRequestStatus previousStatus = request.getStatus();
             request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
-            request.setStatus(DesignRequestStatus.CANCELED);
+            request.setStatus(DesignRequestStatus.CANCELLED);
             request.setCanceledAt(Instant.now());
             request.getBooth().setStatus(BoothStatus.DRAFT);
             request.getDrafts().clear();
@@ -674,20 +680,20 @@ public class DesignRequestService {
     /**
      * Forces cleanup of design assets no longer used by the current booth. The
      * caller must enforce the Admin authorization boundary; this operation only
-     * accepts APPROVED or CANCELED requests.
+     * accepts APPROVED or CANCELLED requests.
      *
      * @param id terminal design request identifier
      * @return number of assets deleted
-     * @throws AppException if the request is not APPROVED or CANCELED
+     * @throws AppException if the request is not APPROVED or CANCELLED
      */
     @Transactional
     public int cleanupTerminalAssets(UUID id) {
         DesignRequest request = getRequest(id);
         if (request.getStatus() != DesignRequestStatus.APPROVED
-                && request.getStatus() != DesignRequestStatus.CANCELED) {
+                && request.getStatus() != DesignRequestStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
-        if (request.getStatus() == DesignRequestStatus.CANCELED && !request.getDrafts().isEmpty()) {
+        if (request.getStatus() == DesignRequestStatus.CANCELLED && !request.getDrafts().isEmpty()) {
             request.getDrafts().clear();
             designDraftRepository.flush();
         }
@@ -715,7 +721,7 @@ public class DesignRequestService {
                 designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode),
-                designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode),
+                designRequestRepository.countFiltered(DesignRequestStatus.CANCELLED, mode),
                 workloads);
     }
 

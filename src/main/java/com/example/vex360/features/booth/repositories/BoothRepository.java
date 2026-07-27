@@ -134,11 +134,13 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
       JOIN registration.exhibitionPackage exhibitionPackage
       JOIN exhibitionPackage.exhibition exhibition
       LEFT JOIN b.company company
+      LEFT JOIN company.ownerUser ownerUser
       WHERE exhibition.uuid = :exhibitionUuid
         AND exhibition.organizer.id = :organizerId
         AND (:keyword IS NULL
           OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(ownerUser.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
         AND (:status IS NULL OR b.status = :status)
       ORDER BY CASE WHEN b.status = 'PENDING' THEN 1 ELSE 2 END ASC, b.updatedAt DESC
       """)

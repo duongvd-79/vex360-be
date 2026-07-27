@@ -2,6 +2,7 @@ package com.example.vex360.features.partnership.services;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.utils.RandomPasswordGenerator;
+import com.example.vex360.shared.utils.PageableUtils;
 import com.example.vex360.shared.utils.TokenEncryptionUtils;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +40,12 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PartnershipRequestService {
+    private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
+            "companyName", "organizationName",
+            "contactPerson", "requesterName",
+            "email", "requesterEmail",
+            "submittedAt", "createdAt");
+
     private final PartnershipRequestRepository partnershipRequestRepository;
     private final UserService userService;
     private final CompanyService companyService;
@@ -137,6 +145,7 @@ public class PartnershipRequestService {
 
     @Transactional(readOnly = true)
     public PageResponse<PartnershipRequestResponseDTO> getRequests(
+            String keyword,
             PartnershipRequestStatus status,
             Role requestedRole,
             Pageable pageable) {
@@ -144,8 +153,9 @@ public class PartnershipRequestService {
             validateRequestedRole(requestedRole);
         }
 
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<PartnershipRequestResponseDTO> requests = partnershipRequestRepository
-                .searchRequests(status, requestedRole, pageable)
+                .searchRequests(normalize(keyword), status, requestedRole, mappedPageable)
                 .map(partnershipRequestMapper::toResponse);
         return PageResponse.from(requests);
     }

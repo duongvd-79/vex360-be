@@ -96,7 +96,7 @@ public class ExhibitorRegistrationController extends BaseController {
     }
 
     @PutMapping("/{uuid}/cancel")
-    @Operation(summary = "Hủy đơn đăng ký triển lãm", description = "Chuyển trạng thái đơn đăng ký thành CANCELED và hủy bỏ các thanh toán liên quan. Chỉ cho phép khi đơn ở trạng thái PENDING hoặc PENDING_PAYMENT.")
+    @Operation(summary = "Hủy đơn đăng ký triển lãm", description = "Chuyển trạng thái đơn đăng ký thành CANCELLED và hủy bỏ các thanh toán liên quan. Chỉ cho phép khi đơn ở trạng thái PENDING hoặc PENDING_PAYMENT.")
     public ResponseEntity<ApiResponse<ExhibitorRegistrationResponseDTO>> cancelRegistration(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("uuid") UUID registrationUuid) {

@@ -39,11 +39,14 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.utils.PageableUtils;
 
 @Service
 public class ProductService {
     private static final int MAX_IMAGE_CONTENT_COUNT = 5;
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
+    private static final Map<String, String> PRODUCT_SORT_ALIASES = Map.of(
+            "categoryName", "category.name");
 
     private final CompanyService companyService;
     private final CompanyStorageService companyStorageService;
@@ -78,8 +81,9 @@ public class ProductService {
             ProductStatus status,
             Pageable pageable) {
         Company company = getCompanyForCurrentUser(currentUser);
+        Pageable mappedPageable = PageableUtils.remapSort(pageable, PRODUCT_SORT_ALIASES);
         Page<ProductResponseDTO> products = productRepository
-                .searchProducts(company.getId(), normalizeKeyword(keyword), categoryId, status, pageable)
+                .searchProducts(company.getId(), normalizeKeyword(keyword), categoryId, status, mappedPageable)
                 .map(productMapper::toResponse);
         return PageResponse.from(products);
     }
