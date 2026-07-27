@@ -85,7 +85,7 @@ public class DesignRequestBaselineService {
         }
         for (Panorama panorama : sourcePanoramas) {
             createBaselineAsset(request, panorama.getImageUrl(), panorama.getImageKey(), panorama.getName(),
-                    null, DesignDraftAssetType.PANORAMA);
+                    panorama.getFileSize(), DesignDraftAssetType.PANORAMA);
             DesignDraftPanorama draftPanorama = DesignDraftPanorama.builder()
                     .draft(draft)
                     .clientKey(panoramaKeys.get(panorama.getId()))

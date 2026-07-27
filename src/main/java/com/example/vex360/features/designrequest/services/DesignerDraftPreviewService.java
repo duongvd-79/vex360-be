@@ -18,6 +18,8 @@ import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.mapper.BoothMapper;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftHotspotResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPreviewBoothResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPreviewResponseDTO;
@@ -115,7 +117,7 @@ public class DesignerDraftPreviewService {
         return toPanoramaResponse(panorama, panoramasByKey);
     }
 
-    HotspotResponseDTO toHotspotResponse(DesignDraftHotspot hotspot) {
+    DesignDraftHotspotResponseDTO toHotspotResponse(DesignDraftHotspot hotspot) {
         Map<String, DesignDraftPanorama> panoramasByKey = hotspot.getSourcePanorama().getDraft().getPanoramas().stream()
                 .filter(item -> item.getClientKey() != null)
                 .collect(Collectors.toMap(
@@ -175,13 +177,13 @@ public class DesignerDraftPreviewService {
                 panorama.getImageKey(),
                 panorama.getOrderIndex(),
                 panorama.getIsDefault(),
-                panorama.getHotspots());
+                panorama.getHotspots().stream().map(this::toCurrentHotspotResponse).toList());
     }
 
     private DesignDraftPanoramaResponseDTO toPanoramaResponse(
             DesignDraftPanorama panorama,
             Map<String, DesignDraftPanorama> panoramasByKey) {
-        List<HotspotResponseDTO> hotspots = panorama.getHotspots().stream()
+        List<DesignDraftHotspotResponseDTO> hotspots = panorama.getHotspots().stream()
                 .sorted(Comparator.comparing(
                         DesignDraftHotspot::getName,
                         Comparator.nullsLast(String::compareToIgnoreCase)))
@@ -198,12 +200,12 @@ public class DesignerDraftPreviewService {
                 hotspots);
     }
 
-    private HotspotResponseDTO toHotspotResponse(
+    private DesignDraftHotspotResponseDTO toHotspotResponse(
             DesignDraftHotspot hotspot,
             Map<String, DesignDraftPanorama> panoramasByKey) {
         DesignDraftPanorama source = hotspot.getSourcePanorama();
         DesignDraftPanorama target = panoramasByKey.get(hotspot.getTargetDraftPanoramaKey());
-        return new HotspotResponseDTO(
+        return new DesignDraftHotspotResponseDTO(
                 hotspot.getId(),
                 hotspot.getType(),
                 hotspot.getName(),
@@ -213,6 +215,7 @@ public class DesignerDraftPreviewService {
                 target == null ? null : new HotspotPanoramaSummaryDTO(target.getId(), target.getName()),
                 toProductSummary(hotspot.getProduct()),
                 boothMapper.toMediaAssetResponseDTO(hotspot.getMediaAsset()),
+                toDraftMediaResponse(hotspot),
                 hotspot.getInfoText(),
                 hotspot.getXPosition(),
                 hotspot.getYPosition(),
@@ -223,6 +226,51 @@ public class DesignerDraftPreviewService {
                 hotspot.getMediaClickAction(),
                 hotspot.getInfoContentType(),
                 hotspot.getCorners());
+    }
+
+    private DesignDraftHotspotResponseDTO toCurrentHotspotResponse(HotspotResponseDTO hotspot) {
+        return new DesignDraftHotspotResponseDTO(
+                hotspot.getId(),
+                hotspot.getType(),
+                hotspot.getName(),
+                hotspot.getSourcePanoramaId(),
+                hotspot.getTargetPanoramaId(),
+                hotspot.getTargetPanoramaName(),
+                hotspot.getTargetPanorama(),
+                hotspot.getProduct(),
+                hotspot.getMediaAsset(),
+                null,
+                hotspot.getInfoText(),
+                hotspot.getXPosition(),
+                hotspot.getYPosition(),
+                hotspot.getZPosition(),
+                hotspot.getIconStyle(),
+                hotspot.getScale(),
+                hotspot.getZIndex(),
+                hotspot.getMediaClickAction(),
+                hotspot.getInfoContentType(),
+                hotspot.getCorners());
+    }
+
+    private DesignDraftMediaAssetResponseDTO toDraftMediaResponse(DesignDraftHotspot hotspot) {
+        var media = hotspot.getDesignDraftMediaAsset();
+        if (media == null || media.getAsset() == null) {
+            return null;
+        }
+        var asset = media.getAsset();
+        return DesignDraftMediaAssetResponseDTO.builder()
+                .id(media.getId())
+                .draftId(media.getDraft() == null ? null : media.getDraft().getId())
+                .assetId(asset.getId())
+                .url(asset.getUrl())
+                .fileName(asset.getFileName())
+                .mimeType(asset.getMimeType())
+                .fileSize(asset.getFileSize())
+                .assetType(asset.getAssetType())
+                .title(media.getTitle())
+                .sortOrder(media.getSortOrder())
+                .createdAt(media.getCreatedAt())
+                .build();
     }
 
     private HotspotProductSummaryDTO toProductSummary(Product product) {

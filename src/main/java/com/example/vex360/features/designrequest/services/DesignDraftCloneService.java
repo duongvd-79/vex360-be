@@ -1,6 +1,9 @@
 package com.example.vex360.features.designrequest.services;
 
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +51,22 @@ public class DesignDraftCloneService {
                 .backgroundMusicAsset(source.getBackgroundMusicAsset())
                 .build();
 
+        Map<UUID, DesignDraftMediaAsset> clonedMediaBySourceId = new HashMap<>();
+        if (source.getMediaAssets() != null) {
+            for (DesignDraftMediaAsset sourceMedia : source.getMediaAssets()) {
+                DesignDraftMediaAsset cloneMedia = DesignDraftMediaAsset.builder()
+                        .draft(clone)
+                        .asset(sourceMedia.getAsset())
+                        .title(sourceMedia.getTitle())
+                        .sortOrder(sourceMedia.getSortOrder())
+                        .build();
+                clone.getMediaAssets().add(cloneMedia);
+                if (sourceMedia.getId() != null) {
+                    clonedMediaBySourceId.put(sourceMedia.getId(), cloneMedia);
+                }
+            }
+        }
+
         for (DesignDraftPanorama sourcePanorama : source.getPanoramas()) {
             DesignDraftPanorama panorama = DesignDraftPanorama.builder()
                     .draft(clone)
@@ -59,29 +78,23 @@ public class DesignDraftCloneService {
                     .isDefault(sourcePanorama.getIsDefault())
                     .build();
             for (DesignDraftHotspot sourceHotspot : sourcePanorama.getHotspots()) {
-                panorama.getHotspots().add(cloneHotspot(panorama, sourceHotspot));
+                panorama.getHotspots().add(cloneHotspot(
+                        panorama,
+                        sourceHotspot,
+                        clonedMediaBySourceId));
             }
             clone.getPanoramas().add(panorama);
         }
 
-        if (source.getMediaAssets() != null) {
-            for (DesignDraftMediaAsset sourceMedia : source.getMediaAssets()) {
-                DesignDraftMediaAsset cloneMedia = DesignDraftMediaAsset.builder()
-                        .draft(clone)
-                        .asset(sourceMedia.getAsset())
-                        .title(sourceMedia.getTitle())
-                        .sortOrder(sourceMedia.getSortOrder())
-                        .build();
-                clone.getMediaAssets().add(cloneMedia);
-            }
-        }
         return clone;
     }
 
 
     private DesignDraftHotspot cloneHotspot(
             DesignDraftPanorama panorama,
-            DesignDraftHotspot source) {
+            DesignDraftHotspot source,
+            Map<UUID, DesignDraftMediaAsset> clonedMediaBySourceId) {
+        DesignDraftMediaAsset sourceMedia = source.getDesignDraftMediaAsset();
         return DesignDraftHotspot.builder()
                 .sourcePanorama(panorama)
                 .type(source.getType())
@@ -89,6 +102,9 @@ public class DesignDraftCloneService {
                 .targetDraftPanoramaKey(source.getTargetDraftPanoramaKey())
                 .product(source.getProduct())
                 .mediaAsset(source.getMediaAsset())
+                .designDraftMediaAsset(sourceMedia == null || sourceMedia.getId() == null
+                        ? null
+                        : clonedMediaBySourceId.get(sourceMedia.getId()))
                 .infoText(source.getInfoText())
                 .xPosition(source.getXPosition())
                 .yPosition(source.getYPosition())

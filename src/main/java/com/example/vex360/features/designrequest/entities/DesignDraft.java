@@ -58,6 +58,9 @@ public class DesignDraft {
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    String rejectionReason;
+
     @Column(name = "booth_name")
     String boothName;
 
@@ -84,6 +87,9 @@ public class DesignDraft {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "background_music_asset_id")
     DesignDraftAsset backgroundMusicAsset;
+
+    @Column(name = "submitted_at")
+    Instant submittedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

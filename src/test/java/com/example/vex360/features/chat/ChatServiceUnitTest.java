@@ -19,7 +19,7 @@ import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.chat.services.ChatService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 
@@ -33,7 +33,7 @@ class ChatServiceUnitTest {
     @Mock
     UserService userService;
     @Mock
-    ExhibitionService exhibitionService;
+    ExhibitionRepository exhibitionRepository;
     @InjectMocks
     ChatService chatService;
 
@@ -42,17 +42,18 @@ class ChatServiceUnitTest {
         UUID visitorId = UUID.randomUUID();
         UUID exhibitorId = UUID.randomUUID();
         Integer exhibitionId = 10;
+        UUID exhibitionUuid = UUID.randomUUID();
         GetOrCreateRoomRequest request = new GetOrCreateRoomRequest();
-        request.setExhibitionId(exhibitionId);
+        request.setExhibitionId(exhibitionUuid);
         request.setExhibitorUserId(exhibitorId);
 
-        Exhibition exhibition = Exhibition.builder().id(exhibitionId).build();
+        Exhibition exhibition = Exhibition.builder().id(exhibitionId).uuid(exhibitionUuid).build();
         User exhibitor = User.builder().id(exhibitorId).build();
         User visitor = User.builder().id(visitorId).build();
         ChatRoom room = ChatRoom.builder().id(UUID.randomUUID()).exhibition(exhibition)
                 .exhibitorUser(exhibitor).visitorUser(visitor).build();
 
-        when(exhibitionService.getExhibitionEntityById(exhibitionId)).thenReturn(exhibition);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(exhibition));
         when(userService.getUserEntityById(exhibitorId)).thenReturn(exhibitor);
         when(userService.getUserEntityById(visitorId)).thenReturn(visitor);
         when(chatRoomRepository.findByExhibitionIdAndExhibitorUserIdAndVisitorUserId(
@@ -61,7 +62,7 @@ class ChatServiceUnitTest {
 
         chatService.getOrCreateRoom(visitorId, request);
 
-        verify(exhibitionService).getExhibitionEntityById(exhibitionId);
+        verify(exhibitionRepository).findByUuid(exhibitionUuid);
         verify(userService).getUserEntityById(exhibitorId);
         verify(userService).getUserEntityById(visitorId);
     }

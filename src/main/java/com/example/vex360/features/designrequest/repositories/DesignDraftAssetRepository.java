@@ -14,6 +14,8 @@ public interface DesignDraftAssetRepository extends JpaRepository<DesignDraftAss
 
     Optional<DesignDraftAsset> findByDesignRequestIdAndPublicId(UUID designRequestId, String publicId);
 
+    Optional<DesignDraftAsset> findFirstByPublicIdOrderByCreatedAtDesc(String publicId);
+
     List<DesignDraftAsset> findByDesignRequestId(UUID designRequestId);
 
     Page<DesignDraftAsset> findByDesignRequestId(UUID designRequestId, Pageable pageable);

@@ -42,6 +42,8 @@ import com.example.vex360.features.booth.services.ExhibitorPanoramaService;
 import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
+import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -61,6 +63,8 @@ class ExhibitorPanoramaServiceUnitTest {
 
     @Mock
     private CompanyService companyService;
+    @Mock
+    private CompanyStorageService companyStorageService;
 
     @Mock
     private CloudService cloudService;
@@ -74,6 +78,9 @@ class ExhibitorPanoramaServiceUnitTest {
     @Mock
     private BoothReviewPolicyService boothReviewPolicyService;
 
+    @Mock
+    private DesignDraftAssetRepository designDraftAssetRepository;
+
     private ExhibitorPanoramaService exhibitorPanoramaService;
     private User exhibitorUser;
     private Company company;
@@ -86,11 +93,13 @@ class ExhibitorPanoramaServiceUnitTest {
                 panoramaRepository,
                 hotspotRepository,
                 companyService,
+                companyStorageService,
                 cloudService,
                 panoramaImageCleanupService,
                 Mappers.getMapper(BoothMapper.class),
                 boothBenefitGuardService,
-                boothReviewPolicyService);
+                boothReviewPolicyService,
+                designDraftAssetRepository);
         exhibitorUser = User.builder().id(UUID.randomUUID()).email("exhibitor@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).ownerUser(exhibitorUser).name("VEX Company").build();
         booth = Booth.builder()
@@ -149,6 +158,61 @@ class ExhibitorPanoramaServiceUnitTest {
 
         assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
         verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
+    void createPanoramaStoresActualSizeAndChargesQuotaAfterSave() {
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "panorama.jpg", "image/jpeg", "image".getBytes());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId())).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId())).thenReturn(List.of());
+        when(cloudService.uploadToFolder(any(), any())).thenReturn(CloudinaryResponse.builder()
+                .url("https://cdn/new.jpg")
+                .publicId("booth/new")
+                .fileSize(25L)
+                .build());
+        when(panoramaRepository.saveAndFlush(any(Panorama.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        exhibitorPanoramaService.createPanorama(
+                exhibitorUser,
+                booth.getId(),
+                new CreateExhibitorPanoramaRequest("Entrance", null, true),
+                image);
+
+        ArgumentCaptor<Panorama> captor = ArgumentCaptor.forClass(Panorama.class);
+        verify(panoramaRepository).saveAndFlush(captor.capture());
+        assertEquals(25L, captor.getValue().getFileSize());
+        verify(companyStorageService, never()).addUsage(any(), any(Long.class));
+    }
+
+    @Test
+    void updateOwnedPanoramaReconcilesOnlyTheSizeDifference() {
+        UUID panoramaId = UUID.randomUUID();
+        Panorama panorama = panorama(panoramaId, "Entrance", "booth/old", 0);
+        panorama.setFileSize(10L);
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "new.jpg", "image/jpeg", "new-image".getBytes());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId())).thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothIdForUpdate(panoramaId, booth.getId()))
+                .thenReturn(Optional.of(panorama));
+        when(cloudService.uploadToFolder(any(), any())).thenReturn(CloudinaryResponse.builder()
+                .url("https://cdn/new.jpg")
+                .publicId("booth/new")
+                .fileSize(20L)
+                .build());
+        when(panoramaRepository.saveAndFlush(any(Panorama.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        exhibitorPanoramaService.updatePanorama(
+                exhibitorUser,
+                booth.getId(),
+                panoramaId,
+                new UpdateExhibitorPanoramaRequest(null, null, null),
+                image);
+
+        verify(companyStorageService, never()).reconcileUsage(any(), any(Long.class), any(Long.class), any(Long.class));
+        verify(panoramaImageCleanupService).scheduleCleanup("booth/old");
     }
 
     @Test
@@ -211,6 +275,7 @@ class ExhibitorPanoramaServiceUnitTest {
         exhibitorPanoramaService.deletePanorama(exhibitorUser, booth.getId(), panoramaId);
 
         verify(panoramaRepository).delete(panorama);
+        verify(companyStorageService, never()).deductUsage(any(), any(Long.class));
         verify(panoramaImageCleanupService).scheduleCleanup("template/shared");
         verify(cloudService, never()).delete("template/shared", "image");
     }
@@ -224,6 +289,7 @@ class ExhibitorPanoramaServiceUnitTest {
                 .name("Entrance")
                 .imageUrl("https://cdn/entrance.jpg")
                 .imageKey("booth/entrance")
+                .fileSize(15L)
                 .orderIndex(0)
                 .isDefault(true)
                 .build();
@@ -241,6 +307,7 @@ class ExhibitorPanoramaServiceUnitTest {
         order.verify(hotspotRepository).flush();
         order.verify(panoramaRepository).delete(panorama);
         order.verify(panoramaRepository).flush();
+        verify(companyStorageService, never()).deductUsage(any(), any(Long.class));
     }
 
     @Test
@@ -263,6 +330,7 @@ class ExhibitorPanoramaServiceUnitTest {
         order.verify(hotspotRepository).flush();
         order.verify(panoramaRepository).deleteAll(List.of(entrance, main));
         order.verify(panoramaRepository).flush();
+        verify(companyStorageService, never()).deductUsage(any(), any(Long.class));
         verify(panoramaImageCleanupService).scheduleCleanup(Set.of("booth/entrance", "booth/main"));
     }
 
@@ -320,6 +388,7 @@ class ExhibitorPanoramaServiceUnitTest {
                 .name(name)
                 .imageUrl("https://cdn/" + name.toLowerCase() + ".jpg")
                 .imageKey(imageKey)
+                .fileSize(10L)
                 .orderIndex(orderIndex)
                 .isDefault(orderIndex == 0)
                 .build();

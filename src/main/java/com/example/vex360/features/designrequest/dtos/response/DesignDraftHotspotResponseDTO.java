@@ -1,13 +1,15 @@
-package com.example.vex360.features.designrequest.dtos.request;
+package com.example.vex360.features.designrequest.dtos.response;
 
 import java.util.UUID;
 
 import com.example.vex360.features.booth.dtos.HotspotCornersDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotPanoramaSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.HotspotProductSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.enums.HotspotInfoContentType;
 import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
 import com.example.vex360.features.booth.enums.HotspotType;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,40 +17,25 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class SubmitDesignDraftHotspotRequest {
-    @NotNull(message = "Loại hotspot không được để trống")
+public class DesignDraftHotspotResponseDTO {
+    private UUID id;
     private HotspotType type;
-
     private String name;
-
-    @NotNull(message = "Vị trí x không được để trống")
-    private Double xPosition;
-
-    @NotNull(message = "Vị trí y không được để trống")
-    private Double yPosition;
-
-    @NotNull(message = "Vị trí z không được để trống")
-    private Double zPosition;
-
-    private String targetDraftPanoramaKey;
-
-    private UUID productId;
-
-    private UUID mediaAssetId;
-
-    private UUID designDraftMediaAssetId;
-
+    private UUID sourcePanoramaId;
+    private UUID targetPanoramaId;
+    private String targetPanoramaName;
+    private HotspotPanoramaSummaryDTO targetPanorama;
+    private HotspotProductSummaryDTO product;
+    private MediaAssetResponseDTO mediaAsset;
+    private DesignDraftMediaAssetResponseDTO designDraftMediaAsset;
     private String infoText;
-
+    private Double xPosition;
+    private Double yPosition;
+    private Double zPosition;
     private String iconStyle;
-
     private Double scale;
-
     private Integer zIndex;
-
     private HotspotMediaClickAction mediaClickAction;
-
     private HotspotInfoContentType infoContentType;
-
     private HotspotCornersDTO corners;
 }

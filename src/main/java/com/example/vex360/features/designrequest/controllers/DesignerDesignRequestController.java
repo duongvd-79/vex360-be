@@ -25,15 +25,16 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
-import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
-import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftSettingsRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpdateDesignDraftAssetNameRequest;
+import com.example.vex360.features.designrequest.dtos.request.UpsertDesignDraftHotspotRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftMediaAssetResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftHotspotResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPanoramaResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftPreviewResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
@@ -150,28 +151,28 @@ public class DesignerDesignRequestController extends BaseController {
 
     @PostMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots")
     @Operation(summary = "Them hotspot vao khong gian 360 cua working draft")
-    public ResponseEntity<ApiResponse<HotspotResponseDTO>> createDraftHotspot(
+    public ResponseEntity<ApiResponse<DesignDraftHotspotResponseDTO>> createDraftHotspot(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
-            @Valid @RequestBody UpsertHotspotRequest request) {
+            @Valid @RequestBody UpsertDesignDraftHotspotRequest request) {
         return created(draftEditorService.createHotspot(userDetails.getUser(), id, panoramaId, request));
     }
 
     @PatchMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
     @Operation(summary = "Cap nhat hotspot trong working draft")
-    public ResponseEntity<ApiResponse<HotspotResponseDTO>> updateDraftHotspot(
+    public ResponseEntity<ApiResponse<DesignDraftHotspotResponseDTO>> updateDraftHotspot(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
             @PathVariable UUID hotspotId,
-            @Valid @RequestBody UpsertHotspotRequest request) {
+            @Valid @RequestBody UpsertDesignDraftHotspotRequest request) {
         return ok(draftEditorService.updateHotspot(userDetails.getUser(), id, panoramaId, hotspotId, request));
     }
 
     @DeleteMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
     @Operation(summary = "Xoa hotspot khoi working draft")
-    public ResponseEntity<ApiResponse<HotspotResponseDTO>> deleteDraftHotspot(
+    public ResponseEntity<ApiResponse<DesignDraftHotspotResponseDTO>> deleteDraftHotspot(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
@@ -224,7 +225,7 @@ public class DesignerDesignRequestController extends BaseController {
      * "Upload một ảnh panorama staging thuộc design request đang ở trạng thái ASSIGNED hoặc REVISION_REQUESTED. Chấp nhận JPEG, PNG hoặc WEBP tối đa 10 MB; dung lượng được tính vào quota của company Exhibitor. Response trả về assetId, URL và imageKey để dùng khi lưu draft."
      * )
      */
-    @Operation(summary = "Upload staging asset", description = "Uploads an asset for an ASSIGNED or REVISION_REQUESTED design request. MEDIA_ATTACHMENT accepts JPEG, PNG, or MP4 up to 10 MB. Its bytes are reserved and become used storage only when the Exhibitor accepts the media during approval.")
+    @Operation(summary = "Upload staging asset", description = "Uploads an asset for an ASSIGNED or REVISION_REQUESTED design request. MEDIA_ATTACHMENT accepts JPEG, PNG, or MP4 up to 10 MB. PANORAMA and MEDIA_ATTACHMENT remain staged without changing quota until approval.")
     public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> uploadAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
@@ -240,6 +241,17 @@ public class DesignerDesignRequestController extends BaseController {
             @PathVariable UUID id,
             @PathVariable UUID assetId) {
         return ok(designDraftAssetService.releaseAsset(userDetails.getUser(), id, assetId));
+    }
+
+    @PatchMapping("/{id}/assets/{assetId}/name")
+    @Operation(summary = "Đổi tên media staging", description = "Đổi tên hiển thị của MEDIA_ATTACHMENT trong working draft.")
+    public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> renameAsset(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @PathVariable UUID assetId,
+            @Valid @RequestBody UpdateDesignDraftAssetNameRequest request) {
+        return ok(designDraftAssetService.renameAsset(
+                userDetails.getUser(), id, assetId, request.getFileName()));
     }
 
     @GetMapping("/{id}/assets")

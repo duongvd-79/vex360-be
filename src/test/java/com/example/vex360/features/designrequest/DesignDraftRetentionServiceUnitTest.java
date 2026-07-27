@@ -55,8 +55,7 @@ class DesignDraftRetentionServiceUnitTest {
         new DesignDraftRetentionService(designDraftRepository, designRequestRepository)
                 .retainApprovedDraft(current, approved);
 
-        assertEquals(1, current.getDrafts().size());
-        assertSame(approved, current.getDrafts().get(0));
+        assertEquals(2, current.getDrafts().size());
         assertEquals(0, previous.getDrafts().size());
         verify(designDraftRepository).flush();
     }

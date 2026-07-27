@@ -21,6 +21,7 @@ public class UserResponseDTO {
     String role;
     String avatarUrl;
     String status;
+    String provider;
     Instant createdAt;
     Instant updatedAt;
 }

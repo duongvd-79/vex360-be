@@ -40,6 +40,7 @@ public interface DesignRequestMapper {
     @Mapping(target = "latestDraft", source = "drafts", qualifiedByName = "latestDraft")
     @Mapping(target = "requiredProductCount", expression = "java(countProducts(request, true))")
     @Mapping(target = "optionalProductCount", expression = "java(countProducts(request, false))")
+    @Mapping(target = "reviewNote", expression = "java(latestRejectionReason(request))")
     @Mapping(target = "remainingDesignActions", ignore = true)
     DesignRequestResponseDTO toResponse(DesignRequest request);
 
@@ -64,6 +65,17 @@ public interface DesignRequestMapper {
         return drafts.stream()
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
                 .map(this::toDraftResponse)
+                .orElse(null);
+    }
+
+    default String latestRejectionReason(DesignRequest request) {
+        if (request == null || request.getDrafts() == null || request.getDrafts().isEmpty()) {
+            return null;
+        }
+        return request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
+                .max(Comparator.comparing(DesignDraft::getVersionNumber))
+                .map(DesignDraft::getRejectionReason)
                 .orElse(null);
     }
 

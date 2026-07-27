@@ -56,6 +56,13 @@ public class DesignDraftBenefitGuardService {
                         && mediaAsset.getId() != null) {
                     videoIds.add(mediaAsset.getId());
                 }
+                if (hotspot.getDesignDraftMediaAsset() != null
+                        && hotspot.getDesignDraftMediaAsset().getId() != null
+                        && hotspot.getDesignDraftMediaAsset().getAsset() != null
+                        && "video/mp4".equalsIgnoreCase(
+                                hotspot.getDesignDraftMediaAsset().getAsset().getMimeType())) {
+                    videoIds.add(hotspot.getDesignDraftMediaAsset().getId());
+                }
             }
         }
         return new Usage(draft.getPanoramas().size(), hotspotCount, productIds.size(), videoIds.size());

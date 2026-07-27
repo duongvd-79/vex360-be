@@ -3,8 +3,6 @@ package com.example.vex360.features.designrequest.dtos.response;
 import java.util.List;
 import java.util.UUID;
 
-import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,5 +18,5 @@ public class DesignDraftPanoramaResponseDTO {
     private String imageKey;
     private Integer orderIndex;
     private Boolean isDefault;
-    private List<HotspotResponseDTO> hotspots;
+    private List<DesignDraftHotspotResponseDTO> hotspots;
 }

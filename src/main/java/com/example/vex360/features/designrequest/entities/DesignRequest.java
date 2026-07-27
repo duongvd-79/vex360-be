@@ -77,9 +77,6 @@ public class DesignRequest {
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 
-    @Column(name = "review_note", columnDefinition = "TEXT")
-    String reviewNote;
-
     @Column(name = "review_count", nullable = false)
     @Builder.Default
     Integer reviewCount = 0;

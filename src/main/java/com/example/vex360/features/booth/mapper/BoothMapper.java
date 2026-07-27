@@ -79,9 +79,11 @@ public interface BoothMapper {
         Boolean isOpen = deadline == null ? null : !LocalDate.now(Clock.systemUTC()).isAfter(deadline);
         Long daysUntil = deadline == null ? null : ChronoUnit.DAYS.between(LocalDate.now(Clock.systemUTC()), deadline);
 
+        User createdBy = booth.getCreatedBy();
         return new BoothResponseDTO(
                 booth.getId(),
                 company == null ? null : company.getId(),
+                createdBy == null ? null : createdBy.getId(),
                 registration == null ? null : registration.getUuid(),
                 getExhibitionUuid(registration),
                 getExhibitionName(registration),
@@ -157,6 +159,7 @@ public interface BoothMapper {
                 panorama.getName(),
                 panorama.getImageUrl(),
                 panorama.getImageKey(),
+                panorama.getFileSize(),
                 panorama.getOrderIndex(),
                 panorama.getIsDefault(),
                 toHotspotResponseDTOs(panorama.getHotspots()));

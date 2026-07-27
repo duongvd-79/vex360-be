@@ -75,8 +75,10 @@ class BoothDesignServiceUnitTest {
                 "Entrance",
                 "https://cdn.example.com/pano.jpg",
                 "pano-key",
+                25L,
                 0,
                 true,
+                false,
                 List.of(new HotspotDesign(
                         HotspotType.MEDIA,
                         "Video",

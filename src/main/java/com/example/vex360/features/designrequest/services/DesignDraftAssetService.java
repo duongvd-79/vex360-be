@@ -18,6 +18,8 @@ import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
+import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
@@ -25,6 +27,7 @@ import com.example.vex360.features.designrequest.enums.DesignDraftAssetQuotaStat
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftMediaAssetRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -39,8 +42,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Manages request-scoped assets while a Designer prepares booth drafts.
- * Booth content is charged on upload; review media reserves storage until the
- * Exhibitor approves or discards it.
+ * Designer panorama and media uploads remain staged until an Exhibitor approves
+ * a draft that actually references them.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +56,7 @@ public class DesignDraftAssetService {
     private static final Set<String> MEDIA_TYPES = Set.of("image/jpeg", "image/png", "video/mp4");
 
     private final DesignDraftAssetRepository assetRepository;
+    private final DesignDraftMediaAssetRepository draftMediaAssetRepository;
     private final DesignerWorkspaceService workspaceService;
     private final CompanyStorageService storageService;
     private final CloudService cloudService;
@@ -61,16 +65,16 @@ public class DesignDraftAssetService {
 
     /**
      * Uploads a panorama staging asset for an assigned, editable request.
-     * Accepted files are JPEG, PNG, or WEBP images up to 10 MB. The uploaded
-     * size is added to the Exhibitor company's storage usage; a failed database
-     * operation removes the uploaded cloud asset.
+     * Accepted files are JPEG, PNG, or WEBP images up to 10 MB. Upload does not
+     * change company storage counters; a failed database operation removes the
+     * uploaded cloud asset.
      *
      * @param currentUser authenticated Designer
      * @param requestId   design request identifier
      * @param file        panorama image to upload
      * @return metadata used to reference the asset from a draft panorama
-     * @throws AppException if assignment, request status, file validation,
-     *                      upload, or company quota validation fails
+     * @throws AppException if assignment, request status, file validation, or
+     *                      upload fails
      */
     @Transactional
     public DesignDraftAssetResponseDTO uploadPanorama(User currentUser, UUID requestId, MultipartFile file) {
@@ -80,9 +84,7 @@ public class DesignDraftAssetService {
     /**
      * Uploads a staging asset (panorama, thumbnail, or background music) for an
      * assigned request.
-     * Checks company storage quota and performs file validation before uploading to
-     * Cloudinary.
-     * Deducts company storage quota if subsequent DB save fails.
+     * Validates and uploads the file without changing company storage counters.
      *
      * @param currentUser authenticated Designer
      * @param requestId   design request identifier
@@ -90,7 +92,7 @@ public class DesignDraftAssetService {
      * @param assetType   the type of asset (PANORAMA, THUMBNAIL, or
      *                    BACKGROUND_MUSIC)
      * @return the uploaded asset response DTO
-     * @throws AppException if verification, quota, or upload fails
+     * @throws AppException if validation or upload fails
      */
     @Transactional
     public DesignDraftAssetResponseDTO uploadAsset(
@@ -102,13 +104,6 @@ public class DesignDraftAssetService {
         requireEditableRequest(request);
         DesignDraftAssetType resolvedType = assetType == null ? DesignDraftAssetType.PANORAMA : assetType;
         validateFile(file, resolvedType);
-        boolean reservedUpload = resolvedType == DesignDraftAssetType.MEDIA_ATTACHMENT;
-        if (reservedUpload) {
-            storageService.reserveUsage(request.getCompany(), file.getSize());
-        } else {
-            storageService.checkQuota(request.getCompany(), file.getSize());
-        }
-
         String folder = switch (resolvedType) {
             case PANORAMA -> FileUploadUtils.PANORAMA_FOLDER;
             case THUMBNAIL -> "design-draft-thumbnail";
@@ -123,13 +118,6 @@ public class DesignDraftAssetService {
                 resourceType(resolvedType, upload.getFileType()));
         long fileSize = upload.getFileSize() == null ? file.getSize() : upload.getFileSize();
         try {
-            if (fileSize != file.getSize()) {
-                if (reservedUpload) {
-                    storageService.adjustReservation(request.getCompany(), file.getSize(), fileSize);
-                } else {
-                    storageService.checkQuota(request.getCompany(), fileSize);
-                }
-            }
             DesignDraftAsset asset = assetRepository.save(DesignDraftAsset.builder()
                     .designRequest(request)
                     .uploadedBy(currentUser)
@@ -140,13 +128,10 @@ public class DesignDraftAssetService {
                     .fileSize(fileSize)
                     .assetType(resolvedType)
                     .assetSource(DesignDraftAssetSource.UPLOADED)
-                    .quotaState(reservedUpload
-                            ? DesignDraftAssetQuotaState.RESERVED
-                            : DesignDraftAssetQuotaState.CHARGED)
+                    .quotaState(resolvedType == DesignDraftAssetType.MEDIA_ATTACHMENT
+                            ? DesignDraftAssetQuotaState.STAGED
+                            : DesignDraftAssetQuotaState.NONE)
                     .build());
-            if (!reservedUpload) {
-                storageService.addUsage(request.getCompany(), fileSize);
-            }
             return toResponse(asset);
         } catch (RuntimeException exception) {
             if (!rollbackCleanupRegistered) {
@@ -157,7 +142,8 @@ public class DesignDraftAssetService {
     }
 
     /**
-     * Deletes an unused staging asset and releases its charged or reserved bytes.
+     * Deletes an unused staging asset. Legacy charged or reserved assets are
+     * settled according to their existing quota state.
      * An asset referenced by any draft or by the current booth cannot be
      * released manually.
      *
@@ -175,6 +161,7 @@ public class DesignDraftAssetService {
         requireEditableRequest(request);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        pruneUnreferencedDraftMedia(request);
         if (isReferencedByDraft(request, asset.getPublicId()) || isUsedByBooth(request, asset.getPublicId())) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
@@ -201,16 +188,44 @@ public class DesignDraftAssetService {
                 .map(this::toResponse));
     }
 
+    @Transactional
+    public DesignDraftAssetResponseDTO renameAsset(
+            User currentUser,
+            UUID requestId,
+            UUID assetId,
+            String newName) {
+        DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
+        requireEditableRequest(request);
+        String normalized = newName == null ? null : newName.trim();
+        if (normalized == null || normalized.isEmpty() || normalized.length() > 255) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+        if (asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        asset.setFileName(normalized);
+        request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() == 0 && draft.getMediaAssets() != null)
+                .flatMap(draft -> draft.getMediaAssets().stream())
+                .filter(media -> media.getAsset() != null && assetId.equals(media.getAsset().getId()))
+                .forEach(media -> media.setTitle(normalized));
+        return toResponse(assetRepository.save(asset));
+    }
+
+
     /**
      * Removes assets from this request that are not referenced by any saved
      * draft or by the current booth. This is used after draft replacement or
-     * submission to release abandoned upload quota.
+     * submission to remove abandoned uploads.
      *
      * @param request managed request aggregate with its drafts available
      * @return number of assets deleted
      */
     @Transactional
     public int cleanupUnreferencedAssets(DesignRequest request) {
+        pruneUnreferencedDraftMedia(request);
         Set<String> referencedKeys = draftImageKeys(request);
         referencedKeys.addAll(boothImageKeys(request));
         return deleteUnreferenced(assetRepository.findByDesignRequestId(request.getId()), referencedKeys);
@@ -304,7 +319,7 @@ public class DesignDraftAssetService {
             case RESERVED -> storageService.releaseReservedUsage(
                     asset.getDesignRequest().getCompany(),
                     asset.getFileSize());
-            case NONE, PROMOTED -> {
+            case NONE, STAGED, PROMOTED -> {
                 // No company storage counter changes for baseline or promoted assets.
             }
         }
@@ -327,16 +342,39 @@ public class DesignDraftAssetService {
             if (draft.getBackgroundMusicAsset() != null) {
                 keys.add(draft.getBackgroundMusicAsset().getPublicId());
             }
-            if (draft.getMediaAssets() != null) {
-                draft.getMediaAssets().stream()
-                        .filter(media -> media.getAsset() != null)
-                        .map(media -> media.getAsset().getPublicId())
-                        .filter(publicId -> publicId != null && !publicId.isBlank())
-                        .forEach(keys::add);
-            }
+            draft.getPanoramas().stream()
+                    .flatMap(panorama -> panorama.getHotspots().stream())
+                    .map(DesignDraftHotspot::getDesignDraftMediaAsset)
+                    .filter(media -> media != null && media.getAsset() != null)
+                    .map(media -> media.getAsset().getPublicId())
+                    .filter(publicId -> publicId != null && !publicId.isBlank())
+                    .forEach(keys::add);
         }
         return keys;
     }
+
+    private void pruneUnreferencedDraftMedia(DesignRequest request) {
+        Set<UUID> referencedIds = request.getDrafts().stream()
+                .flatMap(draft -> draft.getPanoramas().stream())
+                .flatMap(panorama -> panorama.getHotspots().stream())
+                .map(DesignDraftHotspot::getDesignDraftMediaAsset)
+                .filter(media -> media != null && media.getId() != null)
+                .map(DesignDraftMediaAsset::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<DesignDraftMediaAsset> unreferenced = request.getDrafts().stream()
+                .filter(draft -> draft.getMediaAssets() != null)
+                .flatMap(draft -> draft.getMediaAssets().stream())
+                .filter(media -> media.getId() != null && !referencedIds.contains(media.getId()))
+                .toList();
+        if (unreferenced.isEmpty()) {
+            return;
+        }
+        request.getDrafts().forEach(draft -> draft.getMediaAssets()
+                .removeIf(media -> media.getId() != null && !referencedIds.contains(media.getId())));
+        draftMediaAssetRepository.deleteAll(unreferenced);
+        draftMediaAssetRepository.flush();
+    }
+
 
     private Set<String> boothImageKeys(DesignRequest request) {
         Set<String> keys = new HashSet<>(boothDesignService.getPanoramaImageKeys(request.getBooth().getId()));
