@@ -16,8 +16,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Clock;
 import java.time.LocalDate;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,9 @@ import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
+import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -58,6 +62,8 @@ import com.example.vex360.shared.services.CloudService;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
+
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 
 @ExtendWith(MockitoExtension.class)
 class ExhibitionServiceUnitTest {
@@ -76,6 +82,12 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private ExhibitionMapper exhibitionMapper;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private ExhibitionReviewHistoryService reviewHistoryService;
 
     @InjectMocks
     private ExhibitionServiceImpl exhibitionService;
@@ -99,7 +111,12 @@ class ExhibitionServiceUnitTest {
                 .name("Expo 2026")
                 .status(ExhibitionStatus.REGISTRATION)
                 .organizer(organizer)
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
                 .build();
+
+        ReflectionTestUtils.setField(exhibitionService, "timelinePolicy",
+                new ExhibitionTimelinePolicy(Clock.systemUTC()));
     }
 
     @AfterEach
@@ -402,6 +419,40 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void createExhibition_exceedsMaxDuration_throwsAppException() {
+        MultipartFile keyVisual = imageFile();
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("Long Expo")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(150)) // > 90 days
+                .estimatedBooths(10)
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
+        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+    }
+
+    @Test
+    void createExhibition_duplicateNameCaseInsensitive_throwsAppException() {
+        MultipartFile keyVisual = imageFile();
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("EXPO 2026")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(10)
+                .build();
+
+        when(exhibitionRepository.existsByNameIgnoreCase("EXPO 2026")).thenReturn(true);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
+        assertEquals(ErrorCode.EXHIBITION_NAME_DUPLICATED, ex.getErrorCode());
+    }
+
+    @Test
     void uploadSponsorLogo_transactionRollback_deletesNewCloudAsset() {
         MultipartFile file = imageFile();
         registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
@@ -410,7 +461,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, file);
+        exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, "VinFast", file);
         completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(cloudService).delete("new-logo", "image");
@@ -422,8 +473,8 @@ class ExhibitionServiceUnitTest {
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
                 .name("New Expo")
                 .category("Technology")
-                .startDate(LocalDate.now().plusDays(1))
-                .endDate(LocalDate.now().plusDays(2))
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
                 .build();
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -447,7 +498,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), file);
+        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), "VinFast", file);
         verify(cloudService, never()).delete("old-logo", "image");
         completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
 
@@ -466,7 +517,7 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         beginTransactionSynchronization();
 
-        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), file);
+        exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, asset.getId(), "VinFast", file);
         completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(cloudService, never()).delete("old-logo", "image");

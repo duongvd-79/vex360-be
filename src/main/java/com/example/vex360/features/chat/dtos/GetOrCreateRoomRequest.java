@@ -11,7 +11,7 @@ import java.util.UUID;
 public class GetOrCreateRoomRequest {
 
     @NotNull
-    private Integer exhibitionId;
+    private UUID exhibitionId;
 
     @NotNull
     private UUID exhibitorUserId;

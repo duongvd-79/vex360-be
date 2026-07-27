@@ -23,7 +23,6 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
-import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.user.entities.User;
@@ -34,16 +33,13 @@ class BoothProvisioningServiceUnitTest {
     @Mock
     private BoothRepository boothRepository;
 
-    @Mock
-    private CompanyService companyService;
-
     private BoothProvisioningService boothProvisioningService;
     private User exhibitorUser;
     private Company company;
 
     @BeforeEach
     void setup() {
-        boothProvisioningService = new BoothProvisioningService(boothRepository, companyService);
+        boothProvisioningService = new BoothProvisioningService(boothRepository);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -60,7 +56,6 @@ class BoothProvisioningServiceUnitTest {
     void createsBoothForApprovedRegistration() {
         ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
         when(boothRepository.findByExhibitorRegistrationId(registration.getId())).thenReturn(Optional.empty());
-        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
         when(boothRepository.save(any(Booth.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
@@ -113,7 +108,7 @@ class BoothProvisioningServiceUnitTest {
     void ensureBoothForApprovedRegistration_NullRegistrationId_ReturnsEmpty() {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(null)
-                .company(exhibitorUser)
+                .company(company)
                 .status(ExhibitorRegistrationStatus.APPROVED)
                 .build();
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
@@ -123,7 +118,7 @@ class BoothProvisioningServiceUnitTest {
     private ExhibitorRegistration registration(ExhibitorRegistrationStatus status) {
         return ExhibitorRegistration.builder()
                 .id(1)
-                .company(exhibitorUser)
+                .company(company)
                 .status(status)
                 .build();
     }

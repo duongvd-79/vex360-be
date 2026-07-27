@@ -49,15 +49,24 @@ import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.utils.PageableUtils;
 
+import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ExhibitionServiceImpl implements ExhibitionService {
+
+    private static final int MAX_SPONSORS = 15;
+    private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
@@ -71,6 +80,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
+    private final ExhibitionTimelinePolicy timelinePolicy;
+    private final UserRepository userRepository;
+    private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @Override
     @Transactional
@@ -82,17 +94,45 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         validateImageFile(keyVisual, true);
 
-        // Validate sponsor logos if provided
+        // Validate sponsor logos and names if provided
+        int sponsorLogoCount = sponsorLogos != null ? sponsorLogos.size() : 0;
+        int sponsorRequestCount = request.getSponsors() != null ? request.getSponsors().size() : 0;
+
+        if (sponsorLogoCount > MAX_SPONSORS || sponsorRequestCount > MAX_SPONSORS) {
+            log.error("Exhibition sponsors size exceeds limit of {}", MAX_SPONSORS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (sponsorLogoCount != sponsorRequestCount) {
+            log.error("Sponsor logos count {} does not match sponsor names count {}", sponsorLogoCount,
+                    sponsorRequestCount);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
             for (MultipartFile logo : sponsorLogos) {
                 validateImageFile(logo, true);
             }
         }
 
-        // Validate dates
+        // 1. Lock organizer row to prevent race conditions on pending count
+        userRepository.findByIdForUpdate(organizer.getId());
+
+        // Validate dates & max duration
         if (request.getEndDate().isBefore(request.getStartDate())) {
             log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
                     request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > MAX_EXHIBITION_DURATION_DAYS) {
+            log.error("Exhibition duration from {} to {} exceeds maximum allowed limit of {} days",
+                    request.getStartDate(), request.getEndDate(), MAX_EXHIBITION_DURATION_DAYS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
+            log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -103,7 +143,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_LIMIT_EXCEEDED);
         }
 
-        if (exhibitionRepository.existsByName(request.getName().trim())) {
+        if (exhibitionRepository.existsByNameIgnoreCase(request.getName().trim())) {
             log.error("Exhibition name '{}' already exists", request.getName().trim());
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
@@ -180,12 +220,17 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Upload sponsor logos and save as ExhibitionAsset
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
-            for (MultipartFile logo : sponsorLogos) {
+            for (int i = 0; i < sponsorLogos.size(); i++) {
+                MultipartFile logo = sponsorLogos.get(i);
                 if (logo != null && !logo.isEmpty()) {
+                    String sponsorName = (request.getSponsors() != null && i < request.getSponsors().size())
+                            ? request.getSponsors().get(i).getName()
+                            : null;
                     CloudinaryResponse uploadResLogo = cloudService.upload(logo);
                     deleteCloudAssetOnRollback(uploadResLogo.getPublicId(), "image");
                     ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                             .exhibition(exhibition)
+                            .name(sponsorName)
                             .assetUrl(uploadResLogo.getUrl())
                             .publicId(uploadResLogo.getPublicId())
                             .type(ExhibitionAssetType.SPONSOR_LOGO)
@@ -195,6 +240,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 }
             }
         }
+
+        reviewHistoryService.recordInitialSubmission(exhibition, organizer,
+                uploadRes != null ? uploadRes.getUrl() : null);
 
         return exhibitionMapper.toResponse(exhibition, savedPackages);
     }
@@ -398,6 +446,17 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
+        if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > MAX_EXHIBITION_DURATION_DAYS) {
+            log.error("Exhibition duration from {} to {} exceeds maximum allowed limit of {} days",
+                    request.getStartDate(), request.getEndDate(), MAX_EXHIBITION_DURATION_DAYS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
+            log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         // Update time-window validation: must be before start date, and no exhibitors
         // registered yet
         if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
@@ -411,7 +470,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         String trimmedName = request.getName().trim();
-        if (!exhibition.getName().equalsIgnoreCase(trimmedName) && exhibitionRepository.existsByName(trimmedName)) {
+        if (!exhibition.getName().equalsIgnoreCase(trimmedName)
+                && exhibitionRepository.existsByNameIgnoreCase(trimmedName)) {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
@@ -483,6 +543,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             }
         }
 
+        reviewHistoryService.recordResubmissionOrUpdate(exhibition, organizer, null);
+
         return exhibitionMapper.toResponse(exhibition, savedPackages);
     }
 
@@ -551,12 +613,29 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
+        if (!timelinePolicy.hasMinimumLeadTime(exhibition.getStartDate())) {
+            log.error("Cannot approve exhibition {}: start date {} does not meet minimum lead time requirement",
+                    exhibition.getId(), exhibition.getStartDate());
+            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+        }
+
+        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        for (ExhibitionPackage pkg : packages) {
+            if (pkg.getTemplate() != null && pkg.getFinalPrice().compareTo(pkg.getTemplate().getPrice()) < 0) {
+                log.error("Cannot approve exhibition {}: package {} final price {} is below template floor price {}",
+                        exhibition.getId(), pkg.getId(), pkg.getFinalPrice(), pkg.getTemplate().getPrice());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+        }
+
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         exhibition.setReviewedBy(admin);
         exhibition.setReviewedAt(Instant.now());
 
         exhibition = exhibitionRepository.save(exhibition);
-        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.APPROVED, null);
+
+        packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
     }
 
@@ -595,6 +674,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         exhibition = exhibitionRepository.save(exhibition);
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.REJECTED,
+                request.getRejectedReason());
+
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
     }
@@ -661,7 +743,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, MultipartFile file) {
+    public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, String name, MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -677,12 +759,22 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
+        long currentSponsorCount = exhibition.getAssets() == null ? 0
+                : exhibition.getAssets().stream()
+                        .filter(a -> a.getType() == ExhibitionAssetType.SPONSOR_LOGO)
+                        .count();
+        if (currentSponsorCount >= MAX_SPONSORS) {
+            log.error("Exhibition {} already reached maximum sponsor limit of {}", uuid, MAX_SPONSORS);
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
         validateImageFile(file, true);
 
         CloudinaryResponse uploadRes = cloudService.upload(file);
         deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
         ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
                 .exhibition(exhibition)
+                .name(name != null ? name.trim() : null)
                 .assetUrl(uploadRes.getUrl())
                 .publicId(uploadRes.getPublicId())
                 .type(ExhibitionAssetType.SPONSOR_LOGO)
@@ -696,7 +788,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional
-    public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, MultipartFile file) {
+    public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, String name,
+            MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -720,13 +813,21 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        validateImageFile(file, true);
+        if (name != null && !name.isBlank()) {
+            asset.setName(name.trim());
+        }
 
-        String oldPublicId = asset.getPublicId();
-        CloudinaryResponse uploadRes = cloudService.upload(file);
-        deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
-        asset.setAssetUrl(uploadRes.getUrl());
-        asset.setPublicId(uploadRes.getPublicId());
+        if (file != null && !file.isEmpty()) {
+            validateImageFile(file, true);
+
+            String oldPublicId = asset.getPublicId();
+            CloudinaryResponse uploadRes = cloudService.upload(file);
+            deleteCloudAssetOnRollback(uploadRes.getPublicId(), "image");
+            asset.setAssetUrl(uploadRes.getUrl());
+            asset.setPublicId(uploadRes.getPublicId());
+            deleteCloudAssetAfterCommit(oldPublicId, "image");
+        }
+
         exhibitionAssetRepository.save(asset);
         deleteCloudAssetAfterCommit(oldPublicId, "image");
 

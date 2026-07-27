@@ -46,6 +46,16 @@ public class CompanyService {
         return getCompanyForCurrentUser(currentUser);
     }
 
+    @Transactional
+    public Company getCompanyEntityForCurrentUserForUpdate(User currentUser) {
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        return companyRepository.findByOwnerUserIdForUpdate(currentUser.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+    }
+
     @Transactional(readOnly = true)
     public boolean existsByOwnerUserId(UUID ownerUserId) {
         return companyRepository.existsByOwnerUserId(ownerUserId);

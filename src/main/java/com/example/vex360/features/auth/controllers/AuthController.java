@@ -240,7 +240,7 @@ public class AuthController extends BaseController {
         ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokens.getRefreshToken())
                 .httpOnly(true)
                 .secure(true)
-                .sameSite("Lax")
+                .sameSite("None")
                 .path(REFRESH_TOKEN_COOKIE_PATH);
         if (tokens.isRememberMe()) {
             cookie.maxAge(Duration.ofMillis(rememberRefreshExpirationMs));
@@ -252,7 +252,7 @@ public class AuthController extends BaseController {
         return ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
                 .httpOnly(true)
                 .secure(true)
-                .sameSite("Lax")
+                .sameSite("None")
                 .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(Duration.ZERO)
                 .build();

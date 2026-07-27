@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth.dtos.response;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +18,8 @@ import lombok.NoArgsConstructor;
 public class BoothResponseDTO {
     private UUID id;
     private UUID companyId;
+    // Id của user exhibitor sở hữu gian hàng - dùng ở FE để mở phòng chat trực tiếp với gian hàng
+    private UUID exhibitorUserId;
     private UUID registrationUuid;
     private UUID exhibitionUuid;
     private String exhibitionName;
@@ -35,4 +38,7 @@ public class BoothResponseDTO {
     private String companyIndustry;
     private String companyEmail;
     private List<PanoramaResponseDTO> panoramas;
+    private LocalDate boothReviewDeadline;
+    private Boolean boothPreparationOpen;
+    private Long daysUntilBoothDeadline;
 }

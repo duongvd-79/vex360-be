@@ -43,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminExhibitionController extends BaseController {
 
     private final ExhibitionService exhibitionService;
+    private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @GetMapping
     @Operation(
@@ -66,45 +67,42 @@ public class AdminExhibitionController extends BaseController {
     }
 
     @GetMapping("/summary")
-    @Operation(
-            summary = "Admin xem thống kê đơn đăng ký mở triển lãm",
-            description = "Trả về tổng số đơn đăng ký mở triển lãm và số lượng của mỗi trạng thái (PENDING, APPROVED, REJECTED, ACTIVE, ...).")
+    @Operation(summary = "Admin xem thống kê đơn đăng ký mở triển lãm", description = "Trả về tổng số đơn đăng ký mở triển lãm và số lượng của mỗi trạng thái (PENDING, APPROVED, REJECTED, ACTIVE, ...).")
     public ResponseEntity<ApiResponse<ExhibitionSummaryResponseDTO>> getExhibitionSummary() {
         ExhibitionSummaryResponseDTO summary = exhibitionService.getExhibitionSummary();
         return ok(summary);
     }
 
     @GetMapping("/{uuid}")
-    @Operation(
-            summary = "Admin xem chi tiết đơn đăng ký mở triển lãm",
-            description = "Trả về thông tin chi tiết đầy đủ của đơn đăng ký mở triển lãm theo UUID, bao gồm cả các gói dịch vụ cấu hình và các ID khóa chính hệ thống.")
+    @Operation(summary = "Admin xem chi tiết đơn đăng ký mở triển lãm", description = "Trả về thông tin chi tiết đầy đủ của đơn đăng ký mở triển lãm theo UUID, bao gồm cả các gói dịch vụ cấu hình và các ID khóa chính hệ thống.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> getExhibitionByUuid(
-            @Parameter(description = "UUID của triển lãm")
-            @PathVariable UUID uuid) {
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.getExhibitionDetailForAdmin(uuid);
         return ok(response);
     }
 
+    @GetMapping("/{uuid}/review-history")
+    @Operation(summary = "Admin xem lịch sử duyệt hồ sơ triển lãm", description = "Trả về danh sách các vòng duyệt của hồ sơ triển lãm theo UUID, sắp xếp từ vòng mới nhất đến cũ nhất.")
+    public ResponseEntity<ApiResponse<List<ExhibitionReviewHistoryResponseDTO>>> getReviewHistory(
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
+        List<ExhibitionReviewHistoryResponseDTO> response = reviewHistoryService.getReviewHistoryForAdmin(uuid);
+        return ok(response);
+    }
+
     @PostMapping("/{uuid}/approve")
-    @Operation(
-            summary = "Admin phê duyệt đơn đăng ký mở triển lãm",
-            description = "Duyệt đơn đăng ký mở triển lãm đang ở trạng thái PENDING. Trạng thái của đơn sẽ được cập nhật thành APPROVED.")
+    @Operation(summary = "Admin phê duyệt đơn đăng ký mở triển lãm", description = "Duyệt đơn đăng ký mở triển lãm đang ở trạng thái PENDING. Trạng thái của đơn sẽ được cập nhật thành APPROVED.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> approveExhibition(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(description = "UUID của triển lãm")
-            @PathVariable UUID uuid) {
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid) {
         ExhibitionResponseDTO response = exhibitionService.approveExhibition(userDetails.getUser(), uuid);
         return ok(response);
     }
 
     @PostMapping("/{uuid}/reject")
-    @Operation(
-            summary = "Admin từ chối đơn đăng ký mở triển lãm",
-            description = "Từ chối đơn đăng ký mở triển lãm đang ở trạng thái PENDING kèm lý do từ chối. Trạng thái của đơn sẽ được cập nhật thành REJECTED.")
+    @Operation(summary = "Admin từ chối đơn đăng ký mở triển lãm", description = "Từ chối đơn đăng ký mở triển lãm đang ở trạng thái PENDING kèm lý do từ chối. Trạng thái của đơn sẽ được cập nhật thành REJECTED.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> rejectExhibition(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(description = "UUID của triển lãm")
-            @PathVariable UUID uuid,
+            @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
             @Valid @RequestBody RejectExhibitionRequest request) {
         ExhibitionResponseDTO response = exhibitionService.rejectExhibition(userDetails.getUser(), uuid, request);
         return ok(response);
