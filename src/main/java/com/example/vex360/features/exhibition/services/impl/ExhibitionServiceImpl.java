@@ -82,6 +82,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionResponseDTO createExhibition(User organizer, CreateExhibitionRequest request,
             MultipartFile keyVisual, List<MultipartFile> sponsorLogos) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
@@ -244,11 +245,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional(readOnly = true)
     public ExhibitionResponseDTO getExhibitionByUuid(UUID uuid) {
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (exhibition.getStatus() != ExhibitionStatus.PUBLISHED
                 && exhibition.getStatus() != ExhibitionStatus.ACTIVE
                 && exhibition.getStatus() != ExhibitionStatus.COMPLETED) {
+            log.error("Exhibition {} is not in public status (status: {})", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
@@ -259,7 +264,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional(readOnly = true)
     public Exhibition getExhibitionEntityById(Integer id) {
         return exhibitionRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for ID: {}", id);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
     }
 
     @Override
@@ -319,7 +327,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional(readOnly = true)
     public ExhibitionResponseDTO getExhibitionDetailForAdmin(UUID uuid) {
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
@@ -330,20 +341,26 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
             ConfigureExhibitionPackageRequest request) {
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
+            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
         if (exhibitionPackageRepository.findByExhibitionIdAndTemplateId(exhibition.getId(), template.getId())
                 .isPresent()) {
+            log.error("Package template {} already configured for exhibition {}", template.getId(), uuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -364,6 +381,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             User organizer, String keyword, ExhibitionStatus status, String category,
             LocalDate startDate, LocalDate endDate, Pageable pageable) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
@@ -381,13 +399,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional(readOnly = true)
     public ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
@@ -400,13 +423,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionResponseDTO updateExhibitionForOrganizer(User organizer, UUID uuid,
             CreateExhibitionRequest request, MultipartFile keyVisual) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
@@ -455,6 +483,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         String trimmedName = request.getName().trim();
         if (!exhibition.getName().equalsIgnoreCase(trimmedName)
                 && exhibitionRepository.existsByNameIgnoreCase(trimmedName)) {
+            log.error("Exhibition name '{}' already exists", trimmedName);
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
@@ -536,13 +565,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionResponseDTO updateExhibitionMedia(User organizer, UUID uuid, MultipartFile trailerVideo,
             MultipartFile floorPlan, MultipartFile guideline) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
@@ -582,17 +616,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO approveExhibition(User admin, UUID uuid) {
         if (admin == null || admin.getId() == null) {
+            log.error("Admin authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         if (admin.getRole() != Role.ADMIN) {
+            log.error("User {} is not an ADMIN", admin.getId());
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING) {
+            log.error("Exhibition {} is not PENDING approval (status: {})", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
@@ -626,17 +666,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO rejectExhibition(User admin, UUID uuid, RejectExhibitionRequest request) {
         if (admin == null || admin.getId() == null) {
+            log.error("Admin authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         if (admin.getRole() != Role.ADMIN) {
+            log.error("User {} is not an ADMIN", admin.getId());
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING) {
+            log.error("Exhibition {} is not PENDING rejection (status: {})", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
@@ -728,17 +774,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO uploadSponsorLogo(User organizer, UUID uuid, String name, MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            log.error("Cannot upload sponsor logo for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -774,25 +826,35 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionResponseDTO updateSponsorLogo(User organizer, UUID uuid, UUID assetId, String name,
             MultipartFile file) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            log.error("Cannot update sponsor logo for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
-                .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
+                .orElseThrow(() -> {
+                    log.error("Sponsor logo asset not found for ID: {}", assetId);
+                    return new AppException(ErrorCode.VALIDATION_FAILED);
+                });
 
         if (!asset.getExhibition().getId().equals(exhibition.getId())
                 || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+            log.error("Asset {} does not belong to exhibition {}", assetId, uuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -821,25 +883,35 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO deleteSponsorLogo(User organizer, UUID uuid, UUID assetId) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
+            log.error("Cannot delete sponsor logo for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
-                .orElseThrow(() -> new AppException(ErrorCode.VALIDATION_FAILED));
+                .orElseThrow(() -> {
+                    log.error("Sponsor logo asset not found for ID: {}", assetId);
+                    return new AppException(ErrorCode.VALIDATION_FAILED);
+                });
 
         if (!asset.getExhibition().getId().equals(exhibition.getId())
                 || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
+            log.error("Asset {} does not belong to exhibition {}", assetId, uuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -898,17 +970,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid,
             ConfigureExhibitionPackageRequest request) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            log.error("Cannot add package for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -948,17 +1026,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId,
             ConfigureExhibitionPackageRequest request) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            log.error("Cannot update package for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -968,9 +1052,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition package not found for ID: {}", packageId);
+                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
+                });
 
         if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
+            log.error("Package {} does not belong to exhibition {}", packageId, uuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -1002,17 +1090,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            log.error("Cannot delete package for exhibition status {}", exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
@@ -1022,9 +1116,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition package not found for ID: {}", packageId);
+                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
+                });
 
         if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
+            log.error("Package {} does not belong to exhibition {}", packageId, uuid);
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
@@ -1076,11 +1174,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional(readOnly = true)
     public ExhibitionResponseDTO getExhibitionDetailForExhibitor(UUID uuid) {
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION
                 && exhibition.getStatus() != ExhibitionStatus.PUBLISHED
                 && exhibition.getStatus() != ExhibitionStatus.ACTIVE) {
+            log.error("Exhibition {} is not open for exhibitors (status: {})", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
@@ -1092,17 +1194,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionResponseDTO publishExhibition(User organizer, UUID uuid) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", uuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
+            log.error("Cannot publish exhibition {} with status {}", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 

@@ -123,7 +123,10 @@ public class ExhibitionReviewHistoryServiceImpl implements ExhibitionReviewHisto
     @Transactional(readOnly = true)
     public List<ExhibitionReviewHistoryResponseDTO> getReviewHistoryForAdmin(UUID exhibitionUuid) {
         exhibitionRepository.findByUuid(exhibitionUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", exhibitionUuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         List<ExhibitionReviewRequest> requests = reviewRequestRepository
                 .findByExhibitionUuidOrderByVersionNumberDesc(exhibitionUuid);
@@ -135,13 +138,18 @@ public class ExhibitionReviewHistoryServiceImpl implements ExhibitionReviewHisto
     @Transactional(readOnly = true)
     public List<ExhibitionReviewHistoryResponseDTO> getReviewHistoryForOrganizer(User organizer, UUID exhibitionUuid) {
         if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         Exhibition exhibition = exhibitionRepository.findByUuid(exhibitionUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("Exhibition not found for UUID: {}", exhibitionUuid);
+                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+                });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
+            log.error("Organizer {} is not authorized to access review history for exhibition {}", organizer.getId(), exhibitionUuid);
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 

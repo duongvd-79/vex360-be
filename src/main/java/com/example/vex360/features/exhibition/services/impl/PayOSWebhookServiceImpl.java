@@ -46,19 +46,29 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
             Long orderCode = data.getOrderCode();
             PaymentRoute route = paymentRepository.findRouteByOrderCode(orderCode)
-                    .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+                    .orElseThrow(() -> {
+                        log.error("Payment route not found for orderCode: {}", orderCode);
+                        return new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+                    });
 
             ExhibitorRegistration registration = null;
             if (route.getPaymentType() == PaymentType.EXHIBITION_REGISTRATION) {
                 if (route.getRegistrationId() == null) {
+                    log.error("Registration ID is null in payment route for orderCode: {}", orderCode);
                     throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
                 }
                 registration = registrationRepository.findByIdForUpdate(route.getRegistrationId())
-                        .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+                        .orElseThrow(() -> {
+                            log.error("Exhibitor registration not found for ID: {}", route.getRegistrationId());
+                            return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+                        });
             }
 
             Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode)
-                    .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+                    .orElseThrow(() -> {
+                        log.error("Payment not found for orderCode: {}", orderCode);
+                        return new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+                    });
             validateLockedRoute(route, payment);
 
             if (payment.getStatus() == PaymentStatus.PAID) {
@@ -96,6 +106,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
             return data;
         } catch (AppException e) {
+            log.error("AppException encountered in PayOS Webhook handling: {}", e.getErrorCode());
             throw e;
         } catch (Exception e) {
             log.error("Failed to verify PayOS Webhook payload", e);
@@ -105,6 +116,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
     private void validateLockedRoute(PaymentRoute route, Payment payment) {
         if (payment.getPaymentType() != route.getPaymentType()) {
+            log.error("Mismatch between payment type {} and route type {}", payment.getPaymentType(),
+                    route.getPaymentType());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
@@ -112,6 +125,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 ? null
                 : payment.getExhibitorRegistration().getId();
         if (!java.util.Objects.equals(lockedRegistrationId, route.getRegistrationId())) {
+            log.error("Mismatch between locked registration ID {} and route registration ID {}", lockedRegistrationId,
+                    route.getRegistrationId());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }
