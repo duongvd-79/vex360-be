@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.shared.exceptions.AppException;
@@ -27,6 +28,9 @@ class CompanyStorageServiceUnitTest {
 
     @Mock
     private CompanyRepository companyRepository;
+
+    @Mock
+    private MediaAssetRepository mediaAssetRepository;
 
     @InjectMocks
     private CompanyStorageService companyStorageService;

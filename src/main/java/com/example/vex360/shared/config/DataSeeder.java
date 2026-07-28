@@ -411,7 +411,8 @@ public class DataSeeder implements ApplicationRunner {
                                 completedPackage, company1, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
                                 admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null));
                 ExhibitorRegistration completedReg2 = exhibitorRegistrationRepository.save(buildRegistration(
-                                completedPremiumPackage, company2, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                completedPremiumPackage, company2, premiumTemplate,
+                                ExhibitorRegistrationStatus.APPROVED,
                                 admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null));
                 log.info("[SEED] Đã tạo 5 exhibitor registration "
                                 + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
@@ -454,7 +455,8 @@ public class DataSeeder implements ApplicationRunner {
                                 .orderCode(orderCode()).amount(new BigDecimal("11000000"))
                                 .systemFee(new BigDecimal("1100000")).organizerPayout(new BigDecimal("9900000"))
                                 .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-AUTUMN-002")
-                                .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS)).build());
+                                .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS))
+                                .build());
                 log.info("[SEED] Đã tạo 4 payment (PAID/PENDING/FAILED/EXPIRED)");
 
                 // ---------- 9. BOOTHS ----------
@@ -1025,7 +1027,8 @@ public class DataSeeder implements ApplicationRunner {
 
                 String snapshotJson = String.format(
                                 "{\"name\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"startDate\":\"%s\",\"endDate\":\"%s\",\"estimatedBooths\":%d}",
-                                name, category, description != null ? description : "", startDate, endDate, estimatedBooths);
+                                name, category, description != null ? description : "", startDate, endDate,
+                                estimatedBooths);
 
                 exhibitionReviewRequestRepository.save(ExhibitionReviewRequest.builder()
                                 .exhibition(exhibition)
