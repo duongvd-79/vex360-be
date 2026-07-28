@@ -29,6 +29,7 @@ import com.example.vex360.features.designrequest.dtos.request.RequestDesignCance
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
@@ -72,6 +73,13 @@ public class ExhibitorDesignRequestController extends BaseController {
             @RequestParam(required = false) DesignRequestStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(designRequestService.getRequestsForExhibitor(userDetails.getUser(), keyword, status, pageable));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Get the number of design requests awaiting Exhibitor review")
+    public ResponseEntity<ApiResponse<ExhibitorDesignRequestSummaryResponseDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(designRequestService.getSummaryForExhibitor(userDetails.getUser()));
     }
 
     @GetMapping("/eligibility/{boothId}")

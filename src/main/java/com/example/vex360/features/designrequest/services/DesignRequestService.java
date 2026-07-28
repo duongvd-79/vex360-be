@@ -43,7 +43,9 @@ import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftR
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentAnalyticsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignerDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkloadResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
@@ -209,6 +211,14 @@ public class DesignRequestService {
         return PageResponse.from(page);
     }
 
+    @Transactional(readOnly = true)
+    public ExhibitorDesignRequestSummaryResponseDTO getSummaryForExhibitor(User currentUser) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        long pendingReviewCount = designRequestRepository.countByCompanyIdAndStatus(
+                company.getId(), DesignRequestStatus.DRAFT_SUBMITTED);
+        return new ExhibitorDesignRequestSummaryResponseDTO(pendingReviewCount);
+    }
+
     /**
      * Lists all design requests for Admin management, optionally filtered by
      * request status.
@@ -250,6 +260,16 @@ public class DesignRequestService {
         User designer = requireCurrentUser(currentUser);
         return PageResponse.from(designRequestRepository.searchForDesigner(designer.getId(), status, pageable)
                 .map(this::toResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public DesignerDesignRequestSummaryResponseDTO getSummaryForDesigner(User currentUser) {
+        User designer = requireCurrentUser(currentUser);
+        long assignedCount = designRequestRepository.countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.ASSIGNED);
+        long revisionRequestedCount = designRequestRepository.countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.REVISION_REQUESTED);
+        return new DesignerDesignRequestSummaryResponseDTO(assignedCount, revisionRequestedCount);
     }
 
     /**

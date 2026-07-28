@@ -239,6 +239,36 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
+    void getSummaryForExhibitorCountsSubmittedDraftsForCurrentCompany() {
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.countByCompanyIdAndStatus(
+                company.getId(), DesignRequestStatus.DRAFT_SUBMITTED)).thenReturn(4L);
+
+        var summary = service.getSummaryForExhibitor(exhibitor);
+
+        assertEquals(4L, summary.getPendingReviewCount());
+        verify(designRequestRepository).countByCompanyIdAndStatus(
+                company.getId(), DesignRequestStatus.DRAFT_SUBMITTED);
+    }
+
+    @Test
+    void getSummaryForDesignerCountsAssignedAndRevisionRequested() {
+        when(designRequestRepository.countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.ASSIGNED)).thenReturn(2L);
+        when(designRequestRepository.countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.REVISION_REQUESTED)).thenReturn(3L);
+
+        var summary = service.getSummaryForDesigner(designer);
+
+        assertEquals(2L, summary.getAssignedCount());
+        assertEquals(3L, summary.getRevisionRequestedCount());
+        verify(designRequestRepository).countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.ASSIGNED);
+        verify(designRequestRepository).countByAssignedDesignerIdAndStatus(
+                designer.getId(), DesignRequestStatus.REVISION_REQUESTED);
+    }
+
+    @Test
     void createRequestMovesDraftBoothToDesigning() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);

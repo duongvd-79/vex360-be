@@ -40,6 +40,7 @@ import com.example.vex360.features.designrequest.dtos.response.DesignDraftPrevie
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignerDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
 
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
@@ -84,6 +85,13 @@ public class DesignerDesignRequestController extends BaseController {
             @RequestParam(required = false) DesignRequestStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(designRequestService.getRequestsForDesigner(userDetails.getUser(), status, pageable));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Get assigned and revision-requested design request counts")
+    public ResponseEntity<ApiResponse<DesignerDesignRequestSummaryResponseDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(designRequestService.getSummaryForDesigner(userDetails.getUser()));
     }
 
     @GetMapping("/{id}/workspace")
