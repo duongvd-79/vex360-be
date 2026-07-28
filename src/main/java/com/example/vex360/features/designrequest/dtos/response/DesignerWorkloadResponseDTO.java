@@ -15,6 +15,5 @@ public class DesignerWorkloadResponseDTO {
     private String designerEmail;
     private Long workingRequests;
     private Long waitingReviewRequests;
-    private Long queuedRevisionRequests;
     private Integer availableSlots;
 }

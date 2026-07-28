@@ -13,7 +13,6 @@ public class DesignAssignmentAnalyticsResponseDTO {
     private Long pendingRequests;
     private Long workingRequests;
     private Long waitingReviewRequests;
-    private Long queuedRevisionRequests;
     private Long approvedRequests;
     private Long canceledRequests;
     private List<DesignerWorkloadResponseDTO> designerWorkloads;

@@ -36,8 +36,7 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             DesignRequestStatus.PENDING,
             DesignRequestStatus.ASSIGNED,
             DesignRequestStatus.DRAFT_SUBMITTED,
-            DesignRequestStatus.REVISION_REQUESTED,
-            DesignRequestStatus.REVISION_QUEUED);
+            DesignRequestStatus.REVISION_REQUESTED);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT dr FROM DesignRequest dr WHERE dr.id = :id")
@@ -130,10 +129,6 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
     long countByStatus(DesignRequestStatus status);
 
     long countByStatusIn(List<DesignRequestStatus> statuses);
-
-    Optional<DesignRequest> findFirstByAssignedDesignerIdAndStatusOrderByRevisionQueuedAtAsc(
-            UUID designerId,
-            DesignRequestStatus status);
 
     @Query("""
             SELECT dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email, COUNT(dr)

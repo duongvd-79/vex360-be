@@ -85,9 +85,6 @@ public class DesignRequest {
     @Builder.Default
     Boolean quotaCharged = true;
 
-    @Column(name = "revision_queued_at")
-    Instant revisionQueuedAt;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "cancellation_status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
