@@ -33,11 +33,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
+import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -169,6 +171,71 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void searchExhibitionsForAdminMapsApprovedAndFrontendSortAliases() {
+        Pageable requestedPageable = PageRequest.of(
+                1, 10, Sort.by(
+                        Sort.Order.asc("organizerName"),
+                        Sort.Order.desc("expectedBoothCount"),
+                        Sort.Order.asc("exhibitionName")));
+        Pageable mappedPageable = PageRequest.of(
+                1, 10, Sort.by(
+                        Sort.Order.asc("organizer.fullName"),
+                        Sort.Order.desc("estimatedBooths"),
+                        Sort.Order.asc("name")));
+        List<ExhibitionStatus> approvedStatuses = List.of(
+                ExhibitionStatus.REGISTRATION,
+                ExhibitionStatus.PUBLISHED,
+                ExhibitionStatus.ACTIVE,
+                ExhibitionStatus.COMPLETED);
+        Page<Exhibition> page = new PageImpl<>(List.of(registrationExhibition), mappedPageable, 11);
+        when(exhibitionRepository.searchAdminExhibitions(
+                "Expo", approvedStatuses, "Tech", null, null, mappedPageable))
+                .thenReturn(page);
+        when(exhibitionMapper.toResponse(registrationExhibition))
+                .thenReturn(ExhibitionResponseDTO.builder().name("Expo 2026").build());
+
+        PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForAdmin(
+                " Expo ", AdminExhibitionStatusFilter.APPROVED, " Tech ",
+                null, null, requestedPageable);
+
+        assertEquals(1, result.getPage());
+        assertEquals(10, result.getSize());
+        assertEquals(11, result.getTotalElements());
+        assertEquals("Expo 2026", result.getContent().get(0).getName());
+        verify(exhibitionRepository).searchAdminExhibitions(
+                "Expo", approvedStatuses, "Tech", null, null, mappedPageable);
+    }
+
+    @Test
+    void searchExhibitionsForAdminFiltersExactStatus() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(exhibitionRepository.searchAdminExhibitions(
+                null, List.of(ExhibitionStatus.PENDING), null, null, null, pageable))
+                .thenReturn(Page.empty(pageable));
+
+        PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForAdmin(
+                " ", AdminExhibitionStatusFilter.PENDING, " ", null, null, pageable);
+
+        assertTrue(result.getContent().isEmpty());
+        verify(exhibitionRepository).searchAdminExhibitions(
+                null, List.of(ExhibitionStatus.PENDING), null, null, null, pageable);
+    }
+
+    @Test
+    void searchExhibitionsForAdminUsesAllStatusesWhenFilterIsMissing() {
+        Pageable pageable = PageRequest.of(0, 10);
+        List<ExhibitionStatus> allStatuses = List.of(ExhibitionStatus.values());
+        when(exhibitionRepository.searchAdminExhibitions(
+                null, allStatuses, null, null, null, pageable))
+                .thenReturn(Page.empty(pageable));
+
+        exhibitionService.searchExhibitionsForAdmin(null, null, null, null, null, pageable);
+
+        verify(exhibitionRepository).searchAdminExhibitions(
+                null, allStatuses, null, null, null, pageable);
+    }
+
+    @Test
     void testSearchExhibitionsForVisitor_Success() {
         Pageable pageable = PageRequest.of(0, 10);
         Exhibition publishedExhibition = Exhibition.builder()
@@ -193,11 +260,41 @@ class ExhibitionServiceUnitTest {
         when(exhibitionMapper.toPublicResponse(publishedExhibition, null)).thenReturn(publicResponse);
 
         PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForVisitor(
-                "Expo", "Tech", null, null, pageable);
+                "Expo", null, "Tech", null, null, pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
         assertNull(result.getContent().get(0).getId()); // Should clear internal ID
+    }
+
+    @Test
+    void searchExhibitionsForVisitorFiltersExactPublicStatus() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Exhibition> page = new PageImpl<>(List.of(), pageable, 0);
+        when(exhibitionRepository.searchExhibitions(
+                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, pageable))
+                .thenReturn(page);
+
+        PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForVisitor(
+                " ", ExhibitionStatus.ACTIVE, " ", null, null, pageable);
+
+        assertTrue(result.getContent().isEmpty());
+        verify(exhibitionRepository).searchExhibitions(
+                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, pageable);
+    }
+
+    @Test
+    void searchExhibitionsForVisitorReturnsEmptyPageForNonPublicStatus() {
+        Pageable pageable = PageRequest.of(2, 10);
+
+        PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForVisitor(
+                null, ExhibitionStatus.REGISTRATION, null, null, null, pageable);
+
+        assertTrue(result.getContent().isEmpty());
+        assertEquals(2, result.getPage());
+        assertEquals(10, result.getSize());
+        verify(exhibitionRepository, never()).searchExhibitions(
+                any(), any(), any(), any(), any(), any());
     }
 
     @Test

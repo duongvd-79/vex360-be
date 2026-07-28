@@ -44,11 +44,29 @@ public class ExhibitorMediaAssetService {
     private final DesignAssetReferenceService assetReferenceService;
 
     @Transactional(readOnly = true)
-    public PageResponse<MediaAssetResponseDTO> getMediaAssets(User currentUser, Pageable pageable) {
+    public PageResponse<MediaAssetResponseDTO> getMediaAssets(
+            User currentUser,
+            String filterType,
+            Pageable pageable) {
         Company company = getCompanyForCurrentUser(currentUser);
-        Page<MediaAssetResponseDTO> assets = mediaAssetRepository.findByCompanyId(company.getId(), pageable)
+        MediaAssetType type = resolveMediaAssetFilterType(filterType);
+        Page<MediaAsset> assetPage = type == null
+                ? mediaAssetRepository.findByCompanyId(company.getId(), pageable)
+                : mediaAssetRepository.findByCompanyIdAndType(company.getId(), type, pageable);
+        Page<MediaAssetResponseDTO> assets = assetPage
                 .map(boothMapper::toMediaAssetResponseDTO);
         return PageResponse.from(assets);
+    }
+
+    private MediaAssetType resolveMediaAssetFilterType(String filterType) {
+        if (filterType == null || filterType.isBlank() || "all".equalsIgnoreCase(filterType.trim())) {
+            return null;
+        }
+        try {
+            return MediaAssetType.valueOf(filterType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
     }
 
     @Transactional

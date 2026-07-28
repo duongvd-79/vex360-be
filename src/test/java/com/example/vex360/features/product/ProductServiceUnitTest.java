@@ -1,11 +1,14 @@
 package com.example.vex360.features.product;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +20,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyStorageService;
@@ -34,6 +41,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.dtos.PageResponse;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceUnitTest {
@@ -70,8 +78,31 @@ class ProductServiceUnitTest {
                 .status(ProductStatus.ACTIVE).contents(List.of(content)).build();
         content.setProduct(product);
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(productRepository.findByIdAndCompanyId(product.getId(),
+        lenient().when(productRepository.findByIdAndCompanyId(product.getId(),
                 company.getId())).thenReturn(Optional.of(product));
+    }
+
+    @Test
+    void getProductsNormalizesKeywordAndMapsCategorySortAlias() {
+        Pageable pageable = PageRequest.of(1, 10, Sort.by(
+                Sort.Order.asc("name"),
+                Sort.Order.desc("categoryName"),
+                Sort.Order.asc("price"),
+                Sort.Order.desc("sku")));
+        Pageable mappedPageable = PageRequest.of(1, 10, Sort.by(
+                Sort.Order.asc("name"),
+                Sort.Order.desc("category.name"),
+                Sort.Order.asc("price"),
+                Sort.Order.desc("sku")));
+        when(productRepository.searchProducts(
+                eq(company.getId()), eq("chair"), eq(null), eq(ProductStatus.ACTIVE), eq(mappedPageable)))
+                .thenReturn(Page.empty(mappedPageable));
+
+        PageResponse<?> response = service.getProducts(
+                user, "  chair  ", null, ProductStatus.ACTIVE, pageable);
+
+        assertEquals(1, response.getPage());
+        assertEquals(10, response.getSize());
     }
 
     @Test

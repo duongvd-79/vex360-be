@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.vex360.features.company.services.CompanyService;
@@ -401,14 +402,24 @@ class PartnershipRequestServiceUnitTest {
 
     @Test
     void getRequestsFiltersByStatusAndRole() {
-        PageRequest pageable = PageRequest.of(0, 10);
+        PageRequest pageable = PageRequest.of(0, 10, Sort.by(
+                Sort.Order.asc("companyName"),
+                Sort.Order.desc("contactPerson"),
+                Sort.Order.asc("email"),
+                Sort.Order.desc("submittedAt")));
+        PageRequest mappedPageable = PageRequest.of(0, 10, Sort.by(
+                Sort.Order.asc("organizationName"),
+                Sort.Order.desc("requesterName"),
+                Sort.Order.asc("requesterEmail"),
+                Sort.Order.desc("createdAt")));
         PartnershipRequest request = pendingRequest(UUID.randomUUID(), user, Role.ORGANIZER);
 
-        when(partnershipRequestRepository.searchRequests(PartnershipRequestStatus.PENDING, Role.ORGANIZER,
-                pageable))
-                .thenReturn(new PageImpl<>(List.of(request), pageable, 1));
+        when(partnershipRequestRepository.searchRequests(
+                "Partner", PartnershipRequestStatus.PENDING, Role.ORGANIZER, mappedPageable))
+                .thenReturn(new PageImpl<>(List.of(request), mappedPageable, 1));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
+                " Partner ",
                 PartnershipRequestStatus.PENDING,
                 Role.ORGANIZER,
                 pageable);
@@ -420,10 +431,11 @@ class PartnershipRequestServiceUnitTest {
     @Test
     void getRequests_RequestedRoleNull_DoesNotThrowException() {
         PageRequest pageable = PageRequest.of(0, 10);
-        when(partnershipRequestRepository.searchRequests(PartnershipRequestStatus.PENDING, null, pageable))
+        when(partnershipRequestRepository.searchRequests(null, PartnershipRequestStatus.PENDING, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
+                " ",
                 PartnershipRequestStatus.PENDING,
                 null,
                 pageable);

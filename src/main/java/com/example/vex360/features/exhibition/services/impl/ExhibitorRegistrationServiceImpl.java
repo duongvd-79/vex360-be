@@ -219,7 +219,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         }
 
         Page<ExhibitorRegistration> page = registrationRepository.searchForOrganizer(
-                organizer.getId(), exhibitionUuid, status, keyword, pageable);
+                organizer.getId(), exhibitionUuid, status,
+                keyword == null || keyword.isBlank() ? null : keyword.trim(), pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
@@ -262,8 +263,9 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
 
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
-                company.getId(), status, keyword, pageable);
+                company.getId(), status, normalizedKeyword, pageable);
 
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 

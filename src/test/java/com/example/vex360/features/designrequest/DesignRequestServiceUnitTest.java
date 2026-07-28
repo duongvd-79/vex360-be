@@ -23,6 +23,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
@@ -81,6 +85,7 @@ import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
+import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -183,6 +188,44 @@ class DesignRequestServiceUnitTest {
                 .name("Main booth")
                 .isTemplate(false)
                 .build();
+    }
+
+    @Test
+    void getRequestsForAdminNormalizesKeywordAndMapsSortAliases() {
+        Pageable pageable = PageRequest.of(2, 5, Sort.by(
+                Sort.Order.desc("boothName"),
+                Sort.Order.asc("status")));
+        Pageable mappedPageable = PageRequest.of(2, 5, Sort.by(
+                Sort.Order.desc("booth.name"),
+                Sort.Order.asc("status")));
+        when(designRequestRepository.searchForAdmin(
+                "Expo", DesignRequestStatus.PENDING, mappedPageable))
+                .thenReturn(Page.empty(mappedPageable));
+
+        PageResponse<?> response = service.getRequestsForAdmin(
+                " Expo ", DesignRequestStatus.PENDING, pageable);
+
+        assertEquals(2, response.getPage());
+        assertEquals(5, response.getSize());
+    }
+
+    @Test
+    void getRequestsForExhibitorNormalizesKeywordAndKeepsRequestedSort() {
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.asc("status")));
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.searchForCompany(
+                company.getId(), "Expo", DesignRequestStatus.PENDING, pageable))
+                .thenReturn(Page.empty(pageable));
+
+        PageResponse<?> response = service.getRequestsForExhibitor(
+                exhibitor, "  Expo  ", DesignRequestStatus.PENDING, pageable);
+
+        assertEquals(0, response.getPage());
+        assertEquals(10, response.getSize());
+        verify(designRequestRepository).searchForCompany(
+                company.getId(), "Expo", DesignRequestStatus.PENDING, pageable);
     }
 
     @Test

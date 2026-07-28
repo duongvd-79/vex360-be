@@ -47,13 +47,12 @@ public class AdminDesignRequestController extends BaseController {
     private final DesignRequestCommunicationService communicationService;
 
     @GetMapping
-    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ lọc theo trạng thái, ID designer, chế độ và phân trang.")
+    @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ tìm kiếm, lọc theo trạng thái và phân trang.")
     public ResponseEntity<ApiResponse<PageResponse<DesignRequestResponseDTO>>> getRequests(
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) DesignRequestStatus status,
-            @RequestParam(required = false) UUID designerId,
-            @RequestParam(required = false) DesignRequestMode mode,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ok(designRequestService.getRequestsForAdmin(status, designerId, mode, pageable));
+        return ok(designRequestService.getRequestsForAdmin(keyword, status, pageable));
     }
 
     @PostMapping("/{id}/assign")

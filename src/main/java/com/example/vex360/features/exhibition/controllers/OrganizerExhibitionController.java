@@ -214,13 +214,24 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     // Exhibitor Registration Management
+    @GetMapping("/{exhibitionUuid}/registrations")
+    @Operation(summary = "Xem danh sách đăng ký của doanh nghiệp theo triển lãm", description = "Lấy danh sách các đơn đăng ký tham gia một triển lãm do nhà tổ chức sở hữu, hỗ trợ phân trang, lọc, tìm kiếm và sắp xếp.")
+    public ResponseEntity<ApiResponse<PageResponse<ExhibitorRegistrationResponseDTO>>> getExhibitorRegistrationsByExhibition(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "UUID triển lãm") @PathVariable UUID exhibitionUuid,
+            @Parameter(description = "Trạng thái đơn đăng ký") @RequestParam(required = false) ExhibitorRegistrationStatus status,
+            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc email") @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return getExhibitorRegistrations(userDetails, exhibitionUuid, status, keyword, pageable);
+    }
+
     @GetMapping("/registrations")
     @Operation(summary = "Xem danh sách đăng ký của các doanh nghiệp", description = "Lấy danh sách các đơn đăng ký tham gia gian hàng của doanh nghiệp (Exhibitor) đăng ký vào các triển lãm do tôi tổ chức, hỗ trợ phân trang, lọc và tìm kiếm.")
     public ResponseEntity<ApiResponse<PageResponse<ExhibitorRegistrationResponseDTO>>> getExhibitorRegistrations(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID triển lãm") @RequestParam(required = false) UUID exhibitionUuid,
             @Parameter(description = "Trạng thái đơn đăng ký") @RequestParam(required = false) ExhibitorRegistrationStatus status,
-            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc tên triển lãm") @RequestParam(required = false) String keyword,
+            @Parameter(description = "Từ khoá tìm kiếm theo tên doanh nghiệp hoặc email") @RequestParam(required = false) String keyword,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitorRegistrationResponseDTO> response = exhibitorRegistrationService
                 .getRegistrationsForOrganizer(userDetails.getUser(), exhibitionUuid, status, keyword,

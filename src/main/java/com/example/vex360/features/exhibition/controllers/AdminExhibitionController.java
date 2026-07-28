@@ -1,8 +1,11 @@
 package com.example.vex360.features.exhibition.controllers;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
+import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
@@ -27,18 +31,12 @@ import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.enums.ExhibitionStatus;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
-import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/exhibitions")
@@ -51,13 +49,20 @@ public class AdminExhibitionController extends BaseController {
     private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @GetMapping
-    @Operation(summary = "Admin xem danh sách yêu cầu mở triển lãm", description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo từ khóa (tên triển lãm, tên/email organizer), lọc theo status, category, và thời gian diễn ra (startDate, endDate). Mặc định sắp xếp theo ngày tạo giảm dần.")
+    @Operation(
+            summary = "Admin xem danh sách yêu cầu mở triển lãm",
+            description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo tên triển lãm, tên/email organizer hoặc tên tổ chức; lọc theo status, category và thời gian diễn ra. APPROVED đại diện cho REGISTRATION/PUBLISHED/ACTIVE/COMPLETED.")
     public ResponseEntity<ApiResponse<PageResponse<ExhibitionResponseDTO>>> getExhibitions(
-            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên organizer, email organizer)") @RequestParam(required = false) String keyword,
-            @Parameter(description = "Trạng thái của triển lãm") @RequestParam(required = false) ExhibitionStatus status,
-            @Parameter(description = "Lĩnh vực/danh mục của triển lãm") @RequestParam(required = false) String category,
-            @Parameter(description = "Ngày bắt đầu triển lãm (từ ngày)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "Ngày kết thúc triển lãm (đến ngày)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên/email organizer, tên tổ chức)")
+            @RequestParam(required = false) String keyword,
+            @Parameter(description = "Trạng thái của triển lãm; APPROVED lấy các trạng thái đã được duyệt")
+            @RequestParam(required = false) AdminExhibitionStatusFilter status,
+            @Parameter(description = "Lĩnh vực/danh mục của triển lãm")
+            @RequestParam(required = false) String category,
+            @Parameter(description = "Ngày bắt đầu triển lãm (từ ngày)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Ngày kết thúc triển lãm (đến ngày)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitionResponseDTO> response = exhibitionService
                 .searchExhibitionsForAdmin(keyword, status, category, startDate, endDate, pageable);

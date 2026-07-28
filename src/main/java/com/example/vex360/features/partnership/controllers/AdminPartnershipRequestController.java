@@ -45,13 +45,14 @@ public class AdminPartnershipRequestController extends BaseController {
             summary = "Admin xem danh sách yêu cầu hợp tác",
             description = "Trả về danh sách partnership request có phân trang. Có thể lọc theo status và requestedRole; mặc định sort theo createdAt giảm dần.")
     public ResponseEntity<ApiResponse<PageResponse<PartnershipRequestResponseDTO>>> getRequests(
+            @RequestParam(required = false) String keyword,
             @Parameter(description = "Trạng thái request cần lọc", example = "PENDING")
             @RequestParam(required = false) PartnershipRequestStatus status,
             @Parameter(description = "Role được yêu cầu; chỉ dùng EXHIBITOR hoặc ORGANIZER", example = "EXHIBITOR")
             @RequestParam(required = false) Role requestedRole,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<PartnershipRequestResponseDTO> requests = partnershipRequestService
-                .getRequests(status, requestedRole, pageable);
+                .getRequests(keyword, status, requestedRole, pageable);
         return ok(requests);
     }
 

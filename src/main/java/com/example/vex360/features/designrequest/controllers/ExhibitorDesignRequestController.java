@@ -68,9 +68,10 @@ public class ExhibitorDesignRequestController extends BaseController {
     @Operation(summary = "Exhibitor xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của Exhibitor hiện tại, có hỗ trợ lọc theo trạng thái và phân trang.")
     public ResponseEntity<ApiResponse<PageResponse<DesignRequestResponseDTO>>> getRequests(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) DesignRequestStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ok(designRequestService.getRequestsForExhibitor(userDetails.getUser(), status, pageable));
+        return ok(designRequestService.getRequestsForExhibitor(userDetails.getUser(), keyword, status, pageable));
     }
 
     @GetMapping("/eligibility/{boothId}")
