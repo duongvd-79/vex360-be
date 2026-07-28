@@ -69,7 +69,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
             "exhibitionName", "name",
-            "expectedBoothCount", "estimatedBooths");
+            "expectedBoothCount", "estimatedBooths",
+            "status", "status");
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;

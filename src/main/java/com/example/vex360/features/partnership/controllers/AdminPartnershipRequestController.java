@@ -1,11 +1,13 @@
 package com.example.vex360.features.partnership.controllers;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,16 +44,20 @@ public class AdminPartnershipRequestController extends BaseController {
     @GetMapping
     @Operation(
             summary = "Admin xem danh sách yêu cầu hợp tác",
-            description = "Trả về danh sách partnership request có phân trang. Có thể lọc theo status và requestedRole; mặc định sort theo createdAt giảm dần.")
+            description = "Trả về danh sách partnership request có phân trang. Có thể lọc theo status, requestedRole và khoảng thời gian gửi; mặc định sort theo createdAt giảm dần.")
     public ResponseEntity<ApiResponse<PageResponse<PartnershipRequestResponseDTO>>> getRequests(
             @RequestParam(required = false) String keyword,
             @Parameter(description = "Trạng thái request cần lọc", example = "PENDING")
             @RequestParam(required = false) PartnershipRequestStatus status,
             @Parameter(description = "Role được yêu cầu; chỉ dùng EXHIBITOR hoặc ORGANIZER", example = "EXHIBITOR")
             @RequestParam(required = false) Role requestedRole,
+            @Parameter(description = "Ngày gửi từ ngày")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Ngày gửi đến ngày")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<PartnershipRequestResponseDTO> requests = partnershipRequestService
-                .getRequests(keyword, status, requestedRole, pageable);
+                .getRequests(keyword, status, requestedRole, startDate, endDate, pageable);
         return ok(requests);
     }
 

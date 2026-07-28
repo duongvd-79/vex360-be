@@ -37,10 +37,14 @@ public interface PartnershipRequestRepository extends JpaRepository<PartnershipR
                 OR LOWER(pr.requesterEmail) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:status IS NULL OR pr.status = :status)
               AND (:requestedRole IS NULL OR pr.requestedRole = :requestedRole)
+              AND (:startInstant IS NULL OR pr.createdAt >= :startInstant)
+              AND (:endInstant IS NULL OR pr.createdAt <= :endInstant)
             """)
     Page<PartnershipRequest> searchRequests(
             @Param("keyword") String keyword,
             @Param("status") PartnershipRequestStatus status,
             @Param("requestedRole") Role requestedRole,
+            @Param("startInstant") java.time.Instant startInstant,
+            @Param("endInstant") java.time.Instant endInstant,
             Pageable pageable);
 }

@@ -414,13 +414,15 @@ class PartnershipRequestServiceUnitTest {
         PartnershipRequest request = pendingRequest(UUID.randomUUID(), user, Role.ORGANIZER);
 
         when(partnershipRequestRepository.searchRequests(
-                "Partner", PartnershipRequestStatus.PENDING, Role.ORGANIZER, mappedPageable))
+                "Partner", PartnershipRequestStatus.PENDING, Role.ORGANIZER, null, null, mappedPageable))
                 .thenReturn(new PageImpl<>(List.of(request), mappedPageable, 1));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
                 " Partner ",
                 PartnershipRequestStatus.PENDING,
                 Role.ORGANIZER,
+                null,
+                null,
                 pageable);
 
         assertEquals(1, response.getContent().size());
@@ -430,12 +432,14 @@ class PartnershipRequestServiceUnitTest {
     @Test
     void getRequests_RequestedRoleNull_DoesNotThrowException() {
         PageRequest pageable = PageRequest.of(0, 10);
-        when(partnershipRequestRepository.searchRequests(null, PartnershipRequestStatus.PENDING, null, pageable))
+        when(partnershipRequestRepository.searchRequests(null, PartnershipRequestStatus.PENDING, null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
                 " ",
                 PartnershipRequestStatus.PENDING,
+                null,
+                null,
                 null,
                 pageable);
 
