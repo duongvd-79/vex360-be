@@ -13,6 +13,7 @@ import com.example.vex360.shared.enums.UserStatus;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 import jakarta.persistence.LockModeType;
 
@@ -43,4 +44,23 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByRole(Role role);
 
     List<User> findByRoleAndStatusOrderByFullNameAsc(Role role, UserStatus status);
+
+    long countByCreatedAtBetween(Instant start, Instant end);
+
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role")
+    List<Object[]> countGroupedByRole();
+
+    @Query("SELECT u.status, COUNT(u) FROM User u GROUP BY u.status")
+    List<Object[]> countGroupedByStatus();
+
+    @Query("""
+            SELECT FUNCTION('DATE', u.createdAt), COUNT(u)
+            FROM User u
+            WHERE u.createdAt BETWEEN :start AND :end
+            GROUP BY FUNCTION('DATE', u.createdAt)
+            ORDER BY FUNCTION('DATE', u.createdAt)
+            """)
+    List<Object[]> aggregateDailyRegistrations(
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 }

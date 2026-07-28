@@ -3,6 +3,7 @@ package com.example.vex360.features.exhibition.repositories;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -80,6 +81,17 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
 
     @Query("SELECT e.status, COUNT(e) FROM Exhibition e GROUP BY e.status")
     List<Object[]> countExhibitionsByStatus();
+
+    @Query("""
+            SELECT FUNCTION('DATE', e.createdAt), COUNT(e)
+            FROM Exhibition e
+            WHERE e.createdAt BETWEEN :start AND :end
+            GROUP BY FUNCTION('DATE', e.createdAt)
+            ORDER BY FUNCTION('DATE', e.createdAt)
+            """)
+    List<Object[]> aggregateDailyCreated(
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     long countByOrganizerIdAndStatus(UUID organizerId, ExhibitionStatus status);
 

@@ -162,6 +162,9 @@ public enum ErrorCode {
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã được sử dụng.", HttpStatus.CONFLICT),
     REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy thông tin lượt đăng ký.", HttpStatus.NOT_FOUND),
 
+    // LEAD ERRORS
+    LEAD_NOT_FOUND("LEAD-001", "Không tìm thấy thông tin khách hàng tiềm năng.", HttpStatus.NOT_FOUND),
+
     // CHAT ERRORS
     CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND);
 

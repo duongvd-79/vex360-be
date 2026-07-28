@@ -18,6 +18,8 @@ public class ExhibitionAnalyticsDetailDTO {
     private List<ChartPoint> chart;
     private List<HourPoint> visitorsByHour;
     private List<PackageSummary> packages;
+    /** Chỉ chứa số liệu lead tổng hợp; không trả thông tin nhận diện khách. */
+    private LeadAnalytics leadAnalytics;
 
     /**
      * Số liệu tổng hợp ở góc nhìn ban tổ chức: tập trung vào mức độ lấp đầy gian
@@ -69,5 +71,39 @@ public class ExhibitionAnalyticsDetailDTO {
         /** Số payment record trạng thái PAID; không phải số registration/gói duy nhất. */
         private long quantity;
         private long revenue;
+    }
+
+    @Data
+    @Builder
+    public static class LeadAnalytics {
+        private long totalLeads;
+        private long uniqueLeadVisitors;
+        private long boothsWithLeads;
+        /** Khách tạo lead duy nhất / khách tham quan duy nhất (%). */
+        private double visitorToLeadRatePercent;
+        /** Lead trạng thái CONVERTED / tổng lead (%). */
+        private double conversionRatePercent;
+        private long newCount;
+        private long contactedCount;
+        private long qualifiedCount;
+        private long convertedCount;
+        private long lostCount;
+        private List<LeadDailyPoint> dailyTrend;
+        private List<LeadBoothSummary> topBooths;
+    }
+
+    @Data
+    @Builder
+    public static class LeadDailyPoint {
+        private String date;
+        private long leads;
+    }
+
+    @Data
+    @Builder
+    public static class LeadBoothSummary {
+        private String boothId;
+        private String boothName;
+        private long leadCount;
     }
 }

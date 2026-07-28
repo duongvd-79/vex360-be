@@ -18,6 +18,7 @@ import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsDe
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsOverviewDTO;
 import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingItemDTO;
 import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingPageDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerAnalyticsSummaryDTO;
 import com.example.vex360.features.analytics.services.AnalyticsService;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.controllers.BaseController;
@@ -41,6 +42,17 @@ public class OrganizerAnalyticsController extends BaseController {
     public ResponseEntity<ApiResponse<List<ExhibitionAnalyticsOverviewDTO>>> getOverview(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ok(analyticsService.getOrganizerOverview(userDetails.getUser()));
+    }
+
+    @GetMapping("/analytics/summary")
+    @Operation(summary = "Thống kê tổng hợp các triển lãm của organizer")
+    public ResponseEntity<ApiResponse<OrganizerAnalyticsSummaryDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) UUID exhibitionId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ok(analyticsService.getOrganizerSummary(
+                userDetails.getUser(), exhibitionId, startDate, endDate));
     }
 
     @GetMapping("/{uuid}/analytics")

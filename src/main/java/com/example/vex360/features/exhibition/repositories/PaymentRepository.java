@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.shared.enums.PaymentType;
+import com.example.vex360.shared.enums.PaymentStatus;
 
 import jakarta.persistence.LockModeType;
 
@@ -73,6 +74,89 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             """, nativeQuery = true)
     List<Object[]> aggregatePaidPackageRevenue(
             @Param("exhibitionId") Integer exhibitionId,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    @Query(value = """
+            SELECT ep.exhibition_id, COALESCE(SUM(p.amount), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id IN (:exhibitionIds)
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY ep.exhibition_id
+            """, nativeQuery = true)
+    List<Object[]> aggregateRevenueByExhibition(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    @Query(value = """
+            SELECT DATE(p.paid_at), COALESCE(SUM(p.amount), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id IN (:exhibitionIds)
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY DATE(p.paid_at)
+            ORDER BY DATE(p.paid_at)
+            """, nativeQuery = true)
+    List<Object[]> aggregateOrganizerDailyRevenue(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    @Query(value = """
+            SELECT COALESCE(r.package_name_snapshot, 'Không xác định'),
+                   COUNT(p.id),
+                   COALESCE(SUM(p.amount), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id IN (:exhibitionIds)
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY r.package_name_snapshot
+            ORDER BY SUM(p.amount) DESC
+            """, nativeQuery = true)
+    List<Object[]> aggregateOrganizerPackageRevenue(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    long countByStatus(PaymentStatus status);
+
+    @Query(value = """
+            SELECT COUNT(*), COALESCE(SUM(amount), 0), COALESCE(SUM(system_fee), 0)
+            FROM payments
+            WHERE status = 'PAID'
+              AND paid_at BETWEEN :start AND :end
+            """, nativeQuery = true)
+    List<Object[]> aggregateAdminPaidMetrics(
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    @Query(value = """
+            SELECT DATE(paid_at), COALESCE(SUM(amount), 0)
+            FROM payments
+            WHERE status = 'PAID'
+              AND paid_at BETWEEN :start AND :end
+            GROUP BY DATE(paid_at)
+            ORDER BY DATE(paid_at)
+            """, nativeQuery = true)
+    List<Object[]> aggregateAdminDailyRevenue(
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end);
+
+    @Query("""
+            SELECT p.status, COUNT(p)
+            FROM Payment p
+            WHERE p.createdAt BETWEEN :start AND :end
+            GROUP BY p.status
+            """)
+    List<Object[]> countAdminPaymentsByStatus(
             @Param("start") java.time.Instant start,
             @Param("end") java.time.Instant end);
 }

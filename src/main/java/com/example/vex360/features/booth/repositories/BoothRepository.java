@@ -193,6 +193,14 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
   List<Object[]> countBoothsGroupedByExhibition(@Param("ids") List<Integer> ids);
 
   @Query("""
+      SELECT b.status, COUNT(b)
+      FROM Booth b
+      WHERE b.isTemplate = false
+      GROUP BY b.status
+      """)
+  List<Object[]> countBoothsGroupedByStatus();
+
+  @Query("""
       SELECT b FROM Booth b
       JOIN b.exhibitorRegistration reg
       JOIN reg.exhibitionPackage pkg

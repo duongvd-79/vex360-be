@@ -29,6 +29,73 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             """, nativeQuery = true)
     List<Object[]> countVisitsGroupedByExhibition(@Param("exhibitionIds") List<Integer> exhibitionIds);
 
+    @Query(value = """
+            SELECT exhibition_id,
+                   SUM(CASE WHEN event_type = 'ENTER_EXHIBITION' THEN 1 ELSE 0 END) AS visits,
+                   COUNT(DISTINCT CASE WHEN event_type = 'ENTER_EXHIBITION' THEN user_id END) AS visitors,
+                   AVG(CASE WHEN event_type = 'LEAVE_EXHIBITION' THEN duration_seconds END) AS avg_duration
+            FROM analytics_events
+            WHERE exhibition_id IN (:exhibitionIds)
+              AND event_time BETWEEN :start AND :end
+            GROUP BY exhibition_id
+            """, nativeQuery = true)
+    List<Object[]> aggregatePerformanceByExhibition(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
+            SELECT DATE(event_time) AS day,
+                   SUM(CASE WHEN event_type = 'ENTER_EXHIBITION' THEN 1 ELSE 0 END) AS visits,
+                   COUNT(DISTINCT CASE WHEN event_type = 'ENTER_EXHIBITION' THEN user_id END) AS visitors,
+                   AVG(CASE WHEN event_type = 'LEAVE_EXHIBITION' THEN duration_seconds END) AS avg_duration
+            FROM analytics_events
+            WHERE exhibition_id IN (:exhibitionIds)
+              AND event_time BETWEEN :start AND :end
+            GROUP BY DATE(event_time)
+            ORDER BY day
+            """, nativeQuery = true)
+    List<Object[]> aggregateOrganizerDailyMetrics(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT user_id)
+            FROM analytics_events
+            WHERE exhibition_id IN (:exhibitionIds)
+              AND event_type = 'ENTER_EXHIBITION'
+              AND event_time BETWEEN :start AND :end
+            """, nativeQuery = true)
+    long countUniqueVisitorsForExhibitions(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
+            SELECT AVG(duration_seconds)
+            FROM analytics_events
+            WHERE exhibition_id IN (:exhibitionIds)
+              AND event_type = 'LEAVE_EXHIBITION'
+              AND event_time BETWEEN :start AND :end
+            """, nativeQuery = true)
+    Double averageVisitDurationSecondsForExhibitions(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
+            SELECT SUM(CASE WHEN event_type = 'ENTER_EXHIBITION' THEN 1 ELSE 0 END),
+                   COUNT(DISTINCT CASE WHEN event_type = 'ENTER_EXHIBITION' THEN user_id END),
+                   SUM(CASE WHEN event_type = 'BOOTH_VIEW' THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN event_type = 'CHAT_INITIATED' THEN 1 ELSE 0 END)
+            FROM analytics_events
+            WHERE event_time BETWEEN :start AND :end
+            """, nativeQuery = true)
+    List<Object[]> aggregateAdminPeriodMetrics(
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
     // Số khách KHÁC NHAU đã vào triển lãm trong kỳ (1 khách vào nhiều lần chỉ tính 1)
     @Query(value = """
             SELECT COUNT(DISTINCT user_id)

@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsOv
 import com.example.vex360.features.analytics.dtos.response.ExhibitorDashboardOverviewDTO;
 import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingItemDTO;
 import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingPageDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerAnalyticsSummaryDTO;
 import com.example.vex360.features.analytics.entities.AnalyticsEvent;
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
@@ -42,6 +44,8 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.lead.enums.LeadStatus;
+import com.example.vex360.features.lead.repositories.BoothLeadRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
@@ -69,6 +73,7 @@ public class AnalyticsService {
     private final ChatRoomRepository chatRoomRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final PaymentRepository paymentRepository;
+    private final BoothLeadRepository boothLeadRepository;
 
     @Transactional
     public void recordEvent(User currentUser, RecordAnalyticsEventRequest request) {
@@ -172,6 +177,247 @@ public class AnalyticsService {
         };
     }
 
+    @Transactional(readOnly = true)
+    public OrganizerAnalyticsSummaryDTO getOrganizerSummary(
+            User organizer,
+            UUID selectedExhibitionUuid,
+            LocalDate startDate,
+            LocalDate endDate) {
+        LocalDate rangeEnd = endDate != null ? endDate : LocalDate.now(ZoneOffset.UTC);
+        LocalDate rangeStart = startDate != null ? startDate : LocalDate.of(1970, 1, 1);
+        Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
+
+        List<Exhibition> exhibitions = exhibitionRepository
+                .findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
+        if (selectedExhibitionUuid != null) {
+            exhibitions = exhibitions.stream()
+                    .filter(exhibition -> selectedExhibitionUuid.equals(exhibition.getUuid()))
+                    .toList();
+            if (exhibitions.isEmpty()) {
+                Exhibition requested = exhibitionRepository.findByUuid(selectedExhibitionUuid)
+                        .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                if (!requested.getOrganizer().getId().equals(organizer.getId())) {
+                    throw new AppException(ErrorCode.UNAUTHORIZED);
+                }
+            }
+        }
+
+        if (exhibitions.isEmpty()) {
+            return OrganizerAnalyticsSummaryDTO.builder()
+                    .startDate(rangeStart.toString())
+                    .endDate(rangeEnd.toString())
+                    .selectedExhibitionId(selectedExhibitionUuid == null ? null : selectedExhibitionUuid.toString())
+                    .metrics(OrganizerAnalyticsSummaryDTO.Metrics.builder().build())
+                    .trend(List.of())
+                    .exhibitions(List.of())
+                    .packages(List.of())
+                    .alerts(List.of())
+                    .build();
+        }
+
+        List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
+        Map<Integer, Long> boothCounts = new HashMap<>();
+        boothRepository.countBoothsGroupedByExhibition(exhibitionIds)
+                .forEach(row -> boothCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
+
+        Map<Integer, Long> approvedCounts = new HashMap<>();
+        exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
+                exhibitionIds, ExhibitorRegistrationStatus.APPROVED)
+                .forEach(row -> approvedCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
+        Map<Integer, Long> pendingCounts = new HashMap<>();
+        exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
+                exhibitionIds, ExhibitorRegistrationStatus.PENDING)
+                .forEach(row -> pendingCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
+
+        Map<Integer, long[]> trafficByExhibition = new HashMap<>();
+        Map<Integer, Double> durationByExhibition = new HashMap<>();
+        analyticsEventRepository.aggregatePerformanceByExhibition(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> {
+                    int id = ((Number) row[0]).intValue();
+                    trafficByExhibition.put(id, new long[] { longValue(row[1]), longValue(row[2]) });
+                    durationByExhibition.put(id, doubleValue(row[3]) / 60.0);
+                });
+
+        Map<Integer, Long> revenueByExhibition = new HashMap<>();
+        paymentRepository.aggregateRevenueByExhibition(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> revenueByExhibition.put(((Number) row[0]).intValue(), longValue(row[1])));
+
+        Map<Integer, long[]> leadsByExhibition = new HashMap<>();
+        boothLeadRepository.aggregatePerformanceForExhibitions(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> leadsByExhibition.put(
+                        ((Number) row[0]).intValue(),
+                        new long[] { longValue(row[1]), longValue(row[2]), longValue(row[3]) }));
+
+        Map<String, OrganizerAnalyticsSummaryDTO.DailyPoint> trendByDate = new TreeMap<>();
+        analyticsEventRepository.aggregateOrganizerDailyMetrics(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> {
+                    OrganizerAnalyticsSummaryDTO.DailyPoint point = dailyPoint(trendByDate, row[0].toString());
+                    point.setVisits(longValue(row[1]));
+                    point.setUniqueVisitors(longValue(row[2]));
+                    point.setAverageVisitDurationMinutes(doubleValue(row[3]) / 60.0);
+                });
+        paymentRepository.aggregateOrganizerDailyRevenue(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> dailyPoint(trendByDate, row[0].toString()).setRevenue(longValue(row[1])));
+        boothLeadRepository.aggregateDailyForExhibitions(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> dailyPoint(trendByDate, row[0].toString()).setLeads(longValue(row[1])));
+        exhibitorRegistrationRepository.aggregateDailySubmissions(exhibitionIds, startDateTime, endDateTime)
+                .forEach(row -> dailyPoint(trendByDate, row[0].toString()).setRegistrations(longValue(row[1])));
+
+        List<OrganizerAnalyticsSummaryDTO.PackageSummary> packages = paymentRepository
+                .aggregateOrganizerPackageRevenue(exhibitionIds, startDateTime, endDateTime)
+                .stream()
+                .map(row -> OrganizerAnalyticsSummaryDTO.PackageSummary.builder()
+                        .key(row[0].toString())
+                        .label(row[0].toString())
+                        .paidTransactionCount(longValue(row[1]))
+                        .revenue(longValue(row[2]))
+                        .build())
+                .toList();
+
+        List<OrganizerAnalyticsSummaryDTO.ExhibitionPerformance> performance = new ArrayList<>();
+        List<OrganizerAnalyticsSummaryDTO.AlertItem> alerts = new ArrayList<>();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        long totalApproved = 0;
+        long totalEstimated = 0;
+        long totalVisits = 0;
+        long totalRevenue = 0;
+        long totalLeads = 0;
+
+        for (Exhibition exhibition : exhibitions) {
+            int id = exhibition.getId();
+            long approved = approvedCounts.getOrDefault(id, 0L);
+            long estimated = Math.max(0, exhibition.getEstimatedBooths() == null ? 0 : exhibition.getEstimatedBooths());
+            long[] traffic = trafficByExhibition.getOrDefault(id, new long[2]);
+            long[] lead = leadsByExhibition.getOrDefault(id, new long[3]);
+            long revenue = revenueByExhibition.getOrDefault(id, 0L);
+            double fillRate = estimated == 0 ? 0.0 : approved * 100.0 / estimated;
+            double leadRate = traffic[1] == 0 ? 0.0 : lead[1] * 100.0 / traffic[1];
+            long pending = pendingCounts.getOrDefault(id, 0L);
+
+            performance.add(OrganizerAnalyticsSummaryDTO.ExhibitionPerformance.builder()
+                    .id(exhibition.getUuid().toString())
+                    .code("EXH-" + String.format("%03d", exhibition.getId()))
+                    .name(exhibition.getName())
+                    .status(statusLabel(exhibition.getStatus()))
+                    .location("Trực tuyến trên nền tảng VEX360")
+                    .startDate(exhibition.getStartDate() == null ? null : exhibition.getStartDate().toString())
+                    .endDate(exhibition.getEndDate() == null ? null : exhibition.getEndDate().toString())
+                    .boothCount(boothCounts.getOrDefault(id, 0L))
+                    .approvedBoothCount(approved)
+                    .estimatedBoothCount(estimated)
+                    .boothFillRatePercent(fillRate)
+                    .totalVisits(traffic[0])
+                    .uniqueVisitorCount(traffic[1])
+                    .totalRevenue(revenue)
+                    .totalLeads(lead[0])
+                    .uniqueLeadVisitors(lead[1])
+                    .visitorToLeadRatePercent(leadRate)
+                    .averageVisitDurationMinutes(durationByExhibition.getOrDefault(id, 0.0))
+                    .pendingRegistrationCount(pending)
+                    .build());
+
+            if (pending > 0) {
+                alerts.add(alert(exhibition, "warning", "PENDING_REGISTRATIONS",
+                        pending + " đơn đăng ký gian hàng đang chờ duyệt."));
+            }
+            if (exhibition.getStatus() == ExhibitionStatus.ACTIVE && traffic[0] == 0) {
+                alerts.add(alert(exhibition, "critical", "ACTIVE_WITHOUT_TRAFFIC",
+                        "Triển lãm đang diễn ra nhưng chưa phát sinh lượt tham quan trong kỳ."));
+            }
+            if (traffic[0] > 0 && lead[0] == 0) {
+                alerts.add(alert(exhibition, "warning", "VISITS_WITHOUT_LEADS",
+                        "Đã có khách tham quan nhưng chưa phát sinh lead."));
+            }
+            if (exhibition.getStartDate() != null
+                    && exhibition.getStartDate().isAfter(today)
+                    && !exhibition.getStartDate().isAfter(today.plusDays(30))
+                    && estimated > 0
+                    && fillRate < 50) {
+                alerts.add(alert(exhibition, "warning", "LOW_FILL_RATE",
+                        "Sắp diễn ra nhưng tỷ lệ lấp đầy mới đạt "
+                                + Math.round(fillRate) + "%."));
+            }
+
+            totalApproved += approved;
+            totalEstimated += estimated;
+            totalVisits += traffic[0];
+            totalRevenue += revenue;
+            totalLeads += lead[0];
+        }
+
+        long uniqueVisitors = analyticsEventRepository.countUniqueVisitorsForExhibitions(
+                exhibitionIds, startDateTime, endDateTime);
+        long uniqueLeadVisitors = boothLeadRepository.countUniqueLeadVisitorsForExhibitions(
+                exhibitionIds, startDateTime, endDateTime);
+        Double averageDurationSeconds = analyticsEventRepository.averageVisitDurationSecondsForExhibitions(
+                exhibitionIds, startDateTime, endDateTime);
+
+        performance.sort(Comparator
+                .comparingLong(OrganizerAnalyticsSummaryDTO.ExhibitionPerformance::getTotalVisits)
+                .reversed()
+                .thenComparing(OrganizerAnalyticsSummaryDTO.ExhibitionPerformance::getName));
+        alerts.sort(Comparator.comparing(
+                alert -> "critical".equals(alert.getSeverity()) ? 0 : 1));
+
+        return OrganizerAnalyticsSummaryDTO.builder()
+                .startDate(rangeStart.toString())
+                .endDate(rangeEnd.toString())
+                .selectedExhibitionId(selectedExhibitionUuid == null ? null : selectedExhibitionUuid.toString())
+                .metrics(OrganizerAnalyticsSummaryDTO.Metrics.builder()
+                        .exhibitionCount(exhibitions.size())
+                        .activeExhibitionCount(exhibitions.stream()
+                                .filter(item -> item.getStatus() == ExhibitionStatus.ACTIVE).count())
+                        .approvedBoothCount(totalApproved)
+                        .estimatedBoothCount(totalEstimated)
+                        .boothFillRatePercent(totalEstimated == 0 ? 0.0 : totalApproved * 100.0 / totalEstimated)
+                        .totalVisits(totalVisits)
+                        .uniqueVisitorCount(uniqueVisitors)
+                        .totalRevenue(totalRevenue)
+                        .totalLeads(totalLeads)
+                        .uniqueLeadVisitors(uniqueLeadVisitors)
+                        .visitorToLeadRatePercent(
+                                uniqueVisitors == 0 ? 0.0 : uniqueLeadVisitors * 100.0 / uniqueVisitors)
+                        .averageVisitDurationMinutes(
+                                averageDurationSeconds == null ? 0.0 : averageDurationSeconds / 60.0)
+                        .build())
+                .trend(new ArrayList<>(trendByDate.values()))
+                .exhibitions(performance)
+                .packages(packages)
+                .alerts(alerts)
+                .build();
+    }
+
+    private OrganizerAnalyticsSummaryDTO.DailyPoint dailyPoint(
+            Map<String, OrganizerAnalyticsSummaryDTO.DailyPoint> points,
+            String date) {
+        return points.computeIfAbsent(date, key -> OrganizerAnalyticsSummaryDTO.DailyPoint.builder()
+                .date(key)
+                .build());
+    }
+
+    private OrganizerAnalyticsSummaryDTO.AlertItem alert(
+            Exhibition exhibition,
+            String severity,
+            String code,
+            String message) {
+        return OrganizerAnalyticsSummaryDTO.AlertItem.builder()
+                .exhibitionId(exhibition.getUuid().toString())
+                .exhibitionName(exhibition.getName())
+                .severity(severity)
+                .code(code)
+                .message(message)
+                .build();
+    }
+
+    private long longValue(Object value) {
+        return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    private double doubleValue(Object value) {
+        return value == null ? 0.0 : ((Number) value).doubleValue();
+    }
+
     // ================= Chi tiết (detail) =================
 
     @Transactional(readOnly = true)
@@ -245,11 +491,15 @@ public class AnalyticsService {
         }
 
         List<ExhibitionAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
+        long uniqueVisitorCount = analyticsEventRepository.countUniqueVisitors(
+                exhibitionId, startDateTime, endDateTime);
+        ExhibitionAnalyticsDetailDTO.LeadAnalytics leadAnalytics = computeExhibitionLeadAnalytics(
+                exhibitionId, startDateTime, endDateTime, uniqueVisitorCount);
 
         // Chỉ coi là "chưa có dữ liệu" khi vừa không có lượt truy cập/doanh thu nào,
         // vừa chưa duyệt gian hàng nào — nếu đã có gian hàng được duyệt thì organizer
         // vẫn cần thấy tỷ lệ lấp đầy dù chưa có khách vào.
-        if (chart.isEmpty() && approvedBoothCount == 0) {
+        if (chart.isEmpty() && approvedBoothCount == 0 && leadAnalytics.getTotalLeads() == 0) {
             return ExhibitionAnalyticsDetailDTO.builder()
                     .exhibition(toOverviewDTO(exhibition, boothCount))
                     .startDate(rangeStart.toString())
@@ -261,6 +511,7 @@ public class AnalyticsService {
                     .chart(List.of())
                     .visitorsByHour(List.of())
                     .packages(List.of())
+                    .leadAnalytics(leadAnalytics)
                     .build();
         }
 
@@ -276,9 +527,6 @@ public class AnalyticsService {
         Double avgDurationSeconds = analyticsEventRepository.averageVisitDurationSeconds(
                 exhibitionId, startDateTime, endDateTime);
         double averageVisitDurationMinutes = avgDurationSeconds == null ? 0.0 : avgDurationSeconds / 60.0;
-        long uniqueVisitorCount = analyticsEventRepository.countUniqueVisitors(
-                exhibitionId, startDateTime, endDateTime);
-
         ExhibitionAnalyticsDetailDTO.Metrics metrics = ExhibitionAnalyticsDetailDTO.Metrics.builder()
                 .approvedBoothCount(approvedBoothCount)
                 .estimatedBooths(estimatedBooths)
@@ -327,6 +575,64 @@ public class AnalyticsService {
                 .chart(chart)
                 .visitorsByHour(hourPoints)
                 .packages(packages)
+                .leadAnalytics(leadAnalytics)
+                .build();
+    }
+
+    private ExhibitionAnalyticsDetailDTO.LeadAnalytics computeExhibitionLeadAnalytics(
+            Integer exhibitionId,
+            Instant startDateTime,
+            Instant endDateTime,
+            long uniqueVisitorCount) {
+        Map<LeadStatus, Long> counts = new HashMap<>();
+        boothLeadRepository.countByStatusForExhibitionInRange(exhibitionId, startDateTime, endDateTime)
+                .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
+
+        long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);
+        long contactedCount = counts.getOrDefault(LeadStatus.CONTACTED, 0L);
+        long qualifiedCount = counts.getOrDefault(LeadStatus.QUALIFIED, 0L);
+        long convertedCount = counts.getOrDefault(LeadStatus.CONVERTED, 0L);
+        long lostCount = counts.getOrDefault(LeadStatus.LOST, 0L);
+        long totalLeads = newCount + contactedCount + qualifiedCount + convertedCount + lostCount;
+        long uniqueLeadVisitors = boothLeadRepository.countUniqueLeadVisitorsForExhibition(
+                exhibitionId, startDateTime, endDateTime);
+        long boothsWithLeads = boothLeadRepository.countBoothsWithLeadsForExhibition(
+                exhibitionId, startDateTime, endDateTime);
+
+        List<ExhibitionAnalyticsDetailDTO.LeadDailyPoint> dailyTrend = boothLeadRepository
+                .aggregateDailyForExhibition(exhibitionId, startDateTime, endDateTime)
+                .stream()
+                .map(row -> ExhibitionAnalyticsDetailDTO.LeadDailyPoint.builder()
+                        .date(row[0].toString())
+                        .leads(((Number) row[1]).longValue())
+                        .build())
+                .toList();
+
+        List<ExhibitionAnalyticsDetailDTO.LeadBoothSummary> topBooths = boothLeadRepository
+                .findTopBoothsForExhibition(
+                        exhibitionId, startDateTime, endDateTime, PageRequest.of(0, 5))
+                .stream()
+                .map(row -> ExhibitionAnalyticsDetailDTO.LeadBoothSummary.builder()
+                        .boothId(row[0].toString())
+                        .boothName(row[1].toString())
+                        .leadCount(((Number) row[2]).longValue())
+                        .build())
+                .toList();
+
+        return ExhibitionAnalyticsDetailDTO.LeadAnalytics.builder()
+                .totalLeads(totalLeads)
+                .uniqueLeadVisitors(uniqueLeadVisitors)
+                .boothsWithLeads(boothsWithLeads)
+                .visitorToLeadRatePercent(
+                        uniqueVisitorCount == 0 ? 0.0 : uniqueLeadVisitors * 100.0 / uniqueVisitorCount)
+                .conversionRatePercent(totalLeads == 0 ? 0.0 : convertedCount * 100.0 / totalLeads)
+                .newCount(newCount)
+                .contactedCount(contactedCount)
+                .qualifiedCount(qualifiedCount)
+                .convertedCount(convertedCount)
+                .lostCount(lostCount)
+                .dailyTrend(dailyTrend)
+                .topBooths(topBooths)
                 .build();
     }
 
@@ -450,6 +756,8 @@ public class AnalyticsService {
         // Chặng 3: query dữ liệu thô theo ngày
         List<Object[]> dailyRows = analyticsEventRepository.aggregateBoothDailyMetrics(
                 boothId, startDateTime, endDateTime);
+        BoothAnalyticsDetailDTO.LeadMetrics leadMetrics = computeBoothLeadMetrics(
+                boothId, startDateTime, endDateTime);
 
         // Không có tương tác trong kỳ -> hasData=false (frontend hiện "Không có dữ liệu")
         if (dailyRows.isEmpty()) {
@@ -461,6 +769,7 @@ public class AnalyticsService {
                     .messageCode("Chưa có dữ liệu thống kê.")
                     .message("Gian hàng chưa có lượt tương tác nào trong khoảng thời gian này.")
                     .metrics(null)
+                    .leadMetrics(leadMetrics)
                     .chart(List.of())
                     .topClickables(List.of())
                     .durationHistogram(List.of())
@@ -520,10 +829,40 @@ public class AnalyticsService {
                 .messageCode(null)
                 .message("")
                 .metrics(metrics)
+                .leadMetrics(leadMetrics)
                 .chart(chart)
                 .topClickables(topClickables)
                 .durationHistogram(durationHistogram)
                 .viewsByHour(viewsByHour)
+                .build();
+    }
+
+    /**
+     * Lead được tính theo thời điểm ghi nhận trong khoảng lọc; trạng thái là trạng
+     * thái chăm sóc hiện tại của lead.
+     */
+    private BoothAnalyticsDetailDTO.LeadMetrics computeBoothLeadMetrics(
+            UUID boothId, Instant startDateTime, Instant endDateTime) {
+        Map<LeadStatus, Long> counts = new HashMap<>();
+        boothLeadRepository.countByStatusForBoothInRange(boothId, startDateTime, endDateTime)
+                .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
+
+        long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);
+        long contactedCount = counts.getOrDefault(LeadStatus.CONTACTED, 0L);
+        long qualifiedCount = counts.getOrDefault(LeadStatus.QUALIFIED, 0L);
+        long convertedCount = counts.getOrDefault(LeadStatus.CONVERTED, 0L);
+        long lostCount = counts.getOrDefault(LeadStatus.LOST, 0L);
+        long total = newCount + contactedCount + qualifiedCount + convertedCount + lostCount;
+        double conversionRate = total == 0 ? 0.0 : convertedCount * 100.0 / total;
+
+        return BoothAnalyticsDetailDTO.LeadMetrics.builder()
+                .total(total)
+                .newCount(newCount)
+                .contactedCount(contactedCount)
+                .qualifiedCount(qualifiedCount)
+                .convertedCount(convertedCount)
+                .lostCount(lostCount)
+                .conversionRate(conversionRate)
                 .build();
     }
 
@@ -648,6 +987,8 @@ public class AnalyticsService {
         LocalDate rangeStart = startDate != null ? startDate : rangeEnd.minusDays(29);
         Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
+        ExhibitorDashboardOverviewDTO.LeadMetrics leadMetrics = computeCompanyLeadMetrics(
+                company.getId(), startDateTime, endDateTime);
 
         // Chặng 3: chart tổng hợp theo ngày (view + tương tác) gộp mọi gian hàng
         List<ExhibitorDashboardOverviewDTO.ChartPoint> chart = new ArrayList<>();
@@ -693,6 +1034,7 @@ public class AnalyticsService {
                 .totalViews(totalViews)
                 .totalInteractions(totalInteractions)
                 .unreadMessages(unreadMessages)
+                .totalLeads(leadMetrics.getTotal())
                 .activeBoothsCount(activeBoothsCount)
                 .totalBoothsCount(booths.size())
                 .build();
@@ -701,8 +1043,33 @@ public class AnalyticsService {
                 .startDate(rangeStart.toString())
                 .endDate(rangeEnd.toString())
                 .metrics(metrics)
+                .leadMetrics(leadMetrics)
                 .chart(chart)
                 .topBooths(topBooths)
+                .build();
+    }
+
+    private ExhibitorDashboardOverviewDTO.LeadMetrics computeCompanyLeadMetrics(
+            UUID companyId, Instant startDateTime, Instant endDateTime) {
+        Map<LeadStatus, Long> counts = new HashMap<>();
+        boothLeadRepository.countByStatusForCompanyInRange(companyId, startDateTime, endDateTime)
+                .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
+
+        long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);
+        long contactedCount = counts.getOrDefault(LeadStatus.CONTACTED, 0L);
+        long qualifiedCount = counts.getOrDefault(LeadStatus.QUALIFIED, 0L);
+        long convertedCount = counts.getOrDefault(LeadStatus.CONVERTED, 0L);
+        long lostCount = counts.getOrDefault(LeadStatus.LOST, 0L);
+        long total = newCount + contactedCount + qualifiedCount + convertedCount + lostCount;
+
+        return ExhibitorDashboardOverviewDTO.LeadMetrics.builder()
+                .total(total)
+                .newCount(newCount)
+                .contactedCount(contactedCount)
+                .qualifiedCount(qualifiedCount)
+                .convertedCount(convertedCount)
+                .lostCount(lostCount)
+                .conversionRate(total == 0 ? 0.0 : convertedCount * 100.0 / total)
                 .build();
     }
 }
