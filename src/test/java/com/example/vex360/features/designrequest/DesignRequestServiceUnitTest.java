@@ -450,6 +450,7 @@ class DesignRequestServiceUnitTest {
         assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
         verify(draftGraphValidator).validateForSubmission(request, working);
         verify(draftBenefitGuardService).assertWithinSubmissionLimits(request, working);
+        verify(designDraftAssetService).cleanupUnreferencedAssets(request);
         verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
     }

@@ -278,6 +278,81 @@ class DesignerDraftEditorServiceUnitTest {
     }
 
     @Test
+    void updateHotspotReplacingStagedMediaKeepsBothMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset originalMedia = stagedMedia("image/png");
+        DesignDraftMediaAsset replacementMedia = stagedMedia("image/jpeg");
+        draft.getMediaAssets().addAll(List.of(originalMedia, replacementMedia));
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, originalMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+        UpsertDesignDraftHotspotRequest update = hotspotRequest(HotspotType.MEDIA);
+        update.setDesignDraftMediaAssetId(replacementMedia.getId());
+
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+
+        assertSame(replacementMedia, hotspot.getDesignDraftMediaAsset());
+        assertEquals(List.of(originalMedia, replacementMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void updateHotspotToTextKeepsDetachedStagedMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, stagedMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+        UpsertDesignDraftHotspotRequest update = hotspotRequest(HotspotType.INFO);
+        update.setInfoContentType(HotspotInfoContentType.TEXT);
+        update.setInfoText("Updated text");
+
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+
+        assertNull(hotspot.getDesignDraftMediaAsset());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void deleteHotspotKeepsStagedMediaAvailableForReuse() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, stagedMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+
+        service.deleteHotspot(designer, request.getId(), panorama.getId(), hotspot.getId());
+
+        assertTrue(panorama.getHotspots().isEmpty());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+
+        UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.MEDIA);
+        create.setDesignDraftMediaAssetId(stagedMedia.getId());
+        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+
+        assertSame(stagedMedia, panorama.getHotspots().get(0).getDesignDraftMediaAsset());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void deletePanoramaWithHotspotKeepsStagedMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        stagedMediaHotspot(panorama, stagedMedia);
+
+        service.deletePanorama(designer, request.getId(), panorama.getId());
+
+        assertTrue(draft.getPanoramas().isEmpty());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
     void updateSettingsClearsDescriptionAndRestoresBaselineAssetForKeep() {
         UUID baselineId = UUID.randomUUID();
         request.getBooth().setThumbnailPublicId("booth/thumbnail");
@@ -522,6 +597,23 @@ class DesignerDraftEditorServiceUnitTest {
                 .asset(asset)
                 .title("Attachment")
                 .build();
+    }
+
+    private DesignDraftHotspot stagedMediaHotspot(
+            DesignDraftPanorama panorama,
+            DesignDraftMediaAsset stagedMedia) {
+        DesignDraftHotspot hotspot = DesignDraftHotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .type(HotspotType.MEDIA)
+                .name("Media hotspot")
+                .designDraftMediaAsset(stagedMedia)
+                .xPosition(1.0)
+                .yPosition(2.0)
+                .zPosition(3.0)
+                .build();
+        panorama.getHotspots().add(hotspot);
+        return hotspot;
     }
 
     private UpsertDesignDraftHotspotRequest hotspotRequest(HotspotType type) {
