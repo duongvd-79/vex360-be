@@ -3,6 +3,7 @@ package com.example.vex360.features.exhibition.services.impl;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,10 @@ import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPa
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
+import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
@@ -40,6 +45,7 @@ import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -65,6 +71,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
     private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
+    private static final List<ExhibitorRegistrationStatus> ACTION_REQUIRED_REGISTRATION_STATUSES = List.of(
+            ExhibitorRegistrationStatus.PENDING,
+            ExhibitorRegistrationStatus.PENDING_PAYMENT);
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
@@ -77,6 +86,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final PackageTemplateService packageTemplateService;
     private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+    private final BoothRepository boothRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
     private final ExhibitionTimelinePolicy timelinePolicy;
@@ -381,6 +391,71 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 .map(exhibitionMapper::toResponse);
 
         return PageResponse.from(exhibitions);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrganizerExhibitionSummaryResponseDTO getSummaryForOrganizer(User organizer) {
+        List<OrganizerExhibitionSummaryItemResponseDTO> summaries = getSummariesByExhibitionForOrganizer(organizer);
+        long pendingRegistrationCount = 0;
+        long pendingBoothReviewCount = 0;
+        for (OrganizerExhibitionSummaryItemResponseDTO summary : summaries) {
+            pendingRegistrationCount += summary.getPendingRegistrationCount();
+            pendingBoothReviewCount += summary.getPendingBoothReviewCount();
+        }
+        return new OrganizerExhibitionSummaryResponseDTO(
+                pendingRegistrationCount,
+                pendingBoothReviewCount,
+                pendingRegistrationCount + pendingBoothReviewCount);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrganizerExhibitionSummaryItemResponseDTO> getSummariesByExhibitionForOrganizer(User organizer) {
+        if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        List<Exhibition> exhibitions = exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
+        if (exhibitions.isEmpty()) {
+            return List.of();
+        }
+
+        List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
+        Map<Integer, Long> registrationCounts = getRegistrationCounts(exhibitionIds);
+        Map<Integer, Long> boothReviewCounts = getBoothReviewCounts(exhibitionIds);
+
+        List<OrganizerExhibitionSummaryItemResponseDTO> summaries = new ArrayList<>(exhibitions.size());
+        for (Exhibition exhibition : exhibitions) {
+            long pendingRegistrationCount = registrationCounts.getOrDefault(exhibition.getId(), 0L);
+            long pendingBoothReviewCount = boothReviewCounts.getOrDefault(exhibition.getId(), 0L);
+            summaries.add(new OrganizerExhibitionSummaryItemResponseDTO(
+                    exhibition.getUuid(),
+                    exhibition.getName(),
+                    pendingRegistrationCount,
+                    pendingBoothReviewCount,
+                    pendingRegistrationCount + pendingBoothReviewCount));
+        }
+        return summaries;
+    }
+
+    private Map<Integer, Long> getRegistrationCounts(List<Integer> exhibitionIds) {
+        Map<Integer, Long> counts = new HashMap<>();
+        for (Object[] row : exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
+                exhibitionIds, ACTION_REQUIRED_REGISTRATION_STATUSES)) {
+            counts.put((Integer) row[0], ((Number) row[1]).longValue());
+        }
+        return counts;
+    }
+
+    private Map<Integer, Long> getBoothReviewCounts(List<Integer> exhibitionIds) {
+        Map<Integer, Long> counts = new HashMap<>();
+        for (Object[] row : boothRepository.countBoothsGroupedByExhibitionAndStatus(
+                exhibitionIds, BoothStatus.PENDING)) {
+            counts.put((Integer) row[0], ((Number) row[1]).longValue());
+        }
+        return counts;
     }
 
     @Override

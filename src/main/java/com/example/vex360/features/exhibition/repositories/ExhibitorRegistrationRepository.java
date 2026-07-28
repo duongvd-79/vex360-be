@@ -120,4 +120,17 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             @Param("exhibitionId") Integer exhibitionId,
             @Param("status") ExhibitorRegistrationStatus status);
 
+    @Query("""
+            SELECT e.id, COUNT(r)
+            FROM ExhibitorRegistration r
+            JOIN r.exhibitionPackage p
+            JOIN p.exhibition e
+            WHERE e.id IN :exhibitionIds
+              AND r.status IN :statuses
+            GROUP BY e.id
+            """)
+    List<Object[]> countActionRequiredGroupedByExhibition(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("statuses") Collection<ExhibitorRegistrationStatus> statuses);
+
 }

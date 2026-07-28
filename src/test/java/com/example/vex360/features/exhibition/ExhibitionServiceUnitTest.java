@@ -48,12 +48,16 @@ import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
 import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -70,6 +74,12 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private ExhibitionRepository exhibitionRepository;
+
+    @Mock
+    private ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+
+    @Mock
+    private BoothRepository boothRepository;
 
     @Mock
     private ExhibitionPackageRepository exhibitionPackageRepository;
@@ -127,6 +137,56 @@ class ExhibitionServiceUnitTest {
 
         assertEquals(3L, count);
         verify(exhibitionRepository).countByStatus(ExhibitionStatus.PENDING);
+    }
+
+    @Test
+    void getSummaryForOrganizerAddsPendingRegistrationAndBoothReviewCounts() {
+        when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
+                .thenReturn(List.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
+                List.of(registrationExhibition.getId()),
+                List.of(ExhibitorRegistrationStatus.PENDING, ExhibitorRegistrationStatus.PENDING_PAYMENT)))
+                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 3L }));
+        when(boothRepository.countBoothsGroupedByExhibitionAndStatus(
+                List.of(registrationExhibition.getId()), BoothStatus.PENDING))
+                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 2L }));
+
+        var summary = exhibitionService.getSummaryForOrganizer(organizer);
+
+        assertEquals(3L, summary.getPendingRegistrationCount());
+        assertEquals(2L, summary.getPendingBoothReviewCount());
+        assertEquals(5L, summary.getTotalCount());
+    }
+
+    @Test
+    void getSummariesByExhibitionIncludesExhibitionsWithZeroCounts() {
+        Exhibition secondExhibition = Exhibition.builder()
+                .id(2)
+                .uuid(UUID.randomUUID())
+                .name("Expo 2027")
+                .organizer(organizer)
+                .build();
+        List<Integer> exhibitionIds = List.of(registrationExhibition.getId(), secondExhibition.getId());
+        when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
+                .thenReturn(List.of(registrationExhibition, secondExhibition));
+        when(exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
+                exhibitionIds,
+                List.of(ExhibitorRegistrationStatus.PENDING, ExhibitorRegistrationStatus.PENDING_PAYMENT)))
+                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 4L }));
+        when(boothRepository.countBoothsGroupedByExhibitionAndStatus(exhibitionIds, BoothStatus.PENDING))
+                .thenReturn(List.<Object[]>of(new Object[] { secondExhibition.getId(), 1L }));
+
+        var summaries = exhibitionService.getSummariesByExhibitionForOrganizer(organizer);
+
+        assertEquals(2, summaries.size());
+        assertEquals(exhibitionUuid, summaries.get(0).getExhibitionUuid());
+        assertEquals(4L, summaries.get(0).getPendingRegistrationCount());
+        assertEquals(0L, summaries.get(0).getPendingBoothReviewCount());
+        assertEquals(4L, summaries.get(0).getTotalCount());
+        assertEquals(secondExhibition.getUuid(), summaries.get(1).getExhibitionUuid());
+        assertEquals(0L, summaries.get(1).getPendingRegistrationCount());
+        assertEquals(1L, summaries.get(1).getPendingBoothReviewCount());
+        assertEquals(1L, summaries.get(1).getTotalCount());
     }
 
     @AfterEach
