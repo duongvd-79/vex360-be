@@ -50,7 +50,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.events.DesignRequestStatusChangedEvent;
 import com.example.vex360.features.designrequest.events.DesignRequestCancellationChangedEvent;
-import com.example.vex360.features.designrequest.events.DesignRequestRevisionPromotedEvent;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
@@ -229,6 +228,11 @@ public class DesignRequestService {
                 .map(this::toResponse));
     }
 
+    @Transactional(readOnly = true)
+    public long countPendingRequests() {
+        return designRequestRepository.countByStatus(DesignRequestStatus.PENDING);
+    }
+
     /**
      * Lists requests assigned to the authenticated Designer.
      *
@@ -327,7 +331,6 @@ public class DesignRequestService {
             designDraftAssetService.cleanupAfterApproval(saved);
             publishStatusChanged(saved, null, previousStatus);
             publishCancellationChanged(saved, null);
-            promoteOldestQueued(request.getAssignedDesigner());
             return toResponse(saved);
         }
         request.setCancellationStatus(DesignRequestCancellationStatus.REJECTED);
@@ -488,7 +491,6 @@ public class DesignRequestService {
         }
         draftCloneService.cloneLatestSubmittedToWorking(request);
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
-        request.setRevisionQueuedAt(null);
         DesignRequest saved = designRequestRepository.save(request);
         publishStatusChanged(saved, currentUser, previousStatus);
         return toResponse(saved);
@@ -552,7 +554,6 @@ public class DesignRequestService {
         draftRetentionService.retainApprovedDraft(saved, draft);
         designDraftAssetService.cleanupAfterApproval(saved);
         publishStatusChanged(saved, currentUser, previousStatus);
-        promoteOldestQueued(saved.getAssignedDesigner());
         return toResponse(saved);
     }
 
@@ -701,9 +702,9 @@ public class DesignRequestService {
     }
 
     /**
-     * Aggregates pending, working, waiting-review, queued, completed, canceled,
-     * and per-Designer workload metrics with an optional mode filter. Requests
-     * waiting for Exhibitor review are included in occupied slots.
+     * Aggregates pending, working, waiting-review, completed, canceled, and
+     * per-Designer workload metrics with an optional mode filter. Requests waiting
+     * for Exhibitor review are included in occupied slots.
      *
      * @return current design-assignment analytics
      */
@@ -719,7 +720,6 @@ public class DesignRequestService {
                 designRequestRepository.countFiltered(DesignRequestStatus.PENDING, mode),
                 designRequestRepository.countFilteredIn(activeStatuses, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.DRAFT_SUBMITTED, mode),
-                designRequestRepository.countFiltered(DesignRequestStatus.REVISION_QUEUED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.APPROVED, mode),
                 designRequestRepository.countFiltered(DesignRequestStatus.CANCELED, mode),
                 workloads);
@@ -754,11 +754,9 @@ public class DesignRequestService {
                 designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES, mode);
         long waiting = designRequestRepository.countDesignerFilteredIn(
                 designer.getId(), List.of(DesignRequestStatus.DRAFT_SUBMITTED), mode);
-        long queued = designRequestRepository.countDesignerFilteredIn(
-                designer.getId(), List.of(DesignRequestStatus.REVISION_QUEUED), mode);
         return new DesignerWorkloadResponseDTO(
                 designer.getId(), designer.getFullName(), designer.getEmail(),
-                working, waiting, queued, Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
+                working, waiting, Math.max(0, MAX_ACTIVE_REQUESTS_PER_DESIGNER - (int) working));
     }
 
     private DesignDraft buildDraft(
@@ -1237,30 +1235,6 @@ public class DesignRequestService {
                 request.getCancellationStatus()));
     }
 
-    private void promoteOldestQueued(User designer) {
-        if (designer == null) {
-            return;
-        }
-        userService.getUserEntityByIdForUpdate(designer.getId());
-        long workingCount = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
-                designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES);
-        while (workingCount < MAX_ACTIVE_REQUESTS_PER_DESIGNER) {
-            DesignRequest queued = designRequestRepository
-                    .findFirstByAssignedDesignerIdAndStatusOrderByRevisionQueuedAtAsc(
-                            designer.getId(), DesignRequestStatus.REVISION_QUEUED)
-                    .orElse(null);
-            if (queued == null) {
-                return;
-            }
-            DesignRequestStatus previousStatus = queued.getStatus();
-            queued.setStatus(DesignRequestStatus.REVISION_REQUESTED);
-            queued.setRevisionQueuedAt(null);
-            designRequestRepository.save(queued);
-            publishStatusChanged(queued, null, previousStatus);
-            eventPublisher.publishEvent(new DesignRequestRevisionPromotedEvent(queued.getId(), designer.getId()));
-            workingCount++;
-        }
-    }
 
     private String requireText(String value) {
         String trimmed = trimToNull(value);

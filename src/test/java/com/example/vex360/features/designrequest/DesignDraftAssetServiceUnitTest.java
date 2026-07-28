@@ -32,6 +32,8 @@ import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
+import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
+import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
@@ -270,6 +272,82 @@ class DesignDraftAssetServiceUnitTest {
 
         assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
         verify(cloudService, never()).delete(any(), any());
+    }
+
+    @Test
+    void releaseAssetDetachesOnlyTargetDraftMediaAndDeletesStagingFile() {
+        DesignDraftAsset asset = asset("design-media/unused");
+        asset.setAssetType(DesignDraftAssetType.MEDIA_ATTACHMENT);
+        asset.setQuotaState(DesignDraftAssetQuotaState.STAGED);
+        DesignDraftAsset retainedAsset = asset("design-media/retained");
+        retainedAsset.setAssetType(DesignDraftAssetType.MEDIA_ATTACHMENT);
+        retainedAsset.setQuotaState(DesignDraftAssetQuotaState.STAGED);
+        DesignDraft draft = DesignDraft.builder().versionNumber(0).designRequest(request).build();
+        DesignDraftMediaAsset media = DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(asset)
+                .build();
+        DesignDraftMediaAsset retainedMedia = DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(retainedAsset)
+                .build();
+        draft.getMediaAssets().addAll(List.of(media, retainedMedia));
+        request.getDrafts().add(draft);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(assetRepository.findByIdAndDesignRequestId(asset.getId(), request.getId()))
+                .thenReturn(Optional.of(asset));
+        when(boothDesignService.getPanoramaImageKeys(request.getBooth().getId())).thenReturn(Set.of());
+
+        service.releaseAsset(designer, request.getId(), asset.getId());
+
+        assertEquals(List.of(retainedMedia), draft.getMediaAssets());
+        verify(draftMediaAssetRepository).deleteAll(List.of(media));
+        verify(assetRepository).delete(asset);
+        verify(assetRepository, never()).delete(retainedAsset);
+        verify(assetReferenceService).scheduleCleanup(asset.getPublicId(), "image");
+    }
+
+    @Test
+    void releaseAssetRejectsMediaReferencedByWorkingDraftHotspot() {
+        DesignDraftAsset asset = asset("design-media/in-use");
+        asset.setAssetType(DesignDraftAssetType.MEDIA_ATTACHMENT);
+        asset.setQuotaState(DesignDraftAssetQuotaState.STAGED);
+        DesignDraft draft = DesignDraft.builder().versionNumber(0).designRequest(request).build();
+        DesignDraftMediaAsset media = DesignDraftMediaAsset.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .asset(asset)
+                .build();
+        draft.getMediaAssets().add(media);
+        DesignDraftPanorama panorama = DesignDraftPanorama.builder()
+                .draft(draft)
+                .clientKey("p1")
+                .name("Pano")
+                .imageUrl("https://cdn.example/panorama")
+                .imageKey("panorama/in-use")
+                .orderIndex(0)
+                .build();
+        panorama.getHotspots().add(DesignDraftHotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .designDraftMediaAsset(media)
+                .build());
+        draft.getPanoramas().add(panorama);
+        request.getDrafts().add(draft);
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+        when(assetRepository.findByIdAndDesignRequestId(asset.getId(), request.getId()))
+                .thenReturn(Optional.of(asset));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.releaseAsset(designer, request.getId(), asset.getId()));
+
+        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertEquals(List.of(media), draft.getMediaAssets());
+        verify(assetRepository, never()).delete(asset);
+        verifyNoInteractions(assetReferenceService);
     }
 
     @Test

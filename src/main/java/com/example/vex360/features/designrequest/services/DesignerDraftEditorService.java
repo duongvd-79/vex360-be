@@ -258,7 +258,6 @@ public class DesignerDraftEditorService {
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
         draftRepository.saveAndFlush(draft);
-        assetService.cleanupUnreferencedAssets(context.request());
         return previewService.toHotspotResponse(hotspot);
     }
 
@@ -275,7 +274,6 @@ public class DesignerDraftEditorService {
         source.getHotspots().remove(hotspot);
         graphValidator.validateWorkingGraph(context.request(), context.draft());
         draftRepository.saveAndFlush(context.draft());
-        assetService.cleanupUnreferencedAssets(context.request());
         return response;
     }
 
@@ -711,7 +709,6 @@ public class DesignerDraftEditorService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         draftRepository.saveAndFlush(draft);
-        assetService.cleanupUnreferencedAssets(context.request());
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -277,6 +278,81 @@ class DesignerDraftEditorServiceUnitTest {
     }
 
     @Test
+    void updateHotspotReplacingStagedMediaKeepsBothMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset originalMedia = stagedMedia("image/png");
+        DesignDraftMediaAsset replacementMedia = stagedMedia("image/jpeg");
+        draft.getMediaAssets().addAll(List.of(originalMedia, replacementMedia));
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, originalMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+        UpsertDesignDraftHotspotRequest update = hotspotRequest(HotspotType.MEDIA);
+        update.setDesignDraftMediaAssetId(replacementMedia.getId());
+
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+
+        assertSame(replacementMedia, hotspot.getDesignDraftMediaAsset());
+        assertEquals(List.of(originalMedia, replacementMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void updateHotspotToTextKeepsDetachedStagedMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, stagedMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+        UpsertDesignDraftHotspotRequest update = hotspotRequest(HotspotType.INFO);
+        update.setInfoContentType(HotspotInfoContentType.TEXT);
+        update.setInfoText("Updated text");
+
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+
+        assertNull(hotspot.getDesignDraftMediaAsset());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void deleteHotspotKeepsStagedMediaAvailableForReuse() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, stagedMedia);
+        when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
+
+        service.deleteHotspot(designer, request.getId(), panorama.getId(), hotspot.getId());
+
+        assertTrue(panorama.getHotspots().isEmpty());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+
+        UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.MEDIA);
+        create.setDesignDraftMediaAssetId(stagedMedia.getId());
+        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+
+        assertSame(stagedMedia, panorama.getHotspots().get(0).getDesignDraftMediaAsset());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
+    void deletePanoramaWithHotspotKeepsStagedMediaAvailable() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        DesignDraftMediaAsset stagedMedia = stagedMedia("image/png");
+        draft.getMediaAssets().add(stagedMedia);
+        stagedMediaHotspot(panorama, stagedMedia);
+
+        service.deletePanorama(designer, request.getId(), panorama.getId());
+
+        assertTrue(draft.getPanoramas().isEmpty());
+        assertEquals(List.of(stagedMedia), draft.getMediaAssets());
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+    }
+
+    @Test
     void updateSettingsClearsDescriptionAndRestoresBaselineAssetForKeep() {
         UUID baselineId = UUID.randomUUID();
         request.getBooth().setThumbnailPublicId("booth/thumbnail");
@@ -449,14 +525,62 @@ class DesignerDraftEditorServiceUnitTest {
     }
 
     @Test
-    void removeMediaAsset_CleansReleasedReservation() {
+    void removeMediaAsset_KeepsStagingAssetAvailableForReuse() {
         UUID mediaId = UUID.randomUUID();
-        draft.getMediaAssets().add(DesignDraftMediaAsset.builder().id(mediaId).draft(draft).build());
+        UUID assetId = UUID.randomUUID();
+        DesignDraftAsset asset = DesignDraftAsset.builder()
+                .id(assetId)
+                .assetType(DesignDraftAssetType.MEDIA_ATTACHMENT)
+                .build();
+        draft.getMediaAssets().add(DesignDraftMediaAsset.builder()
+                .id(mediaId)
+                .draft(draft)
+                .asset(asset)
+                .build());
 
         service.removeMediaAsset(designer, request.getId(), mediaId);
 
         assertTrue(draft.getMediaAssets().isEmpty());
-        verify(assetService).cleanupUnreferencedAssets(request);
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
+
+        when(draftAssetRepository.findByIdAndDesignRequestId(assetId, request.getId()))
+                .thenReturn(Optional.of(asset));
+        service.addMediaAsset(
+                designer,
+                request.getId(),
+                new SubmitDesignDraftMediaAssetRequest(null, assetId, "Reusable", null));
+
+        assertEquals(1, draft.getMediaAssets().size());
+        assertSame(asset, draft.getMediaAssets().get(0).getAsset());
+    }
+
+    @Test
+    void removeMediaAsset_WhenReferencedByHotspot_KeepsDraftUnchanged() {
+        UUID mediaId = UUID.randomUUID();
+        DesignDraftMediaAsset media = DesignDraftMediaAsset.builder()
+                .id(mediaId)
+                .draft(draft)
+                .build();
+        draft.getMediaAssets().add(media);
+        DesignDraftPanorama panorama = DesignDraftPanorama.builder()
+                .id(UUID.randomUUID())
+                .draft(draft)
+                .build();
+        panorama.getHotspots().add(DesignDraftHotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .designDraftMediaAsset(media)
+                .build());
+        draft.getPanoramas().add(panorama);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.removeMediaAsset(designer, request.getId(), mediaId));
+
+        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertEquals(List.of(media), draft.getMediaAssets());
+        verify(draftRepository, never()).saveAndFlush(draft);
+        verify(assetService, never()).cleanupUnreferencedAssets(request);
     }
 
     private DesignDraftMediaAsset stagedMedia(String mimeType) {
@@ -473,6 +597,23 @@ class DesignerDraftEditorServiceUnitTest {
                 .asset(asset)
                 .title("Attachment")
                 .build();
+    }
+
+    private DesignDraftHotspot stagedMediaHotspot(
+            DesignDraftPanorama panorama,
+            DesignDraftMediaAsset stagedMedia) {
+        DesignDraftHotspot hotspot = DesignDraftHotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .type(HotspotType.MEDIA)
+                .name("Media hotspot")
+                .designDraftMediaAsset(stagedMedia)
+                .xPosition(1.0)
+                .yPosition(2.0)
+                .zPosition(3.0)
+                .build();
+        panorama.getHotspots().add(hotspot);
+        return hotspot;
     }
 
     private UpsertDesignDraftHotspotRequest hotspotRequest(HotspotType type) {

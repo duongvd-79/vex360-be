@@ -3,7 +3,6 @@ package com.example.vex360.features.exhibition.services.impl;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +18,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
 
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
@@ -71,7 +69,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
             "exhibitionName", "name",
-            "expectedBoothCount", "estimatedBooths");
+            "expectedBoothCount", "estimatedBooths",
+            "status", "status");
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
@@ -308,36 +307,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
-    public ExhibitionSummaryResponseDTO getExhibitionSummary() {
-        long total = exhibitionRepository.count();
-        List<Object[]> statusCountsRaw = exhibitionRepository.countExhibitionsByStatus();
-        Map<String, Long> statusCounts = new HashMap<>();
-
-        // Initialize statusCounts with expected statuses to ensure they are always
-        // present
-        statusCounts.put("PENDING", 0L);
-        statusCounts.put("REJECTED", 0L);
-        statusCounts.put("REGISTRATION", 0L);
-        statusCounts.put("PUBLISHED", 0L);
-        statusCounts.put("ACTIVE", 0L);
-        statusCounts.put("COMPLETED", 0L);
-
-        for (Object[] row : statusCountsRaw) {
-            ExhibitionStatus status = (ExhibitionStatus) row[0];
-            Long count = (Long) row[1];
-            if (status != null) {
-                statusCounts.put(status.name(), count);
-            }
-        }
-
-        return ExhibitionSummaryResponseDTO.builder()
-                .totalExhibitions(total)
-                .pendingExhibitions(statusCounts.getOrDefault("PENDING", 0L))
-                .approvedExhibitions(statusCounts.getOrDefault("REGISTRATION", 0L))
-                .rejectedExhibitions(statusCounts.getOrDefault("REJECTED", 0L))
-                .activeExhibitions(statusCounts.getOrDefault("ACTIVE", 0L))
-                .statusCounts(statusCounts)
-                .build();
+    public long countPendingExhibitions() {
+        return exhibitionRepository.countByStatus(ExhibitionStatus.PENDING);
     }
 
     @Override

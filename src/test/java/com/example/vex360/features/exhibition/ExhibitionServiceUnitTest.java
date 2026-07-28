@@ -119,6 +119,16 @@ class ExhibitionServiceUnitTest {
                 new ExhibitionTimelinePolicy(Clock.systemUTC()));
     }
 
+    @Test
+    void countPendingExhibitionsReturnsPendingCount() {
+        when(exhibitionRepository.countByStatus(ExhibitionStatus.PENDING)).thenReturn(3L);
+
+        long count = exhibitionService.countPendingExhibitions();
+
+        assertEquals(3L, count);
+        verify(exhibitionRepository).countByStatus(ExhibitionStatus.PENDING);
+    }
+
     @AfterEach
     void clearTransactionSynchronization() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

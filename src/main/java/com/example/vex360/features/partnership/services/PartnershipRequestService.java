@@ -2,6 +2,8 @@ package com.example.vex360.features.partnership.services;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,7 +18,6 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
-import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.user.services.UserService;
@@ -148,14 +149,19 @@ public class PartnershipRequestService {
             String keyword,
             PartnershipRequestStatus status,
             Role requestedRole,
+            LocalDate startDate,
+            LocalDate endDate,
             Pageable pageable) {
         if (requestedRole != null) {
             validateRequestedRole(requestedRole);
         }
 
+        Instant startInstant = startDate != null ? startDate.atStartOfDay(ZoneId.systemDefault()).toInstant() : null;
+        Instant endInstant = endDate != null ? endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1) : null;
+
         Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<PartnershipRequestResponseDTO> requests = partnershipRequestRepository
-                .searchRequests(normalize(keyword), status, requestedRole, mappedPageable)
+                .searchRequests(normalize(keyword), status, requestedRole, startInstant, endInstant, mappedPageable)
                 .map(partnershipRequestMapper::toResponse);
         return PageResponse.from(requests);
     }
@@ -166,12 +172,8 @@ public class PartnershipRequestService {
     }
 
     @Transactional(readOnly = true)
-    public PartnershipRequestSummaryResponseDTO getRequestSummary() {
-        return new PartnershipRequestSummaryResponseDTO(
-                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.AWAITING_VERIFICATION),
-                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING),
-                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED),
-                partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED));
+    public long countPendingRequests() {
+        return partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING);
     }
 
     @Transactional

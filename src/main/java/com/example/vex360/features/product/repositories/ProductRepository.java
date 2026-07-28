@@ -100,7 +100,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 JOIN design_requests dr ON dr.id = drp.design_request_id
                 WHERE drp.product_id = :productId
                   AND dr.status IN ('PENDING', 'ASSIGNED', 'DRAFT_SUBMITTED',
-                                    'REVISION_REQUESTED', 'REVISION_QUEUED')
+                                    'REVISION_REQUESTED')
             )
             """, nativeQuery = true)
     boolean existsLockedByDesignRequest(@Param("productId") UUID productId);
@@ -114,7 +114,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 WHERE product.category_id = :categoryId
                   AND product.company_id = :companyId
                   AND dr.status IN ('PENDING', 'ASSIGNED', 'DRAFT_SUBMITTED',
-                                    'REVISION_REQUESTED', 'REVISION_QUEUED')
+                                    'REVISION_REQUESTED')
             )
             """, nativeQuery = true)
     boolean existsCategoryLockedByDesignRequest(

@@ -26,7 +26,6 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -67,13 +66,6 @@ public class AdminExhibitionController extends BaseController {
         PageResponse<ExhibitionResponseDTO> response = exhibitionService
                 .searchExhibitionsForAdmin(keyword, status, category, startDate, endDate, pageable);
         return ok(response);
-    }
-
-    @GetMapping("/summary")
-    @Operation(summary = "Admin xem thống kê đơn đăng ký mở triển lãm", description = "Trả về tổng số đơn đăng ký mở triển lãm và số lượng của mỗi trạng thái (PENDING, APPROVED, REJECTED, ACTIVE, ...).")
-    public ResponseEntity<ApiResponse<ExhibitionSummaryResponseDTO>> getExhibitionSummary() {
-        ExhibitionSummaryResponseDTO summary = exhibitionService.getExhibitionSummary();
-        return ok(summary);
     }
 
     @GetMapping("/{uuid}")

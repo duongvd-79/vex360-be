@@ -5,7 +5,6 @@ public enum DesignRequestStatus {
     ASSIGNED,
     DRAFT_SUBMITTED,
     REVISION_REQUESTED,
-    REVISION_QUEUED,
     APPROVED,
     CANCELED
 }

@@ -70,6 +70,7 @@ class BoothDesignServiceUnitTest {
                 .booth(booth)
                 .name("Old")
                 .build();
+        booth.getPanoramas().add(oldDesignerPanorama);
         PanoramaDesign panoramaDesign = new PanoramaDesign(
                 "p1",
                 "Entrance",
@@ -125,6 +126,7 @@ class BoothDesignServiceUnitTest {
         verify(panoramaRepository).save(panoramaCaptor.capture());
         Panorama savedPanorama = panoramaCaptor.getValue();
         assertEquals("Entrance", savedPanorama.getName());
+        assertEquals(List.of(savedPanorama), booth.getPanoramas());
 
         ArgumentCaptor<Hotspot> hotspotCaptor = ArgumentCaptor.forClass(Hotspot.class);
         verify(hotspotRepository).save(hotspotCaptor.capture());

@@ -35,6 +35,7 @@ import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateRes
 import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
+import com.example.vex360.features.booth.enums.BoothReviewStatus;
 import com.example.vex360.features.booth.services.ExhibitorBoothService;
 import com.example.vex360.features.booth.services.ExhibitorBoothTemplateService;
 import com.example.vex360.features.booth.services.ExhibitorHotspotService;
@@ -55,6 +56,10 @@ import lombok.RequiredArgsConstructor;
 @PreAuthorize("hasAuthority('EXHIBITOR')")
 @RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorBoothController extends BaseController {
+    private static final String AUTO_APPROVED_NO_CHANGES_MESSAGE =
+            "Gian hàng không có thay đổi so với phiên bản đã duyệt gần nhất. "
+                    + "Hệ thống đã giữ nguyên trạng thái đã duyệt và không tạo yêu cầu xét duyệt mới.";
+
     private final ExhibitorBoothService exhibitorBoothService;
     private final ExhibitorBoothTemplateService exhibitorBoothTemplateService;
     private final ExhibitorPanoramaService exhibitorPanoramaService;
@@ -147,7 +152,11 @@ public class ExhibitorBoothController extends BaseController {
     public ResponseEntity<ApiResponse<BoothReviewRequestSummaryDTO>> submitReview(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
-        return ok(boothReviewService.submitReview(userDetails.getUser(), boothId));
+        BoothReviewRequestSummaryDTO summary = boothReviewService.submitReview(userDetails.getUser(), boothId);
+        if (summary.getStatus() == BoothReviewStatus.APPROVED) {
+            return ok(summary, AUTO_APPROVED_NO_CHANGES_MESSAGE);
+        }
+        return ok(summary);
     }
 
     @GetMapping("/{boothId}/review-requests")

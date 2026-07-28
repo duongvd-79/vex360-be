@@ -36,7 +36,6 @@ import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.response.PartnershipRequestResponseDTO;
-import com.example.vex360.features.partnership.dtos.response.PartnershipRequestSummaryResponseDTO;
 import com.example.vex360.features.partnership.mapper.PartnershipRequestMapper;
 import com.example.vex360.features.partnership.repositories.PartnershipRequestRepository;
 import com.example.vex360.features.partnership.services.PartnershipRequestService;
@@ -415,13 +414,15 @@ class PartnershipRequestServiceUnitTest {
         PartnershipRequest request = pendingRequest(UUID.randomUUID(), user, Role.ORGANIZER);
 
         when(partnershipRequestRepository.searchRequests(
-                "Partner", PartnershipRequestStatus.PENDING, Role.ORGANIZER, mappedPageable))
+                "Partner", PartnershipRequestStatus.PENDING, Role.ORGANIZER, null, null, mappedPageable))
                 .thenReturn(new PageImpl<>(List.of(request), mappedPageable, 1));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
                 " Partner ",
                 PartnershipRequestStatus.PENDING,
                 Role.ORGANIZER,
+                null,
+                null,
                 pageable);
 
         assertEquals(1, response.getContent().size());
@@ -431,12 +432,14 @@ class PartnershipRequestServiceUnitTest {
     @Test
     void getRequests_RequestedRoleNull_DoesNotThrowException() {
         PageRequest pageable = PageRequest.of(0, 10);
-        when(partnershipRequestRepository.searchRequests(null, PartnershipRequestStatus.PENDING, null, pageable))
+        when(partnershipRequestRepository.searchRequests(null, PartnershipRequestStatus.PENDING, null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         PageResponse<PartnershipRequestResponseDTO> response = partnershipRequestService.getRequests(
                 " ",
                 PartnershipRequestStatus.PENDING,
+                null,
+                null,
                 null,
                 pageable);
 
@@ -445,18 +448,13 @@ class PartnershipRequestServiceUnitTest {
     }
 
     @Test
-    void getRequestSummaryCountsRequestsByStatus() {
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.AWAITING_VERIFICATION)).thenReturn(6L);
+    void countPendingRequestsReturnsPendingCount() {
         when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.PENDING)).thenReturn(5L);
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.APPROVED)).thenReturn(4L);
-        when(partnershipRequestRepository.countByStatus(PartnershipRequestStatus.REJECTED)).thenReturn(3L);
 
-        PartnershipRequestSummaryResponseDTO response = partnershipRequestService.getRequestSummary();
+        long count = partnershipRequestService.countPendingRequests();
 
-        assertEquals(6L, response.getAwaitingVerificationRequests());
-        assertEquals(5L, response.getPendingRequests());
-        assertEquals(4L, response.getApprovedRequests());
-        assertEquals(3L, response.getRejectedRequests());
+        assertEquals(5L, count);
+        verify(partnershipRequestRepository).countByStatus(PartnershipRequestStatus.PENDING);
     }
 
     @Test

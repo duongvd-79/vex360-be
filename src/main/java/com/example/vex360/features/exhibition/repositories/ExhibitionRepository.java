@@ -27,9 +27,9 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
     Optional<Exhibition> findByUuidForUpdate(@Param("uuid") UUID uuid);
 
     @Query(value = """
-      SELECT DISTINCT e FROM Exhibition e
-      LEFT JOIN FETCH e.organizer o
-      LEFT JOIN FETCH e.reviewedBy r
+      SELECT e FROM Exhibition e
+      LEFT JOIN e.organizer o
+      LEFT JOIN e.reviewedBy r
       WHERE (:keyword IS NULL
           OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
           OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -78,8 +78,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
         return searchExhibitions(keyword, statuses, category, startDate, endDate, pageable);
     }
 
-    @Query("SELECT e.status, COUNT(e) FROM Exhibition e GROUP BY e.status")
-    List<Object[]> countExhibitionsByStatus();
+    long countByStatus(ExhibitionStatus status);
 
     long countByOrganizerIdAndStatus(UUID organizerId, ExhibitionStatus status);
 

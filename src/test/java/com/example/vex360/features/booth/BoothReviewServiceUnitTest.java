@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
@@ -89,18 +90,22 @@ class BoothReviewServiceUnitTest {
     private Booth booth;
     private UUID exhibitionUuid;
     private Clock clock;
+    private BoothReviewSnapshotFactory snapshotFactory;
+    private BoothReviewDiffService diffService;
 
     @BeforeEach
     void setup() {
         clock = Clock.fixed(Instant.parse("2026-01-10T08:00:00Z"), ZoneOffset.UTC);
+        snapshotFactory = new BoothReviewSnapshotFactory();
+        diffService = new BoothReviewDiffService(JsonMapper.builder().build());
         service = new BoothReviewService(
                 boothRepository,
                 reviewRepository,
                 companyService,
                 Mappers.getMapper(BoothMapper.class),
                 policyService,
-                new BoothReviewSnapshotFactory(),
-                new BoothReviewDiffService(JsonMapper.builder().build()),
+                snapshotFactory,
+                diffService,
                 contentAssembler,
                 exhibitionRepository,
                 clock);
@@ -138,6 +143,78 @@ class BoothReviewServiceUnitTest {
                 response.getChangeSummary().getComparisonCompleteness());
         assertEquals(3, response.getChangeSummary().getVersionNumber());
         verify(boothRepository).findCompanyBoothByIdForUpdate(booth.getId(), company.getId());
+    }
+
+    @Test
+    void unchangedApprovedReviewRestoresPublishedWithoutCreatingVersion() {
+        BoothReviewRequest previous = reviewRequest(BoothReviewStatus.APPROVED, 2);
+        previous.setContentSnapshotJson(diffService.writeJson(snapshotFactory.create(booth)));
+        stubRequestSummary();
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(reviewRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(previous));
+        when(reviewRepository.countByBoothId(booth.getId())).thenReturn(2L);
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothReviewRequestSummaryDTO response = service.submitReview(exhibitor, booth.getId());
+
+        assertEquals(previous.getId(), response.getId());
+        assertEquals(BoothReviewStatus.APPROVED, response.getStatus());
+        assertEquals(BoothStatus.PUBLISHED, booth.getStatus());
+        verify(reviewRepository, never()).save(any(BoothReviewRequest.class));
+        verify(boothRepository).save(booth);
+    }
+
+    @Test
+    void unchangedRejectedReviewReturnsConflictWithoutWriting() {
+        BoothReviewRequest previous = reviewRequest(BoothReviewStatus.REJECTED, 2);
+        previous.setContentSnapshotJson(diffService.writeJson(snapshotFactory.create(booth)));
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(reviewRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(previous));
+        when(reviewRepository.countByBoothId(booth.getId())).thenReturn(2L);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.submitReview(exhibitor, booth.getId()));
+
+        assertSame(ErrorCode.BOOTH_REVIEW_NO_CHANGES_AFTER_REJECTION, exception.getErrorCode());
+        assertEquals(HttpStatus.CONFLICT, exception.getErrorCode().getHttpStatus());
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        verify(reviewRepository, never()).save(any(BoothReviewRequest.class));
+        verify(boothRepository, never()).save(any(Booth.class));
+    }
+
+    @Test
+    void changedApprovedReviewStillCreatesPendingVersion() {
+        BoothReviewRequest previous = reviewRequest(BoothReviewStatus.APPROVED, 2);
+        previous.setContentSnapshotJson(diffService.writeJson(snapshotFactory.create(booth)));
+        booth.setName("Updated Booth");
+        stubRequestSummary();
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(reviewRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(previous));
+        when(reviewRepository.countByBoothId(booth.getId())).thenReturn(2L);
+        when(reviewRepository.save(any(BoothReviewRequest.class))).thenAnswer(invocation -> {
+            BoothReviewRequest request = invocation.getArgument(0);
+            request.setId(UUID.randomUUID());
+            return request;
+        });
+        when(boothRepository.save(booth)).thenReturn(booth);
+
+        BoothReviewRequestSummaryDTO response = service.submitReview(exhibitor, booth.getId());
+
+        assertEquals(3, response.getVersionNumber());
+        assertEquals(BoothReviewStatus.PENDING, response.getStatus());
+        assertEquals(BoothStatus.PENDING, booth.getStatus());
+        assertEquals(1, response.getChangeSummary().getModifiedCount());
+        verify(reviewRepository).save(any(BoothReviewRequest.class));
+        verify(boothRepository).save(booth);
     }
 
     @Test
