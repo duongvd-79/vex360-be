@@ -161,7 +161,7 @@ public class DesignDraftAssetService {
         requireEditableRequest(request);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
-        pruneUnreferencedDraftMedia(request);
+        pruneUnreferencedDraftMedia(request, asset.getId());
         if (isReferencedByDraft(request, asset.getPublicId()) || isUsedByBooth(request, asset.getPublicId())) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
@@ -354,6 +354,10 @@ public class DesignDraftAssetService {
     }
 
     private void pruneUnreferencedDraftMedia(DesignRequest request) {
+        pruneUnreferencedDraftMedia(request, null);
+    }
+
+    private void pruneUnreferencedDraftMedia(DesignRequest request, UUID targetAssetId) {
         Set<UUID> referencedIds = request.getDrafts().stream()
                 .flatMap(draft -> draft.getPanoramas().stream())
                 .flatMap(panorama -> panorama.getHotspots().stream())
@@ -364,13 +368,18 @@ public class DesignDraftAssetService {
         List<DesignDraftMediaAsset> unreferenced = request.getDrafts().stream()
                 .filter(draft -> draft.getMediaAssets() != null)
                 .flatMap(draft -> draft.getMediaAssets().stream())
+                .filter(media -> targetAssetId == null
+                        || media.getAsset() != null && targetAssetId.equals(media.getAsset().getId()))
                 .filter(media -> media.getId() != null && !referencedIds.contains(media.getId()))
                 .toList();
         if (unreferenced.isEmpty()) {
             return;
         }
+        Set<UUID> unreferencedIds = unreferenced.stream()
+                .map(DesignDraftMediaAsset::getId)
+                .collect(java.util.stream.Collectors.toSet());
         request.getDrafts().forEach(draft -> draft.getMediaAssets()
-                .removeIf(media -> media.getId() != null && !referencedIds.contains(media.getId())));
+                .removeIf(media -> media.getId() != null && unreferencedIds.contains(media.getId())));
         draftMediaAssetRepository.deleteAll(unreferenced);
         draftMediaAssetRepository.flush();
     }

@@ -711,7 +711,6 @@ public class DesignerDraftEditorService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         draftRepository.saveAndFlush(draft);
-        assetService.cleanupUnreferencedAssets(context.request());
     }
 
     @Transactional

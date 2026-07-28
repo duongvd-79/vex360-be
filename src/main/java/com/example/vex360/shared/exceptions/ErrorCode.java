@@ -121,6 +121,9 @@ public enum ErrorCode {
     BOOTH_TEMPLATE_REQUIRES_EMPTY_BOOTH("BOOTH-021",
             "Gian hàng phải chưa có ảnh panorama trước khi áp dụng mẫu thiết kế.",
             HttpStatus.CONFLICT),
+    BOOTH_REVIEW_NO_CHANGES_AFTER_REJECTION("BOOTH-022",
+            "Gian hàng không có thay đổi so với phiên bản bị từ chối gần nhất. Vui lòng chỉnh sửa trước khi gửi lại.",
+            HttpStatus.CONFLICT),
 
     // DESIGN REQUEST ERRORS
     DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Không tìm thấy yêu cầu thiết kế.", HttpStatus.NOT_FOUND),

@@ -235,7 +235,7 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
     @DeleteMapping("/{id}/assets/{assetId}")
-    @Operation(summary = "Xóa asset thiết kế chưa được sử dụng", description = "Xóa một staging asset thuộc design request và hoàn lại dung lượng cho company Exhibitor. Chỉ cho phép khi request còn có thể chỉnh sửa và asset chưa được tham chiếu bởi working draft, submitted draft hoặc booth hiện tại.")
+    @Operation(summary = "Xóa file staging đã upload", description = "Xóa DesignDraftAsset khỏi design request. Với MEDIA_ATTACHMENT chưa được hotspot sử dụng, backend tự gỡ quan hệ khỏi working draft trước khi xóa. Từ chối nếu asset vẫn được hotspot, submitted draft hoặc booth tham chiếu.")
     public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> deleteAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
@@ -297,7 +297,7 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
     @DeleteMapping("/{id}/working-draft/media-assets/{mediaAssetId}")
-    @Operation(summary = "Xóa media asset đính kèm khỏi working draft", description = "Xóa tệp media asset đính kèm khỏi working draft.")
+    @Operation(summary = "Gỡ media khỏi working draft", description = "Chỉ xóa DesignDraftMediaAsset khỏi working draft và giữ lại DesignDraftAsset staging để Designer có thể thêm lại. Từ chối nếu hotspot đang tham chiếu media.")
     public ResponseEntity<ApiResponse<Void>> removeMediaAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,

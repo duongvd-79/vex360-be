@@ -15,6 +15,7 @@ import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummary
 import com.example.vex360.features.booth.dtos.response.OrganizerBoothContentOverviewDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.BoothReviewRequest;
+import com.example.vex360.features.booth.enums.BoothReviewComparisonCompleteness;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
@@ -79,6 +80,18 @@ public class BoothReviewService {
         int versionNumber = Math.toIntExact(boothReviewRequestRepository.countByBoothId(booth.getId()) + 1);
         BoothReviewSnapshot snapshot = snapshotFactory.create(booth);
         var changeSummary = diffService.buildSummary(snapshot, previousRequest, versionNumber);
+        if (previousRequest != null
+                && changeSummary.getComparisonCompleteness() == BoothReviewComparisonCompleteness.FULL
+                && changeSummary.getTotalCount() == 0) {
+            if (previousRequest.getStatus() == BoothReviewStatus.APPROVED) {
+                booth.setStatus(BoothStatus.PUBLISHED);
+                boothRepository.save(booth);
+                return toSummary(previousRequest);
+            }
+            if (previousRequest.getStatus() == BoothReviewStatus.REJECTED) {
+                throw new AppException(ErrorCode.BOOTH_REVIEW_NO_CHANGES_AFTER_REJECTION);
+            }
+        }
         BoothReviewRequest reviewRequest = BoothReviewRequest.builder()
                 .booth(booth)
                 .status(BoothReviewStatus.PENDING)
