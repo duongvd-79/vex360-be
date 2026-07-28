@@ -66,13 +66,16 @@ class ExhibitionTimelinePolicyTest {
     }
 
     @Test
-    @DisplayName("Should validate registration is open only when status is REGISTRATION and before T-3 deadline")
+    @DisplayName("Should validate registration is open when status is REGISTRATION or PUBLISHED and before T-3 deadline")
     void testIsRegistrationOpen() {
         Exhibition exhibition = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
                 .startDate(LocalDate.of(2026, Month.JANUARY, 15))
                 .build();
 
+        assertTrue(policy.isRegistrationOpen(exhibition));
+
+        exhibition.setStatus(ExhibitionStatus.PUBLISHED);
         assertTrue(policy.isRegistrationOpen(exhibition));
 
         exhibition.setStatus(ExhibitionStatus.PENDING);

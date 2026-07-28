@@ -56,7 +56,8 @@ public class BoothReviewService {
         Exhibition exhibition = getExhibition(booth);
         Exhibition lockedExhibition = exhibitionRepository.findByIdForUpdate(exhibition.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_INVALID_STATUS));
-        if (lockedExhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
+        if (lockedExhibition.getStatus() != ExhibitionStatus.REGISTRATION
+                && lockedExhibition.getStatus() != ExhibitionStatus.PUBLISHED) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
         if (booth.getStatus() != BoothStatus.PUBLISHED) {

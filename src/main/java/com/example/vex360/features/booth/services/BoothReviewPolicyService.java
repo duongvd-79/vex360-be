@@ -75,7 +75,9 @@ public class BoothReviewPolicyService {
                 .findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId())
                 .map(review -> review.getStatus() == BoothReviewStatus.REJECTED)
                 .orElse(false);
-        return latestReviewWasRejected && exhibition.getStatus() == ExhibitionStatus.REGISTRATION;
+        return latestReviewWasRejected
+                && (exhibition.getStatus() == ExhibitionStatus.REGISTRATION
+                        || exhibition.getStatus() == ExhibitionStatus.PUBLISHED);
     }
 
     @Transactional(readOnly = true)

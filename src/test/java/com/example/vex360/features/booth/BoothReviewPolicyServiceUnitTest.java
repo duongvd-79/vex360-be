@@ -135,10 +135,28 @@ class BoothReviewPolicyServiceUnitTest {
     }
 
     @Test
-    void assertCanSubmitReviewRejectsRejectedBoothAfterExhibitionIsPublished() {
+    void assertCanSubmitReviewAllowsRejectedBoothAfterDeadlineWhileExhibitionIsPublished() {
         booth = booth(LocalDate.now(clock).plusDays(2));
         booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
                 .setStatus(ExhibitionStatus.PUBLISHED);
+        BoothReviewRequest rejectedReview = BoothReviewRequest.builder()
+                .booth(booth)
+                .status(BoothReviewStatus.REJECTED)
+                .build();
+        when(boothReviewRequestRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.of(rejectedReview));
+        when(boothReviewRequestRepository.existsByBoothIdAndStatus(booth.getId(), BoothReviewStatus.PENDING))
+                .thenReturn(false);
+        when(panoramaRepository.countByBoothId(booth.getId())).thenReturn(1L);
+
+        assertDoesNotThrow(() -> policyService.assertCanSubmitReview(booth));
+    }
+
+    @Test
+    void assertCanSubmitReviewRejectsRejectedBoothAfterExhibitionIsActive() {
+        booth = booth(LocalDate.now(clock).plusDays(2));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStatus(ExhibitionStatus.ACTIVE);
         BoothReviewRequest rejectedReview = BoothReviewRequest.builder()
                 .booth(booth)
                 .status(BoothReviewStatus.REJECTED)

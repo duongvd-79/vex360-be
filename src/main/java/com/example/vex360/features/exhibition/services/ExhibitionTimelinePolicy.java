@@ -35,7 +35,11 @@ public class ExhibitionTimelinePolicy {
     }
 
     public boolean isRegistrationOpen(Exhibition exhibition) {
-        if (exhibition == null || exhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
+        if (exhibition == null) {
+            return false;
+        }
+        ExhibitionStatus status = exhibition.getStatus();
+        if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
             return false;
         }
         return isBoothPreparationOpen(exhibition);
