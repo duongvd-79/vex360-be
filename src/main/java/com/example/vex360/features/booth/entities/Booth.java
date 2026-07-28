@@ -27,6 +27,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,7 +38,9 @@ import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "booths")
+@Table(name = "booths", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_booths_exhibitor_registration", columnNames = "exhibitor_registration_id")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

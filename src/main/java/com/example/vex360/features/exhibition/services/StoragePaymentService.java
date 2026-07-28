@@ -9,9 +9,12 @@ import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.enums.PaymentType;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
 
 @Service
 @RequiredArgsConstructor
@@ -35,10 +38,26 @@ public class StoragePaymentService {
                 .build();
         payment = paymentRepository.save(payment);
 
-        CreatePaymentLinkResponse response = payOSIntegrationService.createPaymentLink(
-                orderCode, amount, description, returnUrl, cancelUrl);
-        payment.setCheckoutUrl(response.getCheckoutUrl());
-        paymentRepository.save(payment);
-        return response.getCheckoutUrl();
+        try {
+            CreatePaymentLinkResponse response = payOSIntegrationService.createPaymentLink(
+                    orderCode, amount, description, returnUrl, cancelUrl);
+            payment.setCheckoutUrl(response.getCheckoutUrl());
+            paymentRepository.save(payment);
+            return response.getCheckoutUrl();
+        } catch (Exception e) {
+            try {
+                PaymentLink linkData = payOSIntegrationService
+                        .getPaymentLinkInformation(orderCode);
+                if (linkData != null) {
+                    payment.setStatus(PaymentStatus.PENDING);
+                    paymentRepository.save(payment);
+                }
+            } catch (Exception ex) {
+                // Ignore secondary failure
+            }
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
     }
 }

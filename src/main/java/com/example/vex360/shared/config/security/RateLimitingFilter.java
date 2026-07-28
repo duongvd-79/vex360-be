@@ -50,10 +50,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final Map<String, RequestBucket> generalLimitMap = new ConcurrentHashMap<>();
     private final Map<String, RequestBucket> authLimitMap = new ConcurrentHashMap<>();
+    private final Map<String, RequestBucket> webhookLimitMap = new ConcurrentHashMap<>();
 
     private static final long WINDOW_MS = 60000; // 1 minute
     private static final int MAX_GENERAL_REQUESTS = 100;
     private static final int MAX_AUTH_REQUESTS = 10;
+    private static final int MAX_WEBHOOK_REQUESTS = 60;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -68,8 +70,20 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         boolean isAuthEndpoint = path.startsWith("/api/v1/auth/");
-        int limit = isAuthEndpoint ? MAX_AUTH_REQUESTS : MAX_GENERAL_REQUESTS;
-        Map<String, RequestBucket> limitMap = isAuthEndpoint ? authLimitMap : generalLimitMap;
+        boolean isWebhookEndpoint = path.startsWith("/api/v1/webhooks/");
+
+        int limit;
+        Map<String, RequestBucket> limitMap;
+        if (isAuthEndpoint) {
+            limit = MAX_AUTH_REQUESTS;
+            limitMap = authLimitMap;
+        } else if (isWebhookEndpoint) {
+            limit = MAX_WEBHOOK_REQUESTS;
+            limitMap = webhookLimitMap;
+        } else {
+            limit = MAX_GENERAL_REQUESTS;
+            limitMap = generalLimitMap;
+        }
 
         RequestBucket bucket = limitMap.compute(ip, (key, existingBucket) -> {
             if (existingBucket == null || existingBucket.isExpired()) {

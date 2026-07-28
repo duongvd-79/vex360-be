@@ -30,6 +30,13 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
     @Query("SELECT r FROM ExhibitorRegistration r WHERE r.id = :id")
     Optional<ExhibitorRegistration> findByIdForUpdate(@Param("id") Integer id);
 
+    @Query("SELECT r FROM ExhibitorRegistration r " +
+           "LEFT JOIN FETCH r.company c " +
+           "LEFT JOIN FETCH c.ownerUser " +
+           "LEFT JOIN FETCH r.exhibitionPackage p " +
+           "WHERE r.id = :id")
+    Optional<ExhibitorRegistration> findByIdWithRelations(@Param("id") Integer id);
+
     boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
 
     @Query("SELECT COUNT(r) > 0 FROM ExhibitorRegistration r " +

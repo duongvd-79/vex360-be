@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -34,8 +35,10 @@ import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
+import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
+import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
@@ -53,6 +56,9 @@ class StoragePackageServiceUnitTest {
 
     @Mock
     private StoragePackageOrderRepository storagePackageOrderRepository;
+
+    @Mock
+    private CompanyRepository companyRepository;
 
     @Mock
     private StoragePaymentService storagePaymentService;
@@ -190,7 +196,7 @@ class StoragePackageServiceUnitTest {
         assertEquals(100000L, dto.getAmountVnd());
         assertEquals("PENDING", dto.getStatus());
 
-        verify(storagePackageOrderRepository, Mockito.times(2)).save(any(StoragePackageOrder.class));
+        verify(storagePackageOrderRepository, times(2)).save(any(StoragePackageOrder.class));
         verify(storagePaymentService).createPayment(
                 eq(10), anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel"));
     }
@@ -216,5 +222,48 @@ class StoragePackageServiceUnitTest {
         assertEquals(200L, dto.getUsedBytes());
         assertEquals(0L, dto.getQuotaBytes());
         assertEquals(0.0, dto.getUsedPercentage());
+    }
+
+    @Test
+    void testHandleStoragePackagePaymentCompleted_UsesQuotaBytesSnapshot() {
+        StoragePackageOrder order = StoragePackageOrder.builder()
+                .id(7)
+                .orderCode(123456L)
+                .company(company)
+                .storagePackage(storagePackage)
+                .amountVnd(100000L)
+                .packageNameSnapshot("Historical Gold")
+                .quotaBytesSnapshot(5000L)
+                .status(StoragePackageOrderStatus.PENDING)
+                .build();
+
+        when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
+
+        storagePackageService.handleStoragePackagePaymentCompleted(
+                new StoragePackagePaymentCompletedEvent(this, 7));
+
+        assertEquals(StoragePackageOrderStatus.PAID, order.getStatus());
+        assertEquals(6000L, company.getStorageQuotaBytes());
+        verify(companyRepository).incrementStorageQuota(company.getId(), 5000L);
+    }
+
+    @Test
+    void testHandleStoragePackagePaymentCompleted_AlreadyPaid_IdempotentSkip() {
+        StoragePackageOrder order = StoragePackageOrder.builder()
+                .id(7)
+                .orderCode(123456L)
+                .company(company)
+                .storagePackage(storagePackage)
+                .amountVnd(100000L)
+                .quotaBytesSnapshot(5000L)
+                .status(StoragePackageOrderStatus.PAID)
+                .build();
+
+        when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
+
+        storagePackageService.handleStoragePackagePaymentCompleted(
+                new StoragePackagePaymentCompletedEvent(this, 7));
+
+        verify(companyRepository, never()).incrementStorageQuota(any(), any());
     }
 }
