@@ -95,6 +95,7 @@ public class BoothDesignService {
         List<UUID> oldPanoramaIds = oldPanoramas.stream().map(Panorama::getId).toList();
         if (!oldPanoramaIds.isEmpty()) {
             hotspotRepository.clearTargetsForPanoramas(oldPanoramaIds);
+            booth.getPanoramas().removeAll(oldPanoramas);
             panoramaRepository.deleteAll(oldPanoramas);
         }
 
@@ -118,6 +119,7 @@ public class BoothDesignService {
                     .isTemplateDerived(Boolean.TRUE.equals(panoramaDesign.templateDerived()))
                     .build();
             Panorama saved = panoramaRepository.save(panorama);
+            booth.getPanoramas().add(saved);
             appliedPanoramasByKey.put(panoramaDesign.clientKey(), saved);
         }
 
