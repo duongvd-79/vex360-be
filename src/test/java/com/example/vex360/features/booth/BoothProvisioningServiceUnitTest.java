@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -24,22 +25,30 @@ import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class BoothProvisioningServiceUnitTest {
     @Mock
     private BoothRepository boothRepository;
 
+    @Mock
+    private ExhibitorRegistrationRepository registrationRepository;
+
     private BoothProvisioningService boothProvisioningService;
     private User exhibitorUser;
     private Company company;
+    private ExhibitionPackage exhibitionPackage;
 
     @BeforeEach
     void setup() {
-        boothProvisioningService = new BoothProvisioningService(boothRepository);
+        boothProvisioningService = new BoothProvisioningService(boothRepository, registrationRepository);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -50,13 +59,17 @@ class BoothProvisioningServiceUnitTest {
                 .name("VEX Company")
                 .description("Company description")
                 .build();
+        exhibitionPackage = ExhibitionPackage.builder()
+                .id(10)
+                .build();
     }
 
     @Test
     void createsBoothForApprovedRegistration() {
         ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
+        when(registrationRepository.findByIdWithRelations(registration.getId())).thenReturn(Optional.of(registration));
         when(boothRepository.findByExhibitorRegistrationId(registration.getId())).thenReturn(Optional.empty());
-        when(boothRepository.save(any(Booth.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(boothRepository.saveAndFlush(any(Booth.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
 
@@ -79,6 +92,7 @@ class BoothProvisioningServiceUnitTest {
                 .company(company)
                 .exhibitorRegistration(registration)
                 .build();
+        when(registrationRepository.findByIdWithRelations(registration.getId())).thenReturn(Optional.of(registration));
         when(boothRepository.findByExhibitorRegistrationId(registration.getId()))
                 .thenReturn(Optional.of(existingBooth));
 
@@ -91,8 +105,11 @@ class BoothProvisioningServiceUnitTest {
 
     @Test
     void doesNotCreateBoothForPendingRegistration() {
+        ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.PENDING);
+        when(registrationRepository.findByIdWithRelations(registration.getId())).thenReturn(Optional.of(registration));
+
         Optional<Booth> result = boothProvisioningService
-                .ensureBoothForApprovedRegistration(registration(ExhibitorRegistrationStatus.PENDING));
+                .ensureBoothForApprovedRegistration(registration);
 
         assertTrue(result.isEmpty());
         verify(boothRepository, never()).save(any());
@@ -100,7 +117,7 @@ class BoothProvisioningServiceUnitTest {
 
     @Test
     void ensureBoothForApprovedRegistration_NullRegistration_ReturnsEmpty() {
-        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(null);
+        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration((ExhibitorRegistration) null);
         assertTrue(result.isEmpty());
     }
 
@@ -109,16 +126,72 @@ class BoothProvisioningServiceUnitTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(null)
                 .company(company)
+                .exhibitionPackage(exhibitionPackage)
                 .status(ExhibitorRegistrationStatus.APPROVED)
                 .build();
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
         assertTrue(result.isEmpty());
     }
 
+    @Test
+    void throwsExceptionWhenRegistrationCompanyMissing() {
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(UUID.randomUUID())
+                .company(null)
+                .exhibitionPackage(exhibitionPackage)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+        when(registrationRepository.findByIdWithRelations(1)).thenReturn(Optional.of(registration));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                boothProvisioningService.ensureBoothForApprovedRegistration(1));
+        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+    }
+
+    @Test
+    void throwsExceptionWhenCompanyOwnerUserMissing() {
+        Company orphanCompany = Company.builder()
+                .id(UUID.randomUUID())
+                .name("No Owner Co")
+                .ownerUser(null)
+                .build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(UUID.randomUUID())
+                .company(orphanCompany)
+                .exhibitionPackage(exhibitionPackage)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+        when(registrationRepository.findByIdWithRelations(1)).thenReturn(Optional.of(registration));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                boothProvisioningService.ensureBoothForApprovedRegistration(1));
+        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+    }
+
+    @Test
+    void throwsExceptionWhenExhibitionPackageMissing() {
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(UUID.randomUUID())
+                .company(company)
+                .exhibitionPackage(null)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+        when(registrationRepository.findByIdWithRelations(1)).thenReturn(Optional.of(registration));
+
+        AppException ex = assertThrows(AppException.class, () ->
+                boothProvisioningService.ensureBoothForApprovedRegistration(1));
+        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+    }
+
     private ExhibitorRegistration registration(ExhibitorRegistrationStatus status) {
         return ExhibitorRegistration.builder()
                 .id(1)
+                .uuid(UUID.randomUUID())
                 .company(company)
+                .exhibitionPackage(exhibitionPackage)
                 .status(status)
                 .build();
     }

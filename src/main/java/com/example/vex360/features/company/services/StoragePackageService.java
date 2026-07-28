@@ -123,6 +123,9 @@ public class StoragePackageService {
                 .storagePackage(pkg)
                 .orderCode(orderCode)
                 .amountVnd(pkg.getPriceVnd())
+                .packageNameSnapshot(pkg.getName())
+                .quotaBytesSnapshot(pkg.getQuotaBytes())
+                .priceVndSnapshot(pkg.getPriceVnd())
                 .status(StoragePackageOrderStatus.PENDING)
                 .build();
         order = storagePackageOrderRepository.save(order);
@@ -138,9 +141,9 @@ public class StoragePackageService {
                 .orderId(order.getId())
                 .orderCode(orderCode)
                 .checkoutUrl(checkoutUrl)
-                .packageName(pkg.getName())
-                .quotaBytes(pkg.getQuotaBytes())
-                .amountVnd(pkg.getPriceVnd())
+                .packageName(order.getPackageNameSnapshot() != null ? order.getPackageNameSnapshot() : pkg.getName())
+                .quotaBytes(order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot() : pkg.getQuotaBytes())
+                .amountVnd(order.getAmountVnd())
                 .status(order.getStatus().name())
                 .build();
     }
@@ -150,16 +153,21 @@ public class StoragePackageService {
     public void handleStoragePackagePaymentCompleted(StoragePackagePaymentCompletedEvent event) {
         StoragePackageOrder order = storagePackageOrderRepository.findById(event.getStoragePackageOrderId())
                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
+
+        if (order.getStatus() == StoragePackageOrderStatus.PAID) {
+            log.warn("StoragePackageOrder {} is already PAID. Skipping duplicate quota increment.", order.getId());
+            return;
+        }
+
         order.setStatus(StoragePackageOrderStatus.PAID);
         order.setPaidAt(Instant.now());
         storagePackageOrderRepository.save(order);
 
+        long quotaToAdd = order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot() : order.getStoragePackage().getQuotaBytes();
         Company company = order.getCompany();
-        company.setStorageQuotaBytes(
-                company.getStorageQuotaBytes() + order.getStoragePackage().getQuotaBytes());
-        companyRepository.save(company);
-        log.info("Storage package PAID. Company {} quota increased by {}B", company.getId(),
-                order.getStoragePackage().getQuotaBytes());
+        companyRepository.incrementStorageQuota(company.getId(), quotaToAdd);
+        company.setStorageQuotaBytes(company.getStorageQuotaBytes() + quotaToAdd);
+        log.info("Storage package PAID. Company {} quota atomically increased by {}B", company.getId(), quotaToAdd);
     }
 
     public StorageUsageResponseDTO getUsage(User currentUser) {
@@ -201,8 +209,8 @@ public class StoragePackageService {
                         .id(o.getId())
                         .orderCode(o.getOrderCode())
                         .companyName(o.getCompany().getName())
-                        .packageName(o.getStoragePackage().getName())
-                        .quotaBytes(o.getStoragePackage().getQuotaBytes())
+                        .packageName(o.getPackageNameSnapshot() != null ? o.getPackageNameSnapshot() : o.getStoragePackage().getName())
+                        .quotaBytes(o.getQuotaBytesSnapshot() != null ? o.getQuotaBytesSnapshot() : o.getStoragePackage().getQuotaBytes())
                         .amountVnd(o.getAmountVnd())
                         .status(o.getStatus().name())
                         .paidAt(o.getPaidAt())

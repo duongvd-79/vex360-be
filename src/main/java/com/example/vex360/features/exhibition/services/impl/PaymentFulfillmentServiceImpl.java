@@ -1,0 +1,201 @@
+package com.example.vex360.features.exhibition.services.impl;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.services.BoothProvisioningService;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Payment;
+import com.example.vex360.features.exhibition.entities.PaymentReceipt;
+import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentReceiptRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.enums.PaymentReceiptStatus;
+import com.example.vex360.shared.enums.PaymentStatus;
+import com.example.vex360.shared.enums.PaymentType;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import vn.payos.model.webhooks.WebhookData;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService {
+
+    private final PaymentReceiptRepository receiptRepository;
+    private final PaymentRepository paymentRepository;
+    private final ExhibitorRegistrationRepository registrationRepository;
+    private final BoothProvisioningService boothProvisioningService;
+
+    @Override
+    @Transactional
+    public PaymentReceipt recordReceipt(WebhookData webhookData) {
+        if (webhookData == null || webhookData.getOrderCode() == null) {
+            log.error("[PB-005] Cannot record receipt: null webhookData or orderCode");
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+
+        Long orderCode = webhookData.getOrderCode();
+        Optional<PaymentReceipt> existingOpt = receiptRepository.findByOrderCode(orderCode);
+        if (existingOpt.isPresent()) {
+            return existingOpt.get();
+        }
+
+        // Create new durable receipt
+        String sanitizedPayload = String.format("{\"orderCode\":%d,\"code\":\"%s\",\"currency\":\"%s\",\"amount\":%d}",
+                orderCode,
+                webhookData.getCode() != null ? webhookData.getCode() : "",
+                webhookData.getCurrency() != null ? webhookData.getCurrency() : "",
+                webhookData.getAmount() != null ? webhookData.getAmount() : 0L);
+
+        PaymentReceipt receipt = PaymentReceipt.builder()
+                .orderCode(orderCode)
+                .paymentReference(webhookData.getReference())
+                .status(PaymentReceiptStatus.PENDING)
+                .retryCount(0)
+                .payload(sanitizedPayload)
+                .build();
+
+        log.info("[PB-005] Durable payment receipt recorded for orderCode: {}", orderCode);
+        return receiptRepository.save(receipt);
+    }
+
+    @Override
+    @Transactional
+    public void updateReceiptSucceeded(Long orderCode, Integer registrationId, UUID boothId) {
+        if (orderCode == null) {
+            return;
+        }
+
+        PaymentReceipt receipt = receiptRepository.findByOrderCodeForUpdate(orderCode)
+                .orElseGet(() -> PaymentReceipt.builder()
+                        .orderCode(orderCode)
+                        .status(PaymentReceiptStatus.PENDING)
+                        .retryCount(0)
+                        .build());
+
+        receipt.setStatus(PaymentReceiptStatus.SUCCEEDED);
+        receipt.setRegistrationId(registrationId);
+        receipt.setBoothId(boothId);
+        receipt.setLastError(null);
+        receipt.setNextRetryAt(null);
+
+        receiptRepository.save(receipt);
+        log.info("[PB-005] Receipt updated to SUCCEEDED for orderCode: {}, registrationId: {}, boothId: {}",
+                orderCode, registrationId, boothId);
+    }
+
+    @Override
+    @Transactional
+    public void updateReceiptFailed(Long orderCode, Throwable throwable) {
+        if (orderCode == null) {
+            return;
+        }
+
+        PaymentReceipt receipt = receiptRepository.findByOrderCodeForUpdate(orderCode)
+                .orElseGet(() -> PaymentReceipt.builder()
+                        .orderCode(orderCode)
+                        .status(PaymentReceiptStatus.PENDING)
+                        .retryCount(0)
+                        .build());
+
+        int nextRetryCount = receipt.getRetryCount() + 1;
+        receipt.setRetryCount(nextRetryCount);
+        receipt.setLastError(throwable != null ? throwable.getMessage() : "Fulfillment error");
+
+        boolean nonRetryable = isNonRetryableException(throwable) || nextRetryCount >= 5;
+        if (nonRetryable) {
+            receipt.setStatus(PaymentReceiptStatus.MANUAL_REVIEW);
+            receipt.setNextRetryAt(null);
+            log.error("[PB-005/006] Receipt moved to MANUAL_REVIEW for orderCode: {}, retries: {}, error: {}",
+                    orderCode, nextRetryCount, receipt.getLastError());
+        } else {
+            receipt.setStatus(PaymentReceiptStatus.RETRYABLE_FAILED);
+            long backoffSeconds = (long) Math.pow(2, Math.min(nextRetryCount, 6)) * 60L;
+            receipt.setNextRetryAt(Instant.now().plusSeconds(backoffSeconds));
+            log.warn("[PB-005/006] Receipt set to RETRYABLE_FAILED for orderCode: {}, nextRetryAt: {}",
+                    orderCode, receipt.getNextRetryAt());
+        }
+
+        receiptRepository.save(receipt);
+    }
+
+    @Override
+    @Transactional
+    public Optional<PaymentReceipt> processFulfillmentForOrderCode(Long orderCode) {
+        if (orderCode == null) {
+            return Optional.empty();
+        }
+
+        Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
+        if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
+            log.warn("[PB-006] Cannot process reconciliation for orderCode {}: payment null or not PAID", orderCode);
+            return Optional.empty();
+        }
+
+        if (payment.getPaymentType() != PaymentType.EXHIBITION_REGISTRATION || payment.getExhibitorRegistration() == null) {
+            log.info("[PB-006] OrderCode {} is not an exhibition registration payment", orderCode);
+            return Optional.empty();
+        }
+
+        Integer regId = payment.getExhibitorRegistration().getId();
+        ExhibitorRegistration registration = registrationRepository.findByIdForUpdate(regId).orElse(null);
+        if (registration == null) {
+            log.error("[PB-006] Registration missing for orderCode {}", orderCode);
+            updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+            return receiptRepository.findByOrderCode(orderCode);
+        }
+
+        if (registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
+            registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+            registrationRepository.save(registration);
+        }
+
+        try {
+            Optional<Booth> boothOpt = boothProvisioningService.ensureBoothForApprovedRegistration(regId);
+            if (boothOpt.isPresent()) {
+                updateReceiptSucceeded(orderCode, regId, boothOpt.get().getId());
+                log.info("[PB-006] Reconciliation auto-fulfilled booth for orderCode {}, boothId {}", orderCode, boothOpt.get().getId());
+            } else {
+                updateReceiptFailed(orderCode, new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+            }
+        } catch (Throwable t) {
+            updateReceiptFailed(orderCode, t);
+        }
+
+        return receiptRepository.findByOrderCode(orderCode);
+    }
+
+    @Override
+    @Transactional
+    public Optional<PaymentReceipt> replayFulfillment(Long orderCode, String auditActor) {
+        log.info("[PB-006 Audit] Admin/Reconciliation replay triggered by actor: {} for orderCode: {}",
+                auditActor, orderCode);
+
+        PaymentReceipt receipt = receiptRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
+        if (receipt != null && receipt.getStatus() == PaymentReceiptStatus.MANUAL_REVIEW) {
+            receipt.setStatus(PaymentReceiptStatus.PENDING);
+            receiptRepository.save(receipt);
+        }
+
+        return processFulfillmentForOrderCode(orderCode);
+    }
+
+    private boolean isNonRetryableException(Throwable t) {
+        if (t instanceof AppException appEx) {
+            return appEx.getErrorCode() == ErrorCode.REGISTRATION_DEPENDENCY_INVALID
+                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_NOT_FOUND;
+        }
+        return false;
+    }
+}

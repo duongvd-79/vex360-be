@@ -164,6 +164,9 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
     EXHIBITION_NAME_DUPLICATED("EXHIBITION-007", "Tên triển lãm đã được sử dụng.", HttpStatus.CONFLICT),
     REGISTRATION_NOT_FOUND("REGISTRATION-001", "Không tìm thấy thông tin lượt đăng ký.", HttpStatus.NOT_FOUND),
+    REGISTRATION_DEPENDENCY_INVALID("REGISTRATION-003",
+            "Thông tin liên kết của đơn đăng ký (doanh nghiệp/người dùng/gói) không còn hợp lệ.",
+            HttpStatus.UNPROCESSABLE_CONTENT),
 
     // CHAT ERRORS
     CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND);

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.company.entities.Company;
@@ -23,4 +24,8 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT company FROM Company company WHERE company.ownerUser.id = :ownerUserId")
     Optional<Company> findByOwnerUserIdForUpdate(@Param("ownerUserId") UUID ownerUserId);
+
+    @Modifying
+    @Query("UPDATE Company c SET c.storageQuotaBytes = c.storageQuotaBytes + :quotaBytes WHERE c.id = :id")
+    int incrementStorageQuota(@Param("id") UUID id, @Param("quotaBytes") Long quotaBytes);
 }

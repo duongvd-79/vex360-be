@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,4 +35,24 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     Optional<Payment> findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(Integer exhibitorRegistrationId);
 
     List<Payment> findByExhibitorRegistrationIdIn(List<Integer> exhibitorRegistrationIds);
+
+    boolean existsByPaymentReferenceAndIdNot(String paymentReference, Integer id);
+
+    @Query("""
+            SELECT p FROM Payment p
+            WHERE p.status = com.example.vex360.shared.enums.PaymentStatus.PAID
+              AND p.paymentType = com.example.vex360.shared.enums.PaymentType.EXHIBITION_REGISTRATION
+              AND p.exhibitorRegistration IS NOT NULL
+              AND NOT EXISTS (
+                SELECT b.id FROM Booth b WHERE b.exhibitorRegistration.id = p.exhibitorRegistration.id
+              )
+            """)
+    List<Payment> findUnfulfilledPaidPayments(Pageable pageable);
+
+    @Query("""
+            SELECT p FROM Payment p
+            WHERE p.status = com.example.vex360.shared.enums.PaymentStatus.PENDING
+              AND p.paymentType = com.example.vex360.shared.enums.PaymentType.EXHIBITION_REGISTRATION
+            """)
+    List<Payment> findPendingExhibitionPayments(Pageable pageable);
 }

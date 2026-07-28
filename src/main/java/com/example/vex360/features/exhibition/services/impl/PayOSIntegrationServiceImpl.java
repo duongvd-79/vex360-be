@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +35,28 @@ public class PayOSIntegrationServiceImpl implements PayOSIntegrationService {
             return payOS.paymentRequests().create(request);
         } catch (Exception e) {
             log.error("Failed to create PayOS payment link for orderCode: {}", orderCode, e);
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+    }
+
+    @Override
+    public PaymentLink getPaymentLinkInformation(Long orderCode) {
+        try {
+            log.info("Getting PayOS payment link info for orderCode: {}", orderCode);
+            return payOS.paymentRequests().get(orderCode);
+        } catch (Exception e) {
+            log.error("Failed to get PayOS payment link info for orderCode: {}", orderCode, e);
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+    }
+
+    @Override
+    public PaymentLink cancelPaymentLink(Long orderCode, String cancellationReason) {
+        try {
+            log.info("Cancelling PayOS payment link for orderCode: {}, reason: {}", orderCode, cancellationReason);
+            return payOS.paymentRequests().cancel(orderCode, cancellationReason);
+        } catch (Exception e) {
+            log.error("Failed to cancel PayOS payment link for orderCode: {}", orderCode, e);
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }
