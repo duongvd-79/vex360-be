@@ -23,8 +23,6 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class BoothBenefitGuardService {
-    private static final long BYTES_PER_MB = 1024L * 1024L;
-
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
 
@@ -58,8 +56,6 @@ public class BoothBenefitGuardService {
                 requireLimit(registration.getMaxProductsPerBoothSnapshot()), allowNoIncrease);
         assertProjectedVideoCountWithinLimit(booth, candidate.getMediaAsset(), excludedHotspotId,
                 requireLimit(registration.getMaxEmbeddedVideosPerBoothSnapshot()), allowNoIncrease);
-        assertProjectedStorageWithinLimit(booth, candidate.getMediaAsset(), excludedHotspotId,
-                requireStorageLimitBytes(registration.getStorageLimitMbSnapshot()), allowNoIncrease);
     }
 
     private void assertProjectedProductCountWithinLimit(
@@ -107,23 +103,6 @@ public class BoothBenefitGuardService {
         throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
     }
 
-    private void assertProjectedStorageWithinLimit(
-            Booth booth,
-            MediaAsset candidateMediaAsset,
-            UUID excludedHotspotId,
-            Long limitBytes,
-            boolean allowNoIncrease) {
-        List<MediaAsset> mediaAssets = hotspotRepository
-                .findDistinctMediaAssetsByBoothIdExcludingHotspot(booth.getId(), excludedHotspotId);
-        long projectedBytes = sumStorageBytes(mediaAssets, candidateMediaAsset);
-        if (isAllowed(projectedBytes, limitBytes, allowNoIncrease,
-                () -> sumStorageBytes(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(
-                        booth.getId(), null), null))) {
-            return;
-        }
-        throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
-    }
-
     private int countVideos(List<MediaAsset> mediaAssets) {
         Set<UUID> videoIds = new HashSet<>();
         if (mediaAssets == null) {
@@ -135,23 +114,6 @@ public class BoothBenefitGuardService {
             }
         }
         return videoIds.size();
-    }
-
-    private long sumStorageBytes(List<MediaAsset> mediaAssets, MediaAsset candidateMediaAsset) {
-        Set<UUID> mediaAssetIds = new HashSet<>();
-        long totalBytes = 0L;
-        if (mediaAssets != null) {
-            for (MediaAsset mediaAsset : mediaAssets) {
-                if (mediaAsset.getId() == null || mediaAssetIds.add(mediaAsset.getId())) {
-                    totalBytes += safeFileSize(mediaAsset);
-                }
-            }
-        }
-        if (candidateMediaAsset != null
-                && (candidateMediaAsset.getId() == null || mediaAssetIds.add(candidateMediaAsset.getId()))) {
-            totalBytes += safeFileSize(candidateMediaAsset);
-        }
-        return totalBytes;
     }
 
     private boolean isAllowed(long projected, long limit, boolean allowNoIncrease, UsageSupplier currentUsageSupplier) {
@@ -173,17 +135,6 @@ public class BoothBenefitGuardService {
             throw new AppException(ErrorCode.INVALID_BOOTH);
         }
         return limit;
-    }
-
-    private Long requireStorageLimitBytes(Long limitMb) {
-        if (limitMb == null || limitMb < 0) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
-        }
-        return limitMb * BYTES_PER_MB;
-    }
-
-    private long safeFileSize(MediaAsset mediaAsset) {
-        return mediaAsset.getFileSize() == null ? 0L : mediaAsset.getFileSize();
     }
 
     private void assertWithinLimit(long projected, long limit) {
