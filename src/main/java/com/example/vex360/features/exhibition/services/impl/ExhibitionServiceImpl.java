@@ -429,13 +429,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         // Allow update only if PENDING or REJECTED
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
             log.error("Exhibition {} status is not PENDING or REJECTED. Cannot update.", exhibition.getId());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_DETAILS_CHANGES_NOT_ALLOWED);
         }
 
         // Rejection limit validation
         if (exhibition.getRejectionCount() >= 3) {
             log.error("Exhibition {} has reached the maximum rejection limit (3). Cannot edit.", exhibition.getId());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_RESUBMISSION_LIMIT_REACHED);
         }
 
         // Date validation: endDate >= startDate
@@ -460,12 +460,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         // registered yet
         if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
             log.error("Cannot update exhibition on or after its start date {}", exhibition.getStartDate());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_ALREADY_STARTED);
         }
 
         if (exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(exhibition.getId())) {
             log.error("Cannot update exhibition because exhibitors have already registered");
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_HAS_REGISTRATIONS);
         }
 
         String trimmedName = request.getName().trim();
@@ -571,7 +571,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         // Post-approval assets can only be updated if approved or active
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
             log.error("Cannot update media assets for exhibition with status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
         }
 
         // 1. Validate all file formats & sizes first
@@ -627,7 +627,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         if (!timelinePolicy.hasMinimumLeadTime(exhibition.getStartDate())) {
             log.error("Cannot approve exhibition {}: start date {} does not meet minimum lead time requirement",
                     exhibition.getId(), exhibition.getStartDate());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_APPROVAL_LEAD_TIME_NOT_MET);
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
@@ -779,7 +779,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
             log.error("Cannot upload sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
         }
 
         long currentSponsorCount = exhibition.getAssets() == null ? 0
@@ -831,7 +831,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
             log.error("Cannot update sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
         }
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
@@ -888,7 +888,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
             log.error("Cannot delete sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
         }
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
@@ -975,7 +975,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
             log.error("Cannot add package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
         }
 
         List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
@@ -1031,12 +1031,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
             log.error("Cannot update package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
         }
 
         if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
             log.error("Cannot update package {} because exhibitors have already registered", packageId);
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_IN_USE);
         }
 
         ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
@@ -1095,12 +1095,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
             log.error("Cannot delete package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
         }
 
         if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
             log.error("Cannot delete package {} because exhibitors have already registered", packageId);
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_IN_USE);
         }
 
         ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
@@ -1204,7 +1204,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
             log.error("Cannot publish exhibition {} with status {}", uuid, exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_NOT_READY_TO_PUBLISH);
         }
 
         exhibition.setStatus(ExhibitionStatus.PUBLISHED);

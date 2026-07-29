@@ -35,7 +35,7 @@ public class PayOSIntegrationServiceImpl implements PayOSIntegrationService {
             return payOS.paymentRequests().create(request);
         } catch (Exception e) {
             log.error("Failed to create PayOS payment link for orderCode: {}", orderCode, e);
-            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+            throw new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE);
         }
     }
 

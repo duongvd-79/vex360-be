@@ -95,17 +95,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Exhibition packageExhibition = expPackage.getExhibition();
         if (packageExhibition == null) {
             log.error("Exhibition package {} has no associated exhibition", exhibitionPackageId);
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
         }
 
         Exhibition exhibition = exhibitionRepository.findByIdForUpdate(packageExhibition.getId())
                 .orElseThrow(() -> {
                     log.error("Exhibition not found for ID: {}", packageExhibition.getId());
-                    return new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
                 });
         if (!timelinePolicy.isRegistrationOpen(exhibition)) {
             log.error("Registration is closed for exhibition {}", exhibition.getId());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.REGISTRATION_CLOSED);
         }
 
         boolean hasActiveRegistration = registrationRepository.existsActiveRegistration(
@@ -498,7 +498,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
             log.error("Cannot cancel registration {} with status {}", registrationUuid, registration.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.EXHIBITION_CANNOT_CANCEL);
         }
 
         List<Payment> payments = paymentRepository
@@ -506,7 +506,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         boolean hasPaidPayment = payments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.PAID);
         if (hasPaidPayment) {
             log.warn("Cannot cancel registration {} because payment is already PAID", registrationUuid);
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
+            throw new AppException(ErrorCode.REGISTRATION_ALREADY_PAID);
         }
 
         registration.setStatus(ExhibitorRegistrationStatus.CANCELED);

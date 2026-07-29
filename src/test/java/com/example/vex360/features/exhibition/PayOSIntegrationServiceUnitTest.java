@@ -60,7 +60,7 @@ class PayOSIntegrationServiceUnitTest {
                     123456L, 1000L, "test description", "http://return", "http://cancel");
         });
 
-        assertEquals(ErrorCode.UNCATCHED_EXCEPTION, exception.getErrorCode());
+        assertEquals(ErrorCode.PAYMENT_LINK_UNAVAILABLE, exception.getErrorCode());
     }
 
     @Test

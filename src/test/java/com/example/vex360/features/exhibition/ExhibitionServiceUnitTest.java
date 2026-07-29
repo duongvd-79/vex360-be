@@ -63,6 +63,8 @@ import com.example.vex360.shared.services.CloudService;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 
+import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,6 +80,9 @@ class ExhibitionServiceUnitTest {
     private ExhibitionAssetRepository exhibitionAssetRepository;
 
     @Mock
+    private ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+
+    @Mock
     private CloudService cloudService;
 
     @Mock
@@ -88,6 +93,9 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private ExhibitionReviewHistoryService reviewHistoryService;
+
+    @Mock
+    private ExhibitionTimelinePolicy timelinePolicy;
 
     @InjectMocks
     private ExhibitionServiceImpl exhibitionService;
@@ -115,8 +123,8 @@ class ExhibitionServiceUnitTest {
                 .endDate(LocalDate.now().plusDays(15))
                 .build();
 
-        ReflectionTestUtils.setField(exhibitionService, "timelinePolicy",
-                new ExhibitionTimelinePolicy(Clock.systemUTC()));
+        ReflectionTestUtils.setField(exhibitionService, "timelinePolicy", timelinePolicy);
+        org.mockito.Mockito.lenient().when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(true);
     }
 
     @Test
@@ -169,7 +177,7 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void testPublishExhibition_InvalidStatus_ThrowsException() {
+    void testPublishExhibition_StatusNotReady_ThrowsException() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
@@ -177,7 +185,7 @@ class ExhibitionServiceUnitTest {
             exhibitionService.publishExhibition(organizer, exhibitionUuid);
         });
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_NOT_READY_TO_PUBLISH, ex.getErrorCode());
     }
 
     @Test
@@ -387,6 +395,18 @@ class ExhibitionServiceUnitTest {
         assertEquals(exhibitionUuid, result.getUuid());
     }
 
+    @Test
+    void testPublishExhibition_InvalidStatus_ThrowsException() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+
+        AppException ex = assertThrows(AppException.class, () -> {
+            exhibitionService.publishExhibition(organizer, exhibitionUuid);
+        });
+
+        assertEquals(ErrorCode.EXHIBITION_NOT_READY_TO_PUBLISH, ex.getErrorCode());
+    }
+
     @ParameterizedTest
     @EnumSource(value = ExhibitionStatus.class, names = { "REGISTRATION", "PUBLISHED", "ACTIVE", "COMPLETED" })
     void updateExhibitionPackage_nonDraftExhibition_throwsInvalidStatus(ExhibitionStatus status) {
@@ -397,7 +417,7 @@ class ExhibitionServiceUnitTest {
                 () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10,
                         new ConfigureExhibitionPackageRequest()));
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, exception.getErrorCode());
     }
 
     @ParameterizedTest
@@ -409,7 +429,7 @@ class ExhibitionServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 10));
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, exception.getErrorCode());
     }
 
     @Test
@@ -585,5 +605,111 @@ class ExhibitionServiceUnitTest {
             synchronizations.forEach(TransactionSynchronization::afterCommit);
         }
         synchronizations.forEach(synchronization -> synchronization.afterCompletion(status));
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_nonDraftStatus_throwsDetailsChangesNotAllowed() {
+        registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("New Name")
+                .startDate(LocalDate.now().plusDays(20))
+                .endDate(LocalDate.now().plusDays(25))
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+        assertEquals(ErrorCode.EXHIBITION_DETAILS_CHANGES_NOT_ALLOWED, ex.getErrorCode());
+        assertEquals("Chỉ có thể chỉnh sửa hồ sơ khi đang chờ duyệt hoặc đã bị từ chối.",
+                ex.getErrorCode().getMessage());
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_maxRejectionLimit_throwsResubmissionLimitReached() {
+        registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
+        registrationExhibition.setRejectionCount(3);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("New Name")
+                .startDate(LocalDate.now().plusDays(20))
+                .endDate(LocalDate.now().plusDays(25))
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+        assertEquals(ErrorCode.EXHIBITION_RESUBMISSION_LIMIT_REACHED, ex.getErrorCode());
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_onOrAfterStartDate_throwsAlreadyStarted() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setStartDate(LocalDate.now());
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("New Name")
+                .startDate(LocalDate.now().plusDays(20))
+                .endDate(LocalDate.now().plusDays(25))
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+        assertEquals(ErrorCode.EXHIBITION_ALREADY_STARTED, ex.getErrorCode());
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_hasRegistrations_throwsHasRegistrations() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setStartDate(LocalDate.now().plusDays(20));
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
+                .thenReturn(true);
+
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("New Name")
+                .startDate(LocalDate.now().plusDays(20))
+                .endDate(LocalDate.now().plusDays(25))
+                .build();
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+        assertEquals(ErrorCode.EXHIBITION_HAS_REGISTRATIONS, ex.getErrorCode());
+    }
+
+    @Test
+    void updateExhibitionMedia_pendingStatus_throwsAssetChangesNotAllowed() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, null, null, null));
+        assertEquals(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED, ex.getErrorCode());
+    }
+
+    @Test
+    void approveExhibition_leadTimeNotMet_throwsLeadTimeNotMet() {
+        User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setStartDate(LocalDate.now().plusDays(2));
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(false);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
+        assertEquals(ErrorCode.EXHIBITION_APPROVAL_LEAD_TIME_NOT_MET, ex.getErrorCode());
+    }
+
+    @Test
+    void updateExhibitionPackage_packageInUse_throwsPackageInUse() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.existsByExhibitionPackageId(10)).thenReturn(true);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10,
+                        new ConfigureExhibitionPackageRequest()));
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_IN_USE, ex.getErrorCode());
     }
 }

@@ -57,7 +57,7 @@ public class StoragePaymentService {
             }
             payment.setStatus(PaymentStatus.FAILED);
             paymentRepository.save(payment);
-            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+            throw new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE);
         }
     }
 }

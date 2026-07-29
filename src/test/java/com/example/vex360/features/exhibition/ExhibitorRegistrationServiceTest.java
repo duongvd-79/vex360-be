@@ -276,7 +276,7 @@ class ExhibitorRegistrationServiceTest {
             registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo");
         });
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 
@@ -291,7 +291,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class,
                 () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 
@@ -305,7 +305,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class,
                 () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo"));
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 
@@ -1095,7 +1095,7 @@ class ExhibitorRegistrationServiceTest {
             registrationService.cancelRegistration(companyUser, registrationUuid);
         });
 
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_ALREADY_PAID, exception.getErrorCode());
     }
 
     @Test
@@ -1169,7 +1169,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.cancelRegistration(companyUser, registrationUuid);
         });
-        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_CANNOT_CANCEL, exception.getErrorCode());
     }
 
     @Test
