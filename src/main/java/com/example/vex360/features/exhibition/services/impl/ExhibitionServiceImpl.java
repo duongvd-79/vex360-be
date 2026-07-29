@@ -29,6 +29,7 @@ import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionS
 import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
@@ -87,6 +88,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final BoothRepository boothRepository;
+    private final CompanyRepository companyRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
     private final ExhibitionTimelinePolicy timelinePolicy;
@@ -331,7 +333,14 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 });
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        return companyRepository.findByOwnerUserId(exhibition.getOrganizer().getId())
+                .map(company -> response.toBuilder()
+                        .organizationName(company.getName())
+                        .email(company.getEmail())
+                        .phone(company.getPhone())
+                        .build())
+                .orElse(response);
     }
 
     @Override
