@@ -13,7 +13,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
-import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 
