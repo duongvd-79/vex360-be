@@ -38,6 +38,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
@@ -82,6 +83,9 @@ class ExhibitionServiceUnitTest {
 
     @Mock
     private ExhibitionMapper exhibitionMapper;
+
+    @Mock
+    private AnalyticsEventRepository analyticsEventRepository;
 
     @Mock
     private UserRepository userRepository;

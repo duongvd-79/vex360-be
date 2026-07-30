@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsDetailDTO;
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsOverviewDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingItemDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingPageDTO;
+import com.example.vex360.features.analytics.dtos.response.OrganizerAnalyticsSummaryDTO;
 import com.example.vex360.features.analytics.services.AnalyticsService;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.controllers.BaseController;
@@ -41,6 +44,17 @@ public class OrganizerAnalyticsController extends BaseController {
         return ok(analyticsService.getOrganizerOverview(userDetails.getUser()));
     }
 
+    @GetMapping("/analytics/summary")
+    @Operation(summary = "Thống kê tổng hợp các triển lãm của organizer")
+    public ResponseEntity<ApiResponse<OrganizerAnalyticsSummaryDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) UUID exhibitionId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ok(analyticsService.getOrganizerSummary(
+                userDetails.getUser(), exhibitionId, startDate, endDate));
+    }
+
     @GetMapping("/{uuid}/analytics")
     @Operation(summary = "Thống kê chi tiết một triển lãm")
     public ResponseEntity<ApiResponse<ExhibitionAnalyticsDetailDTO>> getDetail(
@@ -49,5 +63,22 @@ public class OrganizerAnalyticsController extends BaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ok(analyticsService.getExhibitionAnalytics(userDetails.getUser(), uuid, startDate, endDate));
+    }
+
+    @GetMapping("/{uuid}/booth-ranking")
+    @Operation(summary = "Bảng xếp hạng gian hàng của một triển lãm")
+    public ResponseEntity<ApiResponse<OrganizerBoothRankingPageDTO>> getBoothRanking(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID uuid,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "viewCount") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection,
+            @RequestParam(defaultValue = "all") String interaction,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ok(analyticsService.getOrganizerBoothRankingPage(
+                userDetails.getUser(), uuid, startDate, endDate, keyword, sortBy, sortDirection, interaction, page, size));
     }
 }

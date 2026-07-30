@@ -16,4 +16,9 @@ public class ExhibitionAnalyticsOverviewDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private long boothCount;
+
+    /** Số gian hàng dự kiến do organizer đặt ra (có thể null nếu không khai báo). */
+    private Integer estimatedBooths;
+    /** Tổng lượt khách vào triển lãm (ENTER_EXHIBITION) — dùng xếp hạng triển lãm. */
+    private long totalVisits;
 }

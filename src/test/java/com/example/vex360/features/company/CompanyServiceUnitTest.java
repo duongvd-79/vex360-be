@@ -1,8 +1,10 @@
 package com.example.vex360.features.company;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -204,5 +206,56 @@ class CompanyServiceUnitTest {
 
         assertEquals("New Industry", response.getIndustry());
         assertEquals("INCOMPLETE_PROFILE", response.getStatus());
+    }
+
+    // ================= getCompanyEntityForCurrentUser =================
+
+    @Test
+    void getCompanyEntityForCurrentUser_Success_ReturnsCompanyEntity() {
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
+
+        Company result = companyService.getCompanyEntityForCurrentUser(owner);
+
+        assertSame(company, result);
+    }
+
+    @Test
+    void getCompanyEntityForCurrentUser_CurrentUserNull_ThrowsUnauthenticated() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyService.getCompanyEntityForCurrentUser(null));
+
+        assertSame(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+    }
+
+    @Test
+    void getCompanyEntityForCurrentUser_CompanyNotFound_ThrowsCompanyNotFound() {
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> companyService.getCompanyEntityForCurrentUser(owner));
+
+        assertSame(ErrorCode.COMPANY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    // ================= existsByOwnerUserId =================
+
+    @Test
+    void existsByOwnerUserId_OwnerHasCompany_ReturnsTrue() {
+        UUID ownerId = UUID.randomUUID();
+        when(companyRepository.existsByOwnerUserId(ownerId)).thenReturn(true);
+
+        boolean result = companyService.existsByOwnerUserId(ownerId);
+
+        assertTrue(result);
+    }
+
+    @Test
+    void existsByOwnerUserId_OwnerHasNoCompany_ReturnsFalse() {
+        UUID ownerId = UUID.randomUUID();
+        when(companyRepository.existsByOwnerUserId(ownerId)).thenReturn(false);
+
+        boolean result = companyService.existsByOwnerUserId(ownerId);
+
+        assertFalse(result);
     }
 }

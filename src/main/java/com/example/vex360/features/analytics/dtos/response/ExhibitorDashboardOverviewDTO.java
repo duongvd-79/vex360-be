@@ -15,6 +15,8 @@ public class ExhibitorDashboardOverviewDTO {
     private String startDate;
     private String endDate;
     private Metrics metrics;
+    // Lead của tất cả gian hàng thuộc công ty, ghi nhận trong khoảng ngày đang lọc.
+    private LeadMetrics leadMetrics;
     private List<ChartPoint> chart;
     // Top 3 gian hàng có nhiều lượt xem nhất trong kỳ, để exhibitor biết nên xem chi tiết gian nào
     private List<TopBooth> topBooths;
@@ -25,8 +27,21 @@ public class ExhibitorDashboardOverviewDTO {
         private long totalViews;
         private long totalInteractions;
         private long unreadMessages;
+        private long totalLeads;
         private long activeBoothsCount;
         private long totalBoothsCount;
+    }
+
+    @Data
+    @Builder
+    public static class LeadMetrics {
+        private long total;
+        private long newCount;
+        private long contactedCount;
+        private long qualifiedCount;
+        private long convertedCount;
+        private long lostCount;
+        private double conversionRate;
     }
 
     @Data

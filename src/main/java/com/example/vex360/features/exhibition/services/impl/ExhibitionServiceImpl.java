@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.example.vex360.features.analytics.enums.AnalyticsEventType;
+import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -79,6 +81,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
+    private final AnalyticsEventRepository analyticsEventRepository;
     private final ExhibitionTimelinePolicy timelinePolicy;
     private final UserRepository userRepository;
     private final ExhibitionReviewHistoryService reviewHistoryService;
@@ -263,7 +266,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
-        return exhibitionMapper.toPublicResponse(exhibition, null);
+        long visitorCount = analyticsEventRepository.countByExhibitionIdAndEventType(
+                exhibition.getId(), AnalyticsEventType.ENTER_EXHIBITION);
+
+        return exhibitionMapper.toPublicResponse(exhibition, null).toBuilder()
+                .visitorCount(visitorCount)
+                .build();
     }
 
     @Override

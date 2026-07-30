@@ -50,7 +50,7 @@ public enum ErrorCode {
     INPUT_FAILED("USER-004", "Dữ liệu nhập vào không hợp lệ.", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Mật khẩu hiện tại không chính xác.", HttpStatus.BAD_REQUEST),
 
-    INVALID_STORAGE_USAGE("STORAGE-004", "Invalid storage usage state.", HttpStatus.CONFLICT),
+    INVALID_STORAGE_USAGE("STORAGE-004", "Trạng thái dung lượng lưu trữ không hợp lệ.", HttpStatus.CONFLICT),
 
     // PARTNERSHIP ERRORS
     PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
@@ -89,7 +89,7 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trạng thái sản phẩm không hợp lệ.", HttpStatus.BAD_REQUEST),
     PRODUCT_USED_BY_PENDING_BOOTH("PRODUCT-008",
-            "Sản phẩm đang được sử dụng bởi một gian hàng chờ duyệt, không thể chỉnh sửa hoặc xóa.",
+            "Sản phẩm đang được sử dụng bởi một gian hàng đang chờ duyệt hoặc đã xuất bản, không thể chỉnh sửa hoặc xóa.",
             HttpStatus.CONFLICT),
 
     // BOOTH ERRORS
@@ -167,6 +167,9 @@ public enum ErrorCode {
     REGISTRATION_DEPENDENCY_INVALID("REGISTRATION-003",
             "Thông tin liên kết của đơn đăng ký (doanh nghiệp/người dùng/gói) không còn hợp lệ.",
             HttpStatus.UNPROCESSABLE_CONTENT),
+
+    // LEAD ERRORS
+    LEAD_NOT_FOUND("LEAD-001", "Không tìm thấy thông tin khách hàng tiềm năng.", HttpStatus.NOT_FOUND),
 
     // CHAT ERRORS
     CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND);

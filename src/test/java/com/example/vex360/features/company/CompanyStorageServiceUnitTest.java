@@ -15,7 +15,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.shared.exceptions.AppException;
@@ -26,6 +28,9 @@ class CompanyStorageServiceUnitTest {
 
     @Mock
     private CompanyRepository companyRepository;
+
+    @Mock
+    private MediaAssetRepository mediaAssetRepository;
 
     @InjectMocks
     private CompanyStorageService companyStorageService;
@@ -169,5 +174,165 @@ class CompanyStorageServiceUnitTest {
 
     private void stubCompanyLock() {
         when(companyRepository.findByIdForUpdate(company.getId())).thenReturn(Optional.of(company));
+    }
+
+    // ================= checkQuota =================
+
+    @Test
+    void checkQuota_NegativeBytes_ThrowsInvalidStorageUsage() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.checkQuota(company, -1L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    // ================= addUsage =================
+
+    @Test
+    void addUsage_CompanyNotFound_ThrowsCompanyNotFound() {
+        when(companyRepository.findByIdForUpdate(company.getId())).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.addUsage(company, 50L));
+
+        assertEquals(ErrorCode.COMPANY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    // ================= deductUsage =================
+
+    @Test
+    void deductUsage_NegativeBytes_ThrowsInvalidStorageUsage() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.deductUsage(company, -1L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    // ================= promoteReservedUsage =================
+
+    @Test
+    void promoteReservedUsage_InsufficientReserved_ThrowsInvalidStorageUsage() {
+        stubCompanyLock();
+
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.promoteReservedUsage(company, 51L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    @Test
+    void promoteReservedUsage_NegativeBytes_ThrowsInvalidStorageUsage() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.promoteReservedUsage(company, -1L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    // ================= releaseReservedUsage =================
+
+    @Test
+    void releaseReservedUsage_Success_DecreasesReservedOnly() {
+        stubCompanyLock();
+        when(companyRepository.save(company)).thenReturn(company);
+
+        companyStorageService.releaseReservedUsage(company, 20L);
+
+        assertEquals(30L, company.getStorageReservedBytes());
+        assertEquals(100L, company.getStorageUsedBytes());
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void releaseReservedUsage_NegativeBytes_ThrowsInvalidStorageUsage() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.releaseReservedUsage(company, -1L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    // ================= adjustReservation =================
+
+    @Test
+    void adjustReservation_Success_UpdatesReservedToActualBytes() {
+        stubCompanyLock();
+        when(companyRepository.save(company)).thenReturn(company);
+
+        // reserved=50 -> release 30 of the old estimate, commit 25 as the real size
+        companyStorageService.adjustReservation(company, 30L, 25L);
+
+        assertEquals(45L, company.getStorageReservedBytes());
+        assertEquals(100L, company.getStorageUsedBytes());
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void adjustReservation_PreviousBytesExceedsReserved_ThrowsInvalidStorageUsage() {
+        stubCompanyLock();
+
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.adjustReservation(company, 51L, 10L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    @Test
+    void adjustReservation_QuotaExceeded_ThrowsStorageQuotaExceeded() {
+        stubCompanyLock();
+
+        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401 overflows quota
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.adjustReservation(company, 50L, 401L));
+
+        assertEquals(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
+    }
+
+    @Test
+    void adjustReservation_NegativeBytes_ThrowsInvalidStorageUsage() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyStorageService.adjustReservation(company, -1L, 10L));
+
+        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+    }
+
+    // ================= getUsage =================
+
+    @Test
+    void getUsage_NormalCase_ReturnsCorrectPercentageAndAvailable() {
+        StorageUsageResponseDTO result = companyStorageService.getUsage(company);
+
+        assertEquals(100L, result.getUsedBytes());
+        assertEquals(50L, result.getReservedBytes());
+        assertEquals(500L, result.getQuotaBytes());
+        assertEquals(350L, result.getAvailableBytes());
+        assertEquals(20.0, result.getUsedPercentage());
+    }
+
+    @Test
+    void getUsage_ZeroQuota_PercentageIsZeroNoDivisionByZero() {
+        Company zeroQuotaCompany = Company.builder()
+                .id(UUID.randomUUID())
+                .storageUsedBytes(10L)
+                .storageReservedBytes(0L)
+                .storageQuotaBytes(0L)
+                .build();
+
+        StorageUsageResponseDTO result = companyStorageService.getUsage(zeroQuotaCompany);
+
+        assertEquals(0.0, result.getUsedPercentage());
+        assertEquals(0L, result.getAvailableBytes());
+    }
+
+    @Test
+    void getUsage_UsedPlusReservedExceedsQuota_AvailableBytesClampedToZero() {
+        Company overCompany = Company.builder()
+                .id(UUID.randomUUID())
+                .storageUsedBytes(450L)
+                .storageReservedBytes(100L)
+                .storageQuotaBytes(500L)
+                .build();
+
+        StorageUsageResponseDTO result = companyStorageService.getUsage(overCompany);
+
+        assertEquals(0L, result.getAvailableBytes());
     }
 }

@@ -127,4 +127,38 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             @Param("exhibitionId") Integer exhibitionId,
             @Param("status") ExhibitorRegistrationStatus status);
 
+        /**
+         * Đếm số đơn đăng ký gian hàng ở một trạng thái của triển lãm — dùng để tính
+         * tỷ lệ lấp đầy gian hàng (đã duyệt / dự kiến) ở dashboard ban tổ chức.
+         */
+        long countByExhibitionPackageExhibitionIdAndStatus(
+                        Integer exhibitionId,
+                        ExhibitorRegistrationStatus status);
+
+        @Query("""
+                SELECT exhibition.id, COUNT(registration)
+                FROM ExhibitorRegistration registration
+                JOIN registration.exhibitionPackage exhibitionPackage
+                JOIN exhibitionPackage.exhibition exhibition
+                WHERE exhibition.id IN :exhibitionIds
+                  AND registration.status = :status
+                GROUP BY exhibition.id
+                """)
+        List<Object[]> countByStatusGroupedByExhibition(
+                        @Param("exhibitionIds") List<Integer> exhibitionIds,
+                        @Param("status") ExhibitorRegistrationStatus status);
+
+        @Query("""
+                SELECT FUNCTION('DATE', registration.submittedAt), COUNT(registration)
+                FROM ExhibitorRegistration registration
+                WHERE registration.exhibitionPackage.exhibition.id IN :exhibitionIds
+                  AND registration.submittedAt BETWEEN :startDateTime AND :endDateTime
+                GROUP BY FUNCTION('DATE', registration.submittedAt)
+                ORDER BY FUNCTION('DATE', registration.submittedAt)
+                """)
+        List<Object[]> aggregateDailySubmissions(
+                        @Param("exhibitionIds") List<Integer> exhibitionIds,
+                        @Param("startDateTime") java.time.Instant startDateTime,
+                        @Param("endDateTime") java.time.Instant endDateTime);
+
 }

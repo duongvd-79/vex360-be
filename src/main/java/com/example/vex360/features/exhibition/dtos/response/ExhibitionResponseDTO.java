@@ -39,6 +39,9 @@ public class ExhibitionResponseDTO {
     private String floorPlanUrl;
     private String guidelineUrl;
 
+    /** Tổng số lượt visitor vào xem triển lãm (ENTER_EXHIBITION), chỉ set ở trang chi tiết công khai. */
+    private Long visitorCount;
+
     private LocalDate boothReviewDeadline;
     private Boolean boothPreparationOpen;
     private Long daysUntilBoothDeadline;
