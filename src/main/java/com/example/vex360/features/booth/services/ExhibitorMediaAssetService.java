@@ -129,10 +129,6 @@ public class ExhibitorMediaAssetService {
         return MediaAssetType.IMAGE;
     }
 
-    private String toResourceType(MediaAssetType type) {
-        return type == MediaAssetType.VIDEO ? "video" : "image";
-    }
-
     private Company getCompanyForCurrentUser(User currentUser) {
         return companyService.getCompanyEntityForCurrentUser(currentUser);
     }

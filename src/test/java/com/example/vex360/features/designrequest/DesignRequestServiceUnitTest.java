@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.core.PropertyPath;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -202,11 +203,11 @@ class DesignRequestServiceUnitTest {
     @Test
     void getRequestsForAdminNormalizesKeywordAndMapsSortAliases() {
         Pageable pageable = PageRequest.of(2, 5, Sort.by(
-                Sort.Order.desc("boothName"),
-                Sort.Order.asc("status")));
+                Sort.Order.desc(DesignRequest::getBooth),
+                Sort.Order.asc(DesignRequest::getStatus)));
         Pageable mappedPageable = PageRequest.of(2, 5, Sort.by(
-                Sort.Order.desc("booth.name"),
-                Sort.Order.asc("status")));
+                Sort.Order.desc(PropertyPath.of(DesignRequest::getBooth).then(Booth::getName)),
+                Sort.Order.asc(DesignRequest::getStatus)));
         when(designRequestRepository.searchForAdmin(
                 "Expo", DesignRequestStatus.PENDING, mappedPageable))
                 .thenReturn(Page.empty(mappedPageable));
@@ -231,8 +232,8 @@ class DesignRequestServiceUnitTest {
     @Test
     void getRequestsForExhibitorNormalizesKeywordAndKeepsRequestedSort() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by(
-                Sort.Order.desc("createdAt"),
-                Sort.Order.asc("status")));
+                Sort.Order.desc(DesignRequest::getCreatedAt),
+                Sort.Order.asc(DesignRequest::getStatus)));
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(designRequestRepository.searchForCompany(
                 company.getId(), "Expo", DesignRequestStatus.PENDING, pageable))
