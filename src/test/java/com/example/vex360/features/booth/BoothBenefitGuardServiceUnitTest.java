@@ -75,9 +75,9 @@ class BoothBenefitGuardServiceUnitTest {
     }
 
     @Test
-    void assertCanCreateHotspot_WhenProjectedUsageWithinQuota_Passes() {
+    void assertCanCreateHotspot_WhenMediaExceedsStorageSnapshot_PassesOtherQuotaChecks() {
         Product product = Product.builder().id(UUID.randomUUID()).build();
-        MediaAsset video = mediaAsset(MediaAssetType.VIDEO, 512L * 1024L);
+        MediaAsset video = mediaAsset(MediaAssetType.VIDEO, 2L * 1024L * 1024L);
         Hotspot candidate = Hotspot.builder().product(product).mediaAsset(video).build();
 
         when(hotspotRepository.countBySourcePanoramaBoothId(booth.getId())).thenReturn(0L);
@@ -130,11 +130,29 @@ class BoothBenefitGuardServiceUnitTest {
     }
 
     @Test
-    void assertCanUpdateHotspot_WhenStorageQuotaExceeded_ThrowsQuotaExceeded() {
+    void assertCanCreateHotspot_WhenVideoQuotaExceeded_ThrowsQuotaExceeded() {
+        MediaAsset existingVideo = mediaAsset(MediaAssetType.VIDEO, 512L * 1024L);
+        MediaAsset candidateVideo = mediaAsset(MediaAssetType.VIDEO, 2L * 1024L * 1024L);
+        Hotspot candidate = Hotspot.builder().mediaAsset(candidateVideo).build();
+
+        when(hotspotRepository.countBySourcePanoramaBoothId(booth.getId())).thenReturn(0L);
+        when(hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(booth.getId(), null))
+                .thenReturn(List.of());
+        when(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(booth.getId(), null))
+                .thenReturn(List.of(existingVideo));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> boothBenefitGuardService.assertCanCreateHotspot(booth, candidate));
+
+        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+    }
+
+    @Test
+    void assertCanUpdateHotspot_WhenMediaExceedsStorageSnapshot_PassesOtherQuotaChecks() {
         UUID hotspotId = UUID.randomUUID();
         Hotspot candidate = Hotspot.builder()
                 .id(hotspotId)
-                .mediaAsset(mediaAsset(MediaAssetType.VIDEO, 2L * 1024L * 1024L))
+                .mediaAsset(mediaAsset(MediaAssetType.IMAGE, 2L * 1024L * 1024L))
                 .build();
 
         when(hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(booth.getId(), hotspotId))
@@ -142,10 +160,7 @@ class BoothBenefitGuardServiceUnitTest {
         when(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(booth.getId(), hotspotId))
                 .thenReturn(List.of());
 
-        AppException exception = assertThrows(AppException.class,
-                () -> boothBenefitGuardService.assertCanUpdateHotspot(booth, candidate));
-
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertDoesNotThrow(() -> boothBenefitGuardService.assertCanUpdateHotspot(booth, candidate));
     }
 
     @Test

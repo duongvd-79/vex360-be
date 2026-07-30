@@ -28,6 +28,9 @@ public class ExhibitionResponseDTO {
     private Integer estimatedBooths;
     private String status;
     private String organizerName;
+    private String organizationName;
+    private String email;
+    private String phone;
     private String rejectedReason;
     private String reviewedByName;
     private Instant reviewedAt;

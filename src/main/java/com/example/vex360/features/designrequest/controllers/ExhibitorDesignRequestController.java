@@ -12,7 +12,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,11 +23,11 @@ import com.example.vex360.features.designrequest.dtos.request.ApproveDesignDraft
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequest;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 
-import com.example.vex360.features.designrequest.dtos.request.UpdateDesignRequestProductsRequest;
 import com.example.vex360.features.designrequest.dtos.request.RequestDesignCancellationRequest;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
@@ -74,21 +73,19 @@ public class ExhibitorDesignRequestController extends BaseController {
         return ok(designRequestService.getRequestsForExhibitor(userDetails.getUser(), keyword, status, pageable));
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "Get the number of design requests awaiting Exhibitor review")
+    public ResponseEntity<ApiResponse<ExhibitorDesignRequestSummaryResponseDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(designRequestService.getSummaryForExhibitor(userDetails.getUser()));
+    }
+
     @GetMapping("/eligibility/{boothId}")
     @Operation(summary = "Kiểm tra điều kiện tạo yêu cầu thiết kế của booth", description = "Kiểm tra xem booth được chỉ định có đủ điều kiện để tạo yêu cầu thiết kế hay không (chưa có request hoạt động, còn quota thiết kế, v.v.).")
     public ResponseEntity<ApiResponse<DesignRequestEligibilityResponseDTO>> getEligibility(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
         return ok(designRequestService.getEligibility(userDetails.getUser(), boothId));
-    }
-
-    @PutMapping("/{id}/products")
-    @Operation(summary = "Cập nhật danh sách sản phẩm hiển thị cho Designer", description = "Cập nhật danh sách sản phẩm của Exhibitor hiển thị cho Designer trong quá trình thực hiện thiết kế.")
-    public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> updateProducts(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @Valid @RequestBody UpdateDesignRequestProductsRequest request) {
-        return ok(designRequestService.updatePendingProducts(userDetails.getUser(), id, request.getProductIds()));
     }
 
     @PostMapping("/{id}/cancel")

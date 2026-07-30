@@ -127,6 +127,10 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     long countByAssignedDesignerIdAndStatusIn(UUID designerId, List<DesignRequestStatus> statuses);
 
+    long countByAssignedDesignerIdAndStatus(UUID designerId, DesignRequestStatus status);
+
+    long countByCompanyIdAndStatus(UUID companyId, DesignRequestStatus status);
+
     long countByStatus(DesignRequestStatus status);
 
     long countByStatusIn(List<DesignRequestStatus> statuses);

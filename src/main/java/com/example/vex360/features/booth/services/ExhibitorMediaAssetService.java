@@ -20,6 +20,8 @@ import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
@@ -42,6 +44,7 @@ public class ExhibitorMediaAssetService {
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
     private final DesignAssetReferenceService assetReferenceService;
+    private final DesignRequestMediaAssetRepository requestMediaAssetRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<MediaAssetResponseDTO> getMediaAssets(
@@ -108,6 +111,11 @@ public class ExhibitorMediaAssetService {
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         if (hotspotRepository.existsByMediaAssetId(assetId)) {
             throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
+        }
+        if (requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
+                assetId,
+                DesignRequestRepository.NON_TERMINAL_STATUSES)) {
+            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_LOCKED);
         }
 
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);

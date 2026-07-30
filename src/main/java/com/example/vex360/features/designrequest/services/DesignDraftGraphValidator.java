@@ -75,12 +75,19 @@ public class DesignDraftGraphValidator {
         }
 
         Set<UUID> allowedProductIds = allowedProductIds(request);
+        Set<UUID> allowedMediaAssetIds = allowedMediaAssetIds(request);
         for (DesignDraftPanorama panorama : panoramas) {
             if (panorama.getHotspots() == null) {
                 continue;
             }
             for (DesignDraftHotspot hotspot : panorama.getHotspots()) {
-                validateHotspot(request, panorama, hotspot, panoramaKeys, allowedProductIds);
+                validateHotspot(
+                        request,
+                        panorama,
+                        hotspot,
+                        panoramaKeys,
+                        allowedProductIds,
+                        allowedMediaAssetIds);
             }
         }
     }
@@ -90,7 +97,8 @@ public class DesignDraftGraphValidator {
             DesignDraftPanorama panorama,
             DesignDraftHotspot hotspot,
             Set<String> panoramaKeys,
-            Set<UUID> allowedProductIds) {
+            Set<UUID> allowedProductIds,
+            Set<UUID> allowedMediaAssetIds) {
         if (hotspot == null
                 || hotspot.getSourcePanorama() == null
                 || !sameEntity(
@@ -111,8 +119,8 @@ public class DesignDraftGraphValidator {
         switch (hotspot.getType()) {
             case NAV -> validateNav(hotspot, panoramaKeys);
             case PRODUCT -> validateProductHotspot(request, hotspot, allowedProductIds);
-            case INFO -> validateInfoHotspot(request, hotspot, allowedProductIds);
-            case MEDIA -> validateMediaHotspot(request, hotspot);
+            case INFO -> validateInfoHotspot(request, hotspot, allowedProductIds, allowedMediaAssetIds);
+            case MEDIA -> validateMediaHotspot(request, hotspot, allowedMediaAssetIds);
             default -> invalidDraft();
         }
     }
@@ -150,7 +158,8 @@ public class DesignDraftGraphValidator {
     private void validateInfoHotspot(
             DesignRequest request,
             DesignDraftHotspot hotspot,
-            Set<UUID> allowedProductIds) {
+            Set<UUID> allowedProductIds,
+            Set<UUID> allowedMediaAssetIds) {
         if (isText(hotspot.getTargetDraftPanoramaKey())
                 || hotspot.getMediaClickAction() != null
                 || hasAnyCorner(hotspot)
@@ -176,13 +185,13 @@ public class DesignDraftGraphValidator {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
                     invalidDraft();
                 }
-                validateMediaReference(request, hotspot, MediaAssetType.IMAGE);
+                validateMediaReference(request, hotspot, MediaAssetType.IMAGE, allowedMediaAssetIds);
             }
             case VIDEO -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
                     invalidDraft();
                 }
-                validateMediaReference(request, hotspot, MediaAssetType.VIDEO);
+                validateMediaReference(request, hotspot, MediaAssetType.VIDEO, allowedMediaAssetIds);
             }
             case PRODUCT -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getMediaAsset() != null
@@ -195,7 +204,10 @@ public class DesignDraftGraphValidator {
         }
     }
 
-    private void validateMediaHotspot(DesignRequest request, DesignDraftHotspot hotspot) {
+    private void validateMediaHotspot(
+            DesignRequest request,
+            DesignDraftHotspot hotspot,
+            Set<UUID> allowedMediaAssetIds) {
         if (isText(hotspot.getTargetDraftPanoramaKey())
                 || hotspot.getProduct() != null
                 || isText(hotspot.getInfoText())
@@ -203,7 +215,7 @@ public class DesignDraftGraphValidator {
                 || hotspot.getMediaClickAction() == null) {
             invalidDraft();
         }
-        validateMediaReference(request, hotspot, null);
+        validateMediaReference(request, hotspot, null, allowedMediaAssetIds);
     }
 
     private void validateProduct(DesignRequest request, Product product, Set<UUID> allowedProductIds) {
@@ -216,10 +228,18 @@ public class DesignDraftGraphValidator {
         }
     }
 
-    private void validateMedia(DesignRequest request, MediaAsset mediaAsset, MediaAssetType expectedType) {
-        if (mediaAsset == null
-                || mediaAsset.getId() == null
-                || mediaAsset.getType() == null
+    private void validateMedia(
+            DesignRequest request,
+            MediaAsset mediaAsset,
+            MediaAssetType expectedType,
+            Set<UUID> allowedMediaAssetIds) {
+        if (mediaAsset == null || mediaAsset.getId() == null) {
+            invalidDraft();
+        }
+        if (!allowedMediaAssetIds.contains(mediaAsset.getId())) {
+            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED);
+        }
+        if (mediaAsset.getType() == null
                 || !sameCompany(request.getCompany(), mediaAsset.getCompany())
                 || expectedType != null && mediaAsset.getType() != expectedType) {
             invalidDraft();
@@ -229,14 +249,15 @@ public class DesignDraftGraphValidator {
     private void validateMediaReference(
             DesignRequest request,
             DesignDraftHotspot hotspot,
-            MediaAssetType expectedType) {
+            MediaAssetType expectedType,
+            Set<UUID> allowedMediaAssetIds) {
         boolean official = hotspot.getMediaAsset() != null;
         boolean staging = hotspot.getDesignDraftMediaAsset() != null;
         if (official == staging) {
             invalidDraft();
         }
         if (official) {
-            validateMedia(request, hotspot.getMediaAsset(), expectedType);
+            validateMedia(request, hotspot.getMediaAsset(), expectedType, allowedMediaAssetIds);
             return;
         }
         DesignDraftMediaAsset media = hotspot.getDesignDraftMediaAsset();
@@ -280,6 +301,19 @@ public class DesignDraftGraphValidator {
             }
         });
         return productIds;
+    }
+
+    private Set<UUID> allowedMediaAssetIds(DesignRequest request) {
+        Set<UUID> mediaAssetIds = new HashSet<>();
+        if (request.getMediaAssets() == null) {
+            return mediaAssetIds;
+        }
+        request.getMediaAssets().forEach(item -> {
+            if (item != null && item.getMediaAsset() != null && item.getMediaAsset().getId() != null) {
+                mediaAssetIds.add(item.getMediaAsset().getId());
+            }
+        });
+        return mediaAssetIds;
     }
 
     private void validateCorners(DesignDraftHotspot hotspot) {

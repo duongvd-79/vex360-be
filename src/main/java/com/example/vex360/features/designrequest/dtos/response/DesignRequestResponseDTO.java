@@ -29,10 +29,14 @@ public class DesignRequestResponseDTO {
     private UUID assignedDesignerId;
     private String assignedDesignerName;
     private String note;
+    private String contactEmail;
+    private String contactPhone;
     private String reviewNote;
     private Integer reviewCount;
     private Integer requiredProductCount;
     private Integer optionalProductCount;
+    private Integer requiredMediaAssetCount;
+    private Integer optionalMediaAssetCount;
     private Integer remainingDesignActions;
     private DesignRequestCancellationStatus cancellationStatus;
     private String cancellationReason;

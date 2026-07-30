@@ -23,6 +23,10 @@ public class DesignerWorkspaceResponseDTO {
     private Integer remainingDesignActions;
     private Integer requiredProductCount;
     private Integer optionalProductCount;
+    private Integer requiredMediaAssetCount;
+    private Integer optionalMediaAssetCount;
+    private String contactEmail;
+    private String contactPhone;
     private String requestNote;
     private String reviewNote;
     private Integer reviewCount;

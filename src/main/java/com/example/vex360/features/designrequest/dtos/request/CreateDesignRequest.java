@@ -3,7 +3,10 @@ package com.example.vex360.features.designrequest.dtos.request;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,9 +20,18 @@ public class CreateDesignRequest {
 
     private List<UUID> productIds;
 
+    private List<UUID> mediaAssetIds;
+
+    @Email(message = "Email liên hệ không hợp lệ")
+    @Size(max = 320, message = "Email liên hệ không được vượt quá 320 ký tự")
+    private String contactEmail;
+
+    @Pattern(regexp = "^0[0-9]{9}$", message = "Số điện thoại liên hệ không hợp lệ")
+    private String contactPhone;
+
     private String note;
 
     public CreateDesignRequest(UUID boothId, String note) {
-        this(boothId, List.of(), note);
+        this(boothId, List.of(), List.of(), null, null, note);
     }
 }

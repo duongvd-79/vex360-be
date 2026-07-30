@@ -40,6 +40,7 @@ import com.example.vex360.features.designrequest.dtos.response.DesignDraftPrevie
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftSettingsResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftAssetResponseDTO;
+import com.example.vex360.features.designrequest.dtos.response.DesignerDesignRequestSummaryResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
 
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
@@ -84,6 +85,13 @@ public class DesignerDesignRequestController extends BaseController {
             @RequestParam(required = false) DesignRequestStatus status,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(designRequestService.getRequestsForDesigner(userDetails.getUser(), status, pageable));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Get assigned and revision-requested design request counts")
+    public ResponseEntity<ApiResponse<DesignerDesignRequestSummaryResponseDTO>> getSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(designRequestService.getSummaryForDesigner(userDetails.getUser()));
     }
 
     @GetMapping("/{id}/workspace")
@@ -199,7 +207,7 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
     @GetMapping("/{id}/products")
-    @Operation(summary = "Xem sản phẩm của Exhibitor để gắn vào booth", description = "Trả về các product ACTIVE thuộc company sở hữu booth của design request. Hỗ trợ tìm kiếm theo keyword, lọc category và phân trang. Designer chỉ được tham chiếu các product này trong hotspot, không được tạo hoặc chỉnh sửa product thay Exhibitor.")
+    @Operation(summary = "Xem sản phẩm được phép dùng trong yêu cầu thiết kế", description = "Trả về các product ACTIVE thuộc allowlist bất biến của design request. Hỗ trợ tìm kiếm theo keyword, lọc category và phân trang.")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponseDTO>>> getProducts(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
@@ -211,12 +219,13 @@ public class DesignerDesignRequestController extends BaseController {
     }
 
     @GetMapping("/{id}/media-assets")
-    @Operation(summary = "Xem media asset của Exhibitor để gắn vào booth", description = "Trả về danh sách media asset thuộc company sở hữu booth của design request, có phân trang. Designer chỉ được dùng các asset này làm nội dung hotspot và không có quyền thay đổi dữ liệu gốc của Exhibitor.")
+    @Operation(summary = "Xem media asset được phép dùng trong yêu cầu thiết kế", description = "Trả về MediaAsset thuộc allowlist bất biến của design request, hỗ trợ filterType=IMAGE|VIDEO|all và phân trang. Staging media do Designer upload được quản lý riêng.")
     public ResponseEntity<ApiResponse<PageResponse<MediaAssetResponseDTO>>> getMediaAssets(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
+            @RequestParam(required = false) String filterType,
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ok(designerWorkspaceService.getMediaAssets(userDetails.getUser(), id, pageable));
+        return ok(designerWorkspaceService.getMediaAssets(userDetails.getUser(), id, filterType, pageable));
     }
 
     @PostMapping(value = "/{id}/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

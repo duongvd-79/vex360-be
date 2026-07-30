@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,8 @@ public interface MediaAssetRepository extends JpaRepository<MediaAsset, UUID> {
     Page<MediaAsset> findByCompanyIdAndType(UUID companyId, MediaAssetType type, Pageable pageable);
 
     Optional<MediaAsset> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    List<MediaAsset> findByIdInAndCompanyId(List<UUID> ids, UUID companyId);
 
     boolean existsByPublicId(String publicId);
 
