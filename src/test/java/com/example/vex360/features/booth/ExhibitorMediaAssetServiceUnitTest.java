@@ -38,6 +38,8 @@ import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -64,6 +66,8 @@ class ExhibitorMediaAssetServiceUnitTest {
     private CompanyStorageService companyStorageService;
     @Mock
     private DesignAssetReferenceService assetReferenceService;
+    @Mock
+    private DesignRequestMediaAssetRepository requestMediaAssetRepository;
 
     private ExhibitorMediaAssetService mediaAssetService;
 
@@ -81,7 +85,8 @@ class ExhibitorMediaAssetServiceUnitTest {
                 companyStorageService,
                 cloudService,
                 boothMapper,
-                assetReferenceService);
+                assetReferenceService,
+                requestMediaAssetRepository);
 
         currentUser = User.builder().id(UUID.randomUUID()).email("user@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).name("Company Corp").build();
@@ -319,6 +324,23 @@ class ExhibitorMediaAssetServiceUnitTest {
             mediaAssetService.deleteMediaAsset(currentUser, assetId);
         });
         assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        verify(mediaAssetRepository, never()).delete(any());
+    }
+
+    @Test
+    void testDeleteMediaAsset_UsedByActiveDesignRequest_ThrowsLockedException() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        UUID assetId = mediaAsset.getId();
+        when(mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId())).thenReturn(Optional.of(mediaAsset));
+        when(hotspotRepository.existsByMediaAssetId(assetId)).thenReturn(false);
+        when(requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
+                assetId, DesignRequestRepository.NON_TERMINAL_STATUSES)).thenReturn(true);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> mediaAssetService.deleteMediaAsset(currentUser, assetId));
+
+        assertEquals(ErrorCode.DESIGN_MEDIA_ASSET_LOCKED, exception.getErrorCode());
         verify(mediaAssetRepository, never()).delete(any());
     }
 

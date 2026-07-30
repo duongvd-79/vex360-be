@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,6 +41,7 @@ import com.example.vex360.features.designrequest.services.DesignDraftAssetServic
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
 import com.example.vex360.features.designrequest.services.DesignDraftGraphValidator;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
+import com.example.vex360.features.designrequest.services.DesignRequestMediaAssetService;
 import com.example.vex360.features.designrequest.services.DesignerDraftEditorService;
 import com.example.vex360.features.designrequest.services.DesignerDraftPreviewService;
 import com.example.vex360.features.product.services.ProductService;
@@ -67,6 +69,8 @@ class DesignerDraftEditorServiceUnitTest {
     @Mock
     DesignRequestProductService requestProductService;
     @Mock
+    DesignRequestMediaAssetService requestMediaAssetService;
+    @Mock
     ProductService productService;
     @Mock
     BoothDesignService boothDesignService;
@@ -93,6 +97,7 @@ class DesignerDraftEditorServiceUnitTest {
                 draftAssetRepository,
                 assetService,
                 requestProductService,
+                requestMediaAssetService,
                 productService,
                 boothDesignService,
                 benefitGuardService,
@@ -239,6 +244,26 @@ class DesignerDraftEditorServiceUnitTest {
 
         assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
         assertTrue(panorama.getHotspots().isEmpty());
+    }
+
+    @Test
+    void createHotspotRejectsOfficialMediaOutsideRequestAllowlist() {
+        DesignDraftPanorama panorama = panorama("main", 0, true);
+        draft.getPanoramas().add(panorama);
+        UUID mediaAssetId = UUID.randomUUID();
+        UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.INFO);
+        create.setInfoContentType(HotspotInfoContentType.IMAGE);
+        create.setMediaAssetId(mediaAssetId);
+        doThrow(new AppException(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED))
+                .when(requestMediaAssetService).assertMediaAssetAllowed(request, mediaAssetId);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.createHotspot(designer, request.getId(), panorama.getId(), create));
+
+        assertSame(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED, exception.getErrorCode());
+        assertTrue(panorama.getHotspots().isEmpty());
+        verify(boothDesignService, never()).getMediaAssetForCompany(mediaAssetId, request.getCompany().getId(), null);
     }
 
     @Test

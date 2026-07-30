@@ -40,6 +40,8 @@ public interface DesignRequestMapper {
     @Mapping(target = "latestDraft", source = "drafts", qualifiedByName = "latestDraft")
     @Mapping(target = "requiredProductCount", expression = "java(countProducts(request, true))")
     @Mapping(target = "optionalProductCount", expression = "java(countProducts(request, false))")
+    @Mapping(target = "requiredMediaAssetCount", expression = "java(countMediaAssets(request, true))")
+    @Mapping(target = "optionalMediaAssetCount", expression = "java(countMediaAssets(request, false))")
     @Mapping(target = "reviewNote", expression = "java(latestRejectionReason(request))")
     @Mapping(target = "remainingDesignActions", ignore = true)
     DesignRequestResponseDTO toResponse(DesignRequest request);
@@ -85,6 +87,15 @@ public interface DesignRequestMapper {
         }
         return (int) request.getProducts().stream()
                 .filter(product -> Boolean.TRUE.equals(product.getRequiredFromBaseline()) == required)
+                .count();
+    }
+
+    default int countMediaAssets(DesignRequest request, boolean required) {
+        if (request.getMediaAssets() == null) {
+            return 0;
+        }
+        return (int) request.getMediaAssets().stream()
+                .filter(mediaAsset -> Boolean.TRUE.equals(mediaAsset.getRequiredFromBaseline()) == required)
                 .count();
     }
 

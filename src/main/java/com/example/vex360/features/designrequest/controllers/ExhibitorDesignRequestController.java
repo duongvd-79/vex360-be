@@ -12,7 +12,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,7 +23,6 @@ import com.example.vex360.features.designrequest.dtos.request.ApproveDesignDraft
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequest;
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 
-import com.example.vex360.features.designrequest.dtos.request.UpdateDesignRequestProductsRequest;
 import com.example.vex360.features.designrequest.dtos.request.RequestDesignCancellationRequest;
 import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
@@ -88,15 +86,6 @@ public class ExhibitorDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
         return ok(designRequestService.getEligibility(userDetails.getUser(), boothId));
-    }
-
-    @PutMapping("/{id}/products")
-    @Operation(summary = "Cập nhật danh sách sản phẩm hiển thị cho Designer", description = "Cập nhật danh sách sản phẩm của Exhibitor hiển thị cho Designer trong quá trình thực hiện thiết kế.")
-    public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> updateProducts(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @Valid @RequestBody UpdateDesignRequestProductsRequest request) {
-        return ok(designRequestService.updatePendingProducts(userDetails.getUser(), id, request.getProductIds()));
     }
 
     @PostMapping("/{id}/cancel")

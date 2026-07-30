@@ -62,6 +62,7 @@ import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
+import com.example.vex360.features.designrequest.services.DesignRequestMediaAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.designrequest.services.DesignDraftSettingsService;
 import com.example.vex360.features.designrequest.services.DesignDraftCloneService;
@@ -116,6 +117,8 @@ class DesignRequestServiceUnitTest {
     @Mock
     private DesignRequestProductService requestProductService;
     @Mock
+    private DesignRequestMediaAssetService requestMediaAssetService;
+    @Mock
     private DesignRequestBaselineService baselineService;
     @Mock
     private UserRepository userRepository;
@@ -157,6 +160,7 @@ class DesignRequestServiceUnitTest {
                 productService,
                 eligibilityService,
                 requestProductService,
+                requestMediaAssetService,
                 baselineService,
                 designDraftAssetService,
                 draftSettingsService,
@@ -180,7 +184,13 @@ class DesignRequestServiceUnitTest {
                 .role(Role.DESIGNER)
                 .status(UserStatus.ACTIVE)
                 .build();
-        company = Company.builder().id(UUID.randomUUID()).ownerUser(exhibitor).name("Exh Co").build();
+        company = Company.builder()
+                .id(UUID.randomUUID())
+                .ownerUser(exhibitor)
+                .name("Exh Co")
+                .email("contact@example.com")
+                .phone("0912345678")
+                .build();
         booth = Booth.builder()
                 .id(UUID.randomUUID())
                 .company(company)
@@ -280,6 +290,51 @@ class DesignRequestServiceUnitTest {
         service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design"));
 
         assertEquals(BoothStatus.DESIGN_REQUEST_PENDING, booth.getStatus());
+        ArgumentCaptor<DesignRequest> requestCaptor = ArgumentCaptor.forClass(DesignRequest.class);
+        verify(designRequestRepository).save(requestCaptor.capture());
+        DesignRequest saved = requestCaptor.getValue();
+        assertEquals(company.getEmail(), saved.getContactEmail());
+        assertEquals(company.getPhone(), saved.getContactPhone());
+        verify(requestProductService).initializeAllowlist(saved, List.of());
+        verify(requestMediaAssetService).initializeAllowlist(saved, List.of());
+    }
+
+    @Test
+    void createRequestStoresContactOverridesWithoutChangingCompany() {
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
+        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(0L);
+        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        CreateDesignRequest create = new CreateDesignRequest(
+                booth.getId(), List.of(), List.of(), "new@example.com", "0987654321", "Need design");
+
+        service.createRequest(exhibitor, create);
+
+        ArgumentCaptor<DesignRequest> requestCaptor = ArgumentCaptor.forClass(DesignRequest.class);
+        verify(designRequestRepository).save(requestCaptor.capture());
+        assertEquals("new@example.com", requestCaptor.getValue().getContactEmail());
+        assertEquals("0987654321", requestCaptor.getValue().getContactPhone());
+        assertEquals("contact@example.com", company.getEmail());
+        assertEquals("0912345678", company.getPhone());
+    }
+
+    @Test
+    void createRequestRejectsInvalidFallbackContactBeforeChangingBooth() {
+        company.setPhone(null);
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
+        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(0L);
+        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design")));
+
+        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        verify(designRequestRepository, never()).save(any());
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -101,6 +102,8 @@ public class DesignRequestService {
             "customerCompany", "company.name",
             "assignedDesignerName", "assignedDesigner.fullName");
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
+    private static final Pattern CONTACT_EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final Pattern CONTACT_PHONE_PATTERN = Pattern.compile("^0[0-9]{9}$");
 
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;
@@ -114,6 +117,7 @@ public class DesignRequestService {
     private final ProductService productService;
     private final DesignRequestEligibilityService eligibilityService;
     private final DesignRequestProductService requestProductService;
+    private final DesignRequestMediaAssetService requestMediaAssetService;
     private final DesignRequestBaselineService baselineService;
     private final DesignDraftAssetService designDraftAssetService;
     private final DesignDraftSettingsService draftSettingsService;
@@ -127,8 +131,8 @@ public class DesignRequestService {
     /**
      * Creates a pending design request for an Exhibitor-owned booth. The booth
      * must be in DRAFT and have remaining design-action quota. On success the
-     * booth moves to DESIGN_REQUEST_PENDING; booth content is locked while
-     * metadata, files, and the allowlist remain editable until assignment.
+     * booth moves to DESIGN_REQUEST_PENDING and the submitted request data is
+     * immutable for the remainder of its lifecycle.
      *
      * @param currentUser authenticated Exhibitor
      * @param request     booth identifier and optional design note
@@ -142,6 +146,8 @@ public class DesignRequestService {
         Booth booth = getCompanyBoothForUpdate(request.getBoothId(), company);
         var eligibility = eligibilityService.evaluate(booth);
         eligibilityService.assertCanCreate(eligibility);
+        String contactEmail = resolveContactEmail(request.getContactEmail(), company.getEmail());
+        String contactPhone = resolveContactPhone(request.getContactPhone(), company.getPhone());
         booth.setStatus(BoothStatus.DESIGN_REQUEST_PENDING);
 
         DesignRequest designRequest = DesignRequest.builder()
@@ -149,11 +155,14 @@ public class DesignRequestService {
                 .company(company)
                 .requestedBy(currentUser)
                 .note(trimToNull(request.getNote()))
+                .contactEmail(contactEmail)
+                .contactPhone(contactPhone)
                 .status(DesignRequestStatus.PENDING)
                 .mode(eligibility.getMode())
                 .reviewCount(0)
                 .build();
         requestProductService.initializeAllowlist(designRequest, request.getProductIds());
+        requestMediaAssetService.initializeAllowlist(designRequest, request.getMediaAssetIds());
         DesignRequest saved = designRequestRepository.save(designRequest);
         publishStatusChanged(saved, currentUser, null);
         return toResponse(saved);
@@ -169,24 +178,6 @@ public class DesignRequestService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = boothDesignService.getCompanyBooth(boothId, company.getId());
         return eligibilityService.evaluate(booth);
-    }
-
-    /**
-     * Replaces optional product visibility while a request is PENDING;
-     * products required by a redesign baseline are always retained.
-     */
-    @Transactional
-    public DesignRequestResponseDTO updatePendingProducts(
-            User currentUser,
-            UUID id,
-            List<UUID> productIds) {
-        Company company = getCompanyForCurrentUser(currentUser);
-        DesignRequest request = getRequestForCompany(id, company);
-        if (request.getStatus() != DesignRequestStatus.PENDING) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
-        }
-        requestProductService.replaceOptionalProducts(request, productIds);
-        return toResponse(designRequestRepository.save(request));
     }
 
     /**
@@ -975,7 +966,7 @@ public class DesignRequestService {
             case INFO -> applyDraftInfoHotspot(
                     hotspot, designRequest, draftMediaByRequestId, request);
             case MEDIA -> applyDraftMediaHotspot(
-                    hotspot, designRequest.getCompany(), draftMediaByRequestId, request);
+                    hotspot, designRequest, draftMediaByRequestId, request);
             default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         return hotspot;
@@ -1027,13 +1018,13 @@ public class DesignRequestService {
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
             case IMAGE -> applyDraftMediaReference(
                     hotspot,
-                    designRequest.getCompany(),
+                    designRequest,
                     draftMediaByRequestId,
                     request,
                     MediaAssetType.IMAGE);
             case VIDEO -> applyDraftMediaReference(
                     hotspot,
-                    designRequest.getCompany(),
+                    designRequest,
                     draftMediaByRequestId,
                     request,
                     MediaAssetType.VIDEO);
@@ -1043,10 +1034,10 @@ public class DesignRequestService {
 
     private void applyDraftMediaHotspot(
             DesignDraftHotspot hotspot,
-            Company company,
+            DesignRequest designRequest,
             Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
             SubmitDesignDraftHotspotRequest request) {
-        applyDraftMediaReference(hotspot, company, draftMediaByRequestId, request, null);
+        applyDraftMediaReference(hotspot, designRequest, draftMediaByRequestId, request, null);
         hotspot.setMediaClickAction(request.getMediaClickAction() == null
                 ? HotspotMediaClickAction.DEFAULT
                 : request.getMediaClickAction());
@@ -1119,16 +1110,23 @@ public class DesignRequestService {
                 draftHotspot.getCornerBrZ());
     }
 
-    private MediaAsset getMediaAsset(UUID mediaAssetId, Company company, MediaAssetType expectedType) {
+    private MediaAsset getMediaAsset(
+            UUID mediaAssetId,
+            DesignRequest designRequest,
+            MediaAssetType expectedType) {
         if (mediaAssetId == null) {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
-        return boothDesignService.getMediaAssetForCompany(mediaAssetId, company.getId(), expectedType);
+        requestMediaAssetService.assertMediaAssetAllowed(designRequest, mediaAssetId);
+        return boothDesignService.getMediaAssetForCompany(
+                mediaAssetId,
+                designRequest.getCompany().getId(),
+                expectedType);
     }
 
     private void applyDraftMediaReference(
             DesignDraftHotspot hotspot,
-            Company company,
+            DesignRequest designRequest,
             Map<UUID, DesignDraftMediaAsset> draftMediaByRequestId,
             SubmitDesignDraftHotspotRequest request,
             MediaAssetType expectedType) {
@@ -1138,7 +1136,7 @@ public class DesignRequestService {
             throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
         }
         if (officialProvided) {
-            hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), company, expectedType));
+            hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), designRequest, expectedType));
             return;
         }
         DesignDraftMediaAsset media = draftMediaByRequestId.get(request.getDesignDraftMediaAssetId());
@@ -1274,6 +1272,22 @@ public class DesignRequestService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String resolveContactEmail(String provided, String fallback) {
+        String email = provided == null ? trimToNull(fallback) : trimToNull(provided);
+        if (email == null || email.length() > 320 || !CONTACT_EMAIL_PATTERN.matcher(email).matches()) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+        return email;
+    }
+
+    private String resolveContactPhone(String provided, String fallback) {
+        String phone = provided == null ? trimToNull(fallback) : trimToNull(provided);
+        if (phone == null || !CONTACT_PHONE_PATTERN.matcher(phone).matches()) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+        return phone;
     }
 
     private DesignRequestResponseDTO toResponse(DesignRequest request) {

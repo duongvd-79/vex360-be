@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,13 +15,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.enums.MediaAssetType;
+import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.mapper.BoothMapper;
-import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.product.mapper.ProductMapper;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
@@ -34,6 +43,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
+import com.example.vex360.shared.dtos.PageResponse;
 
 @ExtendWith(MockitoExtension.class)
 class DesignerWorkspaceServiceUnitTest {
@@ -44,9 +54,9 @@ class DesignerWorkspaceServiceUnitTest {
     @Mock
     DesignRequestProductRepository requestProductRepository;
     @Mock
-    ProductMapper productMapper;
+    DesignRequestMediaAssetRepository requestMediaAssetRepository;
     @Mock
-    BoothDesignService boothDesignService;
+    ProductMapper productMapper;
     @Mock
     CompanyService companyService;
     @Mock
@@ -74,8 +84,8 @@ class DesignerWorkspaceServiceUnitTest {
                 designRequestRepository,
                 boothMapper,
                 requestProductRepository,
+                requestMediaAssetRepository,
                 productMapper,
-                boothDesignService,
                 companyService,
                 storageService,
                 storageMetricsService,
@@ -97,6 +107,8 @@ class DesignerWorkspaceServiceUnitTest {
                 .booth(Booth.builder().id(UUID.randomUUID()).name("Booth").build())
                 .assignedDesigner(designer)
                 .status(DesignRequestStatus.ASSIGNED)
+                .contactEmail("contact@example.com")
+                .contactPhone("0912345678")
                 .build();
     }
 
@@ -108,6 +120,10 @@ class DesignerWorkspaceServiceUnitTest {
 
         assertEquals(request.getId(), response.getRequestId());
         assertEquals(DesignRequestStatus.ASSIGNED, response.getStatus());
+        assertEquals("contact@example.com", response.getContactEmail());
+        assertEquals("0912345678", response.getContactPhone());
+        assertEquals(0, response.getRequiredMediaAssetCount());
+        assertEquals(0, response.getOptionalMediaAssetCount());
     }
 
     @Test
@@ -145,5 +161,48 @@ class DesignerWorkspaceServiceUnitTest {
                 () -> service.getProducts(anotherDesigner, request.getId(), null, null, org.springframework.data.domain.Pageable.unpaged()));
 
         assertSame(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+    }
+
+    @Test
+    void getMediaAssetsUsesRequestAllowlistPaginationAndImageFilter() {
+        MediaAsset mediaAsset = MediaAsset.builder()
+                .id(UUID.randomUUID())
+                .company(request.getCompany())
+                .type(MediaAssetType.IMAGE)
+                .build();
+        DesignRequestMediaAsset allowlistItem = DesignRequestMediaAsset.builder()
+                .designRequest(request)
+                .mediaAsset(mediaAsset)
+                .requiredFromBaseline(false)
+                .build();
+        Pageable pageable = PageRequest.of(1, 5);
+        MediaAssetResponseDTO mapped = new MediaAssetResponseDTO();
+        mapped.setId(mediaAsset.getId());
+        when(designRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestMediaAssetRepository.searchAllowedMediaAssets(
+                request.getId(), MediaAssetType.IMAGE, pageable))
+                .thenReturn(new PageImpl<>(List.of(allowlistItem), pageable, 6));
+        when(boothMapper.toMediaAssetResponseDTO(mediaAsset)).thenReturn(mapped);
+
+        PageResponse<MediaAssetResponseDTO> response = service.getMediaAssets(
+                designer, request.getId(), " image ", pageable);
+
+        assertEquals(1, response.getPage());
+        assertEquals(5, response.getSize());
+        assertEquals(6, response.getTotalElements());
+        assertEquals(mediaAsset.getId(), response.getContent().get(0).getId());
+        verify(requestMediaAssetRepository).searchAllowedMediaAssets(
+                request.getId(), MediaAssetType.IMAGE, pageable);
+    }
+
+    @Test
+    void getMediaAssetsRejectsInvalidFilter() {
+        when(designRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.getMediaAssets(designer, request.getId(), "audio", Pageable.unpaged()));
+
+        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
     }
 }

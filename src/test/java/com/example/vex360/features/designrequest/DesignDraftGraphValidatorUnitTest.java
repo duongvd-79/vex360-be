@@ -19,6 +19,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.services.DesignDraftGraphValidator;
 import com.example.vex360.features.product.entities.Product;
@@ -127,6 +128,23 @@ class DesignDraftGraphValidatorUnitTest {
     }
 
     @Test
+    void officialMediaMustBeAllowlisted() {
+        DesignDraft draft = validDraft();
+        DesignDraftPanorama panorama = draft.getPanoramas().get(0);
+        MediaAsset notAllowed = MediaAsset.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .type(MediaAssetType.IMAGE)
+                .build();
+        panorama.getHotspots().add(infoMedia(panorama, HotspotInfoContentType.IMAGE, notAllowed));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> validator.validateForSubmission(request, draft));
+        assertSame(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED, exception.getErrorCode());
+    }
+
+    @Test
     void infoTextRequiresTextAndRejectsStaleResourceFields() {
         DesignDraft missingTextDraft = validDraft();
         DesignDraftPanorama missingTextPanorama = missingTextDraft.getPanoramas().get(0);
@@ -225,11 +243,16 @@ class DesignDraftGraphValidatorUnitTest {
     }
 
     private MediaAsset media(MediaAssetType type) {
-        return MediaAsset.builder()
+        MediaAsset mediaAsset = MediaAsset.builder()
                 .id(UUID.randomUUID())
                 .company(company)
                 .type(type)
                 .build();
+        request.getMediaAssets().add(DesignRequestMediaAsset.builder()
+                .designRequest(request)
+                .mediaAsset(mediaAsset)
+                .build());
+        return mediaAsset;
     }
 
     private void assertInvalid(Runnable operation) {

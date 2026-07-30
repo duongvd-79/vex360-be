@@ -1,6 +1,7 @@
 package com.example.vex360.features.designrequest.services;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,31 +71,6 @@ public class DesignRequestProductService {
     }
 
     /**
-     * Replaces the optional/non-baseline products in the allowlist.
-     * Retains any baseline products.
-     *
-     * @param request            the design request to update
-     * @param selectedProductIds the new list of product identifiers
-     * @throws AppException if product ownership or status validation fails
-     */
-    @Transactional
-    public void replaceOptionalProducts(DesignRequest request, List<UUID> selectedProductIds) {
-        List<Product> selected = loadActiveCompanyProducts(request, distinctIds(selectedProductIds));
-        Set<UUID> requiredIds = request.getProducts().stream()
-                .filter(product -> Boolean.TRUE.equals(product.getRequiredFromBaseline()))
-                .map(product -> product.getProduct().getId())
-                .collect(Collectors.toSet());
-        request.getProducts().removeIf(product -> !Boolean.TRUE.equals(product.getRequiredFromBaseline()));
-        selected.stream()
-                .filter(product -> !requiredIds.contains(product.getId()))
-                .forEach(product -> request.getProducts().add(DesignRequestProduct.builder()
-                        .designRequest(request)
-                        .product(product)
-                        .requiredFromBaseline(false)
-                        .build()));
-    }
-
-    /**
      * Asserts that a product is allowed in the design request allowlist.
      *
      * @param request   the design request to check
@@ -123,11 +99,12 @@ public class DesignRequestProductService {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        Set<UUID> distinct = new HashSet<>();
+        Set<UUID> distinct = new LinkedHashSet<>();
         for (UUID id : ids) {
-            if (id == null || !distinct.add(id)) {
+            if (id == null) {
                 throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
             }
+            distinct.add(id);
         }
         return List.copyOf(distinct);
     }
