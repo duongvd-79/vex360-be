@@ -50,6 +50,12 @@ app:
     storage-return-url: ${PAYOS_STORAGE_RETURN_URL:http://localhost:5175/storage/payment/success}
     storage-cancel-url: ${PAYOS_STORAGE_CANCEL_URL:http://localhost:5175/storage/payment/cancel}
 
+  wallet:
+    encryption:
+      active-version: ${WALLET_ENCRYPTION_ACTIVE_VERSION:1}
+      keys:
+        1: ${WALLET_ENCRYPTION_KEY_V1:k3Yv1RjOU46XoH7jYyq9N3v8Z1xW4pQ7sM0lK2jH8gF=}
+
   # JWT Settings
   jwt:
     secret: ${JWT_SECRET}

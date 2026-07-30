@@ -31,6 +31,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +42,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
     private final ExhibitorRegistrationRepository registrationRepository;
     private final BoothProvisioningService boothProvisioningService;
     private final PaymentFulfillmentService fulfillmentService;
+    private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
     private final ApplicationEventPublisher eventPublisher;
     private final PayOS payOS;
 
@@ -60,7 +62,9 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
             Optional<PaymentRoute> routeOpt = paymentRepository.findRouteByOrderCode(orderCode);
             if (routeOpt.isEmpty()) {
-                log.warn("Received valid signed PayOS webhook for unmapped orderCode: {}. Auditing webhook without fulfillment.", orderCode);
+                log.warn(
+                        "Received valid signed PayOS webhook for unmapped orderCode: {}. Auditing webhook without fulfillment.",
+                        orderCode);
                 return data;
             }
             PaymentRoute route = routeOpt.get();
@@ -95,16 +99,23 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                             registrationRepository.save(registration);
                         }
-                        Optional<Booth> boothOpt = boothProvisioningService.ensureBoothForApprovedRegistration(registration.getId());
+                        Optional<Booth> boothOpt = boothProvisioningService
+                                .ensureBoothForApprovedRegistration(registration.getId());
                         if (boothOpt.isEmpty()) {
-                            log.error("[PB-004] Replay repair failed: booth creation returned empty for registration ID {}", registration.getId());
+                            log.error(
+                                    "[PB-004] Replay repair failed: booth creation returned empty for registration ID {}",
+                                    registration.getId());
                             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
                         }
-                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), boothOpt.get().getId());
-                        log.info("Duplicate webhook processed & booth repaired/verified for orderCode: {}, booth ID: {}", orderCode, boothOpt.get().getId());
+                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(),
+                                boothOpt.get().getId());
+                        log.info(
+                                "Duplicate webhook processed & booth repaired/verified for orderCode: {}, booth ID: {}",
+                                orderCode, boothOpt.get().getId());
                     }
                 } else {
-                    log.info("Payment with orderCode {} has already been PAID. Ignoring late failure webhook.", orderCode);
+                    log.info("Payment with orderCode {} has already been PAID. Ignoring late failure webhook.",
+                            orderCode);
                 }
                 return data;
             }
@@ -118,6 +129,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     payment.setPaymentReference(data.getReference());
                 }
                 paymentRepository.save(payment);
+                paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
 
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
                     eventPublisher.publishEvent(new StoragePackagePaymentCompletedEvent(
@@ -131,13 +143,17 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                         registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                         registrationRepository.save(registration);
 
-                        Optional<Booth> boothOpt = boothProvisioningService.ensureBoothForApprovedRegistration(registration.getId());
+                        Optional<Booth> boothOpt = boothProvisioningService
+                                .ensureBoothForApprovedRegistration(registration.getId());
                         if (boothOpt.isEmpty()) {
-                            log.error("[PB-004] Fulfillment failed: booth creation returned empty for registration ID {}", registration.getId());
+                            log.error(
+                                    "[PB-004] Fulfillment failed: booth creation returned empty for registration ID {}",
+                                    registration.getId());
                             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
                         }
 
-                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), boothOpt.get().getId());
+                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(),
+                                boothOpt.get().getId());
                         eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
                         log.info("Payment PAID and booth fulfilled for registration ID: {}, booth ID: {}",
                                 registration.getId(), boothOpt.get().getId());
@@ -167,28 +183,34 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
     private void reconcileWebhookInvariants(WebhookData data, Payment payment) {
         if (data.getCurrency() == null || !data.getCurrency().equalsIgnoreCase(payment.getCurrency())) {
-            log.error("Currency mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(), payment.getCurrency(), data.getCurrency());
+            log.error("Currency mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(),
+                    payment.getCurrency(), data.getCurrency());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
         if (data.getAmount() == null || BigDecimal.valueOf(data.getAmount()).compareTo(payment.getAmount()) != 0) {
-            log.error("Amount mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(), payment.getAmount(), data.getAmount());
+            log.error("Amount mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(), payment.getAmount(),
+                    data.getAmount());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
-        if (payment.getCheckoutUrl() != null && data.getPaymentLinkId() != null && !payment.getCheckoutUrl().contains(data.getPaymentLinkId())) {
-            log.error("Payment link mismatch for orderCode {}: checkoutUrl={}, linkId={}", data.getOrderCode(), payment.getCheckoutUrl(), data.getPaymentLinkId());
+        if (payment.getCheckoutUrl() != null && data.getPaymentLinkId() != null
+                && !payment.getCheckoutUrl().contains(data.getPaymentLinkId())) {
+            log.error("Payment link mismatch for orderCode {}: checkoutUrl={}, linkId={}", data.getOrderCode(),
+                    payment.getCheckoutUrl(), data.getPaymentLinkId());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
         if (data.getReference() != null) {
             if (payment.getPaymentReference() != null && !payment.getPaymentReference().equals(data.getReference())) {
-                log.error("Payment reference mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(), payment.getPaymentReference(), data.getReference());
+                log.error("Payment reference mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(),
+                        payment.getPaymentReference(), data.getReference());
                 throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
             }
 
             if (paymentRepository.existsByPaymentReferenceAndIdNot(data.getReference(), payment.getId())) {
-                log.error("Duplicate payment reference {} used for another payment. Rejecting orderCode {}", data.getReference(), data.getOrderCode());
+                log.error("Duplicate payment reference {} used for another payment. Rejecting orderCode {}",
+                        data.getReference(), data.getOrderCode());
                 throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
             }
         }

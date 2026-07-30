@@ -203,7 +203,32 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
 
     // CHAT ERRORS
-    CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND);
+    CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND),
+
+    // WALLET & WITHDRAWAL ERRORS
+    WALLET_NOT_FOUND("WALLET-001", "Không tìm thấy ví doanh nghiệp.", HttpStatus.NOT_FOUND),
+    INSUFFICIENT_WALLET_BALANCE("WALLET-002", "Số dư khả dụng không đủ để thực hiện giao dịch.",
+            HttpStatus.BAD_REQUEST),
+    WITHDRAWAL_AMOUNT_BELOW_MINIMUM("WALLET-003", "Số tiền rút phải đạt tối thiểu 100.000 VND.",
+            HttpStatus.BAD_REQUEST),
+    ACTIVE_WITHDRAWAL_EXISTS("WALLET-004", "Doanh nghiệp đang có một yêu cầu rút tiền chưa hoàn tất.",
+            HttpStatus.CONFLICT),
+    PAYOUT_PROFILE_NOT_VERIFIED("WALLET-005", "Thông tin tài khoản nhận tiền chưa được xác minh bởi quản trị viên.",
+            HttpStatus.BAD_REQUEST),
+    PAYOUT_PROFILE_NOT_FOUND("WALLET-006", "Chưa có thông tin tài khoản nhận tiền.", HttpStatus.NOT_FOUND),
+    WITHDRAWAL_REQUEST_NOT_FOUND("WALLET-007", "Không tìm thấy yêu cầu rút tiền.", HttpStatus.NOT_FOUND),
+    INVALID_WITHDRAWAL_TRANSITION("WALLET-008", "Thao tác không hợp lệ đối với trạng thái yêu cầu rút tiền hiện tại.",
+            HttpStatus.BAD_REQUEST),
+    TRANSFER_REFERENCE_DUPLICATED("WALLET-009", "Mã giao dịch chuyển khoản đã tồn tại trong hệ thống.",
+            HttpStatus.CONFLICT),
+    PAYMENT_NOT_CREDITED("WALLET-010", "Giao dịch thanh toán chưa được ghi nhận doanh thu vào ví.",
+            HttpStatus.BAD_REQUEST),
+    PAYMENT_ALREADY_RELEASED("WALLET-011",
+            "Khoản thanh toán đã được giải phóng sang số dư khả dụng, không thể đảo tiền pending.",
+            HttpStatus.BAD_REQUEST),
+    ENCRYPTION_KEY_INVALID("WALLET-012",
+            "Phiên bản khóa mã hóa không hợp lệ hoặc không được hỗ trợ.",
+            HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final String code;
     private final String message;

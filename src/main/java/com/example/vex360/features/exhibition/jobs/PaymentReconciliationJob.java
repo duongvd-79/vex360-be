@@ -13,6 +13,7 @@ import com.example.vex360.features.exhibition.repositories.PaymentReceiptReposit
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.shared.enums.PaymentReceiptStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 
@@ -30,6 +31,7 @@ public class PaymentReconciliationJob {
     private final PaymentRepository paymentRepository;
     private final PaymentFulfillmentService fulfillmentService;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
 
     @Scheduled(fixedDelayString = "${app.payment.reconciliation-delay-ms:60000}")
     public void runReconciliation() {
@@ -56,8 +58,10 @@ public class PaymentReconciliationJob {
             try {
                 log.info("[PB-006] Processing unfulfilled PAID payment orderCode {}", payment.getOrderCode());
                 fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
+                paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
             } catch (Exception e) {
-                log.error("[PB-006] Exception processing unfulfilled PAID payment orderCode {}", payment.getOrderCode(), e);
+                log.error("[PB-006] Exception processing unfulfilled PAID payment orderCode {}", payment.getOrderCode(),
+                        e);
             }
         }
 
@@ -70,14 +74,17 @@ public class PaymentReconciliationJob {
             try {
                 PaymentLink linkInfo = payOSIntegrationService.getPaymentLinkInformation(payment.getOrderCode());
                 if (linkInfo != null && linkInfo.getStatus() == PaymentLinkStatus.PAID) {
-                    log.info("[PB-006] Provider confirmed PAID for local PENDING orderCode {}. Fulfilling...", payment.getOrderCode());
+                    log.info("[PB-006] Provider confirmed PAID for local PENDING orderCode {}. Fulfilling...",
+                            payment.getOrderCode());
                     payment.setStatus(PaymentStatus.PAID);
                     payment.setPaidAt(Instant.now());
                     paymentRepository.save(payment);
                     fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
+                    paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
                 }
             } catch (Exception e) {
-                log.debug("[PB-006] PayOS status check exception for orderCode {}: {}", payment.getOrderCode(), e.getMessage());
+                log.debug("[PB-006] PayOS status check exception for orderCode {}: {}", payment.getOrderCode(),
+                        e.getMessage());
             }
         }
 

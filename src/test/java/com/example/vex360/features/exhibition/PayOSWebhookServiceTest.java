@@ -31,6 +31,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
@@ -66,6 +67,9 @@ class PayOSWebhookServiceTest {
 
     @Mock
     private vn.payos.service.blocking.webhooks.WebhooksService webhookService;
+
+    @Mock
+    private PaymentRevenueRecognitionService revenueRecognitionService;
 
     @InjectMocks
     private PayOSWebhookServiceImpl webhookServiceWrapper;
@@ -264,6 +268,7 @@ class PayOSWebhookServiceTest {
     @Test
     void handleWebhook_boothProvisioningFails_throwsAppException() {
         Object mockBody = new Object();
+        pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
@@ -372,7 +377,8 @@ class PayOSWebhookServiceTest {
     void handleWebhook_paymentLinkMismatch_throwsAppException() {
         Object mockBody = new Object();
         pendingPayment.setCheckoutUrl("https://payos.vn/web/checkout_xyz123");
-        WebhookData wrongLinkData = createWebhookData(123456L, 1000000L, "VND", "00", "different_link_456", "payos_ref_123");
+        WebhookData wrongLinkData = createWebhookData(123456L, 1000000L, "VND", "00", "different_link_456",
+                "payos_ref_123");
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(wrongLinkData);
@@ -386,7 +392,8 @@ class PayOSWebhookServiceTest {
     @Test
     void handleWebhook_duplicateProviderReference_throwsAppException() {
         Object mockBody = new Object();
-        WebhookData duplicateRefData = createWebhookData(123456L, 1000000L, "VND", "00", "link_123", "payos_ref_already_used");
+        WebhookData duplicateRefData = createWebhookData(123456L, 1000000L, "VND", "00", "link_123",
+                "payos_ref_already_used");
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(duplicateRefData);
@@ -416,7 +423,8 @@ class PayOSWebhookServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
-    private WebhookData createWebhookData(Long orderCode, Long amount, String currency, String code, String paymentLinkId, String reference) {
+    private WebhookData createWebhookData(Long orderCode, Long amount, String currency, String code,
+            String paymentLinkId, String reference) {
         return WebhookData.builder()
                 .orderCode(orderCode != null ? orderCode : 123456L)
                 .amount(amount != null ? amount : 1000000L)
@@ -430,7 +438,6 @@ class PayOSWebhookServiceTest {
                 .desc("Success")
                 .build();
     }
-
 
     private void stubLockedPayment(Payment payment) {
         Integer registrationId = payment.getExhibitorRegistration() == null

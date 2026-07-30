@@ -19,23 +19,32 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionLifecycleService;
+import com.example.vex360.features.wallet.repositories.OrganizerWalletTransactionRepository;
+import com.example.vex360.features.wallet.services.OrganizerWalletDomainService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 class ExhibitionLifecycleServiceTest {
 
     private ExhibitionRepository exhibitionRepository;
+    private CompanyRepository companyRepository;
+    private OrganizerWalletTransactionRepository walletTxRepository;
+    private OrganizerWalletDomainService walletDomainService;
     private Clock clock;
     private ExhibitionLifecycleService lifecycleService;
 
     @BeforeEach
     void setUp() {
         exhibitionRepository = mock(ExhibitionRepository.class);
+        companyRepository = mock(CompanyRepository.class);
+        walletTxRepository = mock(OrganizerWalletTransactionRepository.class);
+        walletDomainService = mock(OrganizerWalletDomainService.class);
         // Fixed time at 2026-01-10T10:00:00Z -> today is 2026-01-10
         clock = Clock.fixed(Instant.parse("2026-01-10T10:00:00Z"), ZoneOffset.UTC);
-        lifecycleService = new ExhibitionLifecycleService(exhibitionRepository, clock);
+        lifecycleService = new ExhibitionLifecycleService(exhibitionRepository, companyRepository, walletTxRepository, walletDomainService, clock);
     }
 
     @Test

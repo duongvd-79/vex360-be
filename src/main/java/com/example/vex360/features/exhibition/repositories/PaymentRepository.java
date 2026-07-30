@@ -24,6 +24,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             "FROM Payment p LEFT JOIN p.exhibitorRegistration r WHERE p.orderCode = :orderCode")
     Optional<PaymentRoute> findRouteByOrderCode(@Param("orderCode") Long orderCode);
 
+    Optional<Payment> findByOrderCode(Long orderCode);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Payment p WHERE p.orderCode = :orderCode")
     Optional<Payment> findByOrderCodeForUpdate(@Param("orderCode") Long orderCode);

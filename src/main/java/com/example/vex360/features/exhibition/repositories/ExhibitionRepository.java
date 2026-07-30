@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,9 +118,11 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
 
     List<Exhibition> findByOrganizerIdOrderByCreatedAtDesc(UUID organizerId);
 
-    Page<Exhibition> findByStatusAndStartDateLessThanEqual(ExhibitionStatus status, java.time.LocalDate date,
+    Page<Exhibition> findByOrganizerId(UUID organizerId, Pageable pageable);
+
+    Page<Exhibition> findByStatusAndStartDateLessThanEqual(ExhibitionStatus status, LocalDate date,
             Pageable pageable);
 
-    Page<Exhibition> findByStatusAndEndDateLessThan(ExhibitionStatus status, java.time.LocalDate date,
+    Page<Exhibition> findByStatusAndEndDateLessThan(ExhibitionStatus status, LocalDate date,
             Pageable pageable);
 }

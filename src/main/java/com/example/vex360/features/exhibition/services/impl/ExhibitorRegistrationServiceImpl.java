@@ -26,6 +26,8 @@ import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
+import com.example.vex360.features.wallet.services.CommissionPolicyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
@@ -64,6 +66,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final CompanyService companyService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final CommissionPolicyService commissionPolicyService;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
@@ -155,7 +158,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 });
 
         if (registration.getCompany() == null || registration.getCompany().getId() == null) {
-            log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}", registrationUuid);
+            log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
+                    registrationUuid);
             throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
         }
 
@@ -214,12 +218,15 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     : registration.getExhibitionPackage().getFinalPrice();
             long orderCode = System.currentTimeMillis() / 1000 * 1000000L + this.random.nextLong(1000000L);
 
+            CommissionCalculationResult calc = commissionPolicyService
+                    .calculateCommission(finalPrice, java.time.Instant.now());
+
             Payment newPayment = Payment.builder()
                     .exhibitorRegistration(registration)
                     .orderCode(orderCode)
-                    .amount(finalPrice)
-                    .systemFee(BigDecimal.ZERO)
-                    .organizerPayout(finalPrice)
+                    .amount(calc.amount())
+                    .systemFee(calc.systemFee())
+                    .organizerPayout(calc.organizerPayout())
                     .paymentProvider("PAYOS")
                     .status(PaymentStatus.PENDING)
                     .build();
@@ -565,19 +572,26 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         }
         try {
             if (registration.getCompany() == null || registration.getCompany().getId() == null) {
-                log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}", registration.getUuid());
+                log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
+                        registration.getUuid());
                 throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
             }
-            if (registration.getCompany().getOwnerUser() == null || registration.getCompany().getOwnerUser().getId() == null) {
-                log.error("[PB-001/002] Pre-payment dependency check failed: company owner user missing for registration UUID {}", registration.getUuid());
+            if (registration.getCompany().getOwnerUser() == null
+                    || registration.getCompany().getOwnerUser().getId() == null) {
+                log.error(
+                        "[PB-001/002] Pre-payment dependency check failed: company owner user missing for registration UUID {}",
+                        registration.getUuid());
                 throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
             }
             if (registration.getExhibitionPackage() == null || registration.getExhibitionPackage().getId() == null) {
-                log.error("[PB-001/002] Pre-payment dependency check failed: exhibition package missing for registration UUID {}", registration.getUuid());
+                log.error(
+                        "[PB-001/002] Pre-payment dependency check failed: exhibition package missing for registration UUID {}",
+                        registration.getUuid());
                 throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
             }
         } catch (EntityNotFoundException | ObjectNotFoundException e) {
-            log.error("[PB-001/002] Pre-payment dependency check threw exception for registration UUID {}", registration.getUuid(), e);
+            log.error("[PB-001/002] Pre-payment dependency check threw exception for registration UUID {}",
+                    registration.getUuid(), e);
             throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
         }
     }

@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.services;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 
@@ -8,8 +9,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.wallet.repositories.OrganizerWalletTransactionRepository;
+import com.example.vex360.features.wallet.services.OrganizerWalletDomainService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 public class ExhibitionLifecycleService {
 
     private final ExhibitionRepository exhibitionRepository;
+    private final CompanyRepository companyRepository;
+    private final OrganizerWalletTransactionRepository walletTxRepository;
+    private final OrganizerWalletDomainService walletDomainService;
     private final Clock clock;
 
     @Transactional
@@ -85,6 +92,30 @@ public class ExhibitionLifecycleService {
                 exhibitionRepository.save(exhibition);
                 log.info("[LIFECYCLE_TRANSITION] Exhibition {} ({}) status changed from ACTIVE to COMPLETED",
                         exhibition.getName(), exhibition.getId());
+
+                try {
+                    if (exhibition.getOrganizer() != null) {
+                        companyRepository.findByOwnerUserId(exhibition.getOrganizer().getId()).ifPresent(company -> {
+                            BigDecimal credited = walletTxRepository
+                                    .sumCreditedAmountByExhibitionId(exhibition.getId());
+                            BigDecimal released = walletTxRepository
+                                    .sumReleasedAmountByExhibitionId(exhibition.getId());
+                            BigDecimal reversed = walletTxRepository
+                                    .sumReversedAmountByExhibitionId(exhibition.getId());
+                            BigDecimal remainingToRelease = credited.subtract(released).subtract(reversed);
+                            if (remainingToRelease.compareTo(BigDecimal.ZERO) > 0) {
+                                walletDomainService.releasePendingRevenue(
+                                        company,
+                                        exhibition,
+                                        remainingToRelease,
+                                        "Lifecycle completion release for exhibition ID " + exhibition.getId(),
+                                        null);
+                            }
+                        });
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to release pending revenue for completed exhibition {}", exhibition.getId(), ex);
+                }
                 return true;
             }
             return false;
