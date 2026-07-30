@@ -3,6 +3,7 @@ package com.example.vex360.features.designrequest.repositories;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -126,9 +127,27 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     long countByAssignedDesignerIdAndStatusIn(UUID designerId, List<DesignRequestStatus> statuses);
 
+    long countByAssignedDesignerIdAndStatus(UUID designerId, DesignRequestStatus status);
+
+    long countByCompanyIdAndStatus(UUID companyId, DesignRequestStatus status);
+
     long countByStatus(DesignRequestStatus status);
 
     long countByStatusIn(List<DesignRequestStatus> statuses);
+
+    @Query("SELECT dr.status, COUNT(dr) FROM DesignRequest dr GROUP BY dr.status")
+    List<Object[]> countGroupedByStatus();
+
+    @Query("""
+            SELECT FUNCTION('DATE', dr.createdAt), COUNT(dr)
+            FROM DesignRequest dr
+            WHERE dr.createdAt BETWEEN :start AND :end
+            GROUP BY FUNCTION('DATE', dr.createdAt)
+            ORDER BY FUNCTION('DATE', dr.createdAt)
+            """)
+    List<Object[]> aggregateDailyCreated(
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     @Query("""
             SELECT dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email, COUNT(dr)

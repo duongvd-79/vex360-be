@@ -17,22 +17,22 @@ import com.example.vex360.shared.enums.BoothListingPriority;
 import jakarta.persistence.LockModeType;
 
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
-    boolean existsByThumbnailPublicIdOrBackgroundMusicPublicId(
-            String thumbnailPublicId,
-            String backgroundMusicPublicId);
+  boolean existsByThumbnailPublicIdOrBackgroundMusicPublicId(
+      String thumbnailPublicId,
+      String backgroundMusicPublicId);
 
-    @Query("""
-            SELECT b FROM Booth b
-            WHERE b.isTemplate = true
-              AND (:keyword IS NULL
-                OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(b.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:status IS NULL OR b.status = :status)
-            """)
-    Page<Booth> searchTemplates(
-            @Param("keyword") String keyword,
-            @Param("status") BoothStatus status,
-            Pageable pageable);
+  @Query("""
+      SELECT b FROM Booth b
+      WHERE b.isTemplate = true
+        AND (:keyword IS NULL
+          OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(b.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        AND (:status IS NULL OR b.status = :status)
+      """)
+  Page<Booth> searchTemplates(
+      @Param("keyword") String keyword,
+      @Param("status") BoothStatus status,
+      Pageable pageable);
 
   @Query("""
       SELECT b FROM Booth b
@@ -175,6 +175,13 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
   long countBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
 
   @Query("""
+      SELECT b FROM Booth b
+      WHERE b.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
+        AND b.isTemplate = false
+      """)
+  List<Booth> findBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
+
+  @Query("""
       SELECT e.id, COUNT(b)
       FROM Booth b
       JOIN b.exhibitorRegistration r
@@ -184,6 +191,29 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
       GROUP BY e.id
       """)
   List<Object[]> countBoothsGroupedByExhibition(@Param("ids") List<Integer> ids);
+
+  @Query("""
+      SELECT b.status, COUNT(b)
+      FROM Booth b
+      WHERE b.isTemplate = false
+      GROUP BY b.status
+      """)
+  List<Object[]> countBoothsGroupedByStatus();
+
+  @Query("""
+      SELECT e.id, COUNT(b)
+      FROM Booth b
+      JOIN b.exhibitorRegistration r
+      JOIN r.exhibitionPackage p
+      JOIN p.exhibition e
+      WHERE b.isTemplate = false
+        AND b.status = :status
+        AND e.id IN :exhibitionIds
+      GROUP BY e.id
+      """)
+  List<Object[]> countBoothsGroupedByExhibitionAndStatus(
+      @Param("exhibitionIds") List<Integer> exhibitionIds,
+      @Param("status") BoothStatus status);
 
   @Query("""
       SELECT b FROM Booth b

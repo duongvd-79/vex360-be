@@ -180,8 +180,8 @@ class ProductCategoryServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
                 .thenReturn(Optional.of(category));
-        when(productRepository.existsCategoryProductInBoothWithStatus(categoryId, company.getId(), "PENDING"))
-                .thenReturn(true);
+        when(productRepository.existsCategoryProductInBoothWithStatus(categoryId, company.getId(),
+                List.of("PENDING", "PUBLISHED"))).thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
                 user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));
@@ -189,6 +189,27 @@ class ProductCategoryServiceUnitTest {
         assertSame(ErrorCode.PRODUCT_USED_BY_PENDING_BOOTH, exception.getErrorCode());
         verify(productRepository, never()).updateStatusByCategoryIdAndCompanyId(
                 categoryId, company.getId(), ProductStatus.INACTIVE);
+    }
+
+    @Test
+    void updateCategoryStatus_LockedByDesignRequest_ThrowsDesignProductLocked() {
+        UUID categoryId = UUID.randomUUID();
+        ProductCategory category = ProductCategory.builder()
+                .id(categoryId).company(company).name("Locked category")
+                .status(ProductCategoryStatus.ACTIVE).build();
+        when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
+        when(productCategoryRepository.findByIdAndCompanyId(categoryId, company.getId()))
+                .thenReturn(Optional.of(category));
+        when(productRepository.existsCategoryLockedByDesignRequest(categoryId, company.getId()))
+                .thenReturn(1L);
+
+        AppException exception = assertThrows(AppException.class, () -> productCategoryService.updateCategoryStatus(
+                user, categoryId, new UpdateProductCategoryStatusRequest(ProductCategoryStatus.INACTIVE)));
+
+        assertSame(ErrorCode.DESIGN_PRODUCT_LOCKED, exception.getErrorCode());
+        verify(productRepository, never()).existsCategoryProductInBoothWithStatus(any(), any(), any());
+        verify(productRepository, never()).updateStatusByCategoryIdAndCompanyId(any(), any(), any());
+        verify(productCategoryRepository, never()).save(any());
     }
 
     @Test

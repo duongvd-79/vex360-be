@@ -63,6 +63,7 @@ public class DesignerDraftEditorService {
     private final DesignDraftAssetRepository draftAssetRepository;
     private final DesignDraftAssetService assetService;
     private final DesignRequestProductService requestProductService;
+    private final DesignRequestMediaAssetService requestMediaAssetService;
     private final ProductService productService;
     private final BoothDesignService boothDesignService;
     private final DesignDraftBenefitGuardService benefitGuardService;
@@ -459,6 +460,7 @@ public class DesignerDraftEditorService {
             DesignRequest request,
             UUID mediaAssetId,
             MediaAssetType expectedType) {
+        requestMediaAssetService.assertMediaAssetAllowed(request, mediaAssetId);
         return boothDesignService.getMediaAssetForCompany(
                 mediaAssetId,
                 request.getCompany().getId(),

@@ -19,9 +19,7 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.company.services.CompanyService;
-import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -37,14 +35,11 @@ public class ExhibitorPanoramaService {
     private final PanoramaRepository panoramaRepository;
     private final HotspotRepository hotspotRepository;
     private final CompanyService companyService;
-    private final CompanyStorageService companyStorageService;
     private final CloudService cloudService;
     private final PanoramaImageCleanupService panoramaImageCleanupService;
     private final BoothMapper boothMapper;
     private final BoothBenefitGuardService boothBenefitGuardService;
     private final BoothReviewPolicyService boothReviewPolicyService;
-    private final DesignDraftAssetRepository designDraftAssetRepository;
-
     @Transactional(readOnly = true)
     public List<PanoramaResponseDTO> getPanoramas(User currentUser, UUID boothId) {
         Booth booth = getBoothForCurrentUser(currentUser, boothId);

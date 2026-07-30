@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.mapper.BoothMapper;
-import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftHotspotRequest;
 import com.example.vex360.features.designrequest.dtos.request.DesignDraftBoothSettingsRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
@@ -29,6 +30,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -60,8 +62,8 @@ public class DesignerWorkspaceService {
     private final DesignRequestRepository designRequestRepository;
     private final BoothMapper boothMapper;
     private final DesignRequestProductRepository requestProductRepository;
+    private final DesignRequestMediaAssetRepository requestMediaAssetRepository;
     private final ProductMapper productMapper;
-    private final BoothDesignService boothDesignService;
     private final CompanyService companyService;
     private final CompanyStorageService storageService;
     private final DesignDraftStorageMetricsService storageMetricsService;
@@ -103,6 +105,12 @@ public class DesignerWorkspaceService {
                         .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
                 (int) request.getProducts().stream()
                         .filter(item -> !Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
+                (int) request.getMediaAssets().stream()
+                        .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
+                (int) request.getMediaAssets().stream()
+                        .filter(item -> !Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
+                request.getContactEmail(),
+                request.getContactPhone(),
                 request.getNote(),
                 latestSubmitted == null ? null : latestSubmitted.getRejectionReason(),
                 request.getReviewCount(),
@@ -145,20 +153,37 @@ public class DesignerWorkspaceService {
     }
 
     /**
-     * Returns media assets owned by the request's Exhibitor company for use in
-     * MEDIA or INFO hotspots.
+     * Returns media assets in the immutable request allowlist for use in MEDIA
+     * or INFO hotspots.
      *
      * @param designer  authenticated Designer
      * @param requestId design request identifier
-     * @param pageable  pagination and sorting options
-     * @return a page of company media assets
+     * @param filterType optional IMAGE or VIDEO filter
+     * @param pageable   pagination and sorting options
+     * @return a page of allowed media assets
      * @throws AppException if the Designer is not assigned to the request
      */
     @Transactional(readOnly = true)
-    public PageResponse<MediaAssetResponseDTO> getMediaAssets(User designer, UUID requestId, Pageable pageable) {
-        DesignRequest request = getAssignedRequest(designer, requestId);
-        return PageResponse.from(boothDesignService.getMediaAssetsForCompany(request.getCompany().getId(), pageable)
-                .map(boothMapper::toMediaAssetResponseDTO));
+    public PageResponse<MediaAssetResponseDTO> getMediaAssets(
+            User designer,
+            UUID requestId,
+            String filterType,
+            Pageable pageable) {
+        getAssignedRequest(designer, requestId);
+        MediaAssetType type = resolveMediaAssetFilterType(filterType);
+        return PageResponse.from(requestMediaAssetRepository.searchAllowedMediaAssets(requestId, type, pageable)
+                .map(item -> boothMapper.toMediaAssetResponseDTO(item.getMediaAsset())));
+    }
+
+    private MediaAssetType resolveMediaAssetFilterType(String filterType) {
+        if (filterType == null || filterType.isBlank() || "all".equalsIgnoreCase(filterType.trim())) {
+            return null;
+        }
+        try {
+            return MediaAssetType.valueOf(filterType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
     }
 
     /**

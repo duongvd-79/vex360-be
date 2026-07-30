@@ -23,6 +23,9 @@ public interface ExhibitionMapper {
     @Mapping(target = "estimatedBooths", source = "exhibition.estimatedBooths")
     @Mapping(target = "status", source = "exhibition.status")
     @Mapping(target = "organizerName", source = "exhibition.organizer.fullName")
+    @Mapping(target = "organizationName", ignore = true)
+    @Mapping(target = "email", ignore = true)
+    @Mapping(target = "phone", ignore = true)
     @Mapping(target = "reviewedByName", source = "exhibition.reviewedBy.fullName")
     @Mapping(target = "packages", source = "packages")
     @Mapping(target = "keyVisualUrl", source = "exhibition", qualifiedByName = "getKeyVisualUrl")
@@ -38,6 +41,9 @@ public interface ExhibitionMapper {
     ExhibitionResponseDTO toResponse(Exhibition exhibition, List<ExhibitionPackage> packages);
 
     @Mapping(target = "organizerName", source = "organizer.fullName")
+    @Mapping(target = "organizationName", ignore = true)
+    @Mapping(target = "email", ignore = true)
+    @Mapping(target = "phone", ignore = true)
     @Mapping(target = "reviewedByName", source = "reviewedBy.fullName")
     @Mapping(target = "packages", ignore = true)
     @Mapping(target = "keyVisualUrl", source = "exhibition", qualifiedByName = "getKeyVisualUrl")

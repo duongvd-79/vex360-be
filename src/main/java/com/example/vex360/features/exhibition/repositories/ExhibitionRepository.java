@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,39 +29,39 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
     Optional<Exhibition> findByUuidForUpdate(@Param("uuid") UUID uuid);
 
     @Query(value = """
-      SELECT e FROM Exhibition e
-      LEFT JOIN e.organizer o
-      LEFT JOIN e.reviewedBy r
-      WHERE (:keyword IS NULL
-          OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR EXISTS (
-              SELECT c.id FROM Company c
-              WHERE c.ownerUser = o
-                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          ))
-        AND (e.status IN :statuses)
-        AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
-        AND (:startDate IS NULL OR e.startDate >= :startDate)
-        AND (:endDate IS NULL OR e.endDate <= :endDate)
-      """, countQuery = """
-      SELECT COUNT(e) FROM Exhibition e
-      LEFT JOIN e.organizer o
-      WHERE (:keyword IS NULL
-          OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR EXISTS (
-              SELECT c.id FROM Company c
-              WHERE c.ownerUser = o
-                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          ))
-        AND (e.status IN :statuses)
-        AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
-        AND (:startDate IS NULL OR e.startDate >= :startDate)
-        AND (:endDate IS NULL OR e.endDate <= :endDate)
-      """)
+            SELECT e FROM Exhibition e
+            LEFT JOIN e.organizer o
+            LEFT JOIN e.reviewedBy r
+            WHERE (:keyword IS NULL
+                OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR EXISTS (
+                    SELECT c.id FROM Company c
+                    WHERE c.ownerUser = o
+                      AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                ))
+              AND (e.status IN :statuses)
+              AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+              AND (:startDate IS NULL OR e.startDate >= :startDate)
+              AND (:endDate IS NULL OR e.endDate <= :endDate)
+            """, countQuery = """
+            SELECT COUNT(e) FROM Exhibition e
+            LEFT JOIN e.organizer o
+            WHERE (:keyword IS NULL
+                OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR EXISTS (
+                    SELECT c.id FROM Company c
+                    WHERE c.ownerUser = o
+                      AND LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                ))
+              AND (e.status IN :statuses)
+              AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+              AND (:startDate IS NULL OR e.startDate >= :startDate)
+              AND (:endDate IS NULL OR e.endDate <= :endDate)
+            """)
     Page<Exhibition> searchExhibitions(
             @Param("keyword") String keyword,
             @Param("statuses") List<ExhibitionStatus> statuses,
@@ -80,6 +81,20 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
     }
 
     long countByStatus(ExhibitionStatus status);
+
+    @Query("""
+            SELECT FUNCTION('DATE', e.createdAt), COUNT(e)
+            FROM Exhibition e
+            WHERE e.createdAt BETWEEN :start AND :end
+            GROUP BY FUNCTION('DATE', e.createdAt)
+            ORDER BY FUNCTION('DATE', e.createdAt)
+            """)
+    List<Object[]> aggregateDailyCreated(
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query("SELECT e.status, COUNT(e) FROM Exhibition e GROUP BY e.status")
+    List<Object[]> countExhibitionsByStatus();
 
     long countByOrganizerIdAndStatus(UUID organizerId, ExhibitionStatus status);
 

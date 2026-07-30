@@ -13,6 +13,8 @@ import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionReque
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.user.entities.User;
@@ -40,6 +42,10 @@ public interface ExhibitionService {
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForOrganizer(
 			User organizer, String keyword, ExhibitionStatus status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);
+
+	OrganizerExhibitionSummaryResponseDTO getSummaryForOrganizer(User organizer);
+
+	List<OrganizerExhibitionSummaryItemResponseDTO> getSummariesByExhibitionForOrganizer(User organizer);
 
 	ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid);
 

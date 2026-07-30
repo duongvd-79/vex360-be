@@ -1,7 +1,6 @@
 package com.example.vex360.features.designrequest.services;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
-import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO.ChangeScope;
@@ -24,7 +22,6 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
-import com.example.vex360.features.product.entities.Product;
 
 @Service
 public class DesignDraftDiffService {
@@ -706,19 +703,15 @@ public class DesignDraftDiffService {
     }
 
     private static class DraftHotspotPair {
-        final DesignDraftPanorama panorama;
         final DesignDraftHotspot hotspot;
         DraftHotspotPair(DesignDraftPanorama panorama, DesignDraftHotspot hotspot) {
-            this.panorama = panorama;
             this.hotspot = hotspot;
         }
     }
 
     private static class BoothHotspotPair {
-        final Panorama panorama;
         final Hotspot hotspot;
         BoothHotspotPair(Panorama panorama, Hotspot hotspot) {
-            this.panorama = panorama;
             this.hotspot = hotspot;
         }
     }

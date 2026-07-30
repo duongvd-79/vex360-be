@@ -50,7 +50,7 @@ public enum ErrorCode {
     INPUT_FAILED("USER-004", "Dữ liệu nhập vào không hợp lệ.", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Mật khẩu hiện tại không chính xác.", HttpStatus.BAD_REQUEST),
 
-    INVALID_STORAGE_USAGE("STORAGE-004", "Invalid storage usage state.", HttpStatus.CONFLICT),
+    INVALID_STORAGE_USAGE("STORAGE-004", "Trạng thái dung lượng lưu trữ không hợp lệ.", HttpStatus.CONFLICT),
 
     // PARTNERSHIP ERRORS
     PARTNERSHIP_EMAIL_ALREADY_REGISTERED("PARTNER-001",
@@ -89,7 +89,7 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
     INVALID_PRODUCT_STATUS("PRODUCT-007", "Trạng thái sản phẩm không hợp lệ.", HttpStatus.BAD_REQUEST),
     PRODUCT_USED_BY_PENDING_BOOTH("PRODUCT-008",
-            "Sản phẩm đang được sử dụng bởi một gian hàng chờ duyệt, không thể chỉnh sửa hoặc xóa.",
+            "Sản phẩm đang được sử dụng bởi một gian hàng đang chờ duyệt hoặc đã xuất bản, không thể chỉnh sửa hoặc xóa.",
             HttpStatus.CONFLICT),
 
     // BOOTH ERRORS
@@ -145,6 +145,10 @@ public enum ErrorCode {
     DESIGN_CANCELLATION_PENDING("DESIGN-011", "Yêu cầu hủy thiết kế đang chờ quản trị viên phê duyệt.",
             HttpStatus.CONFLICT),
     DESIGN_MESSAGE_NOT_ALLOWED("DESIGN-012", "Bạn không có quyền tham gia luồng trao đổi này.", HttpStatus.FORBIDDEN),
+    DESIGN_MEDIA_ASSET_NOT_ALLOWED("DESIGN-013", "Tệp phương tiện này không nằm trong danh sách cho phép thiết kế.",
+            HttpStatus.FORBIDDEN),
+    DESIGN_MEDIA_ASSET_LOCKED("DESIGN-014", "Tệp phương tiện đang được sử dụng ở một yêu cầu thiết kế.",
+            HttpStatus.CONFLICT),
 
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Không tìm thấy mẫu gói dịch vụ.", HttpStatus.NOT_FOUND),
@@ -201,6 +205,9 @@ public enum ErrorCode {
     // PAYMENT ERRORS
     PAYMENT_LINK_UNAVAILABLE("PAYMENT-001", "Chưa thể tạo liên kết thanh toán. Vui lòng thử lại sau.",
             HttpStatus.BAD_REQUEST),
+
+    // LEAD ERRORS
+    LEAD_NOT_FOUND("LEAD-001", "Không tìm thấy thông tin khách hàng tiềm năng.", HttpStatus.NOT_FOUND),
 
     // CHAT ERRORS
     CHAT_ROOM_NOT_FOUND("CHAT-001", "Không tìm thấy phòng trò chuyện.", HttpStatus.NOT_FOUND),

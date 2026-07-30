@@ -19,6 +19,8 @@ public class BoothAnalyticsDetailDTO {
     private String messageCode;
     private String message;
     private Metrics metrics;
+    // Lead được ghi nhận trong đúng khoảng ngày đang lọc, phân theo trạng thái hiện tại.
+    private LeadMetrics leadMetrics;
     private List<ChartPoint> chart;
     // Xếp hạng clickable (hotspot/sản phẩm) theo số lượt click, nhiều nhất trước
     private List<ClickableRank> topClickables;
@@ -42,6 +44,18 @@ public class BoothAnalyticsDetailDTO {
         private long totalProductClicks;
         private long totalChats;
         private double averageTimeInBoothMinutes;
+    }
+
+    @Data
+    @Builder
+    public static class LeadMetrics {
+        private long total;
+        private long newCount;
+        private long contactedCount;
+        private long qualifiedCount;
+        private long convertedCount;
+        private long lostCount;
+        private double conversionRate;
     }
 
     @Data

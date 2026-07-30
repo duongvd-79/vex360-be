@@ -28,6 +28,9 @@ public class ExhibitionResponseDTO {
     private Integer estimatedBooths;
     private String status;
     private String organizerName;
+    private String organizationName;
+    private String email;
+    private String phone;
     private String rejectedReason;
     private String reviewedByName;
     private Instant reviewedAt;
@@ -38,6 +41,9 @@ public class ExhibitionResponseDTO {
     private String trailerVideoUrl;
     private String floorPlanUrl;
     private String guidelineUrl;
+
+    /** Tổng số lượt visitor vào xem triển lãm (ENTER_EXHIBITION), chỉ set ở trang chi tiết công khai. */
+    private Long visitorCount;
 
     private LocalDate boothReviewDeadline;
     private Boolean boothPreparationOpen;

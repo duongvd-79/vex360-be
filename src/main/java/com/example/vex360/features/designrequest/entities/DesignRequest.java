@@ -77,6 +77,12 @@ public class DesignRequest {
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 
+    @Column(name = "contact_email", length = 320)
+    String contactEmail;
+
+    @Column(name = "contact_phone", length = 20)
+    String contactPhone;
+
     @Column(name = "review_count", nullable = false)
     @Builder.Default
     Integer reviewCount = 0;
@@ -126,6 +132,10 @@ public class DesignRequest {
     @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     List<DesignRequestProduct> products = new ArrayList<>();
+
+    @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<DesignRequestMediaAsset> mediaAssets = new ArrayList<>();
 
     @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

@@ -11,4 +11,9 @@ public class StorageUsageResponseDTO {
     Long quotaBytes;
     Long availableBytes;
     Double usedPercentage;
+
+    /** Phần dung lượng do tệp media (ảnh/video dùng chung) chiếm. */
+    Long mediaAssetUsedBytes;
+    /** Phần còn lại của usedBytes: ảnh đại diện và nội dung của sản phẩm. */
+    Long productUsedBytes;
 }

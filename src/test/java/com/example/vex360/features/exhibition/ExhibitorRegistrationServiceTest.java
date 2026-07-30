@@ -216,6 +216,24 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void initializeRegistration_whenExhibitionStatusIsPublished_success() {
+        paidPackage.getExhibition().setStatus(ExhibitionStatus.PUBLISHED);
+        when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "Join published expo");
+
+        assertNotNull(registration);
+        assertEquals(ExhibitorRegistrationStatus.PENDING, registration.getStatus());
+    }
+
+    @Test
     void initializeRegistration_duplicateActiveRegistration_throwsRegistrationAlreadyExists() {
         when(userService.getUserEntityById(any(UUID.class))).thenReturn(companyUser);
         when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
@@ -290,7 +308,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = ExhibitionStatus.class, names = { "PUBLISHED", "ACTIVE" })
+    @EnumSource(value = ExhibitionStatus.class, names = { "ACTIVE", "COMPLETED" })
     void initializeRegistration_afterRegistrationPhase_throwsInvalidStatus(ExhibitionStatus status) {
         paidPackage.getExhibition().setStatus(status);
         when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);

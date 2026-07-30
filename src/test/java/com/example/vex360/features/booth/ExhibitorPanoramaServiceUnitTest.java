@@ -93,13 +93,11 @@ class ExhibitorPanoramaServiceUnitTest {
                 panoramaRepository,
                 hotspotRepository,
                 companyService,
-                companyStorageService,
                 cloudService,
                 panoramaImageCleanupService,
                 Mappers.getMapper(BoothMapper.class),
                 boothBenefitGuardService,
-                boothReviewPolicyService,
-                designDraftAssetRepository);
+                boothReviewPolicyService);
         exhibitorUser = User.builder().id(UUID.randomUUID()).email("exhibitor@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).ownerUser(exhibitorUser).name("VEX Company").build();
         booth = Booth.builder()

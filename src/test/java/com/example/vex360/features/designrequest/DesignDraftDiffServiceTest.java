@@ -14,7 +14,6 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.HotspotType;
-import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO.ChangeScope;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO.ChangeType;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeSummaryDTO;
