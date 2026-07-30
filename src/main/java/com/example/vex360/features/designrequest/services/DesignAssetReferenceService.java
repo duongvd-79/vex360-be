@@ -5,14 +5,26 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
+import com.example.vex360.features.booth.enums.MediaAssetType;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
+import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,22 +39,38 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class DesignAssetReferenceService {
-    private final PanoramaRepository panoramaRepository;
-    private final BoothRepository boothRepository;
+    private final BoothDesignService boothDesignService;
     private final DesignDraftPanoramaRepository draftPanoramaRepository;
     private final DesignDraftRepository draftRepository;
-    private final MediaAssetRepository mediaAssetRepository;
     private final CloudService cloudService;
+    private final ExhibitorMediaAssetService exhibitorMediaAssetService;
+    private final DesignRequestMediaAssetRepository requestMediaAssetRepository;
+
+    @Transactional
+    public MediaAssetResponseDTO deleteMediaAsset(User currentUser, UUID assetId) {
+        if (requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
+                assetId,
+                DesignRequestRepository.NON_TERMINAL_STATUSES)) {
+            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_LOCKED);
+        }
+        MediaAssetResponseDTO response = exhibitorMediaAssetService.deleteMediaAsset(currentUser, assetId);
+        scheduleCleanup(response.getPublicId(), toResourceType(response.getType()));
+        return response;
+    }
+
+    private String toResourceType(MediaAssetType type) {
+        return type == MediaAssetType.VIDEO ? "video" : "image";
+    }
 
     public boolean isReferenced(String publicId) {
         if (!hasText(publicId)) {
             return false;
         }
-        return panoramaRepository.existsByImageKey(publicId)
+        return boothDesignService.existsPanoramaByImageKey(publicId)
                 || draftPanoramaRepository.existsByImageKey(publicId)
-                || boothRepository.existsByThumbnailPublicIdOrBackgroundMusicPublicId(publicId, publicId)
+                || boothDesignService.existsBoothByThumbnailOrMusic(publicId)
                 || draftRepository.existsByThumbnailOrBackgroundMusicPublicId(publicId)
-                || mediaAssetRepository.existsByPublicId(publicId);
+                || exhibitorMediaAssetService.existsByPublicId(publicId);
     }
 
     public void scheduleCleanup(String publicId, String resourceType) {
@@ -69,6 +97,11 @@ public class DesignAssetReferenceService {
             return;
         }
         cleanup.run();
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleCleanupRequested(PanoramaImageCleanupService.CleanupRequested event) {
+        cleanupUnreferenced(event.publicIds(), event.resourceType());
     }
 
     void cleanupUnreferenced(Collection<String> publicIds, String resourceType) {

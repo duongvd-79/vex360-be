@@ -11,7 +11,7 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.MediaAssetType;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftBenefitMetricResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftBenefitUsageResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DesignDraftBenefitGuardService {
-    private final PanoramaRepository panoramaRepository;
+    private final BoothDesignService boothDesignService;
 
     public Usage calculateUsage(DesignDraft draft) {
         if (draft == null || draft.getPanoramas() == null) {
@@ -128,7 +128,7 @@ public class DesignDraftBenefitGuardService {
 
     private Usage calculateBaselineUsage(DesignRequest request) {
         Booth booth = requireBooth(request);
-        List<Panorama> panoramas = panoramaRepository.findDetailsByBoothId(booth.getId());
+        List<Panorama> panoramas = boothDesignService.findPanoramaDetailsByBoothId(booth.getId());
         if (panoramas == null) {
             return Usage.ZERO;
         }

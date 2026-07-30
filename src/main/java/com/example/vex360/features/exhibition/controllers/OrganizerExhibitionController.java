@@ -33,8 +33,6 @@ import com.example.vex360.features.exhibition.dtos.request.RejectExhibitorRegist
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -93,20 +91,6 @@ public class OrganizerExhibitionController extends BaseController {
                         startDate, endDate,
                         pageable);
         return ok(response);
-    }
-
-    @GetMapping("/summary")
-    @Operation(summary = "Get Organizer action-required counts across exhibitions")
-    public ResponseEntity<ApiResponse<OrganizerExhibitionSummaryResponseDTO>> getSummary(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ok(exhibitionService.getSummaryForOrganizer(userDetails.getUser()));
-    }
-
-    @GetMapping("/summary/by-exhibition")
-    @Operation(summary = "Get Organizer action-required counts for each exhibition")
-    public ResponseEntity<ApiResponse<List<OrganizerExhibitionSummaryItemResponseDTO>>> getSummariesByExhibition(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ok(exhibitionService.getSummariesByExhibitionForOrganizer(userDetails.getUser()));
     }
 
     @GetMapping("/{uuid}")

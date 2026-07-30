@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -215,5 +217,54 @@ public class BoothDesignService {
             Double cornerBrX,
             Double cornerBrY,
             Double cornerBrZ) {
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsPanoramaByImageKey(String imageKey) {
+        return panoramaRepository.existsByImageKey(imageKey);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsBoothByThumbnailOrMusic(String publicId) {
+        return boothRepository.existsByThumbnailPublicIdOrBackgroundMusicPublicId(publicId, publicId);
+    }
+
+    @Transactional(readOnly = true)
+    public long countPanoramasByBoothId(UUID boothId) {
+        return panoramaRepository.countByBoothId(boothId);
+    }
+
+    @Transactional(readOnly = true)
+    public long countHotspotsByBoothId(UUID boothId) {
+        return hotspotRepository.countBySourcePanoramaBoothId(boothId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Panorama> findPanoramaDetailsByBoothId(UUID boothId) {
+        return panoramaRepository.findDetailsByBoothId(boothId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsInactiveHotspotProductInBooth(UUID boothId) {
+        return hotspotRepository.existsBySourcePanoramaBoothIdAndProductStatusNot(boothId, ProductStatus.ACTIVE);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> findDistinctMediaAssetIdsByBoothId(UUID boothId, UUID excludedHotspotId) {
+        return hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, excludedHotspotId)
+                .stream().map(MediaAsset::getId).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> findDistinctProductIdsByBoothId(UUID boothId, UUID excludedHotspotId) {
+        return hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(boothId, excludedHotspotId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Booth> findCompanyBoothById(UUID boothId, UUID companyId) {
+        if (boothId == null || companyId == null) {
+            return Optional.empty();
+        }
+        return boothRepository.findCompanyBoothById(boothId, companyId);
     }
 }

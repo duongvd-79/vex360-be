@@ -3,17 +3,18 @@ package com.example.vex360.features.exhibition.jobs;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.entities.PaymentReceipt;
+import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.PaymentReceiptRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
-import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.shared.enums.PaymentReceiptStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 
@@ -31,7 +32,7 @@ public class PaymentReconciliationJob {
     private final PaymentRepository paymentRepository;
     private final PaymentFulfillmentService fulfillmentService;
     private final PayOSIntegrationService payOSIntegrationService;
-    private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Scheduled(fixedDelayString = "${app.payment.reconciliation-delay-ms:60000}")
     public void runReconciliation() {
@@ -58,7 +59,7 @@ public class PaymentReconciliationJob {
             try {
                 log.info("[PB-006] Processing unfulfilled PAID payment orderCode {}", payment.getOrderCode());
                 fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
-                paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
+                eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
             } catch (Exception e) {
                 log.error("[PB-006] Exception processing unfulfilled PAID payment orderCode {}", payment.getOrderCode(),
                         e);
@@ -80,7 +81,7 @@ public class PaymentReconciliationJob {
                     payment.setPaidAt(Instant.now());
                     paymentRepository.save(payment);
                     fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
-                    paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
+                    eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
                 }
             } catch (Exception e) {
                 log.debug("[PB-006] PayOS status check exception for orderCode {}: {}", payment.getOrderCode(),

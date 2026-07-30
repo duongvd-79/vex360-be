@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
@@ -10,20 +11,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
-import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
+import com.example.vex360.features.booth.services.PanoramaImageCleanupService.CleanupRequested;
 
 @ExtendWith(MockitoExtension.class)
 class PanoramaImageCleanupServiceUnitTest {
     @Mock
-    private DesignAssetReferenceService assetReferenceService;
+    private ApplicationEventPublisher eventPublisher;
 
     private PanoramaImageCleanupService service;
 
     @BeforeEach
     void setup() {
-        service = new PanoramaImageCleanupService(assetReferenceService);
+        service = new PanoramaImageCleanupService(eventPublisher);
     }
 
     @Test
@@ -31,20 +33,20 @@ class PanoramaImageCleanupServiceUnitTest {
         Set<String> keys = Set.of("shared-key", "unused-key");
         service.scheduleCleanup(keys);
 
-        verify(assetReferenceService).scheduleCleanup(keys, "image");
+        verify(eventPublisher).publishEvent(new CleanupRequested(keys, "image"));
     }
 
     @Test
     void scheduleCleanupIgnoresBlankKeys() {
         service.scheduleCleanup(List.of("", "   "));
 
-        verify(assetReferenceService).scheduleCleanup(Set.of(), "image");
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void scheduleCleanupRetainsSingleUsedImageKey() {
         service.scheduleCleanup("shared-key");
 
-        verify(assetReferenceService).scheduleCleanup(Set.of("shared-key"), "image");
+        verify(eventPublisher).publishEvent(new CleanupRequested(Set.of("shared-key"), "image"));
     }
 }

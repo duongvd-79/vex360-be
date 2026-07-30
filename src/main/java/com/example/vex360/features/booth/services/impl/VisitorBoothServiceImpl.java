@@ -4,9 +4,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -33,7 +32,7 @@ import com.example.vex360.features.product.dtos.response.VisitorProductSearchRes
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -50,7 +49,7 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
     private final BoothRepository boothRepository;
     private final HotspotRepository hotspotRepository;
     private final PanoramaRepository panoramaRepository;
-    private final ProductRepository productRepository;
+    private final ProductService productService;
     private final BoothMapper boothMapper;
     private final ProductMapper productMapper;
 
@@ -167,11 +166,7 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
             return;
         }
 
-        Map<UUID, ProductResponseDTO> productsById = productRepository
-                .findAllDetailsByIdInAndStatus(productIds, ProductStatus.ACTIVE)
-                .stream()
-                .map(productMapper::toResponse)
-                .collect(Collectors.toMap(ProductResponseDTO::getId, product -> product));
+        Map<UUID, ProductResponseDTO> productsById = productService.findActiveProductResponsesByIds(productIds);
 
         panoramas.stream()
                 .flatMap(panorama -> panorama.getHotspots().stream())
@@ -239,5 +234,14 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
             return row.getTemplateListingPriority();
         }
         return BoothListingPriority.NORMAL;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Booth> findPublishedBoothByExhibitionUuidAndBoothId(UUID exhibitionUuid, UUID boothId) {
+        if (exhibitionUuid == null || boothId == null) {
+            return Optional.empty();
+        }
+        return boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(exhibitionUuid, boothId, BoothStatus.PUBLISHED);
     }
 }

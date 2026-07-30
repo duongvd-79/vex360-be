@@ -3,7 +3,6 @@ package com.example.vex360.features.company.services;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.repositories.CompanyRepository;
@@ -19,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 public class CompanyStorageService {
 
     private final CompanyRepository companyRepository;
-    private final MediaAssetRepository mediaAssetRepository;
 
     public void checkQuota(Company company, long fileSizeBytes) {
         validateBytes(fileSizeBytes);
@@ -122,17 +120,14 @@ public class CompanyStorageService {
     }
 
     public StorageUsageResponseDTO getUsage(Company company) {
+        return getUsage(company, 0L);
+    }
+
+    public StorageUsageResponseDTO getUsage(Company company, long mediaAssetUsedBytes) {
         long usedBytes = used(company);
         long reservedBytes = reserved(company);
         long quotaBytes = quota(company);
         double percentage = quotaBytes > 0 ? (double) usedBytes / quotaBytes * 100 : 0;
-
-        // usedBytes đã bao gồm CẢ tệp media lẫn ảnh/nội dung sản phẩm (cả hai luồng
-        // upload đều gọi addUsage). Tách riêng phần media để client hiển thị chi tiết
-        // mà không phải tự cộng lại từ danh sách đã phân trang.
-        long mediaAssetUsedBytes = company != null && company.getId() != null
-                ? mediaAssetRepository.sumFileSizeByCompanyId(company.getId())
-                : 0L;
 
         return StorageUsageResponseDTO.builder()
                 .usedBytes(usedBytes)

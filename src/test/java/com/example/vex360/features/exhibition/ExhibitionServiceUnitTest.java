@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -37,7 +36,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
+import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
@@ -46,31 +45,31 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
-import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
-import com.example.vex360.shared.enums.ExhibitionAssetType;
-import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.dtos.CloudinaryResponse;
+import com.example.vex360.shared.enums.ExhibitionAssetType;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
+
+import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ExhibitionServiceUnitTest {
@@ -79,39 +78,41 @@ class ExhibitionServiceUnitTest {
     private ExhibitionRepository exhibitionRepository;
 
     @Mock
-    private ExhibitorRegistrationRepository exhibitorRegistrationRepository;
-
-    @Mock
-    private BoothRepository boothRepository;
-
-    @Mock
-    private CompanyRepository companyRepository;
-
-    @Mock
     private ExhibitionPackageRepository exhibitionPackageRepository;
+
+    @Mock
+    private PackageTemplateService packageTemplateService;
 
     @Mock
     private ExhibitionAssetRepository exhibitionAssetRepository;
 
     @Mock
-    private CloudService cloudService;
+    private ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private BoothRepository boothRepository;
+
+    @Mock
+    private CompanyService companyService;
 
     @Mock
     private ExhibitionMapper exhibitionMapper;
 
     @Mock
-    private AnalyticsEventRepository analyticsEventRepository;
-
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private ExhibitionReviewHistoryService reviewHistoryService;
+    private CloudService cloudService;
 
     @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
 
-    @InjectMocks
+    @Mock
+    private UserService userService;
+
+    @Mock
+    private ExhibitionReviewHistoryService reviewHistoryService;
+
     private ExhibitionServiceImpl exhibitionService;
 
     private User organizer;
@@ -120,6 +121,20 @@ class ExhibitionServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        exhibitionService = new ExhibitionServiceImpl(
+                exhibitionRepository,
+                exhibitionPackageRepository,
+                packageTemplateService,
+                exhibitionAssetRepository,
+                exhibitorRegistrationRepository,
+                paymentRepository,
+                companyService,
+                exhibitionMapper,
+                cloudService,
+                timelinePolicy,
+                userService,
+                reviewHistoryService);
+
         organizer = User.builder()
                 .id(UUID.randomUUID())
                 .email("organizer@example.com")
@@ -170,7 +185,7 @@ class ExhibitionServiceUnitTest {
                 .thenReturn(Collections.emptyList());
         when(exhibitionMapper.toResponse(registrationExhibition, Collections.emptyList()))
                 .thenReturn(mappedResponse);
-        when(companyRepository.findByOwnerUserId(organizer.getId())).thenReturn(Optional.of(company));
+        when(companyService.findByOwnerUserId(organizer.getId())).thenReturn(Optional.of(company));
 
         ExhibitionResponseDTO result = exhibitionService.getExhibitionDetailForAdmin(exhibitionUuid);
 
@@ -180,7 +195,7 @@ class ExhibitionServiceUnitTest {
         assertEquals(company.getName(), result.getOrganizationName());
         assertEquals(company.getEmail(), result.getEmail());
         assertEquals(company.getPhone(), result.getPhone());
-        verify(companyRepository).findByOwnerUserId(organizer.getId());
+        verify(companyService).findByOwnerUserId(organizer.getId());
     }
 
     @Test
@@ -196,7 +211,7 @@ class ExhibitionServiceUnitTest {
                 .thenReturn(Collections.emptyList());
         when(exhibitionMapper.toResponse(registrationExhibition, Collections.emptyList()))
                 .thenReturn(mappedResponse);
-        when(companyRepository.findByOwnerUserId(organizer.getId())).thenReturn(Optional.empty());
+        when(companyService.findByOwnerUserId(organizer.getId())).thenReturn(Optional.empty());
 
         ExhibitionResponseDTO result = exhibitionService.getExhibitionDetailForAdmin(exhibitionUuid);
 
@@ -204,57 +219,7 @@ class ExhibitionServiceUnitTest {
         assertNull(result.getOrganizationName());
         assertNull(result.getEmail());
         assertNull(result.getPhone());
-        verify(companyRepository).findByOwnerUserId(organizer.getId());
-    }
-
-    @Test
-    void getSummaryForOrganizerAddsPendingRegistrationAndBoothReviewCounts() {
-        when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
-                .thenReturn(List.of(registrationExhibition));
-        when(exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
-                List.of(registrationExhibition.getId()),
-                List.of(ExhibitorRegistrationStatus.PENDING, ExhibitorRegistrationStatus.PENDING_PAYMENT)))
-                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 3L }));
-        when(boothRepository.countBoothsGroupedByExhibitionAndStatus(
-                List.of(registrationExhibition.getId()), BoothStatus.PENDING))
-                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 2L }));
-
-        var summary = exhibitionService.getSummaryForOrganizer(organizer);
-
-        assertEquals(3L, summary.getPendingRegistrationCount());
-        assertEquals(2L, summary.getPendingBoothReviewCount());
-        assertEquals(5L, summary.getTotalCount());
-    }
-
-    @Test
-    void getSummariesByExhibitionIncludesExhibitionsWithZeroCounts() {
-        Exhibition secondExhibition = Exhibition.builder()
-                .id(2)
-                .uuid(UUID.randomUUID())
-                .name("Expo 2027")
-                .organizer(organizer)
-                .build();
-        List<Integer> exhibitionIds = List.of(registrationExhibition.getId(), secondExhibition.getId());
-        when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
-                .thenReturn(List.of(registrationExhibition, secondExhibition));
-        when(exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
-                exhibitionIds,
-                List.of(ExhibitorRegistrationStatus.PENDING, ExhibitorRegistrationStatus.PENDING_PAYMENT)))
-                .thenReturn(List.<Object[]>of(new Object[] { registrationExhibition.getId(), 4L }));
-        when(boothRepository.countBoothsGroupedByExhibitionAndStatus(exhibitionIds, BoothStatus.PENDING))
-                .thenReturn(List.<Object[]>of(new Object[] { secondExhibition.getId(), 1L }));
-
-        var summaries = exhibitionService.getSummariesByExhibitionForOrganizer(organizer);
-
-        assertEquals(2, summaries.size());
-        assertEquals(exhibitionUuid, summaries.get(0).getExhibitionUuid());
-        assertEquals(4L, summaries.get(0).getPendingRegistrationCount());
-        assertEquals(0L, summaries.get(0).getPendingBoothReviewCount());
-        assertEquals(4L, summaries.get(0).getTotalCount());
-        assertEquals(secondExhibition.getUuid(), summaries.get(1).getExhibitionUuid());
-        assertEquals(0L, summaries.get(1).getPendingRegistrationCount());
-        assertEquals(1L, summaries.get(1).getPendingBoothReviewCount());
-        assertEquals(1L, summaries.get(1).getTotalCount());
+        verify(companyService).findByOwnerUserId(organizer.getId());
     }
 
     @AfterEach

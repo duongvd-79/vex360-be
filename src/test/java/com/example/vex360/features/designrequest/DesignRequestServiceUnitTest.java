@@ -36,7 +36,7 @@ import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.booth.services.BoothDesignService.PanoramaDesign;
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
@@ -133,7 +133,7 @@ class DesignRequestServiceUnitTest {
     @Mock
     private DesignDraftBenefitGuardService draftBenefitGuardService;
     @Mock
-    private MediaAssetRepository mediaAssetRepository;
+    private ExhibitorMediaAssetService exhibitorMediaAssetService;
     @Mock
     private CompanyStorageService storageService;
 
@@ -146,15 +146,15 @@ class DesignRequestServiceUnitTest {
     @BeforeEach
     void setup() {
         DesignRequestEligibilityService eligibilityService = new DesignRequestEligibilityService(
-                panoramaRepository, hotspotRepository, designRequestRepository);
+                boothDesignService, designRequestRepository);
         service = new DesignRequestService(
                 designRequestRepository,
                 designDraftRepository,
                 designDraftAssetRepository,
-                mediaAssetRepository,
                 storageService,
                 Mappers.getMapper(DesignRequestMapper.class),
                 boothDesignService,
+                exhibitorMediaAssetService,
                 companyService,
                 userService,
                 productService,
@@ -168,8 +168,7 @@ class DesignRequestServiceUnitTest {
                 draftRetentionService,
                 draftGraphValidator,
                 draftBenefitGuardService,
-                eventPublisher,
-                userRepository);
+                eventPublisher);
 
         exhibitor = User.builder()
                 .id(UUID.randomUUID())
@@ -698,7 +697,7 @@ class DesignRequestServiceUnitTest {
         service.approveDraft(exhibitor, requestId, new ApproveDesignDraftRequest(List.of()));
 
         assertTrue(draft.getMediaAssets().isEmpty());
-        verify(mediaAssetRepository, never()).save(any(MediaAsset.class));
+        verify(exhibitorMediaAssetService, never()).saveMediaAsset(any(MediaAsset.class));
         verify(storageService, never()).promoteReservedUsage(any(), any(Long.class));
     }
 
@@ -722,7 +721,7 @@ class DesignRequestServiceUnitTest {
                 new ApproveDesignDraftRequest(List.of(UUID.randomUUID())));
 
         assertTrue(draft.getMediaAssets().isEmpty());
-        verify(mediaAssetRepository, never()).save(any());
+        verify(exhibitorMediaAssetService, never()).saveMediaAsset(any());
     }
 
     @Test
@@ -745,7 +744,7 @@ class DesignRequestServiceUnitTest {
         when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         when(designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(requestId))
                 .thenReturn(Optional.of(draft));
-        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(invocation -> {
+        when(exhibitorMediaAssetService.saveMediaAsset(any(MediaAsset.class))).thenAnswer(invocation -> {
             MediaAsset media = invocation.getArgument(0);
             media.setId(UUID.randomUUID());
             return media;
@@ -763,7 +762,7 @@ class DesignRequestServiceUnitTest {
         verify(storageService).reconcileUsage(company, 0L, 20L, 0L);
         verify(storageService, never()).promoteReservedUsage(company, 20L);
         ArgumentCaptor<MediaAsset> mediaCaptor = ArgumentCaptor.forClass(MediaAsset.class);
-        verify(mediaAssetRepository).save(mediaCaptor.capture());
+        verify(exhibitorMediaAssetService).saveMediaAsset(mediaCaptor.capture());
         assertEquals(MediaAssetType.VIDEO, mediaCaptor.getValue().getType());
         assertSame(
                 panorama.getHotspots().get(0).getMediaAsset(),
@@ -793,7 +792,7 @@ class DesignRequestServiceUnitTest {
 
         assertSame(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
         assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
-        verify(mediaAssetRepository, never()).save(any());
+        verify(exhibitorMediaAssetService, never()).saveMediaAsset(any());
         verify(boothDesignService, never()).replaceBoothContent(any(), any());
     }
 

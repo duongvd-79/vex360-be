@@ -19,7 +19,6 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -42,7 +41,7 @@ public class ExhibitorBoothService {
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
     private final BoothReviewPolicyService boothReviewPolicyService;
-    private final DesignAssetReferenceService assetReferenceService;
+    private final PanoramaImageCleanupService assetCleanupService;
 
     @Transactional(readOnly = true)
     public PageResponse<BoothResponseDTO> getBooths(User currentUser, Pageable pageable) {
@@ -95,10 +94,10 @@ public class ExhibitorBoothService {
         }
 
         if (thumbnailUpload != null && hasText(oldThumbnailPublicId)) {
-            assetReferenceService.scheduleCleanup(oldThumbnailPublicId, "image");
+            assetCleanupService.scheduleCleanup(oldThumbnailPublicId, "image");
         }
         if (backgroundMusicUpload != null && hasText(oldBackgroundMusicPublicId)) {
-            assetReferenceService.scheduleCleanup(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+            assetCleanupService.scheduleCleanup(oldBackgroundMusicPublicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
         }
 
         return boothMapper.toBoothResponseDTO(savedBooth);
@@ -121,7 +120,7 @@ public class ExhibitorBoothService {
         booth.setBackgroundMusicFileSize(null);
         Booth savedBooth = boothRepository.save(booth);
         boothRepository.flush();
-        assetReferenceService.scheduleCleanup(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
+        assetCleanupService.scheduleCleanup(publicId, CLOUDINARY_AUDIO_RESOURCE_TYPE);
         return boothMapper.toBoothResponseDTO(savedBooth);
     }
 

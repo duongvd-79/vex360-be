@@ -1,6 +1,7 @@
 package com.example.vex360.features.user.services;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -240,5 +241,35 @@ public class UserService {
             u.setLockoutEnd(null);
             userRepository.save(u);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countGroupedByRole() {
+        return userRepository.countGroupedByRole();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countGroupedByStatus() {
+        return userRepository.countGroupedByStatus();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyRegistrations(Instant start, Instant end) {
+        return userRepository.aggregateDailyRegistrations(start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public long countUsers() {
+        return userRepository.count();
+    }
+
+    @Transactional(readOnly = true)
+    public long countByCreatedAtBetween(Instant start, Instant end) {
+        return userRepository.countByCreatedAtBetween(start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> findUsersByRoleAndStatus(Role role, UserStatus status) {
+        return userRepository.findByRoleAndStatusOrderByFullNameAsc(role, status);
     }
 }

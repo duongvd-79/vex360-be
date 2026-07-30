@@ -57,7 +57,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.entities.ProductContent;
 import com.example.vex360.features.product.enums.ProductContentType;
@@ -81,7 +81,7 @@ class BoothReviewServiceUnitTest {
     @Mock
     BoothReviewContentAssembler contentAssembler;
     @Mock
-    ExhibitionRepository exhibitionRepository;
+    ExhibitionService exhibitionService;
 
     private BoothReviewService service;
     private User exhibitor;
@@ -107,7 +107,7 @@ class BoothReviewServiceUnitTest {
                 snapshotFactory,
                 diffService,
                 contentAssembler,
-                exhibitionRepository,
+                exhibitionService,
                 clock);
         exhibitor = User.builder().id(UUID.randomUUID()).fullName("Exhibitor Owner").build();
         organizer = User.builder().id(UUID.randomUUID()).build();
@@ -223,15 +223,15 @@ class BoothReviewServiceUnitTest {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
                 .thenReturn(Optional.of(booth));
-        when(exhibitionRepository.findByIdForUpdate(1))
-                .thenReturn(Optional.of(booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()));
+        when(exhibitionService.findExhibitionForUpdate(1))
+                .thenReturn(booth.getExhibitorRegistration().getExhibitionPackage().getExhibition());
         when(boothRepository.save(booth)).thenReturn(booth);
 
         BoothResponseDTO response = service.startEdit(exhibitor, booth.getId());
 
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertEquals(BoothStatus.DRAFT, response.getStatus());
-        verify(exhibitionRepository).findByIdForUpdate(1);
+        verify(exhibitionService).findExhibitionForUpdate(1);
         verify(policyService).assertBeforeReviewDeadline(booth);
     }
 

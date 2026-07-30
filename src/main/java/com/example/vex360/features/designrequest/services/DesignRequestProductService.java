@@ -12,14 +12,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -35,8 +35,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DesignRequestProductService {
     private final DesignRequestProductRepository requestProductRepository;
-    private final ProductRepository productRepository;
-    private final HotspotRepository hotspotRepository;
+    private final ProductService productService;
+    private final BoothDesignService boothDesignService;
 
     /**
      * Initializes the product allowlist for a design request.
@@ -55,7 +55,9 @@ public class DesignRequestProductService {
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
         Set<UUID> requiredIds = new HashSet<>();
         if (request.getMode() == DesignRequestMode.REDESIGN) {
-            for (Product product : hotspotRepository.findDistinctProductsByBoothId(request.getBooth().getId())) {
+            List<UUID> baselineProductIds = boothDesignService.findDistinctProductIdsByBoothId(request.getBooth().getId(), null);
+            List<Product> baselineProducts = productService.findProductsByIdsAndCompanyId(baselineProductIds, request.getCompany().getId());
+            for (Product product : baselineProducts) {
                 if (product.getStatus() != ProductStatus.ACTIVE) {
                     throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
                 }
@@ -88,7 +90,7 @@ public class DesignRequestProductService {
         if (ids.isEmpty()) {
             return List.of();
         }
-        List<Product> products = productRepository.findByIdInAndCompanyId(ids, request.getCompany().getId());
+        List<Product> products = productService.findProductsByIdsAndCompanyId(ids, request.getCompany().getId());
         if (products.size() != ids.size() || products.stream().anyMatch(p -> p.getStatus() != ProductStatus.ACTIVE)) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
         }

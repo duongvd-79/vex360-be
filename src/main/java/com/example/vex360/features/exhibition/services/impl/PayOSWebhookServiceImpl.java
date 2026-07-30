@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
-import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
@@ -27,11 +27,8 @@ import lombok.extern.slf4j.Slf4j;
 import vn.payos.PayOS;
 import vn.payos.model.webhooks.WebhookData;
 
-import com.example.vex360.features.booth.entities.Booth;
-import com.example.vex360.features.booth.services.BoothProvisioningService;
-
+import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
-import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 
 @Service
 @RequiredArgsConstructor
@@ -40,9 +37,8 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
     private final PaymentRepository paymentRepository;
     private final ExhibitorRegistrationRepository registrationRepository;
-    private final BoothProvisioningService boothProvisioningService;
     private final PaymentFulfillmentService fulfillmentService;
-    private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
+    private final StoragePackageService storagePackageService;
     private final ApplicationEventPublisher eventPublisher;
     private final PayOS payOS;
 
@@ -99,19 +95,9 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                             registrationRepository.save(registration);
                         }
-                        Optional<Booth> boothOpt = boothProvisioningService
-                                .ensureBoothForApprovedRegistration(registration.getId());
-                        if (boothOpt.isEmpty()) {
-                            log.error(
-                                    "[PB-004] Replay repair failed: booth creation returned empty for registration ID {}",
-                                    registration.getId());
-                            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
-                        }
-                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(),
-                                boothOpt.get().getId());
-                        log.info(
-                                "Duplicate webhook processed & booth repaired/verified for orderCode: {}, booth ID: {}",
-                                orderCode, boothOpt.get().getId());
+                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), null);
+                        eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                        log.info("Duplicate webhook processed for orderCode: {}", orderCode);
                     }
                 } else {
                     log.info("Payment with orderCode {} has already been PAID. Ignoring late failure webhook.",
@@ -129,11 +115,10 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     payment.setPaymentReference(data.getReference());
                 }
                 paymentRepository.save(payment);
-                paymentRevenueRecognitionService.recognizeRevenueForPayment(payment);
+                eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
 
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
-                    eventPublisher.publishEvent(new StoragePackagePaymentCompletedEvent(
-                            this, payment.getStoragePackageOrderId()));
+                    storagePackageService.markPaidAndIncrementQuota(payment.getStoragePackageOrderId());
                 } else if (registration != null) {
                     if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT
                             && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
@@ -143,20 +128,10 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                         registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                         registrationRepository.save(registration);
 
-                        Optional<Booth> boothOpt = boothProvisioningService
-                                .ensureBoothForApprovedRegistration(registration.getId());
-                        if (boothOpt.isEmpty()) {
-                            log.error(
-                                    "[PB-004] Fulfillment failed: booth creation returned empty for registration ID {}",
-                                    registration.getId());
-                            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
-                        }
-
-                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(),
-                                boothOpt.get().getId());
+                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), null);
                         eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
-                        log.info("Payment PAID and booth fulfilled for registration ID: {}, booth ID: {}",
-                                registration.getId(), boothOpt.get().getId());
+                        log.info("Payment PAID and approval event published for registration ID: {}",
+                                registration.getId());
                     }
                 }
             } else {

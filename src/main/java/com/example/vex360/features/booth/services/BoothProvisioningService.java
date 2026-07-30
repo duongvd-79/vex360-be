@@ -11,7 +11,7 @@ import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
-import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BoothProvisioningService {
     private final BoothRepository boothRepository;
-    private final ExhibitorRegistrationRepository registrationRepository;
+    private final ExhibitorRegistrationService exhibitorRegistrationService;
 
     @Transactional
     public Optional<Booth> ensureBoothForApprovedRegistration(ExhibitorRegistration registration) {
@@ -41,7 +41,7 @@ public class BoothProvisioningService {
             return Optional.empty();
         }
 
-        ExhibitorRegistration registration = registrationRepository.findByIdWithRelations(registrationId)
+        ExhibitorRegistration registration = exhibitorRegistrationService.findRegistrationWithRelationsById(registrationId)
                 .orElse(null);
 
         if (registration == null) {

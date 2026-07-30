@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,18 +26,15 @@ import com.example.vex360.features.analytics.repositories.AnalyticsEventReposito
 import com.example.vex360.features.analytics.services.AnalyticsService;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.chat.repositories.ChatMessageRepository;
-import com.example.vex360.features.chat.repositories.ChatRoomRepository;
+import com.example.vex360.features.chat.services.ChatService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
-import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.shared.enums.LeadStatus;
-import com.example.vex360.features.lead.repositories.BoothLeadRepository;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.lead.services.BoothLeadService;
+import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -48,30 +45,24 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 @ExtendWith(MockitoExtension.class)
 class AnalyticsServiceUnitTest {
         @Mock
+        ExhibitionService exhibitionService;
+        @Mock
+        BoothReviewService boothReviewService;
+        @Mock
         AnalyticsEventRepository analyticsEventRepository;
-        @Mock
-        ExhibitionRepository exhibitionRepository;
-        @Mock
-        BoothRepository boothRepository;
-        @Mock
-        ProductRepository productRepository;
         @Mock
         UserService userService;
         @Mock
-        ChatRoomRepository chatRoomRepository;
-        @Mock
-        ChatMessageRepository chatMessageRepository;
+        ChatService chatService;
         @Mock
         CompanyService companyService;
         @Mock
-        ExhibitorRegistrationRepository exhibitorRegistrationRepository;
+        BoothLeadService boothLeadService;
         @Mock
-        PaymentRepository paymentRepository;
-        @Mock
-        BoothLeadRepository boothLeadRepository;
+        ProductService productService;
 
         @InjectMocks
-        AnalyticsService analyticsService; // Mockito tự tiêm các mock trên vào
+        AnalyticsService analyticsService;
 
         User organizer;
         Exhibition exhibition;
@@ -81,9 +72,9 @@ class AnalyticsServiceUnitTest {
                 organizer = User.builder().id(UUID.randomUUID()).build();
                 exhibition = Exhibition.builder()
                                 .id(1).uuid(UUID.randomUUID()).name("Demo")
-                                .organizer(organizer) // QUAN TRỌNG: cùng organizer để pass kiểm tra quyền
+                                .organizer(organizer)
                                 .status(ExhibitionStatus.ACTIVE)
-                                .estimatedBooths(10) // mẫu số để tính tỷ lệ lấp đầy gian hàng
+                                .estimatedBooths(10)
                                 .startDate(LocalDate.now().minusDays(5))
                                 .endDate(LocalDate.now())
                                 .build();
@@ -91,10 +82,10 @@ class AnalyticsServiceUnitTest {
 
         @Test
         void getExhibitionAnalytics_notOwner_throwsUnauthorized() {
-                User other = User.builder().id(UUID.randomUUID()).build(); // organizer KHÁC
+                User other = User.builder().id(UUID.randomUUID()).build();
                 exhibition = Exhibition.builder().id(1).uuid(UUID.randomUUID())
-                                .organizer(other).build(); // triển lãm của người khác
-                when(exhibitionRepository.findByUuid(any())).thenReturn(Optional.of(exhibition));
+                                .organizer(other).build();
+                when(exhibitionService.findExhibitionEntityByUuid(any())).thenReturn(exhibition);
 
                 AppException ex = assertThrows(AppException.class,
                                 () -> analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null,
@@ -105,53 +96,49 @@ class AnalyticsServiceUnitTest {
 
         @Test
         void getExhibitionAnalytics_withData_aggregatesCorrectly() {
-                when(exhibitionRepository.findByUuid(any())).thenReturn(Optional.of(exhibition));
-                when(boothRepository.countBoothsByExhibitionId(1)).thenReturn(3L);
-                // Cột [1] (lượt xem gian hàng) cố ý bị bỏ qua: đó là số liệu của exhibitor,
-                // organizer chỉ dùng cột [2] = lượt vào triển lãm và cột [3] = thời lượng TB.
+                when(exhibitionService.findExhibitionEntityByUuid(any())).thenReturn(exhibition);
+                when(boothReviewService.countBoothsByExhibitionId(1)).thenReturn(3L);
                 when(analyticsEventRepository.aggregateDailyMetrics(anyInt(), any(), any()))
                                 .thenReturn(List.of(
                                                 new Object[] { "2026-06-01", 10L, 4L, 600.0 },
                                                 new Object[] { "2026-06-02", 20L, 6L, 300.0 }));
-                when(paymentRepository.aggregateDailyRevenue(anyInt(), any(), any()))
+                when(exhibitionService.aggregateDailyRevenueForExhibition(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { "2026-06-01", BigDecimal.valueOf(5_000_000) },
                                                 new Object[] { "2026-06-02", BigDecimal.valueOf(3_000_000) }));
-                when(exhibitorRegistrationRepository.countByExhibitionPackageExhibitionIdAndStatus(anyInt(), any()))
+                when(exhibitionService.countApprovedRegistrationsForExhibition(anyInt()))
                                 .thenReturn(4L);
-                // Thời lượng TB giờ lấy trực tiếp từ query (AVG toàn bộ lượt rời), tính bằng
-                // giây
                 when(analyticsEventRepository.averageVisitDurationSeconds(anyInt(), any(), any()))
-                                .thenReturn(450.0); // 450 giây = 7.5 phút
+                                .thenReturn(450.0);
                 when(analyticsEventRepository.countUniqueVisitors(anyInt(), any(), any()))
                                 .thenReturn(7L);
-                when(paymentRepository.aggregatePaidPackageRevenue(anyInt(), any(), any()))
+                when(exhibitionService.aggregatePaidPackageRevenueForExhibition(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { "Gói Cơ Bản", 2L, BigDecimal.valueOf(10_000_000) }));
-                when(boothLeadRepository.countByStatusForExhibitionInRange(anyInt(), any(), any()))
+                when(boothLeadService.countByStatusForExhibitionInRange(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { LeadStatus.NEW, 2L },
                                                 new Object[] { LeadStatus.CONVERTED, 2L }));
-                when(boothLeadRepository.countUniqueLeadVisitorsForExhibition(anyInt(), any(), any())).thenReturn(3L);
-                when(boothLeadRepository.countBoothsWithLeadsForExhibition(anyInt(), any(), any())).thenReturn(2L);
-                when(boothLeadRepository.aggregateDailyForExhibition(anyInt(), any(), any()))
+                when(boothLeadService.countUniqueLeadVisitorsForExhibition(anyInt(), any(), any())).thenReturn(3L);
+                when(boothLeadService.countBoothsWithLeadsForExhibition(anyInt(), any(), any())).thenReturn(2L);
+                when(boothLeadService.aggregateDailyForExhibition(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { "2026-06-01", 4L }));
-                when(boothLeadRepository.findTopBoothsForExhibition(
+                when(boothLeadService.findTopBoothsForExhibition(
                                 anyInt(), any(), any(), any(org.springframework.data.domain.Pageable.class)))
                                 .thenReturn(List.<Object[]>of(new Object[] { UUID.randomUUID(), "Mộc Việt", 4L }));
 
                 var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null, null);
 
                 assertTrue(dto.isHasData());
-                assertEquals(10, dto.getMetrics().getTotalVisits()); // 4 + 6
+                assertEquals(10, dto.getMetrics().getTotalVisits());
                 assertEquals(7, dto.getMetrics().getUniqueVisitorCount());
                 assertEquals(7.5, dto.getMetrics().getAverageVisitDurationMinutes());
-                assertEquals(8_000_000, dto.getMetrics().getTotalRevenue()); // 5tr + 3tr
+                assertEquals(8_000_000, dto.getMetrics().getTotalRevenue());
                 assertEquals(4, dto.getMetrics().getApprovedBoothCount());
                 assertEquals(10, dto.getMetrics().getEstimatedBooths());
-                assertEquals(40.0, dto.getMetrics().getBoothFillRatePercent()); // 4/10
+                assertEquals(40.0, dto.getMetrics().getBoothFillRatePercent());
                 assertEquals(2, dto.getChart().size());
-                assertEquals("2026-06-01", dto.getChart().get(0).getDate()); // TreeMap sort tăng dần
+                assertEquals("2026-06-01", dto.getChart().get(0).getDate());
                 assertEquals(5_000_000, dto.getChart().get(0).getRevenue());
                 assertEquals(1, dto.getPackages().size());
                 assertEquals(10_000_000, dto.getPackages().get(0).getRevenue());
@@ -166,36 +153,36 @@ class AnalyticsServiceUnitTest {
 
         @Test
         void getOrganizerSummary_aggregatesCrossExhibitionMetrics() {
-                when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
+                when(exhibitionService.getOrganizerExhibitions(organizer))
                                 .thenReturn(List.of(exhibition));
-                when(boothRepository.countBoothsGroupedByExhibition(List.of(1)))
-                                .thenReturn(List.<Object[]>of(new Object[] { 1, 4L }));
-                when(exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
+                when(boothReviewService.countBoothsGroupedByExhibition(List.of(1)))
+                                .thenReturn(Map.of(1, 4L));
+                when(exhibitionService.countRegistrationsByStatusGroupedByExhibition(
                                 List.of(1), ExhibitorRegistrationStatus.APPROVED))
-                                .thenReturn(List.<Object[]>of(new Object[] { 1, 4L }));
-                when(exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
+                                .thenReturn(Map.of(1, 4L));
+                when(exhibitionService.countRegistrationsByStatusGroupedByExhibition(
                                 List.of(1), ExhibitorRegistrationStatus.PENDING))
-                                .thenReturn(List.<Object[]>of(new Object[] { 1, 2L }));
+                                .thenReturn(Map.of(1, 2L));
                 when(analyticsEventRepository.aggregatePerformanceByExhibition(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { 1, 20L, 7L, 300.0 }));
-                when(paymentRepository.aggregateRevenueByExhibition(any(), any(), any()))
-                                .thenReturn(List.<Object[]>of(new Object[] { 1, BigDecimal.valueOf(12_000_000) }));
-                when(boothLeadRepository.aggregatePerformanceForExhibitions(any(), any(), any()))
+                when(exhibitionService.aggregateRevenueByExhibition(any(), any(), any()))
+                                .thenReturn(Map.of(1, 12_000_000L));
+                when(boothLeadService.aggregatePerformanceForExhibitions(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { 1, 5L, 3L, 2L }));
                 when(analyticsEventRepository.aggregateOrganizerDailyMetrics(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { "2026-07-01", 20L, 7L, 300.0 }));
-                when(paymentRepository.aggregateOrganizerDailyRevenue(any(), any(), any()))
+                when(exhibitionService.aggregateOrganizerDailyRevenue(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { "2026-07-01", BigDecimal.valueOf(12_000_000) }));
-                when(boothLeadRepository.aggregateDailyForExhibitions(any(), any(), any()))
+                when(boothLeadService.aggregateDailyForExhibitions(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { "2026-07-01", 5L }));
-                when(exhibitorRegistrationRepository.aggregateDailySubmissions(any(), any(), any()))
+                when(exhibitionService.aggregateDailyRegistrationSubmissions(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { "2026-07-01", 2L }));
-                when(paymentRepository.aggregateOrganizerPackageRevenue(any(), any(), any()))
+                when(exhibitionService.aggregateOrganizerPackageRevenue(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { "Gói Tiêu chuẩn", 2L, BigDecimal.valueOf(12_000_000) }));
                 when(analyticsEventRepository.countUniqueVisitorsForExhibitions(any(), any(), any())).thenReturn(7L);
-                when(boothLeadRepository.countUniqueLeadVisitorsForExhibitions(any(), any(), any())).thenReturn(3L);
+                when(boothLeadService.countUniqueLeadVisitorsForExhibitions(any(), any(), any())).thenReturn(3L);
                 when(analyticsEventRepository.averageVisitDurationSecondsForExhibitions(any(), any(), any()))
                                 .thenReturn(300.0);
 
@@ -228,11 +215,11 @@ class AnalyticsServiceUnitTest {
                                 .status(BoothStatus.PUBLISHED)
                                 .build();
 
-                when(boothRepository.findById(boothId)).thenReturn(Optional.of(booth));
+                when(boothReviewService.findBoothEntityById(boothId)).thenReturn(booth);
                 when(analyticsEventRepository.aggregateBoothDailyMetrics(
                                 org.mockito.ArgumentMatchers.eq(boothId), any(Instant.class), any(Instant.class)))
                                 .thenReturn(List.of());
-                when(boothLeadRepository.countByStatusForBoothInRange(
+                when(boothLeadService.countByStatusForBoothInRange(
                                 org.mockito.ArgumentMatchers.eq(boothId), any(Instant.class), any(Instant.class)))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { LeadStatus.NEW, 2L },
@@ -255,16 +242,16 @@ class AnalyticsServiceUnitTest {
                 Company company = Company.builder().id(UUID.randomUUID()).build();
 
                 when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-                when(boothRepository.findCompanyBooths(
+                when(boothReviewService.findCompanyBooths(
                                 org.mockito.ArgumentMatchers.eq(company.getId()), any()))
                                 .thenReturn(new PageImpl<>(List.of()));
-                when(boothLeadRepository.countByStatusForCompanyInRange(
+                when(boothLeadService.countByStatusForCompanyInRange(
                                 org.mockito.ArgumentMatchers.eq(company.getId()), any(Instant.class),
                                 any(Instant.class)))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { LeadStatus.NEW, 3L },
                                                 new Object[] { LeadStatus.CONVERTED, 1L }));
-                when(chatMessageRepository.countUnreadForExhibitor(exhibitor.getId())).thenReturn(0L);
+                when(chatService.countUnreadForExhibitor(exhibitor.getId())).thenReturn(0L);
 
                 var dto = analyticsService.getExhibitorDashboardOverview(
                                 exhibitor, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
@@ -278,17 +265,17 @@ class AnalyticsServiceUnitTest {
 
         @Test
         void getExhibitionAnalytics_noTrafficButHasApprovedBooths_stillReturnsFillRate() {
-                // Triển lãm đã bán được gian hàng nhưng chưa có khách nào vào: organizer vẫn
-                // cần thấy tỷ lệ lấp đầy thay vì màn hình trống "chưa có dữ liệu".
-                when(exhibitionRepository.findByUuid(any())).thenReturn(Optional.of(exhibition));
-                when(boothRepository.countBoothsByExhibitionId(1)).thenReturn(2L);
+                when(exhibitionService.findExhibitionEntityByUuid(any())).thenReturn(exhibition);
+                when(boothReviewService.countBoothsByExhibitionId(1)).thenReturn(2L);
                 when(analyticsEventRepository.aggregateDailyMetrics(anyInt(), any(), any())).thenReturn(List.of());
-                when(paymentRepository.aggregateDailyRevenue(anyInt(), any(), any())).thenReturn(List.of());
-                when(exhibitorRegistrationRepository.countByExhibitionPackageExhibitionIdAndStatus(anyInt(), any()))
+                when(exhibitionService.aggregateDailyRevenueForExhibition(anyInt(), any(), any()))
+                                .thenReturn(List.of());
+                when(exhibitionService.countApprovedRegistrationsForExhibition(anyInt()))
                                 .thenReturn(2L);
                 when(analyticsEventRepository.averageVisitDurationSeconds(anyInt(), any(), any())).thenReturn(null);
                 when(analyticsEventRepository.countUniqueVisitors(anyInt(), any(), any())).thenReturn(0L);
-                when(paymentRepository.aggregatePaidPackageRevenue(anyInt(), any(), any())).thenReturn(List.of());
+                when(exhibitionService.aggregatePaidPackageRevenueForExhibition(anyInt(), any(), any()))
+                                .thenReturn(List.of());
 
                 var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null, null);
 

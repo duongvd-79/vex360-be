@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,8 +24,6 @@ import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
 import com.example.vex360.features.company.repositories.CompanyRepository;
-import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
-import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -48,7 +45,6 @@ public class StoragePackageService {
     private final StoragePackageRepository storagePackageRepository;
     private final StoragePackageOrderRepository storagePackageOrderRepository;
     private final CompanyRepository companyRepository;
-    private final StoragePaymentService storagePaymentService;
     private final CompanyService companyService;
 
     @Value("${app.payos.storage-return-url:http://localhost:5175/storage/payment/success}")
@@ -110,7 +106,7 @@ public class StoragePackageService {
     }
 
     @Transactional
-    public StoragePackageOrderResponseDTO createOrder(User currentUser, CreateStoragePackageOrderRequest request) {
+    public StoragePackageOrder createPendingOrder(User currentUser, CreateStoragePackageOrderRequest request) {
         Company company = companyService.getCompanyEntityForCurrentUser(currentUser);
 
         StoragePackage pkg = storagePackageRepository.findById(request.getPackageId())
@@ -128,30 +124,32 @@ public class StoragePackageService {
                 .priceVndSnapshot(pkg.getPriceVnd())
                 .status(StoragePackageOrderStatus.PENDING)
                 .build();
-        order = storagePackageOrderRepository.save(order);
+        return storagePackageOrderRepository.save(order);
+    }
 
-        String description = "Nang cap luu tru";
-        String checkoutUrl = storagePaymentService.createPayment(
-                order.getId(), orderCode, pkg.getPriceVnd(), description, returnUrl, cancelUrl);
+    @Transactional
+    public StoragePackageOrderResponseDTO updateOrderCheckoutUrl(Integer orderId, String checkoutUrl) {
+        StoragePackageOrder order = storagePackageOrderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
 
         order.setCheckoutUrl(checkoutUrl);
-        storagePackageOrderRepository.save(order);
+        StoragePackageOrder saved = storagePackageOrderRepository.save(order);
 
+        StoragePackage pkg = saved.getStoragePackage();
         return StoragePackageOrderResponseDTO.builder()
-                .orderId(order.getId())
-                .orderCode(orderCode)
+                .orderId(saved.getId())
+                .orderCode(saved.getOrderCode())
                 .checkoutUrl(checkoutUrl)
-                .packageName(order.getPackageNameSnapshot() != null ? order.getPackageNameSnapshot() : pkg.getName())
-                .quotaBytes(order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot() : pkg.getQuotaBytes())
-                .amountVnd(order.getAmountVnd())
-                .status(order.getStatus().name())
+                .packageName(saved.getPackageNameSnapshot() != null ? saved.getPackageNameSnapshot() : pkg.getName())
+                .quotaBytes(saved.getQuotaBytesSnapshot() != null ? saved.getQuotaBytesSnapshot() : pkg.getQuotaBytes())
+                .amountVnd(saved.getAmountVnd())
+                .status(saved.getStatus().name())
                 .build();
     }
 
-    @EventListener
     @Transactional
-    public void handleStoragePackagePaymentCompleted(StoragePackagePaymentCompletedEvent event) {
-        StoragePackageOrder order = storagePackageOrderRepository.findById(event.getStoragePackageOrderId())
+    public void markPaidAndIncrementQuota(Integer storagePackageOrderId) {
+        StoragePackageOrder order = storagePackageOrderRepository.findById(storagePackageOrderId)
                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
 
         if (order.getStatus() == StoragePackageOrderStatus.PAID) {
@@ -163,7 +161,8 @@ public class StoragePackageService {
         order.setPaidAt(Instant.now());
         storagePackageOrderRepository.save(order);
 
-        long quotaToAdd = order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot() : order.getStoragePackage().getQuotaBytes();
+        long quotaToAdd = order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot()
+                : order.getStoragePackage().getQuotaBytes();
         Company company = order.getCompany();
         companyRepository.incrementStorageQuota(company.getId(), quotaToAdd);
         company.setStorageQuotaBytes(company.getStorageQuotaBytes() + quotaToAdd);
@@ -209,8 +208,10 @@ public class StoragePackageService {
                         .id(o.getId())
                         .orderCode(o.getOrderCode())
                         .companyName(o.getCompany().getName())
-                        .packageName(o.getPackageNameSnapshot() != null ? o.getPackageNameSnapshot() : o.getStoragePackage().getName())
-                        .quotaBytes(o.getQuotaBytesSnapshot() != null ? o.getQuotaBytesSnapshot() : o.getStoragePackage().getQuotaBytes())
+                        .packageName(o.getPackageNameSnapshot() != null ? o.getPackageNameSnapshot()
+                                : o.getStoragePackage().getName())
+                        .quotaBytes(o.getQuotaBytesSnapshot() != null ? o.getQuotaBytesSnapshot()
+                                : o.getStoragePackage().getQuotaBytes())
                         .amountVnd(o.getAmountVnd())
                         .status(o.getStatus().name())
                         .paidAt(o.getPaidAt())

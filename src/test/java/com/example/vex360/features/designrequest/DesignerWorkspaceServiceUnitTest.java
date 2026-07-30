@@ -37,6 +37,8 @@ import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
+import com.example.vex360.features.designrequest.services.DesignDraftContentAssembler;
+import com.example.vex360.features.designrequest.services.DesignDraftDiffService;
 import com.example.vex360.features.designrequest.services.DesignDraftStorageMetricsService;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.user.entities.User;
@@ -70,9 +72,9 @@ class DesignerWorkspaceServiceUnitTest {
     @Mock
     DesignRequestMapper designRequestMapper;
     @Mock
-    com.example.vex360.features.booth.services.BoothReviewContentAssembler boothReviewContentAssembler;
+    DesignDraftContentAssembler designDraftContentAssembler;
     @Mock
-    com.example.vex360.features.designrequest.services.DesignDraftDiffService designDraftDiffService;
+    DesignDraftDiffService designDraftDiffService;
 
     private DesignerWorkspaceService service;
     private User designer;
@@ -92,7 +94,7 @@ class DesignerWorkspaceServiceUnitTest {
                 eligibilityService,
                 benefitGuardService,
                 designRequestMapper,
-                boothReviewContentAssembler,
+                designDraftContentAssembler,
                 designDraftDiffService);
         designer = User.builder().id(UUID.randomUUID()).build();
         Company company = Company.builder()
@@ -158,7 +160,8 @@ class DesignerWorkspaceServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.getProducts(anotherDesigner, request.getId(), null, null, org.springframework.data.domain.Pageable.unpaged()));
+                () -> service.getProducts(anotherDesigner, request.getId(), null, null,
+                        Pageable.unpaged()));
 
         assertSame(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
     }

@@ -13,39 +13,39 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
 import com.example.vex360.shared.services.CloudService;
 
 @ExtendWith(MockitoExtension.class)
 class DesignAssetReferenceServiceUnitTest {
     @Mock
-    private PanoramaRepository panoramaRepository;
-    @Mock
-    private BoothRepository boothRepository;
+    private BoothDesignService boothDesignService;
     @Mock
     private DesignDraftPanoramaRepository draftPanoramaRepository;
     @Mock
     private DesignDraftRepository draftRepository;
     @Mock
-    private MediaAssetRepository mediaAssetRepository;
-    @Mock
     private CloudService cloudService;
+    @Mock
+    private ExhibitorMediaAssetService exhibitorMediaAssetService;
+    @Mock
+    private DesignRequestMediaAssetRepository requestMediaAssetRepository;
 
     private DesignAssetReferenceService service;
 
     @BeforeEach
     void setUp() {
         service = new DesignAssetReferenceService(
-                panoramaRepository,
-                boothRepository,
+                boothDesignService,
                 draftPanoramaRepository,
                 draftRepository,
-                mediaAssetRepository,
-                cloudService);
+                cloudService,
+                exhibitorMediaAssetService,
+                requestMediaAssetRepository);
     }
 
     @AfterEach
@@ -77,7 +77,7 @@ class DesignAssetReferenceServiceUnitTest {
 
     @Test
     void cleanupKeepsPromotedCompanyMedia() {
-        when(mediaAssetRepository.existsByPublicId("design-media/approved")).thenReturn(true);
+        when(exhibitorMediaAssetService.existsByPublicId("design-media/approved")).thenReturn(true);
 
         service.scheduleCleanup("design-media/approved", "video");
 

@@ -5,13 +5,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.HotspotRepository;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
-import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -33,8 +31,7 @@ public class DesignRequestEligibilityService {
     public static final String ACTION_QUOTA_EXHAUSTED = "ACTION_QUOTA_EXHAUSTED";
     public static final String INACTIVE_BASELINE_PRODUCT = "INACTIVE_BASELINE_PRODUCT";
 
-    private final PanoramaRepository panoramaRepository;
-    private final HotspotRepository hotspotRepository;
+    private final BoothDesignService boothDesignService;
     private final DesignRequestRepository designRequestRepository;
 
     /**
@@ -83,8 +80,7 @@ public class DesignRequestEligibilityService {
             throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
         }
         if (request.getMode() == DesignRequestMode.REDESIGN
-                && hotspotRepository.existsBySourcePanoramaBoothIdAndProductStatusNot(
-                        booth.getId(), ProductStatus.ACTIVE)) {
+                && boothDesignService.existsInactiveHotspotProductInBooth(booth.getId())) {
             throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
         }
     }
@@ -97,7 +93,7 @@ public class DesignRequestEligibilityService {
      * @return INITIAL_DESIGN if there are no panoramas, otherwise REDESIGN
      */
     public DesignRequestMode inferMode(Booth booth) {
-        return panoramaRepository.countByBoothId(booth.getId()) == 0
+        return boothDesignService.countPanoramasByBoothId(booth.getId()) == 0
                 ? DesignRequestMode.INITIAL_DESIGN
                 : DesignRequestMode.REDESIGN;
     }
@@ -126,8 +122,7 @@ public class DesignRequestEligibilityService {
             return ACTION_QUOTA_EXHAUSTED;
         }
         if (mode == DesignRequestMode.REDESIGN
-                && hotspotRepository.existsBySourcePanoramaBoothIdAndProductStatusNot(
-                        booth.getId(), ProductStatus.ACTIVE)) {
+                && boothDesignService.existsInactiveHotspotProductInBooth(booth.getId())) {
             return INACTIVE_BASELINE_PRODUCT;
         }
         return null;

@@ -1,4 +1,4 @@
-package com.example.vex360.features.booth.controllers;
+package com.example.vex360.features.designrequest.controllers;
 
 import java.util.UUID;
 
@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +24,7 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.CreateMediaAssetRequest;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
+import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.shared.controllers.BaseController;
 import com.example.vex360.shared.dtos.ApiResponse;
@@ -39,17 +40,15 @@ import lombok.RequiredArgsConstructor;
 @PreAuthorize("hasAuthority('EXHIBITOR')")
 @RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorMediaAssetController extends BaseController {
+
     private final ExhibitorMediaAssetService exhibitorMediaAssetService;
+    private final DesignAssetReferenceService assetReferenceService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MediaAssetResponseDTO>>> getMediaAssets(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String filterType,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "createdAt",
-                    direction = Sort.Direction.DESC) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(exhibitorMediaAssetService.getMediaAssets(userDetails.getUser(), filterType, pageable));
     }
 
@@ -65,6 +64,6 @@ public class ExhibitorMediaAssetController extends BaseController {
     public ResponseEntity<ApiResponse<MediaAssetResponseDTO>> deleteMediaAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID assetId) {
-        return ok(exhibitorMediaAssetService.deleteMediaAsset(userDetails.getUser(), assetId));
+        return ok(assetReferenceService.deleteMediaAsset(userDetails.getUser(), assetId));
     }
 }

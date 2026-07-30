@@ -49,7 +49,7 @@ class CommissionPolicyServiceTest {
                 .thenReturn(Optional.empty());
 
         BigDecimal amount = new BigDecimal("1000000");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommission(amount, Instant.now());
+        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
 
         assertNotNull(result);
         assertEquals(new BigDecimal("1000000.00"), result.amount());
@@ -68,7 +68,7 @@ class CommissionPolicyServiceTest {
                 .thenReturn(Optional.of(policy));
 
         BigDecimal amount = new BigDecimal("1500000");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommission(amount, Instant.now());
+        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
 
         assertNotNull(result);
         assertEquals(new BigDecimal("1500000.00"), result.amount());
@@ -87,7 +87,7 @@ class CommissionPolicyServiceTest {
                 .thenReturn(Optional.of(policy));
 
         BigDecimal amount = new BigDecimal("99999");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommission(amount, Instant.now());
+        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
 
         // 99999 * 1050 / 10000 = 10499.895 -> 10499.90
         assertEquals(new BigDecimal("99999.00"), result.amount());

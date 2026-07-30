@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsDetailDTO;
 import com.example.vex360.features.analytics.dtos.response.ExhibitionAnalyticsOverviewDTO;
 import com.example.vex360.features.analytics.dtos.response.OrganizerBoothRankingPageDTO;
@@ -35,6 +37,20 @@ import lombok.RequiredArgsConstructor;
 public class OrganizerAnalyticsController extends BaseController {
 
     private final AnalyticsService analyticsService;
+
+    @GetMapping("/summary")
+    @Operation(summary = "Get Organizer action-required counts across exhibitions")
+    public ResponseEntity<ApiResponse<OrganizerExhibitionSummaryResponseDTO>> getActionSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(analyticsService.getSummaryForOrganizer(userDetails.getUser()));
+    }
+
+    @GetMapping("/summary/by-exhibition")
+    @Operation(summary = "Get Organizer action-required counts for each exhibition")
+    public ResponseEntity<ApiResponse<List<OrganizerExhibitionSummaryItemResponseDTO>>> getSummariesByExhibition(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ok(analyticsService.getSummariesByExhibitionForOrganizer(userDetails.getUser()));
+    }
 
     @GetMapping("/analytics")
     @Operation(summary = "Danh sách triển lãm của organizer để xem thống kê")
@@ -78,6 +94,7 @@ public class OrganizerAnalyticsController extends BaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ok(analyticsService.getOrganizerBoothRankingPage(
-                userDetails.getUser(), uuid, startDate, endDate, keyword, sortBy, sortDirection, interaction, page, size));
+                userDetails.getUser(), uuid, startDate, endDate, keyword, sortBy, sortDirection, interaction, page,
+                size));
     }
 }

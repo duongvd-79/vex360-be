@@ -2,11 +2,17 @@ package com.example.vex360.features.exhibition.services;
 
 import java.math.BigDecimal;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.company.dtos.request.CreateStoragePackageOrderRequest;
+import com.example.vex360.features.company.dtos.response.StoragePackageOrderResponseDTO;
+import com.example.vex360.features.company.entities.StoragePackageOrder;
+import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.enums.PaymentType;
 import com.example.vex360.shared.exceptions.AppException;
@@ -22,6 +28,23 @@ public class StoragePaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final StoragePackageService storagePackageService;
+
+    @Value("${app.payos.storage-return-url:http://localhost:5175/storage/payment/success}")
+    private String returnUrl;
+
+    @Value("${app.payos.storage-cancel-url:http://localhost:5175/storage/payment/cancel}")
+    private String cancelUrl;
+
+    @Transactional
+    public StoragePackageOrderResponseDTO createStorageOrderPayment(User currentUser,
+            CreateStoragePackageOrderRequest request) {
+        StoragePackageOrder order = storagePackageService.createPendingOrder(currentUser, request);
+        String description = "Nang cap luu tru";
+        String checkoutUrl = createPayment(
+                order.getId(), order.getOrderCode(), order.getAmountVnd(), description, returnUrl, cancelUrl);
+        return storagePackageService.updateOrderCheckoutUrl(order.getId(), checkoutUrl);
+    }
 
     @Transactional
     public String createPayment(Integer storagePackageOrderId, Long orderCode, Long amount, String description,

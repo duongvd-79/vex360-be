@@ -2,11 +2,12 @@ package com.example.vex360.features.lead;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.VisitorBoothService;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.lead.dtos.request.CreateBoothLeadRequest;
 import com.example.vex360.features.lead.dtos.request.UpdateBoothLeadRequest;
 import com.example.vex360.features.lead.entities.BoothLead;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,11 +44,13 @@ class BoothLeadServiceUnitTest {
         @Mock
         BoothLeadRepository boothLeadRepository;
         @Mock
-        BoothRepository boothRepository;
+        ExhibitionService exhibitionService;
         @Mock
-        ExhibitionRepository exhibitionRepository;
+        CompanyService companyService;
         @Mock
-        CompanyRepository companyRepository;
+        VisitorBoothService visitorBoothService;
+        @Mock
+        BoothDesignService boothDesignService;
 
         @InjectMocks
         BoothLeadService boothLeadService;
@@ -76,9 +80,9 @@ class BoothLeadServiceUnitTest {
 
         @Test
         void submitLead_newVisitorLead_createsNormalizedLead() {
-                when(exhibitionRepository.findByUuid(exhibition.getUuid())).thenReturn(Optional.of(exhibition));
-                when(boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
-                                exhibition.getUuid(), booth.getId(), BoothStatus.PUBLISHED))
+                when(exhibitionService.findExhibitionEntityByUuid(exhibition.getUuid())).thenReturn(exhibition);
+                when(visitorBoothService.findPublishedBoothByExhibitionUuidAndBoothId(
+                                exhibition.getUuid(), booth.getId()))
                                 .thenReturn(Optional.of(booth));
                 when(boothLeadRepository.findByBoothIdAndVisitorId(booth.getId(), visitor.getId()))
                                 .thenReturn(Optional.empty());
@@ -101,7 +105,7 @@ class BoothLeadServiceUnitTest {
                                                 true));
 
                 ArgumentCaptor<BoothLead> captor = ArgumentCaptor.forClass(BoothLead.class);
-                org.mockito.Mockito.verify(boothLeadRepository).save(captor.capture());
+                verify(boothLeadRepository).save(captor.capture());
                 BoothLead saved = captor.getValue();
 
                 assertFalse(response.alreadySubmitted());
@@ -128,9 +132,9 @@ class BoothLeadServiceUnitTest {
                                 .createdAt(Instant.now().minusSeconds(3600))
                                 .build();
 
-                when(exhibitionRepository.findByUuid(exhibition.getUuid())).thenReturn(Optional.of(exhibition));
-                when(boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
-                                exhibition.getUuid(), booth.getId(), BoothStatus.PUBLISHED))
+                when(exhibitionService.findExhibitionEntityByUuid(exhibition.getUuid())).thenReturn(exhibition);
+                when(visitorBoothService.findPublishedBoothByExhibitionUuidAndBoothId(
+                                exhibition.getUuid(), booth.getId()))
                                 .thenReturn(Optional.of(booth));
                 when(boothLeadRepository.findByBoothIdAndVisitorId(booth.getId(), visitor.getId()))
                                 .thenReturn(Optional.of(existing));
@@ -159,7 +163,7 @@ class BoothLeadServiceUnitTest {
         void updateLead_notOwned_returnsNotFoundWithoutLeakingLead() {
                 Company company = Company.builder().id(UUID.randomUUID()).ownerUser(exhibitor).name("ABC").build();
                 UUID leadId = UUID.randomUUID();
-                when(companyRepository.findByOwnerUserId(exhibitor.getId())).thenReturn(Optional.of(company));
+                when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
                 when(boothLeadRepository.findOwnedLead(leadId, company.getId())).thenReturn(Optional.empty());
 
                 AppException exception = assertThrows(

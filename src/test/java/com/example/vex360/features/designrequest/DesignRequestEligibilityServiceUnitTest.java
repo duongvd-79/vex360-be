@@ -15,20 +15,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.HotspotRepository;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
-import com.example.vex360.features.product.enums.ProductStatus;
 
 @ExtendWith(MockitoExtension.class)
 class DesignRequestEligibilityServiceUnitTest {
     @Mock
-    PanoramaRepository panoramaRepository;
-    @Mock
-    HotspotRepository hotspotRepository;
+    BoothDesignService boothDesignService;
     @Mock
     DesignRequestRepository requestRepository;
 
@@ -37,7 +33,7 @@ class DesignRequestEligibilityServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        service = new DesignRequestEligibilityService(panoramaRepository, hotspotRepository, requestRepository);
+        service = new DesignRequestEligibilityService(boothDesignService, requestRepository);
         booth = Booth.builder().id(UUID.randomUUID()).name("Booth").status(BoothStatus.DRAFT).build();
     }
 
@@ -52,9 +48,8 @@ class DesignRequestEligibilityServiceUnitTest {
 
     @Test
     void redesignIsIneligibleWhenBaselineUsesInactiveProduct() {
-        when(panoramaRepository.countByBoothId(booth.getId())).thenReturn(1L);
-        when(hotspotRepository.existsBySourcePanoramaBoothIdAndProductStatusNot(
-                booth.getId(), ProductStatus.ACTIVE)).thenReturn(true);
+        when(boothDesignService.countPanoramasByBoothId(booth.getId())).thenReturn(1L);
+        when(boothDesignService.existsInactiveHotspotProductInBooth(booth.getId())).thenReturn(true);
 
         DesignRequestEligibilityResponseDTO result = service.evaluate(booth);
 

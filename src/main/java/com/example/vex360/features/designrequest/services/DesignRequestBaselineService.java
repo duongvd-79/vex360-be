@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DesignRequestBaselineService {
-    private final PanoramaRepository panoramaRepository;
+    private final BoothDesignService boothDesignService;
     private final DesignDraftAssetRepository assetRepository;
 
     /**
@@ -77,7 +77,7 @@ public class DesignRequestBaselineService {
             return;
         }
 
-        List<Panorama> sourcePanoramas = panoramaRepository.findDetailsByBoothId(booth.getId());
+        List<Panorama> sourcePanoramas = boothDesignService.findPanoramaDetailsByBoothId(booth.getId());
 
         Map<java.util.UUID, String> panoramaKeys = new HashMap<>();
         for (Panorama panorama : sourcePanoramas) {

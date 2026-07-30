@@ -6,11 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -34,17 +31,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.example.vex360.features.company.dtos.request.CreateStoragePackageOrderRequest;
 import com.example.vex360.features.company.dtos.request.CreateStoragePackageRequest;
 import com.example.vex360.features.company.dtos.response.AdminStoragePackageOrderResponseDTO;
-import com.example.vex360.features.company.dtos.response.StoragePackageOrderResponseDTO;
 import com.example.vex360.features.company.dtos.response.StoragePackageResponseDTO;
-import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.entities.StoragePackage;
 import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
-import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
-import com.example.vex360.features.exhibition.services.StoragePaymentService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.StoragePackageService;
@@ -64,9 +57,6 @@ class StoragePackageServiceUnitTest {
 
     @Mock
     private CompanyRepository companyRepository;
-
-    @Mock
-    private StoragePaymentService storagePaymentService;
 
     @Mock
     private CompanyService companyService;
@@ -168,65 +158,10 @@ class StoragePackageServiceUnitTest {
         request.setPackageId(1);
 
         AppException exception = assertThrows(AppException.class, () -> {
-            storagePackageService.createOrder(currentUser, request);
+            storagePackageService.createPendingOrder(currentUser, request);
         });
 
         assertEquals(ErrorCode.STORAGE_PACKAGE_NOT_FOUND, exception.getErrorCode());
-    }
-
-    @Test
-    void testCreateOrder_Success() {
-        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
-        when(storagePackageRepository.findById(1)).thenReturn(Optional.of(storagePackage));
-
-        when(storagePackageOrderRepository.save(any(StoragePackageOrder.class))).thenAnswer(invocation -> {
-            StoragePackageOrder o = invocation.getArgument(0);
-            o.setId(10);
-            return o;
-        });
-
-        when(storagePaymentService.createPayment(
-                eq(10), anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel")))
-                .thenReturn("https://checkout.url");
-
-        CreateStoragePackageOrderRequest request = new CreateStoragePackageOrderRequest();
-        request.setPackageId(1);
-        StoragePackageOrderResponseDTO dto = storagePackageService.createOrder(currentUser, request);
-
-        assertNotNull(dto);
-        assertEquals(Integer.valueOf(10), dto.getOrderId());
-        assertEquals("https://checkout.url", dto.getCheckoutUrl());
-        assertEquals("Gold package", dto.getPackageName());
-        assertEquals(2000L, dto.getQuotaBytes());
-        assertEquals(100000L, dto.getAmountVnd());
-        assertEquals("PENDING", dto.getStatus());
-
-        verify(storagePackageOrderRepository, times(2)).save(any(StoragePackageOrder.class));
-        verify(storagePaymentService).createPayment(
-                eq(10), anyLong(), eq(100000L), anyString(), eq("http://return"), eq("http://cancel"));
-    }
-
-    @Test
-    void testGetUsage_Success_QuotaGreaterThanZero() {
-        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
-
-        StorageUsageResponseDTO dto = storagePackageService.getUsage(currentUser);
-
-        assertEquals(200L, dto.getUsedBytes());
-        assertEquals(1000L, dto.getQuotaBytes());
-        assertEquals(20.0, dto.getUsedPercentage());
-    }
-
-    @Test
-    void testGetUsage_Success_QuotaIsZero() {
-        company.setStorageQuotaBytes(0L);
-        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
-
-        StorageUsageResponseDTO dto = storagePackageService.getUsage(currentUser);
-
-        assertEquals(200L, dto.getUsedBytes());
-        assertEquals(0L, dto.getQuotaBytes());
-        assertEquals(0.0, dto.getUsedPercentage());
     }
 
     @Test
@@ -244,8 +179,7 @@ class StoragePackageServiceUnitTest {
 
         when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
 
-        storagePackageService.handleStoragePackagePaymentCompleted(
-                new StoragePackagePaymentCompletedEvent(this, 7));
+        storagePackageService.markPaidAndIncrementQuota(7);
 
         assertEquals(StoragePackageOrderStatus.PAID, order.getStatus());
         assertEquals(6000L, company.getStorageQuotaBytes());
@@ -266,8 +200,7 @@ class StoragePackageServiceUnitTest {
 
         when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
 
-        storagePackageService.handleStoragePackagePaymentCompleted(
-                new StoragePackagePaymentCompletedEvent(this, 7));
+        storagePackageService.markPaidAndIncrementQuota(7);
 
         verify(companyRepository, never()).incrementStorageQuota(any(), any());
     }
@@ -327,7 +260,7 @@ class StoragePackageServiceUnitTest {
                 () -> storagePackageService.createPackage(request));
 
         assertEquals(ErrorCode.STORAGE_PACKAGE_NAME_DUPLICATED, exception.getErrorCode());
-        verify(storagePackageRepository, Mockito.never()).save(any(StoragePackage.class));
+        verify(storagePackageRepository, never()).save(any(StoragePackage.class));
     }
 
     // ================= togglePackageStatus =================
@@ -380,27 +313,24 @@ class StoragePackageServiceUnitTest {
                 .build();
         when(storagePackageOrderRepository.findById(10)).thenReturn(Optional.of(order));
 
-        StoragePackagePaymentCompletedEvent event = new StoragePackagePaymentCompletedEvent(this, 10);
-        storagePackageService.handleStoragePackagePaymentCompleted(event);
+        storagePackageService.markPaidAndIncrementQuota(10);
 
         assertEquals(StoragePackageOrderStatus.PAID, order.getStatus());
         assertNotNull(order.getPaidAt());
         assertEquals(3000L, company.getStorageQuotaBytes()); // 1000 (initial) + 2000 (package quota)
         verify(storagePackageOrderRepository).save(order);
-        verify(companyRepository).save(company);
+        verify(companyRepository).incrementStorageQuota(company.getId(), 2000L);
     }
 
     @Test
     void handleStoragePackagePaymentCompleted_OrderNotFound_ThrowsStoragePackageOrderNotFound() {
         when(storagePackageOrderRepository.findById(99)).thenReturn(Optional.empty());
 
-        StoragePackagePaymentCompletedEvent event = new StoragePackagePaymentCompletedEvent(this, 99);
-
         AppException exception = assertThrows(AppException.class,
-                () -> storagePackageService.handleStoragePackagePaymentCompleted(event));
+                () -> storagePackageService.markPaidAndIncrementQuota(99));
 
         assertEquals(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND, exception.getErrorCode());
-        verify(companyRepository, Mockito.never()).save(any(Company.class));
+        verify(companyRepository, never()).save(any(Company.class));
     }
 
     // ================= updatePackage =================
@@ -421,7 +351,7 @@ class StoragePackageServiceUnitTest {
 
         assertEquals("GOLD PACKAGE", response.getName());
         assertEquals(2500L, response.getQuotaBytes());
-        verify(storagePackageRepository, Mockito.never()).existsByNameIgnoreCase(anyString());
+        verify(storagePackageRepository, never()).existsByNameIgnoreCase(anyString());
     }
 
     @Test
@@ -457,7 +387,7 @@ class StoragePackageServiceUnitTest {
                 () -> storagePackageService.updatePackage(1, request));
 
         assertEquals(ErrorCode.STORAGE_PACKAGE_NAME_DUPLICATED, exception.getErrorCode());
-        verify(storagePackageRepository, Mockito.never()).save(any(StoragePackage.class));
+        verify(storagePackageRepository, never()).save(any(StoragePackage.class));
     }
 
     @Test

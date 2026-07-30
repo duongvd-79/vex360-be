@@ -1,5 +1,7 @@
 package com.example.vex360.features.booth.services;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -19,9 +21,6 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
-import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
-import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
-import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.company.entities.Company;
@@ -43,8 +42,6 @@ public class ExhibitorMediaAssetService {
     private final CompanyStorageService companyStorageService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
-    private final DesignAssetReferenceService assetReferenceService;
-    private final DesignRequestMediaAssetRepository requestMediaAssetRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<MediaAssetResponseDTO> getMediaAssets(
@@ -112,16 +109,10 @@ public class ExhibitorMediaAssetService {
         if (hotspotRepository.existsByMediaAssetId(assetId)) {
             throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
         }
-        if (requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
-                assetId,
-                DesignRequestRepository.NON_TERMINAL_STATUSES)) {
-            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_LOCKED);
-        }
 
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);
         mediaAssetRepository.delete(mediaAsset);
         companyStorageService.deductUsage(company, mediaAsset.getFileSize() != null ? mediaAsset.getFileSize() : 0L);
-        assetReferenceService.scheduleCleanup(mediaAsset.getPublicId(), toResourceType(mediaAsset.getType()));
         return response;
     }
 
@@ -148,5 +139,33 @@ public class ExhibitorMediaAssetService {
 
     private String normalizeMimeType(MultipartFile file) {
         return file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByPublicId(String publicId) {
+        return mediaAssetRepository.existsByPublicId(publicId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByIdAndCompanyId(UUID id, UUID companyId) {
+        return mediaAssetRepository.existsByIdAndCompanyId(id, companyId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MediaAsset> findMediaAssetsByIds(Collection<UUID> ids) {
+        return mediaAssetRepository.findAllById(ids);
+    }
+
+    @Transactional
+    public MediaAsset saveMediaAsset(MediaAsset mediaAsset) {
+        return mediaAssetRepository.save(mediaAsset);
+    }
+
+    @Transactional(readOnly = true)
+    public long sumMediaAssetFileSizeByCompanyId(UUID companyId) {
+        if (companyId == null) {
+            return 0L;
+        }
+        return mediaAssetRepository.sumFileSizeByCompanyId(companyId);
     }
 }

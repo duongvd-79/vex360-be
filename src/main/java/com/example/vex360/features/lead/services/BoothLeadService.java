@@ -1,12 +1,12 @@
 package com.example.vex360.features.lead.services;
 
 import com.example.vex360.features.booth.entities.Booth;
-import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.VisitorBoothService;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.lead.dtos.request.CreateBoothLeadRequest;
 import com.example.vex360.features.lead.dtos.request.UpdateBoothLeadRequest;
 import com.example.vex360.features.lead.dtos.response.BoothLeadResponseDTO;
@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,9 +37,10 @@ import java.util.UUID;
 public class BoothLeadService {
 
     private final BoothLeadRepository boothLeadRepository;
-    private final BoothRepository boothRepository;
-    private final ExhibitionRepository exhibitionRepository;
-    private final CompanyRepository companyRepository;
+    private final ExhibitionService exhibitionService;
+    private final CompanyService companyService;
+    private final VisitorBoothService visitorBoothService;
+    private final BoothDesignService boothDesignService;
 
     @Transactional
     public BoothLeadSubmissionResponseDTO submitLead(
@@ -48,16 +50,14 @@ public class BoothLeadService {
             CreateBoothLeadRequest request) {
         requireAuthenticated(visitor);
 
-        Exhibition exhibition = exhibitionRepository.findByUuid(exhibitionUuid)
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+        Exhibition exhibition = exhibitionService.findExhibitionEntityByUuid(exhibitionUuid);
         if (exhibition.getStatus() != ExhibitionStatus.ACTIVE) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
 
-        Booth booth = boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
+        Booth booth = visitorBoothService.findPublishedBoothByExhibitionUuidAndBoothId(
                 exhibitionUuid,
-                boothId,
-                BoothStatus.PUBLISHED)
+                boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
 
         BoothLead lead = boothLeadRepository.findByBoothIdAndVisitorId(boothId, visitor.getId())
@@ -94,10 +94,9 @@ public class BoothLeadService {
             UUID exhibitionUuid,
             UUID boothId) {
         requireAuthenticated(visitor);
-        Booth booth = boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
+        Booth booth = visitorBoothService.findPublishedBoothByExhibitionUuidAndBoothId(
                 exhibitionUuid,
-                boothId,
-                BoothStatus.PUBLISHED)
+                boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
 
         return boothLeadRepository.findByBoothIdAndVisitorId(booth.getId(), visitor.getId())
@@ -162,12 +161,11 @@ public class BoothLeadService {
 
     private Company getCompany(User exhibitor) {
         requireAuthenticated(exhibitor);
-        return companyRepository.findByOwnerUserId(exhibitor.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        return companyService.getCompanyEntityForCurrentUser(exhibitor);
     }
 
     private void requireOwnedBooth(UUID companyId, UUID boothId) {
-        boothRepository.findCompanyBoothById(boothId, companyId)
+        boothDesignService.findCompanyBoothById(boothId, companyId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
     }
 
@@ -209,5 +207,61 @@ public class BoothLeadService {
             return null;
         }
         return value.trim();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countAdminLeadsByStatus(Instant start, Instant end) {
+        return boothLeadRepository.countAdminLeadsByStatus(start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        return boothLeadRepository.aggregateDailyForExhibitions(exhibitionIds, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregatePerformanceForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        return boothLeadRepository.aggregatePerformanceForExhibitions(exhibitionIds, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public long countUniqueLeadVisitorsForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        return boothLeadRepository.countUniqueLeadVisitorsForExhibitions(exhibitionIds, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countByStatusForExhibitionInRange(Integer exhibitionId, Instant start, Instant end) {
+        return boothLeadRepository.countByStatusForExhibitionInRange(exhibitionId, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public long countUniqueLeadVisitorsForExhibition(Integer exhibitionId, Instant start, Instant end) {
+        return boothLeadRepository.countUniqueLeadVisitorsForExhibition(exhibitionId, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public long countBoothsWithLeadsForExhibition(Integer exhibitionId, Instant start, Instant end) {
+        return boothLeadRepository.countBoothsWithLeadsForExhibition(exhibitionId, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyForExhibition(Integer exhibitionId, Instant start, Instant end) {
+        return boothLeadRepository.aggregateDailyForExhibition(exhibitionId, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> findTopBoothsForExhibition(Integer exhibitionId, Instant start, Instant end,
+            Pageable pageable) {
+        return boothLeadRepository.findTopBoothsForExhibition(exhibitionId, start, end, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countByStatusForBoothInRange(UUID boothId, Instant start, Instant end) {
+        return boothLeadRepository.countByStatusForBoothInRange(boothId, start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countByStatusForCompanyInRange(UUID companyId, Instant start, Instant end) {
+        return boothLeadRepository.countByStatusForCompanyInRange(companyId, start, end);
     }
 }

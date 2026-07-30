@@ -1,5 +1,6 @@
 package com.example.vex360.features.company.services;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -54,6 +55,14 @@ public class CompanyService {
 
         return companyRepository.findByOwnerUserIdForUpdate(currentUser.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Company> findByOwnerUserId(UUID ownerUserId) {
+        if (ownerUserId == null) {
+            return Optional.empty();
+        }
+        return companyRepository.findByOwnerUserId(ownerUserId);
     }
 
     @Transactional(readOnly = true)

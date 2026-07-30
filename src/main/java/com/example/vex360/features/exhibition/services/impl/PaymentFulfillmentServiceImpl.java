@@ -4,11 +4,11 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.vex360.features.booth.entities.Booth;
-import com.example.vex360.features.booth.services.BoothProvisioningService;
+import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.entities.PaymentReceipt;
@@ -35,7 +35,7 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
     private final PaymentReceiptRepository receiptRepository;
     private final PaymentRepository paymentRepository;
     private final ExhibitorRegistrationRepository registrationRepository;
-    private final BoothProvisioningService boothProvisioningService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -143,7 +143,8 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
             return Optional.empty();
         }
 
-        if (payment.getPaymentType() != PaymentType.EXHIBITION_REGISTRATION || payment.getExhibitorRegistration() == null) {
+        if (payment.getPaymentType() != PaymentType.EXHIBITION_REGISTRATION
+                || payment.getExhibitorRegistration() == null) {
             log.info("[PB-006] OrderCode {} is not an exhibition registration payment", orderCode);
             return Optional.empty();
         }
@@ -162,13 +163,9 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
         }
 
         try {
-            Optional<Booth> boothOpt = boothProvisioningService.ensureBoothForApprovedRegistration(regId);
-            if (boothOpt.isPresent()) {
-                updateReceiptSucceeded(orderCode, regId, boothOpt.get().getId());
-                log.info("[PB-006] Reconciliation auto-fulfilled booth for orderCode {}, boothId {}", orderCode, boothOpt.get().getId());
-            } else {
-                updateReceiptFailed(orderCode, new AppException(ErrorCode.UNCATCHED_EXCEPTION));
-            }
+            updateReceiptSucceeded(orderCode, regId, null);
+            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+            log.info("[PB-006] Reconciliation auto-fulfilled for orderCode {}", orderCode);
         } catch (Throwable t) {
             updateReceiptFailed(orderCode, t);
         }

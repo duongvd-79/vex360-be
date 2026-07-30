@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,7 +49,7 @@ import com.example.vex360.features.product.entities.ProductCategory;
 import com.example.vex360.features.product.enums.ProductContentType;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.mapper.ProductMapper;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -67,7 +68,7 @@ class VisitorBoothServiceUnitTest {
     @Mock
     private PanoramaRepository panoramaRepository;
     @Mock
-    private ProductRepository productRepository;
+    private ProductService productService;
     @Mock
     private BoothMapper boothMapper;
     @Mock
@@ -90,7 +91,7 @@ class VisitorBoothServiceUnitTest {
                 boothRepository,
                 hotspotRepository,
                 panoramaRepository,
-                productRepository,
+                productService,
                 boothMapper,
                 productMapper);
         exhibitionUuid = UUID.randomUUID();
@@ -111,11 +112,11 @@ class VisitorBoothServiceUnitTest {
 
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
         when(boothRepository.findPublishedBoothsByExhibitionUuid(
-                eq(exhibitionUuid),
-                eq(BoothStatus.PUBLISHED),
-                eq(keyword),
-                eq(BoothListingPriority.FEATURED),
-                eq(pageable)))
+                exhibitionUuid,
+                BoothStatus.PUBLISHED,
+                keyword,
+                BoothListingPriority.FEATURED,
+                pageable))
                 .thenReturn(boothPage);
         when(boothMapper.toBoothResponseDTO(booth)).thenReturn(responseDTO);
 
@@ -135,8 +136,8 @@ class VisitorBoothServiceUnitTest {
         exhibition.setStatus(ExhibitionStatus.REGISTRATION.name());
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
 
-        AppException exception = assertThrows(AppException.class, () ->
-                service.getPublishedBooths(exhibitionUuid, "test", null, pageable));
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getPublishedBooths(exhibitionUuid, "test", null, pageable));
 
         assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
     }
@@ -146,8 +147,8 @@ class VisitorBoothServiceUnitTest {
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid))
                 .thenThrow(new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
-        AppException exception = assertThrows(AppException.class, () ->
-                service.getPublishedBooths(exhibitionUuid, "test", null, pageable));
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getPublishedBooths(exhibitionUuid, "test", null, pageable));
 
         assertEquals(ErrorCode.EXHIBITION_NOT_FOUND, exception.getErrorCode());
     }
@@ -269,7 +270,7 @@ class VisitorBoothServiceUnitTest {
 
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
         when(boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
-                eq(exhibitionUuid), eq(boothId), eq(BoothStatus.PUBLISHED)))
+                exhibitionUuid, boothId, BoothStatus.PUBLISHED))
                 .thenReturn(Optional.of(booth));
         when(panoramaRepository.findDetailsByBoothId(boothId)).thenReturn(List.of());
         when(boothMapper.toBoothResponseDTO(booth, List.of())).thenReturn(responseDTO);
@@ -278,7 +279,7 @@ class VisitorBoothServiceUnitTest {
 
         assertNotNull(result);
         assertEquals("Test Booth", result.getName());
-        verify(productRepository, never()).findAllDetailsByIdInAndStatus(any(), any());
+        verify(productService, never()).findActiveProductResponsesByIds(any());
     }
 
     @Test
@@ -287,7 +288,6 @@ class VisitorBoothServiceUnitTest {
         UUID productId = UUID.randomUUID();
         Booth booth = Booth.builder().id(boothId).name("Test Booth").build();
         BoothResponseDTO responseDTO = boothResponseWithProduct(productId);
-        Product product = Product.builder().id(productId).status(ProductStatus.ACTIVE).build();
         ProductContentResponseDTO content = new ProductContentResponseDTO(
                 UUID.randomUUID(),
                 "https://example.com/product.jpg",
@@ -305,9 +305,8 @@ class VisitorBoothServiceUnitTest {
                 exhibitionUuid, boothId, BoothStatus.PUBLISHED)).thenReturn(Optional.of(booth));
         when(panoramaRepository.findDetailsByBoothId(boothId)).thenReturn(List.of());
         when(boothMapper.toBoothResponseDTO(booth, List.of())).thenReturn(responseDTO);
-        when(productRepository.findAllDetailsByIdInAndStatus(
-                List.of(productId), ProductStatus.ACTIVE)).thenReturn(List.of(product));
-        when(productMapper.toResponse(product)).thenReturn(productDetail);
+        when(productService.findActiveProductResponsesByIds(List.of(productId)))
+                .thenReturn(Map.of(productId, productDetail));
 
         BoothResponseDTO result = service.getBoothTourDetail(exhibitionUuid, boothId);
 
@@ -328,8 +327,7 @@ class VisitorBoothServiceUnitTest {
                 exhibitionUuid, boothId, BoothStatus.PUBLISHED)).thenReturn(Optional.of(booth));
         when(panoramaRepository.findDetailsByBoothId(boothId)).thenReturn(List.of());
         when(boothMapper.toBoothResponseDTO(booth, List.of())).thenReturn(responseDTO);
-        when(productRepository.findAllDetailsByIdInAndStatus(
-                List.of(productId), ProductStatus.ACTIVE)).thenReturn(List.of());
+        when(productService.findActiveProductResponsesByIds(List.of(productId))).thenReturn(Map.of());
 
         BoothResponseDTO result = service.getBoothTourDetail(exhibitionUuid, boothId);
 
@@ -344,8 +342,8 @@ class VisitorBoothServiceUnitTest {
                 eq(exhibitionUuid), eq(boothId), eq(BoothStatus.PUBLISHED)))
                 .thenReturn(Optional.empty());
 
-        AppException exception = assertThrows(AppException.class, () ->
-                service.getBoothTourDetail(exhibitionUuid, boothId));
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getBoothTourDetail(exhibitionUuid, boothId));
 
         assertEquals(ErrorCode.BOOTH_NOT_FOUND, exception.getErrorCode());
     }

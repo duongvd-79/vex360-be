@@ -2,11 +2,12 @@ package com.example.vex360.features.exhibition.services.impl;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.UUID;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
-import java.util.HashMap;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,11 +24,11 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.CommissionCalculator;
+import com.example.vex360.features.exhibition.services.CommissionCalculator.CommissionResult;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
-import com.example.vex360.features.wallet.services.CommissionPolicyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
@@ -66,7 +67,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final CompanyService companyService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
-    private final CommissionPolicyService commissionPolicyService;
+    private final CommissionCalculator commissionCalculator;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
@@ -218,7 +219,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     : registration.getExhibitionPackage().getFinalPrice();
             long orderCode = System.currentTimeMillis() / 1000 * 1000000L + this.random.nextLong(1000000L);
 
-            CommissionCalculationResult calc = commissionPolicyService
+            CommissionResult calc = commissionCalculator
                     .calculateCommission(finalPrice, java.time.Instant.now());
 
             Payment newPayment = Payment.builder()
@@ -594,5 +595,14 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     registration.getUuid(), e);
             throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ExhibitorRegistration> findRegistrationWithRelationsById(Integer registrationId) {
+        if (registrationId == null) {
+            return Optional.empty();
+        }
+        return registrationRepository.findByIdWithRelations(registrationId);
     }
 }

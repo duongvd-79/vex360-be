@@ -1,7 +1,9 @@
 package com.example.vex360.features.exhibition.services;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -13,11 +15,10 @@ import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionReque
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 public interface ExhibitionService {
@@ -43,9 +44,42 @@ public interface ExhibitionService {
 			User organizer, String keyword, ExhibitionStatus status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);
 
-	OrganizerExhibitionSummaryResponseDTO getSummaryForOrganizer(User organizer);
+	Map<Integer, Long> getPendingRegistrationCountsGroupedByExhibition(List<Integer> exhibitionIds);
 
-	List<OrganizerExhibitionSummaryItemResponseDTO> getSummariesByExhibitionForOrganizer(User organizer);
+	List<Exhibition> getOrganizerExhibitions(User organizer);
+
+	List<Object[]> countExhibitionsByStatus();
+
+	List<Object[]> aggregateDailyCreatedExhibitions(Instant start, Instant end);
+
+	List<Exhibition> getAllExhibitions();
+
+	long countExhibitions();
+
+	List<Object[]> countAdminPaymentsByStatus(Instant start, Instant end);
+
+	List<Object[]> aggregateAdminPaidMetrics(Instant start, Instant end);
+
+	List<Object[]> aggregateAdminDailyRevenue(Instant start, Instant end);
+
+	Map<Integer, Long> aggregateRevenueByExhibition(List<Integer> exhibitionIds, Instant start, Instant end);
+
+	Exhibition findExhibitionEntityByUuid(UUID uuid);
+
+	Map<Integer, Long> countRegistrationsByStatusGroupedByExhibition(List<Integer> exhibitionIds,
+			ExhibitorRegistrationStatus status);
+
+	List<Object[]> aggregateDailyRegistrationSubmissions(List<Integer> exhibitionIds, Instant start, Instant end);
+
+	long countApprovedRegistrationsForExhibition(Integer exhibitionId);
+
+	List<Object[]> aggregateOrganizerDailyRevenue(List<Integer> exhibitionIds, Instant start, Instant end);
+
+	List<Object[]> aggregateOrganizerPackageRevenue(List<Integer> exhibitionIds, Instant start, Instant end);
+
+	List<Object[]> aggregateDailyRevenueForExhibition(Integer exhibitionId, Instant start, Instant end);
+
+	List<Object[]> aggregatePaidPackageRevenueForExhibition(Integer exhibitionId, Instant start, Instant end);
 
 	ExhibitionResponseDTO getExhibitionDetailForOrganizer(User organizer, UUID uuid);
 
@@ -86,4 +120,6 @@ public interface ExhibitionService {
 			ConfigureExhibitionPackageRequest request);
 
 	ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId);
+
+	Exhibition findExhibitionForUpdate(Integer id);
 }

@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.enums.MediaAssetType;
@@ -20,6 +21,7 @@ import com.example.vex360.features.designrequest.dtos.request.DesignDraftBoothSe
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftMediaAssetRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftPanoramaRequest;
 import com.example.vex360.features.designrequest.dtos.request.SubmitDesignDraftRequest;
+import com.example.vex360.features.designrequest.dtos.response.DesignDraftSubmissionHistoryItemDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
@@ -70,7 +72,7 @@ public class DesignerWorkspaceService {
     private final DesignRequestEligibilityService eligibilityService;
     private final DesignDraftBenefitGuardService benefitGuardService;
     private final DesignRequestMapper designRequestMapper;
-    private final com.example.vex360.features.booth.services.BoothReviewContentAssembler boothReviewContentAssembler;
+    private final DesignDraftContentAssembler designDraftContentAssembler;
     private final DesignDraftDiffService designDraftDiffService;
 
     /**
@@ -156,8 +158,8 @@ public class DesignerWorkspaceService {
      * Returns media assets in the immutable request allowlist for use in MEDIA
      * or INFO hotspots.
      *
-     * @param designer  authenticated Designer
-     * @param requestId design request identifier
+     * @param designer   authenticated Designer
+     * @param requestId  design request identifier
      * @param filterType optional IMAGE or VIDEO filter
      * @param pageable   pagination and sorting options
      * @return a page of allowed media assets
@@ -311,12 +313,15 @@ public class DesignerWorkspaceService {
                 .filter(item -> item != null && item.getId() != null)
                 .forEach(item -> draftMedia.putIfAbsent(item.getId(), item));
 
-        com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO contentOverview = boothReviewContentAssembler.toDraftContentOverview(latest);
+        BoothReviewContentOverviewDTO contentOverview = designDraftContentAssembler
+                .toDraftContentOverview(latest);
 
-        List<com.example.vex360.features.designrequest.dtos.response.DesignDraftSubmissionHistoryItemDTO> submissionHistory = request.getDrafts().stream()
+        List<DesignDraftSubmissionHistoryItemDTO> submissionHistory = request
+                .getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
                 .sorted(Comparator.comparing(DesignDraft::getVersionNumber))
-                .map(draft -> com.example.vex360.features.designrequest.dtos.response.DesignDraftSubmissionHistoryItemDTO.builder()
+                .map(draft -> DesignDraftSubmissionHistoryItemDTO
+                        .builder()
                         .versionNumber(draft.getVersionNumber())
                         .submittedAt(draft.getSubmittedAt() != null ? draft.getSubmittedAt() : draft.getCreatedAt())
                         .designerNote(draft.getNote())
@@ -328,7 +333,8 @@ public class DesignerWorkspaceService {
                 .toList();
 
         DesignDraft previous = request.getDrafts().stream()
-                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() == latest.getVersionNumber() - 1 && draft.getVersionNumber() > 0)
+                .filter(draft -> draft.getVersionNumber() != null
+                        && draft.getVersionNumber() == latest.getVersionNumber() - 1 && draft.getVersionNumber() > 0)
                 .findFirst()
                 .orElse(null);
 
@@ -346,7 +352,8 @@ public class DesignerWorkspaceService {
                 .requiredProducts(required)
                 .optionalProducts(optional)
                 .referencedMedia(media.values().stream().map(boothMapper::toMediaAssetResponseDTO).toList())
-                .referencedDraftMedia(draftMedia.values().stream().map(designRequestMapper::toMediaAssetResponse).toList())
+                .referencedDraftMedia(
+                        draftMedia.values().stream().map(designRequestMapper::toMediaAssetResponse).toList())
                 .storageUsage(storageService.getUsage(company))
                 .storageMetrics(storageMetricsService.calculate(latest))
                 .contentOverview(contentOverview)
@@ -356,7 +363,8 @@ public class DesignerWorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public DesignDraftWorkspaceResponseDTO getHistoricalDraftPreview(User exhibitor, UUID requestId, Integer versionNumber) {
+    public DesignDraftWorkspaceResponseDTO getHistoricalDraftPreview(User exhibitor, UUID requestId,
+            Integer versionNumber) {
         Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
         DesignRequest request = designRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
@@ -378,7 +386,8 @@ public class DesignerWorkspaceService {
     }
 
     private DesignRequestStatus resolveDraftReviewStatus(DesignRequest request, DesignDraft draft, DesignDraft latest) {
-        if (request.getStatus() == DesignRequestStatus.APPROVED && Objects.equals(draft.getVersionNumber(), latest.getVersionNumber())) {
+        if (request.getStatus() == DesignRequestStatus.APPROVED
+                && Objects.equals(draft.getVersionNumber(), latest.getVersionNumber())) {
             return DesignRequestStatus.APPROVED;
         }
         if (draft.getRejectionReason() != null || draft.getVersionNumber() < latest.getVersionNumber()) {

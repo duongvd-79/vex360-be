@@ -30,4 +30,6 @@ public interface MediaAssetRepository extends JpaRepository<MediaAsset, UUID> {
      */
     @Query("SELECT COALESCE(SUM(m.fileSize), 0) FROM MediaAsset m WHERE m.company.id = :companyId")
     long sumFileSizeByCompanyId(@Param("companyId") UUID companyId);
+
+    boolean existsByIdAndCompanyId(UUID id, UUID companyId);
 }

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,86 +16,82 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.analytics.services.AdminAnalyticsService;
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.lead.repositories.BoothLeadRepository;
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.booth.services.BoothReviewService;
+import com.example.vex360.features.designrequest.services.DesignRequestService;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.lead.services.BoothLeadService;
+import com.example.vex360.features.user.services.UserService;
 
 @ExtendWith(MockitoExtension.class)
 class AdminAnalyticsServiceUnitTest {
 
     @Mock
-    private UserRepository userRepository;
+    private UserService userService;
     @Mock
-    private ExhibitionRepository exhibitionRepository;
+    private ExhibitionService exhibitionService;
     @Mock
-    private BoothRepository boothRepository;
+    private BoothReviewService boothReviewService;
     @Mock
     private AnalyticsEventRepository analyticsEventRepository;
     @Mock
-    private PaymentRepository paymentRepository;
+    private BoothLeadService boothLeadService;
     @Mock
-    private BoothLeadRepository boothLeadRepository;
-    @Mock
-    private DesignRequestRepository designRequestRepository;
+    private DesignRequestService designRequestService;
 
     private AdminAnalyticsService service;
 
     @BeforeEach
     void setUp() {
         service = new AdminAnalyticsService(
-                userRepository,
-                exhibitionRepository,
-                boothRepository,
+                userService,
+                exhibitionService,
+                boothReviewService,
                 analyticsEventRepository,
-                paymentRepository,
-                boothLeadRepository,
-                designRequestRepository);
+                boothLeadService,
+                designRequestService);
     }
 
     @Test
     void getSummaryAggregatesPeriodAndLifetimeMetrics() {
-        when(userRepository.countGroupedByRole()).thenReturn(List.<Object[]>of(
+        when(userService.countGroupedByRole()).thenReturn(List.<Object[]>of(
                 new Object[] { "VISITOR", 12L },
                 new Object[] { "ORGANIZER", 2L }));
-        when(userRepository.countGroupedByStatus()).thenReturn(List.<Object[]>of(
+        when(userService.countGroupedByStatus()).thenReturn(List.<Object[]>of(
                 new Object[] { "ACTIVE", 11L },
                 new Object[] { "BLOCKED", 3L }));
-        when(exhibitionRepository.countExhibitionsByStatus()).thenReturn(List.<Object[]>of(
+        when(exhibitionService.countExhibitionsByStatus()).thenReturn(List.<Object[]>of(
                 new Object[] { "ACTIVE", 2L },
                 new Object[] { "PENDING", 1L }));
-        when(boothRepository.countBoothsGroupedByStatus()).thenReturn(List.<Object[]>of(
+        when(boothReviewService.countBoothsGroupedByStatus()).thenReturn(List.<Object[]>of(
                 new Object[] { "PUBLISHED", 8L },
                 new Object[] { "DRAFT", 2L }));
-        when(paymentRepository.countAdminPaymentsByStatus(any(), any())).thenReturn(List.<Object[]>of(
+        when(exhibitionService.countAdminPaymentsByStatus(any(), any())).thenReturn(List.<Object[]>of(
                 new Object[] { "PAID", 4L },
                 new Object[] { "FAILED", 1L }));
-        when(boothLeadRepository.countAdminLeadsByStatus(any(), any())).thenReturn(List.<Object[]>of(
+        when(boothLeadService.countAdminLeadsByStatus(any(), any())).thenReturn(List.<Object[]>of(
                 new Object[] { "NEW", 5L },
                 new Object[] { "CONVERTED", 2L }));
-        when(designRequestRepository.countGroupedByStatus()).thenReturn(List.<Object[]>of(
+        when(designRequestService.countGroupedByStatus()).thenReturn(List.<Object[]>of(
                 new Object[] { "PENDING", 3L },
                 new Object[] { "APPROVED", 4L }));
         when(analyticsEventRepository.aggregateAdminPeriodMetrics(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[] { 150L, 40L, 90L, 12L }));
-        when(paymentRepository.aggregateAdminPaidMetrics(any(), any()))
+        when(exhibitionService.aggregateAdminPaidMetrics(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[] { 4L, 20_000_000L, 2_000_000L }));
-        when(userRepository.aggregateDailyRegistrations(any(), any()))
+        when(userService.aggregateDailyRegistrations(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[] { "2026-07-28", 3L }));
-        when(exhibitionRepository.aggregateDailyCreated(any(), any())).thenReturn(List.of());
-        when(paymentRepository.aggregateAdminDailyRevenue(any(), any())).thenReturn(List.of());
-        when(designRequestRepository.aggregateDailyCreated(any(), any())).thenReturn(List.of());
-        when(exhibitionRepository.findAll()).thenReturn(List.of());
-        when(userRepository.count()).thenReturn(14L);
-        when(userRepository.countByCreatedAtBetween(any(), any())).thenReturn(3L);
-        when(exhibitionRepository.count()).thenReturn(3L);
-        when(designRequestRepository.count()).thenReturn(7L);
+        when(exhibitionService.aggregateDailyCreatedExhibitions(any(), any())).thenReturn(List.of());
+        when(exhibitionService.aggregateAdminDailyRevenue(any(), any())).thenReturn(List.of());
+        when(designRequestService.aggregateDailyCreated(any(), any())).thenReturn(List.of());
+        when(exhibitionService.getAllExhibitions()).thenReturn(List.of());
+        when(userService.countUsers()).thenReturn(14L);
+        when(userService.countByCreatedAtBetween(any(), any())).thenReturn(3L);
+        when(exhibitionService.countExhibitions()).thenReturn(3L);
+        when(designRequestService.countDesignRequests()).thenReturn(7L);
 
         var result = service.getSummary(
-                LocalDate.of(2026, 7, 1),
-                LocalDate.of(2026, 7, 28));
+                LocalDate.of(2026, Month.JULY, 1),
+                LocalDate.of(2026, Month.JULY, 28));
 
         assertThat(result.getStartDate()).isEqualTo("2026-07-01");
         assertThat(result.getEndDate()).isEqualTo("2026-07-28");

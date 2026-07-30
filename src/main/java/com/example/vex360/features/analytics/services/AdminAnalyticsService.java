@@ -16,13 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.analytics.dtos.response.AdminSystemAnalyticsDTO;
 import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.booth.services.BoothReviewService;
+import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.lead.repositories.BoothLeadRepository;
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.lead.services.BoothLeadService;
+import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -34,13 +33,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AdminAnalyticsService {
 
-    private final UserRepository userRepository;
-    private final ExhibitionRepository exhibitionRepository;
-    private final BoothRepository boothRepository;
+    private final UserService userService;
+    private final ExhibitionService exhibitionService;
+    private final BoothReviewService boothReviewService;
     private final AnalyticsEventRepository analyticsEventRepository;
-    private final PaymentRepository paymentRepository;
-    private final BoothLeadRepository boothLeadRepository;
-    private final DesignRequestRepository designRequestRepository;
+    private final BoothLeadService boothLeadService;
+    private final DesignRequestService designRequestService;
 
     @Transactional(readOnly = true)
     public AdminSystemAnalyticsDTO getSummary(LocalDate startDate, LocalDate endDate) {
@@ -49,13 +47,13 @@ public class AdminAnalyticsService {
         Instant start = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant end = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
 
-        List<Object[]> roleRows = userRepository.countGroupedByRole();
-        List<Object[]> userStatusRows = userRepository.countGroupedByStatus();
-        List<Object[]> exhibitionStatusRows = exhibitionRepository.countExhibitionsByStatus();
-        List<Object[]> boothStatusRows = boothRepository.countBoothsGroupedByStatus();
-        List<Object[]> paymentStatusRows = paymentRepository.countAdminPaymentsByStatus(start, end);
-        List<Object[]> leadStatusRows = boothLeadRepository.countAdminLeadsByStatus(start, end);
-        List<Object[]> designStatusRows = designRequestRepository.countGroupedByStatus();
+        List<Object[]> roleRows = userService.countGroupedByRole();
+        List<Object[]> userStatusRows = userService.countGroupedByStatus();
+        List<Object[]> exhibitionStatusRows = exhibitionService.countExhibitionsByStatus();
+        List<Object[]> boothStatusRows = boothReviewService.countBoothsGroupedByStatus();
+        List<Object[]> paymentStatusRows = exhibitionService.countAdminPaymentsByStatus(start, end);
+        List<Object[]> leadStatusRows = boothLeadService.countAdminLeadsByStatus(start, end);
+        List<Object[]> designStatusRows = designRequestService.countGroupedByStatus();
 
         Map<String, Long> userStatuses = toCountMap(userStatusRows);
         Map<String, Long> exhibitionStatuses = toCountMap(exhibitionStatusRows);
@@ -65,19 +63,19 @@ public class AdminAnalyticsService {
         Map<String, Long> designStatuses = toCountMap(designStatusRows);
 
         Object[] traffic = firstRow(analyticsEventRepository.aggregateAdminPeriodMetrics(start, end));
-        Object[] payment = firstRow(paymentRepository.aggregateAdminPaidMetrics(start, end));
+        Object[] payment = firstRow(exhibitionService.aggregateAdminPaidMetrics(start, end));
 
         Map<String, AdminSystemAnalyticsDTO.DailyPoint> trend = new TreeMap<>();
-        userRepository.aggregateDailyRegistrations(start, end)
+        userService.aggregateDailyRegistrations(start, end)
                 .forEach(row -> dailyPoint(trend, row[0]).setNewUsers(longValue(row[1])));
-        exhibitionRepository.aggregateDailyCreated(start, end)
+        exhibitionService.aggregateDailyCreatedExhibitions(start, end)
                 .forEach(row -> dailyPoint(trend, row[0]).setNewExhibitions(longValue(row[1])));
-        paymentRepository.aggregateAdminDailyRevenue(start, end)
+        exhibitionService.aggregateAdminDailyRevenue(start, end)
                 .forEach(row -> dailyPoint(trend, row[0]).setRevenue(longValue(row[1])));
-        designRequestRepository.aggregateDailyCreated(start, end)
+        designRequestService.aggregateDailyCreated(start, end)
                 .forEach(row -> dailyPoint(trend, row[0]).setDesignRequests(longValue(row[1])));
 
-        List<Exhibition> exhibitions = exhibitionRepository.findAll();
+        List<Exhibition> exhibitions = exhibitionService.getAllExhibitions();
         List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
         Map<Integer, long[]> exhibitionTraffic = new HashMap<>();
         Map<Integer, Long> exhibitionRevenue = new HashMap<>();
@@ -85,20 +83,19 @@ public class AdminAnalyticsService {
         if (!exhibitionIds.isEmpty()) {
             analyticsEventRepository.aggregateOrganizerDailyMetrics(exhibitionIds, start, end)
                     .forEach(row -> dailyPoint(trend, row[0]).setVisits(longValue(row[1])));
-            boothLeadRepository.aggregateDailyForExhibitions(exhibitionIds, start, end)
+            boothLeadService.aggregateDailyForExhibitions(exhibitionIds, start, end)
                     .forEach(row -> dailyPoint(trend, row[0]).setLeads(longValue(row[1])));
             analyticsEventRepository.aggregatePerformanceByExhibition(exhibitionIds, start, end)
                     .forEach(row -> exhibitionTraffic.put(
                             ((Number) row[0]).intValue(),
                             new long[] { longValue(row[1]), longValue(row[2]) }));
-            paymentRepository.aggregateRevenueByExhibition(exhibitionIds, start, end)
-                    .forEach(row -> exhibitionRevenue.put(
-                            ((Number) row[0]).intValue(), longValue(row[1])));
-            boothLeadRepository.aggregatePerformanceForExhibitions(exhibitionIds, start, end)
+            exhibitionRevenue = exhibitionService.aggregateRevenueByExhibition(exhibitionIds, start, end);
+            boothLeadService.aggregatePerformanceForExhibitions(exhibitionIds, start, end)
                     .forEach(row -> exhibitionLeads.put(
                             ((Number) row[0]).intValue(), longValue(row[1])));
         }
 
+        Map<Integer, Long> finalExhibitionRevenue = exhibitionRevenue;
         List<AdminSystemAnalyticsDTO.TopExhibition> topExhibitions = exhibitions.stream()
                 .map(exhibition -> {
                     long[] values = exhibitionTraffic.getOrDefault(exhibition.getId(), new long[2]);
@@ -108,7 +105,7 @@ public class AdminAnalyticsService {
                             .status(exhibition.getStatus().name())
                             .visits(values[0])
                             .uniqueVisitors(values[1])
-                            .revenue(exhibitionRevenue.getOrDefault(exhibition.getId(), 0L))
+                            .revenue(finalExhibitionRevenue.getOrDefault(exhibition.getId(), 0L))
                             .leads(exhibitionLeads.getOrDefault(exhibition.getId(), 0L))
                             .build();
                 })
@@ -125,10 +122,10 @@ public class AdminAnalyticsService {
                 .startDate(rangeStart.toString())
                 .endDate(rangeEnd.toString())
                 .metrics(AdminSystemAnalyticsDTO.Metrics.builder()
-                        .totalUsers(userRepository.count())
+                        .totalUsers(userService.countUsers())
                         .activeAccounts(userStatuses.getOrDefault(UserStatus.ACTIVE.name(), 0L))
-                        .newUsers(userRepository.countByCreatedAtBetween(start, end))
-                        .totalExhibitions(exhibitionRepository.count())
+                        .newUsers(userService.countByCreatedAtBetween(start, end))
+                        .totalExhibitions(exhibitionService.countExhibitions())
                         .activeExhibitions(exhibitionStatuses.getOrDefault(ExhibitionStatus.ACTIVE.name(), 0L))
                         .pendingExhibitions(exhibitionStatuses.getOrDefault(ExhibitionStatus.PENDING.name(), 0L))
                         .totalBooths(totalBooths)
@@ -143,7 +140,7 @@ public class AdminAnalyticsService {
                         .failedPayments(paymentStatuses.getOrDefault(PaymentStatus.FAILED.name(), 0L))
                         .totalLeads(totalLeads)
                         .convertedLeads(leadStatuses.getOrDefault("CONVERTED", 0L))
-                        .totalDesignRequests(designRequestRepository.count())
+                        .totalDesignRequests(designRequestService.countDesignRequests())
                         .pendingDesignRequests(designStatuses.getOrDefault(DesignRequestStatus.PENDING.name(), 0L))
                         .build())
                 .trend(new ArrayList<>(trend.values()))

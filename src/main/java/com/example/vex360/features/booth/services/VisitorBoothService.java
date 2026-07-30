@@ -1,10 +1,12 @@
 package com.example.vex360.features.booth.services;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -43,4 +45,6 @@ public interface VisitorBoothService {
      *                      the booth is not found
      */
     BoothResponseDTO getBoothTourDetail(UUID exhibitionUuid, UUID boothId);
+
+    Optional<Booth> findPublishedBoothByExhibitionUuidAndBoothId(UUID exhibitionUuid, UUID boothId);
 }

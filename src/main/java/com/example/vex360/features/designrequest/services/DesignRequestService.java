@@ -32,6 +32,7 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.booth.services.BoothDesignService.HotspotDesign;
 import com.example.vex360.features.booth.services.BoothDesignService.PanoramaDesign;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.designrequest.dtos.request.AssignDesignRequest;
@@ -68,7 +69,6 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.user.repositories.UserRepository;
 import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentCandidateResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -82,7 +82,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Locale;
 
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.dtos.request.ApproveDesignDraftRequest;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
@@ -108,10 +107,10 @@ public class DesignRequestService {
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;
     private final DesignDraftAssetRepository designDraftAssetRepository;
-    private final MediaAssetRepository mediaAssetRepository;
     private final CompanyStorageService storageService;
     private final DesignRequestMapper designRequestMapper;
     private final BoothDesignService boothDesignService;
+    private final ExhibitorMediaAssetService exhibitorMediaAssetService;
     private final CompanyService companyService;
     private final UserService userService;
     private final ProductService productService;
@@ -126,7 +125,6 @@ public class DesignRequestService {
     private final DesignDraftGraphValidator draftGraphValidator;
     private final DesignDraftBenefitGuardService draftBenefitGuardService;
     private final ApplicationEventPublisher eventPublisher;
-    private final UserRepository userRepository;
 
     /**
      * Creates a pending design request for an Exhibitor-owned booth. The booth
@@ -544,7 +542,7 @@ public class DesignRequestService {
                 .map(DesignDraftMediaAsset::getId)
                 .collect(Collectors.toSet());
         draft.getMediaAssets().removeIf(media -> !referencedDraftMediaIds.contains(media.getId()));
-        StorageTransition storageTransition = calculateStorageTransition(request, draft, referencedDraftMedia);
+        StorageTransition storageTransition = calculateStorageTransition(referencedDraftMedia);
         storageService.reconcileUsage(
                 company,
                 storageTransition.releasedUsedBytes(),
@@ -589,7 +587,7 @@ public class DesignRequestService {
                     .mimeType(asset.getMimeType())
                     .fileSize(asset.getFileSize())
                     .build();
-            promoted.put(mediaDraft.getId(), mediaAssetRepository.save(boothMedia));
+            promoted.put(mediaDraft.getId(), exhibitorMediaAssetService.saveMediaAsset(boothMedia));
             asset.setQuotaState(DesignDraftAssetQuotaState.PROMOTED);
         }
         return promoted;
@@ -630,8 +628,6 @@ public class DesignRequestService {
     }
 
     private StorageTransition calculateStorageTransition(
-            DesignRequest request,
-            DesignDraft draft,
             Set<DesignDraftMediaAsset> referencedMedia) {
         Set<DesignDraftAsset> acceptedAssets = new java.util.LinkedHashSet<>();
         referencedMedia.stream()
@@ -719,8 +715,8 @@ public class DesignRequestService {
     public DesignAssignmentAnalyticsResponseDTO getAssignmentAnalytics(
             DesignRequestMode mode) {
         List<DesignRequestStatus> activeStatuses = DesignRequestRepository.SLOT_OCCUPYING_STATUSES;
-        List<DesignerWorkloadResponseDTO> workloads = userRepository
-                .findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
+        List<DesignerWorkloadResponseDTO> workloads = userService
+                .findUsersByRoleAndStatus(Role.DESIGNER, UserStatus.ACTIVE).stream()
                 .map(designer -> toWorkload(designer, mode))
                 .toList();
         return new DesignAssignmentAnalyticsResponseDTO(
@@ -738,7 +734,7 @@ public class DesignRequestService {
      */
     @Transactional(readOnly = true)
     public List<DesignAssignmentCandidateResponseDTO> getAssignmentCandidates() {
-        return userRepository.findByRoleAndStatusOrderByFullNameAsc(Role.DESIGNER, UserStatus.ACTIVE).stream()
+        return userService.findUsersByRoleAndStatus(Role.DESIGNER, UserStatus.ACTIVE).stream()
                 .map(designer -> {
                     long working = designRequestRepository.countByAssignedDesignerIdAndStatusIn(
                             designer.getId(), DesignRequestRepository.SLOT_OCCUPYING_STATUSES);
@@ -1249,7 +1245,6 @@ public class DesignRequestService {
                 request.getCancellationStatus()));
     }
 
-
     private String requireText(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {
@@ -1290,5 +1285,20 @@ public class DesignRequestService {
         DesignRequestResponseDTO response = designRequestMapper.toResponse(request);
         response.setRemainingDesignActions(eligibilityService.remainingActions(request.getBooth()));
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countGroupedByStatus() {
+        return designRequestRepository.countGroupedByStatus();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyCreated(Instant start, Instant end) {
+        return designRequestRepository.aggregateDailyCreated(start, end);
+    }
+
+    @Transactional(readOnly = true)
+    public long countDesignRequests() {
+        return designRequestRepository.count();
     }
 }

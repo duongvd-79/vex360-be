@@ -12,8 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.booth.entities.MediaAsset;
-import com.example.vex360.features.booth.repositories.HotspotRepository;
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
@@ -27,8 +27,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DesignRequestMediaAssetService {
     private final DesignRequestMediaAssetRepository requestMediaAssetRepository;
-    private final MediaAssetRepository mediaAssetRepository;
-    private final HotspotRepository hotspotRepository;
+    private final ExhibitorMediaAssetService exhibitorMediaAssetService;
+    private final BoothDesignService boothDesignService;
 
     @Transactional
     public void initializeAllowlist(DesignRequest request, List<UUID> selectedMediaAssetIds) {
@@ -39,8 +39,10 @@ public class DesignRequestMediaAssetService {
 
         Set<UUID> requiredIds = new HashSet<>();
         if (request.getMode() == DesignRequestMode.REDESIGN) {
-            for (MediaAsset mediaAsset : hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(
-                    request.getBooth().getId(), null)) {
+            List<UUID> baselineMediaAssetIds = boothDesignService.findDistinctMediaAssetIdsByBoothId(
+                    request.getBooth().getId(), null);
+            List<MediaAsset> baselineAssets = exhibitorMediaAssetService.findMediaAssetsByIds(baselineMediaAssetIds);
+            for (MediaAsset mediaAsset : baselineAssets) {
                 if (!request.getCompany().getId().equals(mediaAsset.getCompany().getId())) {
                     throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
                 }
@@ -67,8 +69,8 @@ public class DesignRequestMediaAssetService {
         if (ids.isEmpty()) {
             return List.of();
         }
-        List<MediaAsset> mediaAssets = mediaAssetRepository.findByIdInAndCompanyId(ids, request.getCompany().getId());
-        if (mediaAssets.size() != ids.size()) {
+        List<MediaAsset> mediaAssets = exhibitorMediaAssetService.findMediaAssetsByIds(ids);
+        if (mediaAssets.size() != ids.size() || mediaAssets.stream().anyMatch(m -> !m.getCompany().getId().equals(request.getCompany().getId()))) {
             throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
         }
         return mediaAssets;

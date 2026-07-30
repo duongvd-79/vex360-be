@@ -2,6 +2,9 @@ package com.example.vex360.features.booth.services;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -26,7 +29,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -46,7 +49,7 @@ public class BoothReviewService {
     private final BoothReviewSnapshotFactory snapshotFactory;
     private final BoothReviewDiffService diffService;
     private final BoothReviewContentAssembler contentAssembler;
-    private final ExhibitionRepository exhibitionRepository;
+    private final ExhibitionService exhibitionService;
     private final Clock clock;
 
     @Transactional
@@ -54,8 +57,7 @@ public class BoothReviewService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
         Exhibition exhibition = getExhibition(booth);
-        Exhibition lockedExhibition = exhibitionRepository.findByIdForUpdate(exhibition.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_INVALID_STATUS));
+        Exhibition lockedExhibition = exhibitionService.findExhibitionForUpdate(exhibition.getId());
         if (lockedExhibition.getStatus() != ExhibitionStatus.REGISTRATION
                 && lockedExhibition.getStatus() != ExhibitionStatus.PUBLISHED) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
@@ -212,6 +214,54 @@ public class BoothReviewService {
         return PageResponse.from(boothRepository
                 .searchForOrganizer(exhibitionUuid, organizer.getId(), normalizeKeyword(keyword), status, pageable)
                 .map(boothMapper::toBoothResponseDTO));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Integer, Long> countPendingBoothsGroupedByExhibition(List<Integer> exhibitionIds) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, Long> result = new HashMap<>();
+        boothRepository.countBoothsGroupedByExhibitionAndStatus(exhibitionIds, BoothStatus.PENDING)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Object[]> countBoothsGroupedByStatus() {
+        return boothRepository.countBoothsGroupedByStatus();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Integer, Long> countBoothsGroupedByExhibition(List<Integer> exhibitionIds) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, Long> result = new HashMap<>();
+        boothRepository.countBoothsGroupedByExhibition(exhibitionIds)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public long countBoothsByExhibitionId(Integer exhibitionId) {
+        return boothRepository.countBoothsByExhibitionId(exhibitionId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Booth> findBoothsByExhibitionId(Integer exhibitionId) {
+        return boothRepository.findBoothsByExhibitionId(exhibitionId);
+    }
+
+    @Transactional(readOnly = true)
+    public Booth findBoothEntityById(UUID boothId) {
+        return boothRepository.findById(boothId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Booth> findCompanyBooths(UUID companyId, Pageable pageable) {
+        return boothRepository.findCompanyBooths(companyId, pageable);
     }
 
     private BoothReviewRequestSummaryDTO toSummary(BoothReviewRequest request) {

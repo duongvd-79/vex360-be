@@ -1,8 +1,6 @@
 package com.example.vex360.features.exhibition.controllers;
 
 import java.time.LocalDate;
-import java.util.UUID;
-
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -10,7 +8,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,13 +43,6 @@ public class PublicExhibitionController extends BaseController {
             @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<ExhibitionResponseDTO> response = exhibitionService.searchExhibitionsForVisitor(
                 keyword, status, category, startDate, endDate, pageable);
-        return ok(response);
-    }
-
-    @GetMapping("/{uuid}")
-    @Operation(summary = "Xem thông tin triển lãm công khai theo UUID", description = "Lấy thông tin chi tiết triển lãm và danh sách gói dịch vụ tương ứng dựa trên UUID. Không để lộ khóa chính (Integer ID) của triển lãm trong payload.")
-    public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> getExhibitionByUuid(@PathVariable("uuid") UUID uuid) {
-        ExhibitionResponseDTO response = exhibitionService.getExhibitionByUuid(uuid);
         return ok(response);
     }
 }

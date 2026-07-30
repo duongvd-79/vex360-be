@@ -57,12 +57,12 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
@@ -103,7 +103,7 @@ class ExhibitorRegistrationServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
-    private com.example.vex360.features.wallet.services.CommissionPolicyService commissionPolicyService;
+    private CommissionCalculator commissionCalculator;
 
     @Mock
     private Clock clock;
@@ -121,9 +121,9 @@ class ExhibitorRegistrationServiceTest {
         ReflectionTestUtils.setField(registrationService, "cancelUrl", "http://localhost:5173/payment/cancel");
         Mockito.lenient().when(clock.instant()).thenReturn(Instant.parse("2026-01-10T00:00:00Z"));
         Mockito.lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-        Mockito.lenient().when(commissionPolicyService.calculateCommission(any(), any())).thenAnswer(inv -> {
+        Mockito.lenient().when(commissionCalculator.calculateCommission(any(), any())).thenAnswer(inv -> {
             BigDecimal amt = inv.getArgument(0);
-            return new CommissionCalculationResult(
+            return new CommissionCalculator.CommissionResult(
                     amt, BigDecimal.ZERO, amt, 0);
         });
         ReflectionTestUtils.setField(registrationService, "timelinePolicy", new ExhibitionTimelinePolicy(clock));

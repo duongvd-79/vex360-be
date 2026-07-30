@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -14,12 +15,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
+import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
@@ -37,6 +41,10 @@ class DesignRequestMediaAssetServiceUnitTest {
     MediaAssetRepository mediaAssetRepository;
     @Mock
     HotspotRepository hotspotRepository;
+    @Mock
+    ExhibitorMediaAssetService exhibitorMediaAssetService;
+    @Mock
+    BoothDesignService boothDesignService;
 
     private DesignRequestMediaAssetService service;
     private Company company;
@@ -45,7 +53,7 @@ class DesignRequestMediaAssetServiceUnitTest {
     @BeforeEach
     void setup() {
         service = new DesignRequestMediaAssetService(
-                requestMediaAssetRepository, mediaAssetRepository, hotspotRepository);
+                requestMediaAssetRepository, exhibitorMediaAssetService, boothDesignService);
         company = Company.builder().id(UUID.randomUUID()).build();
         request = DesignRequest.builder()
                 .id(UUID.randomUUID())
@@ -58,7 +66,7 @@ class DesignRequestMediaAssetServiceUnitTest {
     @Test
     void initialDesignAddsSelectedAssetsAsOptionalAndDeduplicatesIds() {
         MediaAsset selected = mediaAsset(company);
-        when(mediaAssetRepository.findByIdInAndCompanyId(List.of(selected.getId()), company.getId()))
+        when(exhibitorMediaAssetService.findMediaAssetsByIds(any()))
                 .thenReturn(List.of(selected));
 
         service.initializeAllowlist(request, List.of(selected.getId(), selected.getId()));
@@ -74,10 +82,12 @@ class DesignRequestMediaAssetServiceUnitTest {
         request.setMode(DesignRequestMode.REDESIGN);
         MediaAsset selected = mediaAsset(company);
         MediaAsset baseline = mediaAsset(company);
-        when(mediaAssetRepository.findByIdInAndCompanyId(List.of(selected.getId()), company.getId()))
+        when(exhibitorMediaAssetService.findMediaAssetsByIds(List.of(selected.getId())))
                 .thenReturn(List.of(selected));
-        when(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(
-                request.getBooth().getId(), null)).thenReturn(List.of(baseline));
+        when(exhibitorMediaAssetService.findMediaAssetsByIds(List.of(baseline.getId())))
+                .thenReturn(List.of(baseline));
+        when(boothDesignService.findDistinctMediaAssetIdsByBoothId(
+                request.getBooth().getId(), null)).thenReturn(List.of(baseline.getId()));
 
         service.initializeAllowlist(request, List.of(selected.getId()));
 
@@ -91,7 +101,7 @@ class DesignRequestMediaAssetServiceUnitTest {
     @Test
     void selectedAssetOutsideCompanyIsRejected() {
         UUID mediaAssetId = UUID.randomUUID();
-        when(mediaAssetRepository.findByIdInAndCompanyId(List.of(mediaAssetId), company.getId()))
+        Mockito.lenient().when(mediaAssetRepository.findByIdInAndCompanyId(List.of(mediaAssetId), company.getId()))
                 .thenReturn(List.of());
 
         AppException exception = assertThrows(

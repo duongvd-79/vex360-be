@@ -21,7 +21,7 @@ import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.entities.Panorama;
 import com.example.vex360.features.booth.enums.MediaAssetType;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftBenefitUsageResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
@@ -38,7 +38,7 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 @ExtendWith(MockitoExtension.class)
 class DesignDraftBenefitGuardServiceUnitTest {
     @Mock
-    private PanoramaRepository panoramaRepository;
+    private BoothDesignService boothDesignService;
 
     private DesignDraftBenefitGuardService service;
     private Booth booth;
@@ -46,7 +46,7 @@ class DesignDraftBenefitGuardServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        service = new DesignDraftBenefitGuardService(panoramaRepository);
+        service = new DesignDraftBenefitGuardService(boothDesignService);
         booth = Booth.builder()
                 .id(UUID.randomUUID())
                 .exhibitorRegistration(registration(3, 5, 2, 1))
@@ -123,7 +123,7 @@ class DesignDraftBenefitGuardServiceUnitTest {
     void submissionUsesOfficialBaselineGraceForRedesign() {
         request.setMode(DesignRequestMode.REDESIGN);
         booth.setExhibitorRegistration(registration(5, 5, 5, 5));
-        when(panoramaRepository.findDetailsByBoothId(booth.getId())).thenReturn(officialPanoramas(8));
+        when(boothDesignService.findPanoramaDetailsByBoothId(booth.getId())).thenReturn(officialPanoramas(8));
 
         assertDoesNotThrow(() -> service.assertWithinSubmissionLimits(request, draft(8)));
         assertQuotaExceeded(() -> service.assertWithinSubmissionLimits(request, draft(9)));
@@ -134,14 +134,14 @@ class DesignDraftBenefitGuardServiceUnitTest {
         ExhibitorRegistration registration = registration(3, 5, 2, 1);
         registration.setStorageLimitMbSnapshot(null);
         booth.setExhibitorRegistration(registration);
-        when(panoramaRepository.findDetailsByBoothId(booth.getId())).thenReturn(List.of());
+        when(boothDesignService.findPanoramaDetailsByBoothId(booth.getId())).thenReturn(List.of());
 
         assertDoesNotThrow(() -> service.assertWithinSubmissionLimits(request, draft(1)));
     }
 
     @Test
     void usageResponseContainsLimitBaselineWorkingAndRemainingForFourMetrics() {
-        when(panoramaRepository.findDetailsByBoothId(booth.getId())).thenReturn(officialPanoramas(1));
+        when(boothDesignService.findPanoramaDetailsByBoothId(booth.getId())).thenReturn(officialPanoramas(1));
 
         DesignDraftBenefitUsageResponseDTO response = service.getUsageResponse(request, draft(2));
 
@@ -161,7 +161,7 @@ class DesignDraftBenefitGuardServiceUnitTest {
         MediaAsset video = media(MediaAssetType.VIDEO);
         official.get(0).getHotspots().add(Hotspot.builder().product(product).mediaAsset(video).build());
         official.get(1).getHotspots().add(Hotspot.builder().product(product).mediaAsset(video).build());
-        when(panoramaRepository.findDetailsByBoothId(booth.getId())).thenReturn(official);
+        when(boothDesignService.findPanoramaDetailsByBoothId(booth.getId())).thenReturn(official);
 
         DesignDraftBenefitUsageResponseDTO response = service.getBaselineUsageResponse(request);
 

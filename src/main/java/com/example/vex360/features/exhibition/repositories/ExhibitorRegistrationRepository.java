@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
@@ -61,7 +60,7 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
                     FROM Booth b
                     WHERE b.exhibitorRegistration = r
                       AND b.isTemplate = false
-                      AND b.status = :publishedBoothStatus
+                      AND b.status = com.example.vex360.features.booth.enums.BoothStatus.PUBLISHED
                   )
                 )
               )
@@ -69,8 +68,7 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
     boolean existsPublicationBlocker(
             @Param("exhibitionId") Integer exhibitionId,
             @Param("unresolvedStatuses") Collection<ExhibitorRegistrationStatus> unresolvedStatuses,
-            @Param("approvedStatus") ExhibitorRegistrationStatus approvedStatus,
-            @Param("publishedBoothStatus") BoothStatus publishedBoothStatus);
+            @Param("approvedStatus") ExhibitorRegistrationStatus approvedStatus);
 
     @Query(value = "SELECT r FROM ExhibitorRegistration r " +
             "LEFT JOIN FETCH r.company c " +

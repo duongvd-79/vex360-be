@@ -35,18 +35,19 @@ import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.chat.repositories.ChatMessageRepository;
+import com.example.vex360.features.chat.services.ChatService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.booth.services.BoothReviewService;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
-import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
-import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
-import com.example.vex360.features.exhibition.repositories.PaymentRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.shared.enums.LeadStatus;
-import com.example.vex360.features.lead.repositories.BoothLeadRepository;
+import com.example.vex360.features.lead.services.BoothLeadService;
 import com.example.vex360.features.product.entities.Product;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
@@ -62,16 +63,67 @@ public class AnalyticsService {
 
         private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+        private final ExhibitionService exhibitionService;
+        private final BoothReviewService boothReviewService;
         private final AnalyticsEventRepository analyticsEventRepository;
-        private final ChatMessageRepository chatMessageRepository;
+        private final ChatService chatService;
         private final CompanyService companyService;
-        private final ExhibitionRepository exhibitionRepository;
-        private final BoothRepository boothRepository;
-        private final ProductRepository productRepository;
         private final UserService userService;
-        private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
-        private final PaymentRepository paymentRepository;
-        private final BoothLeadRepository boothLeadRepository;
+        private final BoothLeadService boothLeadService;
+        private final ProductService productService;
+
+        @Transactional(readOnly = true)
+        public OrganizerExhibitionSummaryResponseDTO getSummaryForOrganizer(User organizer) {
+                List<OrganizerExhibitionSummaryItemResponseDTO> summaries = getSummariesByExhibitionForOrganizer(
+                                organizer);
+                long pendingRegistrationCount = 0;
+                long pendingBoothReviewCount = 0;
+                for (OrganizerExhibitionSummaryItemResponseDTO summary : summaries) {
+                        pendingRegistrationCount += summary.getPendingRegistrationCount();
+                        pendingBoothReviewCount += summary.getPendingBoothReviewCount();
+                }
+                return new OrganizerExhibitionSummaryResponseDTO(
+                                pendingRegistrationCount,
+                                pendingBoothReviewCount,
+                                pendingRegistrationCount + pendingBoothReviewCount);
+        }
+
+        @Transactional(readOnly = true)
+        public List<OrganizerExhibitionSummaryItemResponseDTO> getSummariesByExhibitionForOrganizer(User organizer) {
+                List<Exhibition> exhibitions = exhibitionService.getOrganizerExhibitions(organizer);
+                if (exhibitions.isEmpty()) {
+                        return List.of();
+                }
+
+                List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
+                Map<Integer, Long> registrationCounts = exhibitionService.countRegistrationsByStatusGroupedByExhibition(
+                                exhibitionIds, ExhibitorRegistrationStatus.PENDING);
+                Map<Integer, Long> boothReviewCounts = boothReviewService
+                                .countPendingBoothsGroupedByExhibition(exhibitionIds);
+
+                List<OrganizerExhibitionSummaryItemResponseDTO> summaries = new ArrayList<>(exhibitions.size());
+                for (Exhibition exhibition : exhibitions) {
+                        long pendingRegistrationCount = registrationCounts.getOrDefault(exhibition.getId(), 0L);
+                        long pendingBoothReviewCount = boothReviewCounts.getOrDefault(exhibition.getId(), 0L);
+                        summaries.add(new OrganizerExhibitionSummaryItemResponseDTO(
+                                        exhibition.getUuid(),
+                                        exhibition.getName(),
+                                        pendingRegistrationCount,
+                                        pendingBoothReviewCount,
+                                        pendingRegistrationCount + pendingBoothReviewCount));
+                }
+                return summaries;
+        }
+
+        @Transactional(readOnly = true)
+        public ExhibitionResponseDTO getPublicExhibitionDetail(UUID uuid) {
+                ExhibitionResponseDTO dto = exhibitionService.getExhibitionByUuid(uuid);
+                long visitorCount = analyticsEventRepository.countByExhibitionIdAndEventType(
+                                dto.getId(), AnalyticsEventType.ENTER_EXHIBITION);
+                return dto.toBuilder()
+                                .visitorCount(visitorCount)
+                                .build();
+        }
 
         @Transactional
         public void recordEvent(User currentUser, RecordAnalyticsEventRequest request) {
@@ -80,19 +132,18 @@ public class AnalyticsService {
                 // 1. Tra cứu các entity liên quan nếu client có gửi ID
                 Exhibition exhibition = null;
                 if (request.getExhibitionUuid() != null && !request.getExhibitionUuid().isBlank()) {
-                        exhibition = exhibitionRepository.findByUuid(UUID.fromString(request.getExhibitionUuid()))
-                                        .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                        exhibition = exhibitionService
+                                        .findExhibitionEntityByUuid(UUID.fromString(request.getExhibitionUuid()));
                 }
 
                 Booth booth = null;
                 if (request.getBoothId() != null) {
-                        booth = boothRepository.findById(request.getBoothId())
-                                        .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+                        booth = boothReviewService.findBoothEntityById(request.getBoothId());
                 }
 
                 Product product = null;
                 if (request.getProductId() != null) {
-                        product = productRepository.findById(request.getProductId())
+                        product = productService.findOptionalProductById(request.getProductId())
                                         .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
                 }
 
@@ -119,8 +170,7 @@ public class AnalyticsService {
 
         @Transactional(readOnly = true)
         public List<ExhibitionAnalyticsOverviewDTO> getOrganizerOverview(User organizer) {
-                List<Exhibition> exhibitions = exhibitionRepository
-                                .findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
+                List<Exhibition> exhibitions = exhibitionService.getOrganizerExhibitions(organizer);
                 if (exhibitions.isEmpty()) {
                         return List.of();
                 }
@@ -128,10 +178,7 @@ public class AnalyticsService {
                 // Đếm booth + lượt vào triển lãm GOM 1 lần cho tất cả triển lãm -> tránh N+1
                 // query
                 List<Integer> ids = exhibitions.stream().map(Exhibition::getId).toList();
-                Map<Integer, Long> boothCountById = new HashMap<>();
-                for (Object[] row : boothRepository.countBoothsGroupedByExhibition(ids)) {
-                        boothCountById.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
-                }
+                Map<Integer, Long> boothCountById = boothReviewService.countBoothsGroupedByExhibition(ids);
                 Map<Integer, Long> visitCountById = new HashMap<>();
                 for (Object[] row : analyticsEventRepository.countVisitsGroupedByExhibition(ids)) {
                         visitCountById.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
@@ -189,15 +236,14 @@ public class AnalyticsService {
                 Instant startDateTime = rangeStart.atStartOfDay(ZoneOffset.UTC).toInstant();
                 Instant endDateTime = rangeEnd.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
 
-                List<Exhibition> exhibitions = exhibitionRepository
-                                .findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
+                List<Exhibition> exhibitions = exhibitionService.getOrganizerExhibitions(organizer);
                 if (selectedExhibitionUuid != null) {
                         exhibitions = exhibitions.stream()
                                         .filter(exhibition -> selectedExhibitionUuid.equals(exhibition.getUuid()))
                                         .toList();
                         if (exhibitions.isEmpty()) {
-                                Exhibition requested = exhibitionRepository.findByUuid(selectedExhibitionUuid)
-                                                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                                Exhibition requested = exhibitionService
+                                                .findExhibitionEntityByUuid(selectedExhibitionUuid);
                                 if (!requested.getOrganizer().getId().equals(organizer.getId())) {
                                         throw new AppException(ErrorCode.UNAUTHORIZED);
                                 }
@@ -219,18 +265,12 @@ public class AnalyticsService {
                 }
 
                 List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
-                Map<Integer, Long> boothCounts = new HashMap<>();
-                boothRepository.countBoothsGroupedByExhibition(exhibitionIds)
-                                .forEach(row -> boothCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
+                Map<Integer, Long> boothCounts = boothReviewService.countBoothsGroupedByExhibition(exhibitionIds);
 
-                Map<Integer, Long> approvedCounts = new HashMap<>();
-                exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
-                                exhibitionIds, ExhibitorRegistrationStatus.APPROVED)
-                                .forEach(row -> approvedCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
-                Map<Integer, Long> pendingCounts = new HashMap<>();
-                exhibitorRegistrationRepository.countByStatusGroupedByExhibition(
-                                exhibitionIds, ExhibitorRegistrationStatus.PENDING)
-                                .forEach(row -> pendingCounts.put(((Number) row[0]).intValue(), longValue(row[1])));
+                Map<Integer, Long> approvedCounts = exhibitionService.countRegistrationsByStatusGroupedByExhibition(
+                                exhibitionIds, ExhibitorRegistrationStatus.APPROVED);
+                Map<Integer, Long> pendingCounts = exhibitionService.countRegistrationsByStatusGroupedByExhibition(
+                                exhibitionIds, ExhibitorRegistrationStatus.PENDING);
 
                 Map<Integer, long[]> trafficByExhibition = new HashMap<>();
                 Map<Integer, Double> durationByExhibition = new HashMap<>();
@@ -242,13 +282,11 @@ public class AnalyticsService {
                                         durationByExhibition.put(id, doubleValue(row[3]) / 60.0);
                                 });
 
-                Map<Integer, Long> revenueByExhibition = new HashMap<>();
-                paymentRepository.aggregateRevenueByExhibition(exhibitionIds, startDateTime, endDateTime)
-                                .forEach(row -> revenueByExhibition.put(((Number) row[0]).intValue(),
-                                                longValue(row[1])));
+                Map<Integer, Long> revenueByExhibition = exhibitionService.aggregateRevenueByExhibition(
+                                exhibitionIds, startDateTime, endDateTime);
 
                 Map<Integer, long[]> leadsByExhibition = new HashMap<>();
-                boothLeadRepository.aggregatePerformanceForExhibitions(exhibitionIds, startDateTime, endDateTime)
+                boothLeadService.aggregatePerformanceForExhibitions(exhibitionIds, startDateTime, endDateTime)
                                 .forEach(row -> leadsByExhibition.put(
                                                 ((Number) row[0]).intValue(),
                                                 new long[] { longValue(row[1]), longValue(row[2]),
@@ -263,16 +301,16 @@ public class AnalyticsService {
                                         point.setUniqueVisitors(longValue(row[2]));
                                         point.setAverageVisitDurationMinutes(doubleValue(row[3]) / 60.0);
                                 });
-                paymentRepository.aggregateOrganizerDailyRevenue(exhibitionIds, startDateTime, endDateTime)
+                exhibitionService.aggregateOrganizerDailyRevenue(exhibitionIds, startDateTime, endDateTime)
                                 .forEach(row -> dailyPoint(trendByDate, row[0].toString())
                                                 .setRevenue(longValue(row[1])));
-                boothLeadRepository.aggregateDailyForExhibitions(exhibitionIds, startDateTime, endDateTime)
+                boothLeadService.aggregateDailyForExhibitions(exhibitionIds, startDateTime, endDateTime)
                                 .forEach(row -> dailyPoint(trendByDate, row[0].toString()).setLeads(longValue(row[1])));
-                exhibitorRegistrationRepository.aggregateDailySubmissions(exhibitionIds, startDateTime, endDateTime)
+                exhibitionService.aggregateDailyRegistrationSubmissions(exhibitionIds, startDateTime, endDateTime)
                                 .forEach(row -> dailyPoint(trendByDate, row[0].toString())
                                                 .setRegistrations(longValue(row[1])));
 
-                List<OrganizerAnalyticsSummaryDTO.PackageSummary> packages = paymentRepository
+                List<OrganizerAnalyticsSummaryDTO.PackageSummary> packages = exhibitionService
                                 .aggregateOrganizerPackageRevenue(exhibitionIds, startDateTime, endDateTime)
                                 .stream()
                                 .map(row -> OrganizerAnalyticsSummaryDTO.PackageSummary.builder()
@@ -359,7 +397,7 @@ public class AnalyticsService {
 
                 long uniqueVisitors = analyticsEventRepository.countUniqueVisitorsForExhibitions(
                                 exhibitionIds, startDateTime, endDateTime);
-                long uniqueLeadVisitors = boothLeadRepository.countUniqueLeadVisitorsForExhibitions(
+                long uniqueLeadVisitors = boothLeadService.countUniqueLeadVisitorsForExhibitions(
                                 exhibitionIds, startDateTime, endDateTime);
                 Double averageDurationSeconds = analyticsEventRepository.averageVisitDurationSecondsForExhibitions(
                                 exhibitionIds, startDateTime, endDateTime);
@@ -442,8 +480,7 @@ public class AnalyticsService {
         public ExhibitionAnalyticsDetailDTO getExhibitionAnalytics(User organizer, UUID exhibitionUuid,
                         LocalDate startDate, LocalDate endDate) {
                 // Chặng 1: tìm triển lãm + kiểm tra quyền sở hữu
-                Exhibition exhibition = exhibitionRepository.findByUuid(exhibitionUuid)
-                                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                Exhibition exhibition = exhibitionService.findExhibitionEntityByUuid(exhibitionUuid);
                 if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
                         throw new AppException(ErrorCode.UNAUTHORIZED);
                 }
@@ -457,12 +494,13 @@ public class AnalyticsService {
 
                 // Chặng 3: gọi query lấy dữ liệu thô
                 Integer exhibitionId = exhibition.getId();
-                long boothCount = boothRepository.countBoothsByExhibitionId(exhibitionId);
+                long boothCount = boothReviewService.countBoothsByExhibitionId(exhibitionId);
                 List<Object[]> dailyRows = analyticsEventRepository.aggregateDailyMetrics(exhibitionId, startDateTime,
                                 endDateTime);
-                List<Object[]> revenueRows = paymentRepository.aggregateDailyRevenue(exhibitionId, startDateTime,
+                List<Object[]> revenueRows = exhibitionService.aggregateDailyRevenueForExhibition(exhibitionId,
+                                startDateTime,
                                 endDateTime);
-                List<Object[]> packageRows = paymentRepository.aggregatePaidPackageRevenue(exhibitionId,
+                List<Object[]> packageRows = exhibitionService.aggregatePaidPackageRevenueForExhibition(exhibitionId,
                                 startDateTime, endDateTime);
                 List<Object[]> visitorsByHourRows = analyticsEventRepository.aggregateExhibitionVisitorsByHour(
                                 exhibitionId, startDateTime, endDateTime);
@@ -470,9 +508,7 @@ public class AnalyticsService {
                 // Mức độ lấp đầy gian hàng: tính riêng, KHÔNG phụ thuộc khoảng ngày lọc, vì
                 // đây là trạng thái hiện tại của triển lãm chứ không phải số liệu theo thời
                 // gian.
-                long approvedBoothCount = exhibitorRegistrationRepository
-                                .countByExhibitionPackageExhibitionIdAndStatus(exhibitionId,
-                                                ExhibitorRegistrationStatus.APPROVED);
+                long approvedBoothCount = exhibitionService.countApprovedRegistrationsForExhibition(exhibitionId);
                 Integer estimatedBooths = exhibition.getEstimatedBooths();
                 double boothFillRatePercent = (estimatedBooths == null || estimatedBooths <= 0)
                                 ? 0.0
@@ -607,7 +643,7 @@ public class AnalyticsService {
                         Instant endDateTime,
                         long uniqueVisitorCount) {
                 Map<LeadStatus, Long> counts = new HashMap<>();
-                boothLeadRepository.countByStatusForExhibitionInRange(exhibitionId, startDateTime, endDateTime)
+                boothLeadService.countByStatusForExhibitionInRange(exhibitionId, startDateTime, endDateTime)
                                 .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
 
                 long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);
@@ -616,12 +652,12 @@ public class AnalyticsService {
                 long convertedCount = counts.getOrDefault(LeadStatus.CONVERTED, 0L);
                 long lostCount = counts.getOrDefault(LeadStatus.LOST, 0L);
                 long totalLeads = newCount + contactedCount + qualifiedCount + convertedCount + lostCount;
-                long uniqueLeadVisitors = boothLeadRepository.countUniqueLeadVisitorsForExhibition(
+                long uniqueLeadVisitors = boothLeadService.countUniqueLeadVisitorsForExhibition(
                                 exhibitionId, startDateTime, endDateTime);
-                long boothsWithLeads = boothLeadRepository.countBoothsWithLeadsForExhibition(
+                long boothsWithLeads = boothLeadService.countBoothsWithLeadsForExhibition(
                                 exhibitionId, startDateTime, endDateTime);
 
-                List<ExhibitionAnalyticsDetailDTO.LeadDailyPoint> dailyTrend = boothLeadRepository
+                List<ExhibitionAnalyticsDetailDTO.LeadDailyPoint> dailyTrend = boothLeadService
                                 .aggregateDailyForExhibition(exhibitionId, startDateTime, endDateTime)
                                 .stream()
                                 .map(row -> ExhibitionAnalyticsDetailDTO.LeadDailyPoint.builder()
@@ -630,7 +666,7 @@ public class AnalyticsService {
                                                 .build())
                                 .toList();
 
-                List<ExhibitionAnalyticsDetailDTO.LeadBoothSummary> topBooths = boothLeadRepository
+                List<ExhibitionAnalyticsDetailDTO.LeadBoothSummary> topBooths = boothLeadService
                                 .findTopBoothsForExhibition(
                                                 exhibitionId, startDateTime, endDateTime, PageRequest.of(0, 5))
                                 .stream()
@@ -675,8 +711,7 @@ public class AnalyticsService {
         public OrganizerBoothRankingPageDTO getOrganizerBoothRankingPage(User organizer, UUID exhibitionUuid,
                         LocalDate startDate, LocalDate endDate, String keyword, String sortBy, String sortDirection,
                         String interaction, int page, int size) {
-                Exhibition exhibition = exhibitionRepository.findByUuid(exhibitionUuid)
-                                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+                Exhibition exhibition = exhibitionService.findExhibitionEntityByUuid(exhibitionUuid);
                 if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
                         throw new AppException(ErrorCode.UNAUTHORIZED);
                 }
@@ -710,7 +745,7 @@ public class AnalyticsService {
                                         .build();
                         itemsByBooth.put(item.getBoothId(), item);
                 }
-                for (Booth booth : boothRepository.findBoothsByExhibitionId(exhibition.getId())) {
+                for (Booth booth : boothReviewService.findBoothsByExhibitionId(exhibition.getId())) {
                         itemsByBooth.putIfAbsent(booth.getId(), OrganizerBoothRankingItemDTO.builder()
                                         .boothId(booth.getId()).boothName(booth.getName())
                                         .exhibitionUuid(exhibition.getUuid().toString())
@@ -767,8 +802,7 @@ public class AnalyticsService {
                         LocalDate startDate, LocalDate endDate) {
                 // Chặng 1: tìm booth + kiểm tra quyền sở hữu (booth phải do chính exhibitor
                 // tạo)
-                Booth booth = boothRepository.findById(boothId)
-                                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+                Booth booth = boothReviewService.findBoothEntityById(boothId);
                 if (booth.getCreatedBy() == null || !booth.getCreatedBy().getId().equals(exhibitor.getId())) {
                         throw new AppException(ErrorCode.UNAUTHORIZED);
                 }
@@ -874,7 +908,7 @@ public class AnalyticsService {
         private BoothAnalyticsDetailDTO.LeadMetrics computeBoothLeadMetrics(
                         UUID boothId, Instant startDateTime, Instant endDateTime) {
                 Map<LeadStatus, Long> counts = new HashMap<>();
-                boothLeadRepository.countByStatusForBoothInRange(boothId, startDateTime, endDateTime)
+                boothLeadService.countByStatusForBoothInRange(boothId, startDateTime, endDateTime)
                                 .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
 
                 long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);
@@ -1014,7 +1048,7 @@ public class AnalyticsService {
                         LocalDate startDate, LocalDate endDate) {
                 // Chặng 1: tìm công ty + toàn bộ gian hàng (không phân trang) thuộc exhibitor
                 Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
-                List<Booth> booths = boothRepository.findCompanyBooths(company.getId(), Pageable.unpaged())
+                List<Booth> booths = boothReviewService.findCompanyBooths(company.getId(), Pageable.unpaged())
                                 .getContent();
 
                 // Chặng 2: khoảng ngày mặc định = 30 ngày gần nhất nếu client không gửi
@@ -1045,7 +1079,7 @@ public class AnalyticsService {
                 }
 
                 // Chặng 4: tin nhắn chưa đọc + số gian hàng đang hoạt động
-                long unreadMessages = chatMessageRepository.countUnreadForExhibitor(exhibitor.getId());
+                long unreadMessages = chatService.countUnreadForExhibitor(exhibitor.getId());
                 long activeBoothsCount = booths.stream().filter(b -> b.getStatus() == BoothStatus.PUBLISHED).count();
 
                 // Chặng 5: top 3 gian hàng nhiều lượt xem nhất trong kỳ
@@ -1088,7 +1122,7 @@ public class AnalyticsService {
         private ExhibitorDashboardOverviewDTO.LeadMetrics computeCompanyLeadMetrics(
                         UUID companyId, Instant startDateTime, Instant endDateTime) {
                 Map<LeadStatus, Long> counts = new HashMap<>();
-                boothLeadRepository.countByStatusForCompanyInRange(companyId, startDateTime, endDateTime)
+                boothLeadService.countByStatusForCompanyInRange(companyId, startDateTime, endDateTime)
                                 .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
 
                 long newCount = counts.getOrDefault(LeadStatus.NEW, 0L);

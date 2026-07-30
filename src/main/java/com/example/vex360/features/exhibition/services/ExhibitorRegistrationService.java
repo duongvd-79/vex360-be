@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.services;
 
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -27,4 +28,6 @@ public interface ExhibitorRegistrationService {
             String rejectedReason);
 
     ExhibitorRegistrationResponseDTO cancelRegistration(User exhibitor, UUID registrationUuid);
+
+    Optional<ExhibitorRegistration> findRegistrationWithRelationsById(Integer registrationId);
 }

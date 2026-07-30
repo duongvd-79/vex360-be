@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.wallet.entities.CommissionPolicy;
@@ -20,7 +21,7 @@ import lombok.experimental.FieldDefaults;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class CommissionPolicyService {
+public class CommissionPolicyService implements CommissionCalculator {
 
     CommissionPolicyRepository commissionPolicyRepository;
 
@@ -29,8 +30,15 @@ public class CommissionPolicyService {
         return commissionPolicyRepository.findAll();
     }
 
+    @Override
     @Transactional(readOnly = true)
-    public CommissionCalculationResult calculateCommission(BigDecimal amount, Instant time) {
+    public CommissionResult calculateCommission(BigDecimal amount, Instant time) {
+        CommissionCalculationResult result = calculateCommissionResult(amount, time);
+        return new CommissionResult(result.amount(), result.systemFee(), result.organizerPayout(), result.rateBasisPoints());
+    }
+
+    @Transactional(readOnly = true)
+    public CommissionCalculationResult calculateCommissionResult(BigDecimal amount, Instant time) {
         if (amount == null) {
             amount = BigDecimal.ZERO;
         }

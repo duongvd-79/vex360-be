@@ -1,11 +1,13 @@
 package com.example.vex360.features.product.services;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -389,5 +391,29 @@ public class ProductService {
             return ProductStatus.INACTIVE;
         }
         return status;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Product> findOptionalProductById(UUID productId) {
+        return productRepository.findById(productId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Product> findProductsByIdsAndCompanyId(Collection<UUID> ids, UUID companyId) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return productRepository.findByIdInAndCompanyId(new ArrayList<>(ids), companyId);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<UUID, ProductResponseDTO> findActiveProductResponsesByIds(List<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        return productRepository.findAllDetailsByIdInAndStatus(productIds, ProductStatus.ACTIVE)
+                .stream()
+                .map(productMapper::toResponse)
+                .collect(Collectors.toMap(ProductResponseDTO::getId, p -> p));
     }
 }

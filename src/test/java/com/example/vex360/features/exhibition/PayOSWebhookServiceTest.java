@@ -22,16 +22,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.context.ApplicationEventPublisher;
+import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
-import com.example.vex360.features.exhibition.events.StoragePackagePaymentCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
-import com.example.vex360.features.booth.entities.Booth;
-import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
-import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
@@ -54,10 +51,10 @@ class PayOSWebhookServiceTest {
     private ExhibitorRegistrationRepository registrationRepository;
 
     @Mock
-    private BoothProvisioningService boothProvisioningService;
+    private PaymentFulfillmentService fulfillmentService;
 
     @Mock
-    private PaymentFulfillmentService fulfillmentService;
+    private StoragePackageService storagePackageService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -67,9 +64,6 @@ class PayOSWebhookServiceTest {
 
     @Mock
     private vn.payos.service.blocking.webhooks.WebhooksService webhookService;
-
-    @Mock
-    private PaymentRevenueRecognitionService revenueRecognitionService;
 
     @InjectMocks
     private PayOSWebhookServiceImpl webhookServiceWrapper;
@@ -141,8 +135,6 @@ class PayOSWebhookServiceTest {
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
-        when(boothProvisioningService.ensureBoothForApprovedRegistration(1))
-                .thenReturn(Optional.of(Booth.builder().id(UUID.randomUUID()).build()));
         stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
@@ -155,7 +147,6 @@ class PayOSWebhookServiceTest {
 
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository).save(pendingRegistration);
-        verify(boothProvisioningService).ensureBoothForApprovedRegistration(1);
         verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
@@ -208,8 +199,6 @@ class PayOSWebhookServiceTest {
 
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successDataNoRef);
-        when(boothProvisioningService.ensureBoothForApprovedRegistration(1))
-                .thenReturn(Optional.of(Booth.builder().id(UUID.randomUUID()).build()));
         stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
@@ -243,7 +232,7 @@ class PayOSWebhookServiceTest {
 
         webhookServiceWrapper.handleWebhook(mockBody);
 
-        verify(eventPublisher).publishEvent(any(StoragePackagePaymentCompletedEvent.class));
+        verify(storagePackageService).markPaidAndIncrementQuota(77);
         verify(registrationRepository, never()).save(any());
     }
 
@@ -254,29 +243,13 @@ class PayOSWebhookServiceTest {
         pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
-        when(boothProvisioningService.ensureBoothForApprovedRegistration(1))
-                .thenReturn(Optional.of(Booth.builder().id(UUID.randomUUID()).build()));
         stubLockedPayment(pendingPayment);
 
         WebhookData result = webhookServiceWrapper.handleWebhook(mockBody);
 
         assertNotNull(result);
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
-        verify(boothProvisioningService).ensureBoothForApprovedRegistration(1);
-    }
-
-    @Test
-    void handleWebhook_boothProvisioningFails_throwsAppException() {
-        Object mockBody = new Object();
-        pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-
-        when(payOS.webhooks()).thenReturn(webhookService);
-        when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
-        when(boothProvisioningService.ensureBoothForApprovedRegistration(1)).thenReturn(Optional.empty());
-        stubLockedPayment(pendingPayment);
-
-        AppException ex = assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(mockBody));
-        assertEquals(ErrorCode.UNCATCHED_EXCEPTION, ex.getErrorCode());
+        verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test
@@ -307,7 +280,7 @@ class PayOSWebhookServiceTest {
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
         assertEquals(ExhibitorRegistrationStatus.REJECTED, pendingRegistration.getStatus());
         verify(registrationRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test

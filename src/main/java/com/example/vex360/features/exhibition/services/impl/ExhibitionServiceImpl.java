@@ -17,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.example.vex360.features.analytics.enums.AnalyticsEventType;
-import com.example.vex360.features.analytics.repositories.AnalyticsEventRepository;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -27,16 +25,13 @@ import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPa
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryItemResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.OrganizerExhibitionSummaryResponseDTO;
-import com.example.vex360.features.booth.enums.BoothStatus;
-import com.example.vex360.features.booth.repositories.BoothRepository;
-import com.example.vex360.features.company.repositories.CompanyRepository;
+import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -56,7 +51,7 @@ import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.utils.PageableUtils;
 
-import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
@@ -89,13 +84,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final PackageTemplateService packageTemplateService;
     private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitorRegistrationRepository exhibitorRegistrationRepository;
-    private final BoothRepository boothRepository;
-    private final CompanyRepository companyRepository;
+    private final PaymentRepository paymentRepository;
+    private final CompanyService companyService;
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
-    private final AnalyticsEventRepository analyticsEventRepository;
     private final ExhibitionTimelinePolicy timelinePolicy;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final ExhibitionReviewHistoryService reviewHistoryService;
 
     @Override
@@ -131,7 +125,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         // 1. Lock organizer row to prevent race conditions on pending count
-        userRepository.findByIdForUpdate(organizer.getId());
+        userService.getUserEntityByIdForUpdate(organizer.getId());
 
         // Validate dates & max duration
         if (request.getEndDate().isBefore(request.getStartDate())) {
@@ -278,12 +272,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
-        long visitorCount = analyticsEventRepository.countByExhibitionIdAndEventType(
-                exhibition.getId(), AnalyticsEventType.ENTER_EXHIBITION);
-
-        return exhibitionMapper.toPublicResponse(exhibition, null).toBuilder()
-                .visitorCount(visitorCount)
-                .build();
+        return exhibitionMapper.toPublicResponse(exhibition, null);
     }
 
     @Override
@@ -342,7 +331,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
-        return companyRepository.findByOwnerUserId(exhibition.getOrganizer().getId())
+        return companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
                 .map(company -> response.toBuilder()
                         .organizationName(company.getName())
                         .email(company.getEmail())
@@ -412,52 +401,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
-    public OrganizerExhibitionSummaryResponseDTO getSummaryForOrganizer(User organizer) {
-        List<OrganizerExhibitionSummaryItemResponseDTO> summaries = getSummariesByExhibitionForOrganizer(organizer);
-        long pendingRegistrationCount = 0;
-        long pendingBoothReviewCount = 0;
-        for (OrganizerExhibitionSummaryItemResponseDTO summary : summaries) {
-            pendingRegistrationCount += summary.getPendingRegistrationCount();
-            pendingBoothReviewCount += summary.getPendingBoothReviewCount();
+    public Map<Integer, Long> getPendingRegistrationCountsGroupedByExhibition(List<Integer> exhibitionIds) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
         }
-        return new OrganizerExhibitionSummaryResponseDTO(
-                pendingRegistrationCount,
-                pendingBoothReviewCount,
-                pendingRegistrationCount + pendingBoothReviewCount);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<OrganizerExhibitionSummaryItemResponseDTO> getSummariesByExhibitionForOrganizer(User organizer) {
-        if (organizer == null || organizer.getId() == null) {
-            log.error("Organizer authentication failed: null or missing ID");
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        List<Exhibition> exhibitions = exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
-        if (exhibitions.isEmpty()) {
-            return List.of();
-        }
-
-        List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
-        Map<Integer, Long> registrationCounts = getRegistrationCounts(exhibitionIds);
-        Map<Integer, Long> boothReviewCounts = getBoothReviewCounts(exhibitionIds);
-
-        List<OrganizerExhibitionSummaryItemResponseDTO> summaries = new ArrayList<>(exhibitions.size());
-        for (Exhibition exhibition : exhibitions) {
-            long pendingRegistrationCount = registrationCounts.getOrDefault(exhibition.getId(), 0L);
-            long pendingBoothReviewCount = boothReviewCounts.getOrDefault(exhibition.getId(), 0L);
-            summaries.add(new OrganizerExhibitionSummaryItemResponseDTO(
-                    exhibition.getUuid(),
-                    exhibition.getName(),
-                    pendingRegistrationCount,
-                    pendingBoothReviewCount,
-                    pendingRegistrationCount + pendingBoothReviewCount));
-        }
-        return summaries;
-    }
-
-    private Map<Integer, Long> getRegistrationCounts(List<Integer> exhibitionIds) {
         Map<Integer, Long> counts = new HashMap<>();
         for (Object[] row : exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
                 exhibitionIds, ACTION_REQUIRED_REGISTRATION_STATUSES)) {
@@ -466,13 +413,14 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         return counts;
     }
 
-    private Map<Integer, Long> getBoothReviewCounts(List<Integer> exhibitionIds) {
-        Map<Integer, Long> counts = new HashMap<>();
-        for (Object[] row : boothRepository.countBoothsGroupedByExhibitionAndStatus(
-                exhibitionIds, BoothStatus.PENDING)) {
-            counts.put((Integer) row[0], ((Number) row[1]).longValue());
+    @Override
+    @Transactional(readOnly = true)
+    public List<Exhibition> getOrganizerExhibitions(User organizer) {
+        if (organizer == null || organizer.getId() == null) {
+            log.error("Organizer authentication failed: null or missing ID");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        return counts;
+        return exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId());
     }
 
     @Override
@@ -1304,5 +1252,121 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         return exhibitionMapper.toResponse(exhibition, packages);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> countExhibitionsByStatus() {
+        return exhibitionRepository.countExhibitionsByStatus();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyCreatedExhibitions(Instant start, Instant end) {
+        return exhibitionRepository.aggregateDailyCreated(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Exhibition> getAllExhibitions() {
+        return exhibitionRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countExhibitions() {
+        return exhibitionRepository.count();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> countAdminPaymentsByStatus(Instant start, Instant end) {
+        return paymentRepository.countAdminPaymentsByStatus(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateAdminPaidMetrics(Instant start, Instant end) {
+        return paymentRepository.aggregateAdminPaidMetrics(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateAdminDailyRevenue(Instant start, Instant end) {
+        return paymentRepository.aggregateAdminDailyRevenue(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, Long> aggregateRevenueByExhibition(List<Integer> exhibitionIds, Instant start, Instant end) {
+        Map<Integer, Long> result = new HashMap<>();
+        paymentRepository.aggregateRevenueByExhibition(exhibitionIds, start, end)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Exhibition findExhibitionEntityByUuid(UUID uuid) {
+        return exhibitionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, Long> countRegistrationsByStatusGroupedByExhibition(List<Integer> exhibitionIds,
+            ExhibitorRegistrationStatus status) {
+        Map<Integer, Long> result = new HashMap<>();
+        exhibitorRegistrationRepository.countByStatusGroupedByExhibition(exhibitionIds, status)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyRegistrationSubmissions(List<Integer> exhibitionIds, Instant start,
+            Instant end) {
+        return exhibitorRegistrationRepository.aggregateDailySubmissions(exhibitionIds, start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countApprovedRegistrationsForExhibition(Integer exhibitionId) {
+        return exhibitorRegistrationRepository.countByExhibitionPackageExhibitionIdAndStatus(
+                exhibitionId, ExhibitorRegistrationStatus.APPROVED);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateOrganizerDailyRevenue(List<Integer> exhibitionIds, Instant start, Instant end) {
+        return paymentRepository.aggregateOrganizerDailyRevenue(exhibitionIds, start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateOrganizerPackageRevenue(List<Integer> exhibitionIds, Instant start, Instant end) {
+        return paymentRepository.aggregateOrganizerPackageRevenue(exhibitionIds, start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregateDailyRevenueForExhibition(Integer exhibitionId, Instant start, Instant end) {
+        return paymentRepository.aggregateDailyRevenue(exhibitionId, start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> aggregatePaidPackageRevenueForExhibition(Integer exhibitionId, Instant start, Instant end) {
+        return paymentRepository.aggregatePaidPackageRevenue(exhibitionId, start, end);
+    }
+
+    @Override
+    @Transactional
+    public Exhibition findExhibitionForUpdate(Integer id) {
+        if (id == null) {
+            throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+        }
+        return exhibitionRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
     }
 }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,9 +37,6 @@ import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
-import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
-import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
-import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -64,10 +61,6 @@ class ExhibitorMediaAssetServiceUnitTest {
 
     @Mock
     private CompanyStorageService companyStorageService;
-    @Mock
-    private DesignAssetReferenceService assetReferenceService;
-    @Mock
-    private DesignRequestMediaAssetRepository requestMediaAssetRepository;
 
     private ExhibitorMediaAssetService mediaAssetService;
 
@@ -84,9 +77,7 @@ class ExhibitorMediaAssetServiceUnitTest {
                 companyService,
                 companyStorageService,
                 cloudService,
-                boothMapper,
-                assetReferenceService,
-                requestMediaAssetRepository);
+                boothMapper);
 
         currentUser = User.builder().id(UUID.randomUUID()).email("user@example.com").build();
         company = Company.builder().id(UUID.randomUUID()).name("Company Corp").build();
@@ -124,8 +115,8 @@ class ExhibitorMediaAssetServiceUnitTest {
         when(mediaAssetRepository.findByCompanyIdAndType(
                 company.getId(), MediaAssetType.IMAGE, pageable)).thenReturn(page);
 
-        PageResponse<MediaAssetResponseDTO> response =
-                mediaAssetService.getMediaAssets(currentUser, " ImAgE ", pageable);
+        PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, " ImAgE ",
+                pageable);
 
         assertEquals(1, response.getContent().size());
         verify(mediaAssetRepository).findByCompanyIdAndType(
@@ -139,8 +130,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         when(mediaAssetRepository.findByCompanyIdAndType(
                 company.getId(), MediaAssetType.VIDEO, pageable)).thenReturn(Page.empty(pageable));
 
-        PageResponse<MediaAssetResponseDTO> response =
-                mediaAssetService.getMediaAssets(currentUser, "video", pageable);
+        PageResponse<MediaAssetResponseDTO> response = mediaAssetService.getMediaAssets(currentUser, "video", pageable);
 
         assertEquals(0, response.getContent().size());
         verify(mediaAssetRepository).findByCompanyIdAndType(
@@ -328,23 +318,6 @@ class ExhibitorMediaAssetServiceUnitTest {
     }
 
     @Test
-    void testDeleteMediaAsset_UsedByActiveDesignRequest_ThrowsLockedException() {
-        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
-        UUID assetId = mediaAsset.getId();
-        when(mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId())).thenReturn(Optional.of(mediaAsset));
-        when(hotspotRepository.existsByMediaAssetId(assetId)).thenReturn(false);
-        when(requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
-                assetId, DesignRequestRepository.NON_TERMINAL_STATUSES)).thenReturn(true);
-
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> mediaAssetService.deleteMediaAsset(currentUser, assetId));
-
-        assertEquals(ErrorCode.DESIGN_MEDIA_ASSET_LOCKED, exception.getErrorCode());
-        verify(mediaAssetRepository, never()).delete(any());
-    }
-
-    @Test
     void testDeleteMediaAsset_Success_Image() {
         when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
         UUID assetId = mediaAsset.getId();
@@ -356,7 +329,6 @@ class ExhibitorMediaAssetServiceUnitTest {
         assertNotNull(response);
         assertEquals(assetId, response.getId());
         verify(mediaAssetRepository).delete(mediaAsset);
-        verify(assetReferenceService).scheduleCleanup("public-123", "image");
     }
 
     @Test
@@ -371,7 +343,6 @@ class ExhibitorMediaAssetServiceUnitTest {
 
         assertNotNull(response);
         verify(mediaAssetRepository).delete(mediaAsset);
-        verify(assetReferenceService).scheduleCleanup("public-123", "video");
     }
 
     @Test
@@ -380,7 +351,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         CreateMediaAssetRequest request = new CreateMediaAssetRequest();
         request.setName("Name");
 
-        MultipartFile file = Mockito.mock(MultipartFile.class);
+        MultipartFile file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getContentType()).thenReturn(null);
 

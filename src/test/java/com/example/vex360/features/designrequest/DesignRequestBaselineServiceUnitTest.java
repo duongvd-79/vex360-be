@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Panorama;
-import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
@@ -34,7 +34,7 @@ import com.example.vex360.features.user.entities.User;
 @ExtendWith(MockitoExtension.class)
 class DesignRequestBaselineServiceUnitTest {
     @Mock
-    PanoramaRepository panoramaRepository;
+    BoothDesignService boothDesignService;
     @Mock
     DesignDraftAssetRepository assetRepository;
 
@@ -53,7 +53,7 @@ class DesignRequestBaselineServiceUnitTest {
                 .mode(DesignRequestMode.INITIAL_DESIGN)
                 .build();
 
-        new DesignRequestBaselineService(panoramaRepository, assetRepository).createWorkingBaseline(request);
+        new DesignRequestBaselineService(boothDesignService, assetRepository).createWorkingBaseline(request);
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());
@@ -61,7 +61,7 @@ class DesignRequestBaselineServiceUnitTest {
         assertEquals("Description", request.getDrafts().get(0).getBoothDescription());
         assertEquals("classic", request.getDrafts().get(0).getDisplayTemplateKey());
         assertTrue(request.getDrafts().get(0).getPanoramas().isEmpty());
-        verifyNoInteractions(panoramaRepository, assetRepository);
+        verifyNoInteractions(boothDesignService, assetRepository);
     }
 
     @Test
@@ -84,7 +84,7 @@ class DesignRequestBaselineServiceUnitTest {
         when(assetRepository.save(any(DesignDraftAsset.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        new DesignRequestBaselineService(panoramaRepository, assetRepository).createWorkingBaseline(request);
+        new DesignRequestBaselineService(boothDesignService, assetRepository).createWorkingBaseline(request);
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());
@@ -93,7 +93,7 @@ class DesignRequestBaselineServiceUnitTest {
                 request.getDrafts().get(0).getThumbnailAsset().getPublicId());
         assertEquals(DesignDraftAssetSource.BOOTH_BASELINE,
                 request.getDrafts().get(0).getThumbnailAsset().getAssetSource());
-        verifyNoInteractions(panoramaRepository);
+        verifyNoInteractions(boothDesignService);
     }
 
     @Test
@@ -116,11 +116,11 @@ class DesignRequestBaselineServiceUnitTest {
                 .requestedBy(exhibitor)
                 .mode(DesignRequestMode.REDESIGN)
                 .build();
-        when(panoramaRepository.findDetailsByBoothId(boothId)).thenReturn(List.of(panorama));
+        when(boothDesignService.findPanoramaDetailsByBoothId(boothId)).thenReturn(List.of(panorama));
         when(assetRepository.findByDesignRequestIdAndPublicId(request.getId(), "panorama/original"))
                 .thenReturn(Optional.empty());
 
-        new DesignRequestBaselineService(panoramaRepository, assetRepository).createWorkingBaseline(request);
+        new DesignRequestBaselineService(boothDesignService, assetRepository).createWorkingBaseline(request);
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());

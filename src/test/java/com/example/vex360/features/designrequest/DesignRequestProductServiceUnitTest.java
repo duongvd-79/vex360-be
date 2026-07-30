@@ -13,7 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
-import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
@@ -21,16 +21,16 @@ import com.example.vex360.features.designrequest.repositories.DesignRequestProdu
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
-import com.example.vex360.features.product.repositories.ProductRepository;
+import com.example.vex360.features.product.services.ProductService;
 
 @ExtendWith(MockitoExtension.class)
 class DesignRequestProductServiceUnitTest {
     @Mock
     DesignRequestProductRepository requestProductRepository;
     @Mock
-    ProductRepository productRepository;
+    ProductService productService;
     @Mock
-    HotspotRepository hotspotRepository;
+    BoothDesignService boothDesignService;
 
     @Test
     void initialDesignAcceptsSelectedProducts() {
@@ -42,10 +42,10 @@ class DesignRequestProductServiceUnitTest {
                 .booth(Booth.builder().id(UUID.randomUUID()).build())
                 .mode(DesignRequestMode.INITIAL_DESIGN)
                 .build();
-        when(productRepository.findByIdInAndCompanyId(List.of(selected.getId()), company.getId()))
+        when(productService.findProductsByIdsAndCompanyId(List.of(selected.getId()), company.getId()))
                 .thenReturn(List.of(selected));
 
-        new DesignRequestProductService(requestProductRepository, productRepository, hotspotRepository)
+        new DesignRequestProductService(requestProductRepository, productService, boothDesignService)
                 .initializeAllowlist(request, List.of(selected.getId()));
 
         assertEquals(1, request.getProducts().size());
@@ -62,10 +62,10 @@ class DesignRequestProductServiceUnitTest {
                 .booth(Booth.builder().id(UUID.randomUUID()).build())
                 .mode(DesignRequestMode.INITIAL_DESIGN)
                 .build();
-        when(productRepository.findByIdInAndCompanyId(List.of(selected.getId()), company.getId()))
+        when(productService.findProductsByIdsAndCompanyId(List.of(selected.getId()), company.getId()))
                 .thenReturn(List.of(selected));
 
-        new DesignRequestProductService(requestProductRepository, productRepository, hotspotRepository)
+        new DesignRequestProductService(requestProductRepository, productService, boothDesignService)
                 .initializeAllowlist(request, List.of(selected.getId(), selected.getId()));
 
         assertEquals(1, request.getProducts().size());
