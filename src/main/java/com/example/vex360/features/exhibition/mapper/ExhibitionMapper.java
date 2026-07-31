@@ -2,6 +2,7 @@ package com.example.vex360.features.exhibition.mapper;
 
 import java.util.List;
 
+import org.mapstruct.InheritConfiguration;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -58,10 +59,9 @@ public interface ExhibitionMapper {
     @Mapping(target = "readinessBlockerCount", ignore = true)
     ExhibitionResponseDTO toResponse(Exhibition exhibition);
 
-    default ExhibitionResponseDTO toPublicResponse(Exhibition exhibition, List<ExhibitionPackage> packages) {
-        ExhibitionResponseDTO response = toResponse(exhibition, packages);
-        return response == null ? null : response.toBuilder().id(null).build();
-    }
+    @InheritConfiguration(name = "toResponse")
+    @Mapping(target = "id", ignore = true)
+    ExhibitionResponseDTO toPublicResponse(Exhibition exhibition, List<ExhibitionPackage> packages);
 
     ExhibitionPackageResponseDTO toPackageResponse(ExhibitionPackage pkg);
 }

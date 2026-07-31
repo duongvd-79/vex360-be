@@ -220,7 +220,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             long orderCode = System.currentTimeMillis() / 1000 * 1000000L + this.random.nextLong(1000000L);
 
             CommissionResult calc = commissionCalculator
-                    .calculateCommission(finalPrice, java.time.Instant.now());
+                    .calculateCommission(finalPrice, Instant.now());
 
             Payment newPayment = Payment.builder()
                     .exhibitorRegistration(registration)
@@ -286,34 +286,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 organizer.getId(), exhibitionUuid, status,
                 keyword == null || keyword.isBlank() ? null : keyword.trim(), pageable);
 
-        List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
-
-        // High Performance: Fetch all associated payments in ONE batch query (anti-N+1
-        // query pattern)
-        Map<Integer, Payment> paymentMap = new HashMap<>();
-        if (!registrationIds.isEmpty()) {
-            List<Payment> payments = paymentRepository.findByExhibitorRegistrationIdIn(registrationIds);
-            for (Payment p : payments) {
-                Payment existing = paymentMap.get(p.getExhibitorRegistration().getId());
-                if (existing == null || p.getCreatedAt().isAfter(existing.getCreatedAt())) {
-                    paymentMap.put(p.getExhibitorRegistration().getId(), p);
-                }
-            }
-        }
-
-        List<ExhibitorRegistrationResponseDTO> dtoList = page.getContent().stream()
-                .map(r -> mapToResponse(r, paymentMap.get(r.getId())))
-                .toList();
-
-        return PageResponse.<ExhibitorRegistrationResponseDTO>builder()
-                .page(page.getNumber())
-                .size(page.getSize())
-                .totalPages(page.getTotalPages())
-                .totalElements(page.getTotalElements())
-                .first(page.isFirst())
-                .last(page.isLast())
-                .content(dtoList)
-                .build();
+        return mapToPageResponse(page);
     }
 
     @Override
@@ -331,32 +304,21 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
                 company.getId(), status, normalizedKeyword, pageable);
 
+        return mapToPageResponse(page);
+    }
+
+    private PageResponse<ExhibitorRegistrationResponseDTO> mapToPageResponse(Page<ExhibitorRegistration> page) {
         List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
 
         Map<Integer, Payment> paymentMap = new HashMap<>();
         if (!registrationIds.isEmpty()) {
-            List<Payment> payments = paymentRepository.findByExhibitorRegistrationIdIn(registrationIds);
+            List<Payment> payments = paymentRepository.findLatestPaymentsByRegistrationIds(registrationIds);
             for (Payment p : payments) {
-                Payment existing = paymentMap.get(p.getExhibitorRegistration().getId());
-                if (existing == null || p.getCreatedAt().isAfter(existing.getCreatedAt())) {
-                    paymentMap.put(p.getExhibitorRegistration().getId(), p);
-                }
+                paymentMap.put(p.getExhibitorRegistration().getId(), p);
             }
         }
 
-        List<ExhibitorRegistrationResponseDTO> dtoList = page.getContent().stream()
-                .map(r -> mapToResponse(r, paymentMap.get(r.getId())))
-                .toList();
-
-        return PageResponse.<ExhibitorRegistrationResponseDTO>builder()
-                .page(page.getNumber())
-                .size(page.getSize())
-                .totalPages(page.getTotalPages())
-                .totalElements(page.getTotalElements())
-                .first(page.isFirst())
-                .last(page.isLast())
-                .content(dtoList)
-                .build();
+        return PageResponse.from(page.map(r -> mapToResponse(r, paymentMap.get(r.getId()))));
     }
 
     @Override
@@ -476,8 +438,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             }
         }
 
-        Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
-                .orElse(null);
+        Payment payment = pendingPayments.isEmpty() ? null : pendingPayments.get(0);
 
         return mapToResponse(registration, payment);
     }
@@ -534,8 +495,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             }
         }
 
-        Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
-                .orElse(null);
+        Payment payment = payments.isEmpty() ? null : payments.get(0);
 
         return mapToResponse(registration, payment);
     }

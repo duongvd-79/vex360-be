@@ -63,7 +63,6 @@ class ExhibitionReviewHistoryServiceTest {
         reviewHistoryService = new ExhibitionReviewHistoryServiceImpl(
                 reviewRequestRepository,
                 exhibitionRepository,
-                exhibitionAssetRepository,
                 mapper);
 
         organizer = User.builder()

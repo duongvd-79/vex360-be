@@ -31,7 +31,6 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
     @Query(value = """
             SELECT e FROM Exhibition e
             LEFT JOIN e.organizer o
-            LEFT JOIN e.reviewedBy r
             WHERE (:keyword IS NULL
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -66,16 +65,16 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             @Param("keyword") String keyword,
             @Param("statuses") List<ExhibitionStatus> statuses,
             @Param("category") String category,
-            @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
             Pageable pageable);
 
     default Page<Exhibition> searchAdminExhibitions(
             String keyword,
             List<ExhibitionStatus> statuses,
             String category,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate,
+            LocalDate startDate,
+            LocalDate endDate,
             Pageable pageable) {
         return searchExhibitions(keyword, statuses, category, startDate, endDate, pageable);
     }
@@ -114,8 +113,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
               AND (:endDate IS NULL OR e.endDate <= :endDate)
             """, countQuery = """
             SELECT COUNT(e) FROM Exhibition e
-            LEFT JOIN e.organizer o
-            WHERE o.id = :organizerId
+            WHERE e.organizer.id = :organizerId
               AND (:keyword IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:status IS NULL OR e.status = :status)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
@@ -127,8 +125,8 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             @Param("keyword") String keyword,
             @Param("status") ExhibitionStatus status,
             @Param("category") String category,
-            @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
             Pageable pageable);
 
     List<Exhibition> findByOrganizerIdOrderByCreatedAtDesc(UUID organizerId);

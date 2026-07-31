@@ -158,28 +158,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         // Pre-validate packages
-        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
-            if (request.getPackages().size() > 3) {
-                log.error("Exhibition packages size exceeds limit of 3");
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-
-            Set<BoothListingPriority> priorities = new HashSet<>();
-            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
-
-                if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
-                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
-                            template.getPrice());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-
-                if (!priorities.add(template.getListingPriority())) {
-                    log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-            }
-        }
+        List<ValidatedPackage> validatedPackages = validateAndResolvePackages(request.getPackages());
 
         // Save exhibition entity after all validations pass
         Exhibition exhibition = Exhibition.builder()
@@ -212,19 +191,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Save packages
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
-        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
-            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
+        for (ValidatedPackage vp : validatedPackages) {
+            ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                    .exhibition(exhibition)
+                    .template(vp.template())
+                    .finalPrice(vp.request().getFinalPrice())
+                    .status(ExhibitionPackageStatus.ACTIVE)
+                    .build();
 
-                ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                        .exhibition(exhibition)
-                        .template(template)
-                        .finalPrice(pkgReq.getFinalPrice())
-                        .status(ExhibitionPackageStatus.ACTIVE)
-                        .build();
-
-                savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
-            }
+            savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
         }
 
         // Upload sponsor logos and save as ExhibitionAsset
@@ -516,28 +491,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         // Pre-validate packages
-        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
-            if (request.getPackages().size() > 3) {
-                log.error("Exhibition packages size exceeds limit of 3");
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-
-            Set<BoothListingPriority> priorities = new HashSet<>();
-            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
-
-                if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
-                    log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
-                            template.getPrice());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-
-                if (!priorities.add(template.getListingPriority())) {
-                    log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-            }
-        }
+        List<ValidatedPackage> validatedPackages = validateAndResolvePackages(request.getPackages());
 
         // Update basic metadata
         exhibition.setName(trimmedName);
@@ -568,19 +522,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibitionPackageRepository.deleteAll(oldPackages);
 
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
-        if (request.getPackages() != null && !request.getPackages().isEmpty()) {
-            for (ConfigureExhibitionPackageRequest pkgReq : request.getPackages()) {
-                PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
+        for (ValidatedPackage vp : validatedPackages) {
+            ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                    .exhibition(exhibition)
+                    .template(vp.template())
+                    .finalPrice(vp.request().getFinalPrice())
+                    .status(ExhibitionPackageStatus.ACTIVE)
+                    .build();
 
-                ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                        .exhibition(exhibition)
-                        .template(template)
-                        .finalPrice(pkgReq.getFinalPrice())
-                        .status(ExhibitionPackageStatus.ACTIVE)
-                        .build();
-
-                savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
-            }
+            savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
         }
 
         reviewHistoryService.recordResubmissionOrUpdate(exhibition, organizer, null);
@@ -774,10 +724,42 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
     }
 
+    private record ValidatedPackage(ConfigureExhibitionPackageRequest request, PackageTemplate template) {
+    }
+
+    private List<ValidatedPackage> validateAndResolvePackages(List<ConfigureExhibitionPackageRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+        if (requests.size() > 3) {
+            log.error("Exhibition packages size exceeds limit of 3");
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+        List<ValidatedPackage> validatedList = new ArrayList<>(requests.size());
+        Set<BoothListingPriority> priorities = new HashSet<>();
+        for (ConfigureExhibitionPackageRequest pkgReq : requests) {
+            PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
+            if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
+                log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
+                        template.getPrice());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            if (!priorities.add(template.getListingPriority())) {
+                log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            validatedList.add(new ValidatedPackage(pkgReq, template));
+        }
+        return validatedList;
+    }
+
     private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type,
             String resourceType) {
-        ExhibitionAsset existingAsset = exhibitionAssetRepository.findByExhibitionIdAndType(exhibition.getId(), type)
-                .orElse(null);
+        ExhibitionAsset existingAsset = (exhibition.getAssets() == null) ? null
+                : exhibition.getAssets().stream()
+                        .filter(a -> a.getType() == type)
+                        .findFirst()
+                        .orElse(null);
         CloudinaryResponse uploadRes = cloudService.upload(file);
         deleteCloudAssetOnRollback(uploadRes.getPublicId(), resourceType);
         if (existingAsset != null) {

@@ -20,7 +20,6 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
-import vn.payos.model.v2.paymentRequests.PaymentLink;
 
 @Service
 @RequiredArgsConstructor
@@ -68,16 +67,6 @@ public class StoragePaymentService {
             paymentRepository.save(payment);
             return response.getCheckoutUrl();
         } catch (Exception e) {
-            try {
-                PaymentLink linkData = payOSIntegrationService
-                        .getPaymentLinkInformation(orderCode);
-                if (linkData != null) {
-                    payment.setStatus(PaymentStatus.PENDING);
-                    paymentRepository.save(payment);
-                }
-            } catch (Exception ex) {
-                // Ignore secondary failure
-            }
             payment.setStatus(PaymentStatus.FAILED);
             paymentRepository.save(payment);
             throw new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE);

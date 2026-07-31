@@ -661,15 +661,13 @@ class ExhibitorRegistrationServiceTest {
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest))
                 .thenReturn(new PageImpl<>(List.of(reg1, reg2), pageRequest, 2));
 
-        Payment payment1Old = Payment.builder().id(100).status(PaymentStatus.FAILED).exhibitorRegistration(reg1)
-                .createdAt(Instant.now().minusSeconds(86400)).build();
         Payment payment1New = Payment.builder().id(101).status(PaymentStatus.PENDING).exhibitorRegistration(reg1)
                 .createdAt(Instant.now()).build();
         Payment payment2 = Payment.builder().id(102).status(PaymentStatus.PAID).exhibitorRegistration(reg2)
                 .createdAt(Instant.now()).build();
 
-        when(paymentRepository.findByExhibitorRegistrationIdIn(List.of(1, 2)))
-                .thenReturn(List.of(payment1Old, payment1New, payment2));
+        when(paymentRepository.findLatestPaymentsByRegistrationIds(List.of(1, 2)))
+                .thenReturn(List.of(payment1New, payment2));
 
         var pageResponse = registrationService.getRegistrationsForOrganizer(organizer, exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest);
@@ -913,11 +911,9 @@ class ExhibitorRegistrationServiceTest {
         Instant now = Instant.now();
         Payment payment1New = Payment.builder().id(101).status(PaymentStatus.PENDING).exhibitorRegistration(reg1)
                 .createdAt(now).build();
-        Payment payment1Old = Payment.builder().id(100).status(PaymentStatus.FAILED).exhibitorRegistration(reg1)
-                .createdAt(now.minusSeconds(86400)).build();
 
-        when(paymentRepository.findByExhibitorRegistrationIdIn(List.of(1)))
-                .thenReturn(List.of(payment1New, payment1Old));
+        when(paymentRepository.findLatestPaymentsByRegistrationIds(List.of(1)))
+                .thenReturn(List.of(payment1New));
 
         var pageResponse = registrationService.getRegistrationsForOrganizer(organizer, exhibitionUuid,
                 ExhibitorRegistrationStatus.PENDING, "pro", pageRequest);
@@ -1085,8 +1081,6 @@ class ExhibitorRegistrationServiceTest {
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
         when(paymentRepository.findByExhibitorRegistrationIdForUpdate(1)).thenReturn(List.of(pendingPayment));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
-                .thenReturn(Optional.of(pendingPayment));
 
         ExhibitorRegistrationResponseDTO result = registrationService.cancelRegistration(companyUser, registrationUuid);
 

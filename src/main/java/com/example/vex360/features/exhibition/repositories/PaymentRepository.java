@@ -33,12 +33,23 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     Optional<Payment> findByOrderCodeForUpdate(@Param("orderCode") Long orderCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT p FROM Payment p WHERE p.exhibitorRegistration.id = :registrationId")
+    @Query("SELECT p FROM Payment p WHERE p.exhibitorRegistration.id = :registrationId ORDER BY p.createdAt DESC")
     List<Payment> findByExhibitorRegistrationIdForUpdate(@Param("registrationId") Integer registrationId);
 
     Optional<Payment> findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(Integer exhibitorRegistrationId);
 
     List<Payment> findByExhibitorRegistrationIdIn(List<Integer> exhibitorRegistrationIds);
+
+    @Query("""
+            SELECT p FROM Payment p
+            WHERE p.id IN (
+                SELECT MAX(p2.id)
+                FROM Payment p2
+                WHERE p2.exhibitorRegistration.id IN :registrationIds
+                GROUP BY p2.exhibitorRegistration.id
+            )
+            """)
+    List<Payment> findLatestPaymentsByRegistrationIds(@Param("registrationIds") List<Integer> registrationIds);
 
     boolean existsByPaymentReferenceAndIdNot(String paymentReference, Integer id);
 
@@ -59,6 +70,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
               AND p.paymentType = com.example.vex360.shared.enums.PaymentType.EXHIBITION_REGISTRATION
             """)
     List<Payment> findPendingExhibitionPayments(Pageable pageable);
+
     /**
      * Doanh thu bán gói đã thanh toán theo từng ngày của một triển lãm — dùng cho
      * biểu đồ doanh thu ở dashboard ban tổ chức.
@@ -81,7 +93,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             @Param("start") Instant start,
             @Param("end") Instant end);
 
-    /** Số payment record PAID (một registration có thể có nhiều record) và doanh thu theo gói. */
+    /**
+     * Số payment record PAID (một registration có thể có nhiều record) và doanh thu
+     * theo gói.
+     */
     @Query(value = """
             SELECT r.package_name_snapshot AS package_name,
                    COUNT(p.id) AS quantity,
