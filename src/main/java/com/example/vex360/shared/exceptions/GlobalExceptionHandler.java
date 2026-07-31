@@ -8,6 +8,7 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -82,6 +83,27 @@ public class GlobalExceptionHandler {
                 .error(errorCode.getHttpStatus().name())
                 .code(errorCode.getCode())
                 .message(errorCode.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+        log.warn("Method argument type mismatch for request: {} - parameter '{}'",
+                LogSanitizer.sanitize(request.getRequestURI()),
+                LogSanitizer.sanitize(ex.getName()));
+
+        ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(errorCode.getHttpStatus().value())
+                .error(errorCode.getHttpStatus().name())
+                .code(errorCode.getCode())
+                .message("Tham số '" + ex.getName() + "' không hợp lệ")
                 .path(request.getRequestURI())
                 .build();
 
