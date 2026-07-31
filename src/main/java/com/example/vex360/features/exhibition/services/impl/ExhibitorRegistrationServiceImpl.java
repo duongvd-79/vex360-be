@@ -54,6 +54,8 @@ import vn.payos.model.v2.paymentRequests.PaymentLinkStatus;
 
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.mail.AfterCommitExecutor;
+import com.example.vex360.features.mail.MailService;
 
 @Service
 @RequiredArgsConstructor
@@ -70,6 +72,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final CommissionCalculator commissionCalculator;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final MailService mailService;
+    private final AfterCommitExecutor afterCommitExecutor;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
     private String returnUrl;
 
@@ -419,6 +423,10 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
                 .orElse(null);
 
+        if (registration.getStatus() == ExhibitorRegistrationStatus.PENDING_PAYMENT) {
+            sendExhibitorRegistrationReviewMailSafely(registration, ExhibitorRegistrationStatus.PENDING_PAYMENT, null);
+        }
+
         return mapToResponse(registration, payment);
     }
 
@@ -479,7 +487,51 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
                 .orElse(null);
 
+        sendExhibitorRegistrationReviewMailSafely(registration, ExhibitorRegistrationStatus.REJECTED, normalizedReason);
+
         return mapToResponse(registration, payment);
+    }
+
+    private void sendExhibitorRegistrationReviewMailSafely(
+            ExhibitorRegistration registration,
+            ExhibitorRegistrationStatus result,
+            String rejectedReason) {
+        try {
+            Company company = registration.getCompany();
+            User recipient = company != null ? company.getOwnerUser() : null;
+            if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+                log.warn("Cannot send exhibitor registration review email for registration ID {}: recipient or email missing", registration.getId());
+                return;
+            }
+            ExhibitionPackage pkg = registration.getExhibitionPackage();
+            Exhibition exhibition = pkg != null ? pkg.getExhibition() : null;
+            String recipientEmail = recipient.getEmail();
+            String recipientFullName = recipient.getFullName();
+            String exhibitionName = exhibition != null ? exhibition.getName() : "";
+            String companyName = company != null ? company.getName() : "";
+            String packageName = registration.getPackageNameSnapshot() != null && !registration.getPackageNameSnapshot().isBlank()
+                    ? registration.getPackageNameSnapshot()
+                    : ((pkg != null && pkg.getTemplate() != null) ? pkg.getTemplate().getName() : "");
+            BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
+                    ? registration.getFinalPriceSnapshot()
+                    : (pkg != null ? pkg.getFinalPrice() : null);
+            String currency = registration.getCurrencySnapshot() != null && !registration.getCurrencySnapshot().isBlank()
+                    ? registration.getCurrencySnapshot()
+                    : "VND";
+
+            afterCommitExecutor.execute(() -> mailService.sendExhibitorRegistrationReviewResultEmail(
+                    recipientEmail,
+                    recipientFullName,
+                    companyName,
+                    exhibitionName,
+                    packageName,
+                    finalPrice,
+                    currency,
+                    result,
+                    rejectedReason));
+        } catch (Exception e) {
+            log.error("Failed to trigger exhibitor registration review email for registration ID {}: {}", registration.getId(), e.getMessage());
+        }
     }
 
     @Override

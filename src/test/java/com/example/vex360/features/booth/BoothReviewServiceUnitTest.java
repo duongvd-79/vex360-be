@@ -30,6 +30,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 
 import com.example.vex360.features.booth.dtos.request.RejectBoothReviewRequest;
+import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewChangeSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
@@ -82,6 +83,8 @@ class BoothReviewServiceUnitTest {
     BoothReviewContentAssembler contentAssembler;
     @Mock
     ExhibitionService exhibitionService;
+    @Mock
+    MailService mailService;
 
     private BoothReviewService service;
     private User exhibitor;
@@ -108,6 +111,8 @@ class BoothReviewServiceUnitTest {
                 diffService,
                 contentAssembler,
                 exhibitionService,
+                mailService,
+                new com.example.vex360.features.mail.AfterCommitExecutor(),
                 clock);
         exhibitor = User.builder().id(UUID.randomUUID()).fullName("Exhibitor Owner").build();
         organizer = User.builder().id(UUID.randomUUID()).build();

@@ -70,6 +70,7 @@ class PartnershipRequestServiceUnitTest {
     void setup() {
         partnershipRequestService = new PartnershipRequestService(
                 partnershipRequestRepository, userService, companyService, mailService,
+                new com.example.vex360.features.mail.AfterCommitExecutor(),
                 Mappers.getMapper(PartnershipRequestMapper.class));
 
         ReflectionTestUtils.setField(partnershipRequestService, "backendBaseUrl", "http://localhost:8080");
@@ -184,7 +185,7 @@ class PartnershipRequestServiceUnitTest {
         assertNotNull(request.getReviewedAt());
         verify(userService).createUser(any(CreateUserRequest.class), eq(UserStatus.ACTIVE));
         verify(companyService).createCompany(any(User.class), eq("Vex360 Partner"), eq("requester@example.com"), eq("0912345678"));
-        verify(mailService).sendNewUserCredentialsEmail(anyString(), anyString(), anyString());
+        verify(mailService).sendPartnershipGuestApprovedEmail(eq("requester@example.com"), eq("Requester Name"), anyString(), eq(Role.EXHIBITOR), eq("Vex360 Partner"));
     }
 
     @Test

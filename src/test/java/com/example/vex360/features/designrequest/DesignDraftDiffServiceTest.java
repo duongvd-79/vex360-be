@@ -115,4 +115,57 @@ class DesignDraftDiffServiceTest {
         assertTrue(summary.getItems().stream().anyMatch(i -> i.getScope() == ChangeScope.HOTSPOT && i.getChangeType() == ChangeType.MODIFIED));
         assertTrue(summary.getItems().stream().anyMatch(i -> i.getScope() == ChangeScope.PRODUCT && i.getChangeType() == ChangeType.ADDED));
     }
+
+    @Test
+    void compareUnchangedRedesignBaselineWithBooth_ReturnsNoChanges() {
+        UUID panoramaId = UUID.randomUUID();
+        Panorama boothPanorama = Panorama.builder()
+                .id(panoramaId)
+                .imageKey("panorama/showroom")
+                .name("Showroom")
+                .orderIndex(0)
+                .isDefault(true)
+                .build();
+        Hotspot boothHotspot = Hotspot.builder()
+                .name("Entrance")
+                .sourcePanorama(boothPanorama)
+                .targetPanorama(boothPanorama)
+                .type(HotspotType.NAV)
+                .xPosition(0.0)
+                .yPosition(0.0)
+                .zPosition(0.0)
+                .build();
+        boothPanorama.setHotspots(List.of(boothHotspot));
+        Booth booth = Booth.builder()
+                .name("Booth")
+                .description("Description")
+                .panoramas(List.of(boothPanorama))
+                .build();
+
+        DesignDraftPanorama draftPanorama = DesignDraftPanorama.builder()
+                .clientKey(panoramaId.toString())
+                .imageKey("panorama/showroom")
+                .name("Showroom")
+                .orderIndex(0)
+                .isDefault(true)
+                .build();
+        draftPanorama.setHotspots(List.of(DesignDraftHotspot.builder()
+                .name("Entrance")
+                .sourcePanorama(draftPanorama)
+                .targetDraftPanoramaKey(panoramaId.toString())
+                .type(HotspotType.NAV)
+                .xPosition(0.0)
+                .yPosition(0.0)
+                .zPosition(0.0)
+                .build()));
+        DesignDraft draft = DesignDraft.builder()
+                .boothName("Booth")
+                .boothDescription("Description")
+                .panoramas(List.of(draftPanorama))
+                .build();
+
+        DesignDraftChangeSummaryDTO summary = diffService.compareDraftWithBooth(draft, booth);
+
+        assertEquals(0, summary.getTotalCount());
+    }
 }

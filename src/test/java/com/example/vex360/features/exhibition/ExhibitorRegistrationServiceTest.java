@@ -72,6 +72,10 @@ import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
+import com.example.vex360.features.mail.AfterCommitExecutor;
+import com.example.vex360.features.mail.MailService;
+import org.mockito.Spy;
+
 @ExtendWith(MockitoExtension.class)
 class ExhibitorRegistrationServiceTest {
 
@@ -101,6 +105,12 @@ class ExhibitorRegistrationServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private MailService mailService;
+
+    @Spy
+    private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor();
 
     @Mock
     private CommissionCalculator commissionCalculator;
@@ -744,7 +754,11 @@ class ExhibitorRegistrationServiceTest {
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
-                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
+                .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING)
+                .packageNameSnapshot("Snapshot Package")
+                .finalPriceSnapshot(BigDecimal.valueOf(8))
+                .currencySnapshot("USD")
+                .build();
 
         when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -754,6 +768,16 @@ class ExhibitorRegistrationServiceTest {
         assertNotNull(dto);
         assertEquals("PENDING_PAYMENT", dto.getStatus());
         verify(paymentRepository, never()).save(any());
+        verify(mailService).sendExhibitorRegistrationReviewResultEmail(
+                eq("company@example.com"),
+                eq("Test Company"),
+                eq("Test Company"),
+                eq("Expo"),
+                eq("Snapshot Package"),
+                eq(BigDecimal.valueOf(8)),
+                eq("USD"),
+                eq(ExhibitorRegistrationStatus.PENDING_PAYMENT),
+                eq(null));
     }
 
     @Test

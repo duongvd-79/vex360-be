@@ -1,5 +1,11 @@
 package com.example.vex360.features.mail;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+
+import com.example.vex360.shared.enums.DesignRequestStatus;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.Role;
 
 public interface MailService {
@@ -22,4 +28,74 @@ public interface MailService {
             String fullName,
             String organizationName,
             String confirmUrl);
+
+    void sendPartnershipGuestApprovedEmail(
+            String toEmail,
+            String fullName,
+            String temporaryPassword,
+            Role role,
+            String organizationName);
+
+    void sendExhibitionReviewResultEmail(
+            String toEmail,
+            String fullName,
+            String exhibitionName,
+            LocalDate startDate,
+            LocalDate endDate,
+            String resultStatus,
+            String rejectedReason,
+            int rejectionCount,
+            Instant reviewedAt);
+
+    void sendExhibitorRegistrationReviewResultEmail(
+            String toEmail,
+            String fullName,
+            String companyName,
+            String exhibitionName,
+            String packageName,
+            BigDecimal finalPrice,
+            String currency,
+            ExhibitorRegistrationStatus result,
+            String rejectedReason);
+
+    void sendExhibitorRegistrationPaymentConfirmedEmail(
+            String toEmail,
+            String fullName,
+            String companyName,
+            String exhibitionName,
+            String packageName,
+            BigDecimal amount,
+            String currency,
+            Long orderCode,
+            Instant paidAt);
+
+    void sendBoothReviewResultEmail(
+            String toEmail,
+            String fullName,
+            String boothName,
+            String exhibitionName,
+            Integer versionNumber,
+            String resultStatus,
+            String rejectedReason,
+            Instant reviewedAt);
+
+    void sendDesignDraftReviewResultEmail(
+            String toEmail,
+            String fullName,
+            String companyName,
+            String boothName,
+            Integer versionNumber,
+            DesignRequestStatus result,
+            String reviewNote);
+
+    void sendDesignCancellationDecisionEmail(
+            String toEmail,
+            String fullName,
+            boolean designerRecipient,
+            String companyName,
+            String boothName,
+            String resultStatus,
+            String cancellationReason,
+            String resolutionNote,
+            Instant resolvedAt);
 }

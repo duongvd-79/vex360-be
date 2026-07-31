@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
 import com.example.vex360.features.partnership.dtos.request.SubmitPartnershipRequest;
@@ -51,6 +52,7 @@ public class PartnershipRequestService {
     private final UserService userService;
     private final CompanyService companyService;
     private final MailService mailService;
+    private final AfterCommitExecutor afterCommitExecutor;
     private final PartnershipRequestMapper partnershipRequestMapper;
 
     @Value("${app.backend.base-url}")
@@ -198,11 +200,14 @@ public class PartnershipRequestService {
         request.setReviewedAt(Instant.now());
         PartnershipRequest savedRequest = partnershipRequestRepository.save(request);
         String notificationEmail = resolveNotificationEmail(savedRequest);
-        mailService.sendPartnershipRejectedEmail(
+        String notificationName = resolveNotificationName(savedRequest, notificationEmail);
+        String orgName = savedRequest.getOrganizationName();
+        String reviewNote = savedRequest.getReviewNote();
+        afterCommitExecutor.execute(() -> mailService.sendPartnershipRejectedEmail(
                 notificationEmail,
-                resolveNotificationName(savedRequest, notificationEmail),
-                savedRequest.getOrganizationName(),
-                savedRequest.getReviewNote());
+                notificationName,
+                orgName,
+                reviewNote));
         return partnershipRequestMapper.toResponse(savedRequest);
     }
 
@@ -228,7 +233,16 @@ public class PartnershipRequestService {
                 normalize(request.getOrganizationName()),
                 normalize(request.getRequesterEmail()),
                 normalize(request.getRequesterPhoneNumber()));
-        mailService.sendNewUserCredentialsEmail(savedUser.getEmail(), savedUser.getFullName(), temporaryPassword);
+        String userEmail = savedUser.getEmail();
+        String userFullName = savedUser.getFullName();
+        Role requestedRole = request.getRequestedRole();
+        String orgName = request.getOrganizationName();
+        afterCommitExecutor.execute(() -> mailService.sendPartnershipGuestApprovedEmail(
+                userEmail,
+                userFullName,
+                temporaryPassword,
+                requestedRole,
+                orgName));
     }
 
     private void approveAuthenticatedRequest(PartnershipRequest request) {
@@ -246,11 +260,15 @@ public class PartnershipRequestService {
                     normalize(request.getRequesterPhoneNumber()));
         }
 
-        mailService.sendPartnershipApprovedEmail(
-                resolveNotificationEmail(request, savedUser),
-                resolveNotificationName(request, savedUser),
-                request.getRequestedRole(),
-                request.getOrganizationName());
+        String notificationEmail = resolveNotificationEmail(request, savedUser);
+        String notificationName = resolveNotificationName(request, savedUser);
+        Role requestedRole = request.getRequestedRole();
+        String orgName = request.getOrganizationName();
+        afterCommitExecutor.execute(() -> mailService.sendPartnershipApprovedEmail(
+                notificationEmail,
+                notificationName,
+                requestedRole,
+                orgName));
     }
 
     private PartnershipRequest buildRequest(SubmitPartnershipRequest request, User submittedByUser) {
