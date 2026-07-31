@@ -191,7 +191,7 @@ public class ExhibitorBoothController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @Valid @RequestPart("metadata") CreateExhibitorPanoramaRequest request,
-            @RequestPart("image") MultipartFile image) {
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         return created(exhibitorPanoramaService.createPanorama(userDetails.getUser(), boothId, request, image));
     }
 

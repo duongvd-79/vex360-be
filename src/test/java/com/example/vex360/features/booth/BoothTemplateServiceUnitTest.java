@@ -259,7 +259,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of()));
 
-        assertSame(ErrorCode.PANORAMA_FILE_INVALID, exception.getErrorCode());
+        assertSame(ErrorCode.PANORAMA_FILE_REQUIRED, exception.getErrorCode());
     }
 
     @Test

@@ -176,6 +176,18 @@ class DesignDraftAssetServiceUnitTest {
     }
 
     @Test
+    void uploadPanoramaRejectsMissingFileWithPanoramaError() {
+        when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.uploadAsset(designer, request.getId(), null, DesignDraftAssetType.PANORAMA));
+
+        assertSame(ErrorCode.PANORAMA_FILE_REQUIRED, exception.getErrorCode());
+        verify(cloudService, never()).uploadToFolder(any(), any());
+    }
+
+    @Test
     void uploadMediaRejectsFileOverTenMegabytesBeforeQuotaReservation() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",

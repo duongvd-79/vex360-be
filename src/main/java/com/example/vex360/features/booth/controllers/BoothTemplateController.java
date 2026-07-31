@@ -130,7 +130,7 @@ public class BoothTemplateController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
             @Valid @RequestPart("metadata") CreateExhibitorPanoramaRequest request,
-            @RequestPart("image") MultipartFile image) {
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         PanoramaResponseDTO panorama = boothTemplatePanoramaService.createPanorama(
                 userDetails.getUser(),
                 boothId,

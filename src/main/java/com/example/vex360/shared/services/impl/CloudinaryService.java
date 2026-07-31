@@ -1,5 +1,6 @@
 package com.example.vex360.shared.services.impl;
 
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.utils.FileUploadUtils;
+import com.example.vex360.shared.utils.LogSanitizer;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -50,8 +52,8 @@ public class CloudinaryService implements CloudService {
                     file.getOriginalFilename(), uploadResult.get("public_id"));
 
             String publicId = (String) uploadResult.get("public_id");
-            Integer width = (Integer) uploadResult.get("width");
-            Integer height = (Integer) uploadResult.get("height");
+            Integer width = toInteger(uploadResult.get("width"));
+            Integer height = toInteger(uploadResult.get("height"));
             String resourceType = (String) uploadResult.get("resource_type");
             if (resourceType == null || resourceType.isBlank()) {
                 resourceType = "image";
@@ -83,14 +85,21 @@ public class CloudinaryService implements CloudService {
     @Override
     @Transactional
     public CloudinaryResponse uploadToFolder(MultipartFile file, String folder) {
-        if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
-        }
+        boolean panoramaUpload = FileUploadUtils.PANORAMA_FOLDER.equals(folder);
 
-        FileUploadUtils.validateFileType(file);
-        FileUploadUtils.validateFileSize(file, 10);
+        if (panoramaUpload) {
+            FileUploadUtils.validatePanoramaFile(file);
+        } else {
+            if (file == null || file.isEmpty()) {
+                throw new AppException(ErrorCode.FILE_TYPE_NOT_SUPPORTED);
+            }
+            FileUploadUtils.validateFileType(file);
+            FileUploadUtils.validateFileSize(file, 10);
+        }
         log.info("File received for folder [{}]: {}", folder, file.getOriginalFilename());
 
+        String publicId = null;
+        String resourceType = null;
         try {
             String date = java.time.LocalDate.now().toString();
             String targetFolder = (folder != null && !folder.isBlank())
@@ -99,18 +108,29 @@ public class CloudinaryService implements CloudService {
 
             Map<?, ?> params = ObjectUtils.asMap(
                     "folder", targetFolder,
-                    "resource_type", "auto");
+                    "resource_type", panoramaUpload ? "image" : "auto");
 
             @SuppressWarnings("unchecked")
             Map<String, Object> uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
 
-            log.info("Successfully uploaded file {} to Cloudinary folder [{}]. Public ID: {}",
-                    file.getOriginalFilename(), targetFolder, uploadResult.get("public_id"));
+            publicId = (String) uploadResult.get("public_id");
+            resourceType = (String) uploadResult.get("resource_type");
+            Integer width = toInteger(uploadResult.get("width"));
+            Integer height = toInteger(uploadResult.get("height"));
+            String format = (String) uploadResult.get("format");
 
-            String publicId = (String) uploadResult.get("public_id");
-            Integer width = (Integer) uploadResult.get("width");
-            Integer height = (Integer) uploadResult.get("height");
-            String resourceType = (String) uploadResult.get("resource_type");
+            String mimeType;
+            if (panoramaUpload) {
+                if (!"image".equalsIgnoreCase(resourceType)) {
+                    throw new AppException(ErrorCode.PANORAMA_IMAGE_CONTENT_INVALID);
+                }
+
+                mimeType = panoramaMimeType(format == null ? "" : format.toLowerCase(Locale.ROOT));
+                FileUploadUtils.validatePanoramaDimensions(width, height);
+            } else {
+                mimeType = file.getContentType();
+            }
+
             if (resourceType == null || resourceType.isBlank()) {
                 resourceType = "image";
             }
@@ -123,17 +143,27 @@ public class CloudinaryService implements CloudService {
                             .fetchFormat("auto"))
                     .generate(publicId);
 
+            log.info("Successfully uploaded file {} to Cloudinary folder [{}]. Public ID: {}",
+                    file.getOriginalFilename(), targetFolder, publicId);
+
             return CloudinaryResponse.builder()
                     .url(url)
                     .publicId(publicId)
                     .fileName(file.getOriginalFilename())
                     .fileSize(file.getSize())
-                    .fileType(file.getContentType())
+                    .fileType(mimeType)
                     .width(width)
                     .height(height)
                     .build();
+        } catch (AppException e) {
+            if (panoramaUpload) {
+                cleanupRejectedUpload(publicId, resourceType);
+            }
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to upload file {} to Cloudinary folder [{}]", file.getOriginalFilename(), folder, e);
+            log.error("Failed to upload file {} to Cloudinary folder [{}]",
+                    file != null ? file.getOriginalFilename() : "null",
+                    folder, e);
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
     }
@@ -153,6 +183,36 @@ public class CloudinaryService implements CloudService {
         } catch (Exception e) {
             log.error("Failed to delete Cloudinary asset {}", publicId, e);
             throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    private Integer toInteger(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
+    private String panoramaMimeType(String format) {
+        return switch (format) {
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            default -> throw new AppException(ErrorCode.PANORAMA_IMAGE_CONTENT_INVALID);
+        };
+    }
+
+    private void cleanupRejectedUpload(String publicId, String resourceType) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+        try {
+            cloudinary.uploader().destroy(
+                    publicId,
+                    ObjectUtils.asMap(
+                            "resource_type",
+                            resourceType == null || resourceType.isBlank() ? "image" : resourceType));
+        } catch (Exception cleanupException) {
+            log.error("Failed to clean rejected Cloudinary upload {} ({})",
+                    LogSanitizer.sanitize(publicId),
+                    cleanupException.getClass().getSimpleName());
         }
     }
 

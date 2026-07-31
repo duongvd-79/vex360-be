@@ -8,7 +8,9 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
+import java.util.Set;
 
 public class FileUploadUtils {
     private FileUploadUtils() {
@@ -18,6 +20,11 @@ public class FileUploadUtils {
     /** Cloudinary folder prefix for panorama images */
     public static final String PANORAMA_FOLDER = "panorama";
 
+    private static final Set<String> PANORAMA_MIME_TYPES = Set.of(
+            "image/jpeg",
+            "image/png",
+            "image/webp");
+
     // Allowed file types (MIME types)
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
             "image/jpeg", "image/png", "image/gif", "image/bmp",
@@ -26,6 +33,20 @@ public class FileUploadUtils {
             "video/mp4", "video/quicktime", "video/x-msvideo",
             "video/x-matroska", "video/x-ms-wmv", "video/x-flv",
             "video/webm");
+
+    /**
+     * Pre-upload validation for panorama files
+     */
+    public static void validatePanoramaFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.PANORAMA_FILE_REQUIRED);
+        }
+        validateFileSize(file, 10);
+        String contentType = file.getContentType();
+        if (contentType == null || !PANORAMA_MIME_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+            throw new AppException(ErrorCode.PANORAMA_FORMAT_NOT_SUPPORTED);
+        }
+    }
 
     /**
      * Validation file size
@@ -53,7 +74,21 @@ public class FileUploadUtils {
      */
     public static void validatePanoramaRatio(int width, int height) {
         if (width != 2 * height) {
-            throw new AppException(ErrorCode.NOT_A_PANORAMA);
+            throw new AppException(ErrorCode.PANORAMA_ASPECT_RATIO_INVALID);
+        }
+    }
+
+    /**
+     * Validate panorama dimensions and resolution limit
+     */
+    public static void validatePanoramaDimensions(Integer width, Integer height) {
+        if (width == null || height == null || width <= 0 || height <= 0) {
+            throw new AppException(ErrorCode.PANORAMA_IMAGE_CONTENT_INVALID);
+        }
+        validatePanoramaRatio(width, height);
+        long pixels = (long) width * height;
+        if (width > 8192 || height > 4096 || pixels > 33_554_432L) {
+            throw new AppException(ErrorCode.PANORAMA_RESOLUTION_EXCEEDED);
         }
     }
 
