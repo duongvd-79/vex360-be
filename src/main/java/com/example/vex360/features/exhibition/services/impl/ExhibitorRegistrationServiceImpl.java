@@ -85,7 +85,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     @Override
     @Transactional
     public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
-            String participationReason) {
+            String participationReason, String boothName, String boothDescription) {
         User exhibitorUser = userService.getUserEntityById(companyUserId);
         Company company = companyService.getCompanyEntityForCurrentUserForUpdate(exhibitorUser);
 
@@ -136,6 +136,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .exhibitionPackage(expPackage)
                 .status(ExhibitorRegistrationStatus.PENDING)
                 .participationReason(participationReason.trim())
+                .boothName(boothName.trim())
+                .boothDescription(boothDescription.trim())
                 .packageNameSnapshot(template.getName())
                 .priceSnapshot(template.getPrice())
                 .finalPriceSnapshot(expPackage.getFinalPrice())
@@ -613,6 +615,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .currencySnapshot(registration.getCurrencySnapshot())
                 .exhibitionName(registration.getExhibitionPackage().getExhibition().getName())
                 .participationReason(registration.getParticipationReason())
+                .boothName(registration.getBoothName())
+                .boothDescription(registration.getBoothDescription())
                 .rejectedReason(registration.getRejectedReason())
                 .reviewedByName(
                         registration.getReviewedBy() != null ? registration.getReviewedBy().getFullName() : null)

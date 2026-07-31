@@ -54,7 +54,9 @@ public class ExhibitorRegistrationController extends BaseController {
         ExhibitorRegistration registration = exhibitorRegistrationService.initializeRegistration(
                 userDetails.getUser().getId(),
                 request.getExhibitionPackageId(),
-                request.getParticipationReason());
+                request.getParticipationReason(),
+                request.getBoothName(),
+                request.getBoothDescription());
         ExhibitorRegistrationResponseDTO response = exhibitorRegistrationService.getRegistrationDetails(
                 registration.getUuid(),
                 userDetails.getUser().getId());

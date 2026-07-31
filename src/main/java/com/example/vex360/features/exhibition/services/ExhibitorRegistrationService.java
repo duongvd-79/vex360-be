@@ -11,7 +11,7 @@ import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistratio
 
 public interface ExhibitorRegistrationService {
     ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
-            String participationReason);
+            String participationReason, String boothName, String boothDescription);
 
     ExhibitorRegistrationResponseDTO getRegistrationDetails(UUID registrationUuid, UUID companyUserId);
 

@@ -17,4 +17,12 @@ public class ExhibitorRegistrationRequestDTO {
     @NotBlank(message = "Ly do tham gia khong duoc de trong")
     @Size(max = 1000, message = "Ly do tham gia khong duoc vuot qua 1000 ky tu")
     private String participationReason;
+
+    @NotBlank(message = "Tên gian hàng không được để trống")
+    @Size(max = 255, message = "Tên gian hàng không được vượt quá 255 ký tự")
+    private String boothName;
+
+    @NotBlank(message = "Mô tả gian hàng không được để trống")
+    @Size(max = 2000, message = "Mô tả gian hàng không được vượt quá 2000 ký tự")
+    private String boothDescription;
 }
