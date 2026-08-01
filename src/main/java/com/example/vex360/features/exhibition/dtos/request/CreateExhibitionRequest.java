@@ -8,7 +8,9 @@ import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -39,9 +41,9 @@ public class CreateExhibitionRequest {
     @Max(value = 2000, message = "Số gian hàng dự kiến không được vượt quá 2000")
     private Integer estimatedBooths;
 
-    @Valid
-    private List<ConfigureExhibitionPackageRequest> packages;
+    @NotEmpty(message = "Phải có ít nhất 1 gói dịch vụ")
+    @Size(max = 3, message = "Không được vượt quá 3 gói dịch vụ")
+    private List<@NotNull(message = "Gói dịch vụ không được để trống") @Valid ConfigureExhibitionPackageRequest> packages;
 
-    @Valid
-    private List<SponsorRequestDTO> sponsors;
+    private List<@Valid SponsorRequestDTO> sponsors;
 }

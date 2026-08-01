@@ -1,6 +1,7 @@
 package com.example.vex360.features.exhibition.services.impl;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.enums.PackageTemplateStatus;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -330,7 +332,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
+        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
@@ -621,13 +623,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        for (ExhibitionPackage pkg : packages) {
-            if (pkg.getTemplate() != null && pkg.getFinalPrice().compareTo(pkg.getTemplate().getPrice()) < 0) {
-                log.error("Cannot approve exhibition {}: package {} final price {} is below template floor price {}",
-                        exhibition.getId(), pkg.getId(), pkg.getFinalPrice(), pkg.getTemplate().getPrice());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-        }
+        validatePackagesForApproval(packages);
 
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         exhibition.setReviewedBy(admin);
@@ -728,17 +724,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     }
 
     private List<ValidatedPackage> validateAndResolvePackages(List<ConfigureExhibitionPackageRequest> requests) {
-        if (requests == null || requests.isEmpty()) {
-            return List.of();
-        }
-        if (requests.size() > 3) {
-            log.error("Exhibition packages size exceeds limit of 3");
+        if (requests == null || requests.isEmpty() || requests.size() > 3) {
+            log.error("Exhibition packages count must be between 1 and 3");
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
         List<ValidatedPackage> validatedList = new ArrayList<>(requests.size());
         Set<BoothListingPriority> priorities = new HashSet<>();
         for (ConfigureExhibitionPackageRequest pkgReq : requests) {
-            PackageTemplate template = packageTemplateService.getPackageTemplateEntity(pkgReq.getTemplateId());
+            if (pkgReq == null || pkgReq.getTemplateId() == null || pkgReq.getFinalPrice() == null) {
+                log.error("Exhibition package request element or required fields are null");
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(pkgReq.getTemplateId());
             if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
                 log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
                         template.getPrice());
@@ -751,6 +748,43 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             validatedList.add(new ValidatedPackage(pkgReq, template));
         }
         return validatedList;
+    }
+
+    private void validatePackagesForApproval(List<ExhibitionPackage> packages) {
+        if (packages == null || packages.isEmpty() || packages.size() > 3) {
+            log.error("Exhibition packages count must be between 1 and 3 for approval");
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+        Set<BoothListingPriority> priorities = new HashSet<>();
+        for (ExhibitionPackage pkg : packages) {
+            if (pkg.getStatus() != ExhibitionPackageStatus.ACTIVE) {
+                log.error("Exhibition package {} is not ACTIVE", pkg.getId());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            PackageTemplate template = pkg.getTemplate();
+            if (template == null || template.getStatus() != PackageTemplateStatus.ACTIVE) {
+                log.error("Exhibition package template is missing or not ACTIVE for package {}", pkg.getId());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            if (pkg.getFinalPrice() == null || pkg.getFinalPrice().compareTo(BigDecimal.ZERO) < 0
+                    || pkg.getFinalPrice().compareTo(template.getPrice()) < 0) {
+                log.error("Package final price {} is invalid or below floor price {}", pkg.getFinalPrice(),
+                        template.getPrice());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+            if (!priorities.add(template.getListingPriority())) {
+                log.error("Duplicate package priority type {} is not allowed in approval",
+                        template.getListingPriority());
+                throw new AppException(ErrorCode.VALIDATION_FAILED);
+            }
+        }
+    }
+
+    private void validateSponsorChangesAllowed(Exhibition exhibition) {
+        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
+            log.error("Cannot modify sponsor logo for exhibition status {}", exhibition.getStatus());
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_CHANGES_NOT_ALLOWED);
+        }
     }
 
     private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type,
@@ -799,10 +833,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
-            log.error("Cannot upload sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
-        }
+        validateSponsorChangesAllowed(exhibition);
 
         long currentSponsorCount = exhibition.getAssets() == null ? 0
                 : exhibition.getAssets().stream()
@@ -851,10 +882,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
-            log.error("Cannot update sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
-        }
+        validateSponsorChangesAllowed(exhibition);
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> {
@@ -908,10 +936,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        if (exhibition.getStatus() == ExhibitionStatus.PENDING || exhibition.getStatus() == ExhibitionStatus.REJECTED) {
-            log.error("Cannot delete sponsor logo for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED);
-        }
+        validateSponsorChangesAllowed(exhibition);
 
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> {
@@ -1006,7 +1031,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
+        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
@@ -1072,7 +1097,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.VALIDATION_FAILED);
         }
 
-        PackageTemplate template = packageTemplateService.getPackageTemplateEntity(request.getTemplateId());
+        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
 
         if (!exhibitionPackage.getTemplate().getId().equals(template.getId())) {
             List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);

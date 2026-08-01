@@ -6,17 +6,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.time.LocalDate;
+
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
+import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.shared.enums.BoothListingPriority;
+import com.example.vex360.shared.enums.PackageTemplateStatus;
 
 import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -570,7 +578,7 @@ class ExhibitionServiceUnitTest {
     @Test
     void uploadSponsorLogo_transactionRollback_deletesNewCloudAsset() {
         MultipartFile file = imageFile();
-        registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(cloudService.upload(file)).thenReturn(cloudResponse("new-logo"));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
@@ -585,13 +593,26 @@ class ExhibitionServiceUnitTest {
     @Test
     void createExhibition_transactionRollback_deletesUploadedKeyVisual() {
         MultipartFile keyVisual = imageFile();
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        PackageTemplate template = PackageTemplate.builder()
+                .id(templateId)
+                .price(BigDecimal.ONE)
+                .listingPriority(BoothListingPriority.NORMAL)
+                .status(PackageTemplateStatus.ACTIVE)
+                .build();
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
                 .name("New Expo")
                 .category("Technology")
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
+                .packages(List.of(pkgReq))
                 .build();
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("new-key-visual"));
         beginTransactionSynchronization();
@@ -606,7 +627,7 @@ class ExhibitionServiceUnitTest {
     void updateSponsorLogo_transactionCommit_deletesOldAssetOnlyAfterCommit() {
         MultipartFile file = imageFile();
         ExhibitionAsset asset = sponsorAsset("old-logo");
-        registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
         when(cloudService.upload(file)).thenReturn(cloudResponse("new-logo"));
@@ -625,7 +646,7 @@ class ExhibitionServiceUnitTest {
     void updateSponsorLogo_transactionRollback_keepsOldAssetAndDeletesNewAsset() {
         MultipartFile file = imageFile();
         ExhibitionAsset asset = sponsorAsset("old-logo");
-        registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
         when(cloudService.upload(file)).thenReturn(cloudResponse("new-logo"));
@@ -642,7 +663,7 @@ class ExhibitionServiceUnitTest {
     @Test
     void deleteSponsorLogo_transactionCommit_deletesCloudAssetOnlyAfterCommit() {
         ExhibitionAsset asset = sponsorAsset("old-logo");
-        registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
@@ -796,5 +817,207 @@ class ExhibitionServiceUnitTest {
                 () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10,
                         new ConfigureExhibitionPackageRequest()));
         assertEquals(ErrorCode.EXHIBITION_PACKAGE_IN_USE, ex.getErrorCode());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ExhibitionStatus.class, names = { "REGISTRATION", "PUBLISHED", "ACTIVE", "COMPLETED" })
+    void uploadSponsorLogo_afterApproval_throwsSponsorChangesNotAllowed(ExhibitionStatus status) {
+        registrationExhibition.setStatus(status);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        MultipartFile file = mock(MultipartFile.class);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, "Sponsor", file));
+
+        assertEquals(ErrorCode.EXHIBITION_SPONSOR_CHANGES_NOT_ALLOWED, ex.getErrorCode());
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_statusRejected_resubmitsSuccessfully() {
+        registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
+        registrationExhibition.setRejectionCount(1);
+        registrationExhibition.setRejectedReason("Invalid docs");
+        registrationExhibition.setReviewedBy(User.builder().id(UUID.randomUUID()).build());
+        registrationExhibition.setReviewedAt(Instant.now());
+
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        PackageTemplate template = PackageTemplate.builder()
+                .id(templateId)
+                .price(BigDecimal.ONE)
+                .listingPriority(BoothListingPriority.NORMAL)
+                .status(PackageTemplateStatus.ACTIVE)
+                .build();
+
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("Resubmitted Expo")
+                .category("Tech")
+                .description("Desc")
+                .startDate(LocalDate.now().plusDays(20))
+                .endDate(LocalDate.now().plusDays(25))
+                .estimatedBooths(50)
+                .packages(List.of(pkgReq))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(timelinePolicy.hasMinimumLeadTime(req.getStartDate())).thenReturn(true);
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
+        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
+        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
+                .thenReturn(ExhibitionResponseDTO.builder().build());
+
+        var dto = exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null);
+
+        assertNotNull(dto);
+        assertEquals(ExhibitionStatus.PENDING, registrationExhibition.getStatus());
+        assertNull(registrationExhibition.getRejectedReason());
+        assertNull(registrationExhibition.getReviewedBy());
+        assertNull(registrationExhibition.getReviewedAt());
+        assertEquals(1, registrationExhibition.getRejectionCount());
+        verify(reviewHistoryService).recordResubmissionOrUpdate(registrationExhibition, organizer, null);
+    }
+
+    @Test
+    void approveExhibition_noPackages_throwsValidationFailed() {
+        User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setStartDate(LocalDate.now().plusDays(20));
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(timelinePolicy.hasMinimumLeadTime(registrationExhibition.getStartDate())).thenReturn(true);
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
+
+        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+    }
+
+    @Test
+    void createExhibition_inactiveTemplate_throwsPackageTemplateNotFound() {
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("New Expo")
+                .category("Tech")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(10)
+                .packages(List.of(pkgReq))
+                .build();
+
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.createExhibition(organizer, req, imageFile(), null));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        verify(exhibitionRepository, never()).save(any());
+    }
+
+    @Test
+    void updateExhibitionForOrganizer_inactiveTemplate_throwsPackageTemplateNotFound() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        CreateExhibitionRequest req = CreateExhibitionRequest.builder()
+                .name("Updated Expo")
+                .category("Tech")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(10)
+                .packages(List.of(pkgReq))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(timelinePolicy.hasMinimumLeadTime(req.getStartDate())).thenReturn(true);
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        verify(exhibitionRepository, never()).save(any());
+    }
+
+    @Test
+    void configureExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.configureExhibitionPackage(organizer, exhibitionUuid, req));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        verify(exhibitionPackageRepository, never()).save(any());
+    }
+
+    @Test
+    void addExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, req));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        verify(exhibitionPackageRepository, never()).save(any());
+    }
+
+    @Test
+    void updateExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        UUID templateId = UUID.randomUUID();
+        ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        ExhibitionPackage existingPkg = ExhibitionPackage.builder()
+                .id(10)
+                .exhibition(registrationExhibition)
+                .template(PackageTemplate.builder().id(UUID.randomUUID()).build())
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.existsByExhibitionPackageId(10)).thenReturn(false);
+        when(exhibitionPackageRepository.findById(10)).thenReturn(Optional.of(existingPkg));
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+
+        AppException ex = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10, req));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        verify(exhibitionPackageRepository, never()).save(any());
     }
 }

@@ -85,9 +85,7 @@ public class PackageTemplateService {
 
     @Transactional(readOnly = true)
     public PackageTemplateResponseDTO getActivePackageTemplateById(UUID id) {
-        PackageTemplate template = packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)
-                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
-        return packageTemplateMapper.toResponse(template);
+        return packageTemplateMapper.toResponse(getActivePackageTemplateEntity(id));
     }
 
     @Transactional
@@ -124,6 +122,12 @@ public class PackageTemplateService {
     @Transactional(readOnly = true)
     public PackageTemplate getPackageTemplateEntity(UUID id) {
         return getPackageTemplate(id);
+    }
+
+    @Transactional(readOnly = true)
+    public PackageTemplate getActivePackageTemplateEntity(UUID id) {
+        return packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
     }
 
     private PackageTemplate getPackageTemplate(UUID id) {

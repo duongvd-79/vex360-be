@@ -19,6 +19,6 @@ public class ConfigureExhibitionPackageRequest {
     private UUID templateId;
 
     @NotNull(message = "Giá tiền không được để trống")
-    @DecimalMin(value = "0.0", message = "Giá tiền phải lớn hơn 0")
+    @DecimalMin(value = "0.0", message = "Giá tiền không được âm")
     private BigDecimal finalPrice;
 }

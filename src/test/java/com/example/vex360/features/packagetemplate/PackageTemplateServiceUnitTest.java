@@ -138,9 +138,8 @@ class PackageTemplateServiceUnitTest {
 
         assertEquals(1, response.size());
         assertEquals(PackageTemplateStatus.ACTIVE, response.get(0).getStatus());
-        verify(packageTemplateRepository).findByStatus(
-                eq(PackageTemplateStatus.ACTIVE),
-                eq(Sort.by(Sort.Order.asc(PackageTemplate::getPrice), Sort.Order.asc(PackageTemplate::getName))));
+        verify(packageTemplateRepository).findByStatus(PackageTemplateStatus.ACTIVE,
+                Sort.by(Sort.Order.asc(PackageTemplate::getPrice), Sort.Order.asc(PackageTemplate::getName)));
     }
 
     @Test
@@ -267,7 +266,8 @@ class PackageTemplateServiceUnitTest {
     void getActivePackageTemplateById_Exists_ReturnsDto() {
         UUID id = UUID.randomUUID();
         PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
-        when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)).thenReturn(Optional.of(template));
+        when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE))
+                .thenReturn(Optional.of(template));
 
         PackageTemplateResponseDTO response = packageTemplateService.getActivePackageTemplateById(id);
 
@@ -283,6 +283,30 @@ class PackageTemplateServiceUnitTest {
         PackageTemplate entity = packageTemplateService.getPackageTemplateEntity(id);
 
         assertEquals("Pro", entity.getName());
+    }
+
+    @Test
+    void getActivePackageTemplateEntity_Active_ReturnsEntity() {
+        UUID id = UUID.randomUUID();
+        PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
+        when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE))
+                .thenReturn(Optional.of(template));
+
+        PackageTemplate entity = packageTemplateService.getActivePackageTemplateEntity(id);
+
+        assertEquals("Pro", entity.getName());
+    }
+
+    @Test
+    void getActivePackageTemplateEntity_NotFoundOrInactive_ThrowsException() {
+        UUID id = UUID.randomUUID();
+        when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class,
+                () -> packageTemplateService.getActivePackageTemplateEntity(id));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
     }
 
     @Test
