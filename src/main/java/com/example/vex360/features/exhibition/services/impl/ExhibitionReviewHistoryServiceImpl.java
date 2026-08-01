@@ -16,7 +16,6 @@ import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
 import com.example.vex360.features.exhibition.mapper.ExhibitionReviewHistoryMapper;
-import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionReviewRequestRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
@@ -34,7 +33,6 @@ public class ExhibitionReviewHistoryServiceImpl implements ExhibitionReviewHisto
 
     private final ExhibitionReviewRequestRepository reviewRequestRepository;
     private final ExhibitionRepository exhibitionRepository;
-    private final ExhibitionAssetRepository exhibitionAssetRepository;
     private final ExhibitionReviewHistoryMapper mapper;
 
     @Override
@@ -149,7 +147,8 @@ public class ExhibitionReviewHistoryServiceImpl implements ExhibitionReviewHisto
                 });
 
         if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
-            log.error("Organizer {} is not authorized to access review history for exhibition {}", organizer.getId(), exhibitionUuid);
+            log.error("Organizer {} is not authorized to access review history for exhibition {}", organizer.getId(),
+                    exhibitionUuid);
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
@@ -164,9 +163,15 @@ public class ExhibitionReviewHistoryServiceImpl implements ExhibitionReviewHisto
             return keyVisualUrl;
         }
 
-        return exhibitionAssetRepository.findByExhibitionIdAndType(exhibition.getId(), ExhibitionAssetType.KEY_VISUAL)
-                .map(ExhibitionAsset::getAssetUrl)
-                .orElse(null);
+        if (exhibition.getAssets() != null) {
+            return exhibition.getAssets().stream()
+                    .filter(a -> a.getType() == ExhibitionAssetType.KEY_VISUAL)
+                    .map(ExhibitionAsset::getAssetUrl)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        return null;
     }
 
     private String buildSnapshotJson(Exhibition exhibition, String keyVisualUrl) {

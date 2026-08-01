@@ -97,12 +97,13 @@ import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 @RequiredArgsConstructor
 public class DesignRequestService {
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
+            "booth", "booth.name",
             "boothName", "booth.name",
             "customerCompany", "company.name",
             "assignedDesignerName", "assignedDesigner.fullName");
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
-    private static final Pattern CONTACT_EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
-    private static final Pattern CONTACT_PHONE_PATTERN = Pattern.compile("^0[0-9]{9}$");
+    private static final Pattern CONTACT_EMAIL_PATTERN = Pattern.compile("^[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,24}$");
+    private static final Pattern CONTACT_PHONE_PATTERN = Pattern.compile("^0\\d{9}$");
 
     private final DesignRequestRepository designRequestRepository;
     private final DesignDraftRepository designDraftRepository;

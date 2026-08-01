@@ -114,7 +114,7 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     @PutMapping(path = "/{uuid}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Cập nhật đơn đăng ký triển lãm", description = "Cập nhật thông tin chi tiết của đơn đăng ký triển lãm (chỉ được phép khi đơn đang ở trạng thái PENDING). Không cho phép thay đổi trạng thái hoặc hủy đơn tại đây. Cho phép cập nhật lại Key Visual.")
+    @Operation(summary = "Cập nhật đơn đăng ký triển lãm", description = "Cập nhật thông tin chi tiết của đơn đăng ký triển lãm (cho phép khi đơn ở trạng thái PENDING hoặc REJECTED để resubmit). Cho phép cập nhật lại Key Visual.")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> updateExhibition(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
@@ -141,7 +141,7 @@ public class OrganizerExhibitionController extends BaseController {
 
     // Sponsor Media CRU
     @PostMapping(path = "/{uuid}/sponsors", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Thêm logo nhà tài trợ", description = "Upload thêm một logo nhà tài trợ mới cho triển lãm.")
+    @Operation(summary = "Thêm logo nhà tài trợ", description = "Upload thêm một logo nhà tài trợ mới cho triển lãm (chỉ được phép khi PENDING hoặc REJECTED).")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> uploadSponsorLogo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
@@ -152,7 +152,7 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     @PutMapping(path = "/{uuid}/sponsors/{assetId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Cập nhật logo nhà tài trợ", description = "Cập nhật/thay đổi ảnh logo nhà tài trợ hiện có.")
+    @Operation(summary = "Cập nhật logo nhà tài trợ", description = "Cập nhật/thay đổi ảnh logo nhà tài trợ hiện có (chỉ được phép khi PENDING hoặc REJECTED).")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> updateSponsorLogo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
@@ -166,7 +166,7 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     @DeleteMapping(path = "/{uuid}/sponsors/{assetId}")
-    @Operation(summary = "Xoá logo nhà tài trợ", description = "Xoá hoàn toàn logo nhà tài trợ khỏi triển lãm.")
+    @Operation(summary = "Xoá logo nhà tài trợ", description = "Xoá hoàn toàn logo nhà tài trợ khỏi triển lãm (chỉ được phép khi PENDING hoặc REJECTED).")
     public ResponseEntity<ApiResponse<ExhibitionResponseDTO>> deleteSponsorLogo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "UUID của triển lãm") @PathVariable UUID uuid,
