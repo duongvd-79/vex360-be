@@ -18,6 +18,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
@@ -161,7 +162,9 @@ class BoothReviewPolicyServiceUnitTest {
                 .booth(booth)
                 .status(BoothReviewStatus.REJECTED)
                 .build();
-        when(boothReviewRequestRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+        Mockito.lenient()
+                .when(boothReviewRequestRepository
+                        .findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
                 .thenReturn(Optional.of(rejectedReview));
 
         AppException exception = assertThrows(
@@ -171,11 +174,64 @@ class BoothReviewPolicyServiceUnitTest {
         assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, exception.getErrorCode());
     }
 
+    @Test
+    void assertCanSubmitReviewAllowsCompletedDesignRequestLateEditException() {
+        // Today is Jan 10, start date is Jan 12 (T-2). lateEditAllowedUntil is set to
+        // Jan 11 (T-1)
+        booth = booth(LocalDate.now(clock).plusDays(2));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStatus(ExhibitionStatus.REGISTRATION);
+        booth.setLateEditAllowedUntil(LocalDate.now(clock).plusDays(1)); // T-1
+
+        when(boothReviewRequestRepository.findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId()))
+                .thenReturn(Optional.empty());
+        when(boothReviewRequestRepository.existsByBoothIdAndStatus(booth.getId(), BoothReviewStatus.PENDING))
+                .thenReturn(false);
+        when(panoramaRepository.countByBoothId(booth.getId())).thenReturn(1L);
+
+        assertDoesNotThrow(() -> policyService.assertCanSubmitReview(booth));
+    }
+
+    @Test
+    void assertBeforeReviewDeadlineRejectsAtT0EvenWithLateEditAllowedUntil() {
+        // Today is Jan 10, start date is Jan 10 (T0).
+        booth = booth(LocalDate.now(clock));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStatus(ExhibitionStatus.REGISTRATION);
+        booth.setLateEditAllowedUntil(LocalDate.now(clock).plusDays(1));
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> policyService.assertBeforeReviewDeadline(booth));
+
+        assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, exception.getErrorCode());
+    }
+
+    @Test
+    void assertCanStartEditRules() {
+        // Status must be PUBLISHED
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStatus(ExhibitionStatus.REGISTRATION);
+
+        // Allowed at T-3 (startDate = today + 3 days)
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStartDate(LocalDate.now(clock).plusDays(3));
+        assertDoesNotThrow(() -> policyService.assertCanStartEdit(booth));
+
+        // Rejected at T-2 (startDate = today + 2 days)
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition()
+                .setStartDate(LocalDate.now(clock).plusDays(2));
+        AppException ex = assertThrows(AppException.class, () -> policyService.assertCanStartEdit(booth));
+        assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, ex.getErrorCode());
+    }
+
     private Booth booth(LocalDate startDate) {
         Exhibition exhibition = Exhibition.builder()
                 .id(1)
                 .uuid(UUID.randomUUID())
                 .name("Expo")
+                .status(ExhibitionStatus.REGISTRATION)
                 .startDate(startDate)
                 .endDate(startDate.plusDays(2))
                 .build();
@@ -191,6 +247,7 @@ class BoothReviewPolicyServiceUnitTest {
                 .id(UUID.randomUUID())
                 .name("Booth")
                 .status(BoothStatus.DRAFT)
+                .isTemplate(false)
                 .exhibitorRegistration(registration)
                 .build();
     }

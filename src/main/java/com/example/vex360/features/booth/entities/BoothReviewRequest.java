@@ -80,4 +80,10 @@ public class BoothReviewRequest {
 
     @Column(name = "version_number")
     Integer versionNumber;
+
+    @Column(name = "canceled_at")
+    Instant canceledAt;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    String cancellationReason;
 }

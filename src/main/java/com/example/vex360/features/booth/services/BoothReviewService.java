@@ -32,7 +32,6 @@ import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
-import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -64,15 +63,8 @@ public class BoothReviewService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
         Exhibition exhibition = getExhibition(booth);
-        Exhibition lockedExhibition = exhibitionService.findExhibitionForUpdate(exhibition.getId());
-        if (lockedExhibition.getStatus() != ExhibitionStatus.REGISTRATION
-                && lockedExhibition.getStatus() != ExhibitionStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
-        }
-        if (booth.getStatus() != BoothStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_REVIEW_STATUS);
-        }
-        boothReviewPolicyService.assertBeforeReviewDeadline(booth);
+        exhibitionService.findExhibitionForUpdate(exhibition.getId());
+        boothReviewPolicyService.assertCanStartEdit(booth);
         booth.setStatus(BoothStatus.DRAFT);
         return boothMapper.toBoothResponseDTO(boothRepository.save(booth));
     }
@@ -83,6 +75,7 @@ public class BoothReviewService {
         Booth booth = boothRepository.findCompanyBoothByIdForUpdate(boothId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
         boothReviewPolicyService.assertCanSubmitReview(booth);
+        booth.setLateEditAllowedUntil(null);
 
         BoothReviewRequest previousRequest = boothReviewRequestRepository
                 .findTopByBoothIdOrderByVersionNumberDescSubmittedAtDesc(booth.getId())
@@ -142,8 +135,10 @@ public class BoothReviewService {
 
     @Transactional
     public BoothReviewRequestSummaryDTO approve(User organizer, UUID exhibitionUuid, UUID requestId) {
+        exhibitionService.findExhibitionForUpdate(exhibitionUuid);
         BoothReviewRequest request = boothReviewPolicyService
                 .getOrganizerReviewRequest(organizer, exhibitionUuid, requestId);
+        boothReviewPolicyService.assertCanReviewBooth(request.getBooth());
         assertPending(request);
         request.setStatus(BoothReviewStatus.APPROVED);
         request.setReviewedBy(organizer);
@@ -163,8 +158,10 @@ public class BoothReviewService {
             UUID exhibitionUuid,
             UUID requestId,
             RejectBoothReviewRequest rejectRequest) {
+        exhibitionService.findExhibitionForUpdate(exhibitionUuid);
         BoothReviewRequest request = boothReviewPolicyService
                 .getOrganizerReviewRequest(organizer, exhibitionUuid, requestId);
+        boothReviewPolicyService.assertCanReviewBooth(request.getBooth());
         assertPending(request);
         if (rejectRequest == null || rejectRequest.getRejectedReason() == null
                 || rejectRequest.getRejectedReason().isBlank()) {
@@ -184,7 +181,8 @@ public class BoothReviewService {
 
     private void sendBoothReviewMailSafely(BoothReviewRequest request, BoothReviewStatus result) {
         User recipient = request.getSubmittedBy();
-        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) return;
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank())
+            return;
         String email = recipient.getEmail();
         String fullName = recipient.getFullName();
         Booth booth = request.getBooth();

@@ -122,4 +122,6 @@ public interface ExhibitionService {
 	ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId);
 
 	Exhibition findExhibitionForUpdate(Integer id);
+
+	Exhibition findExhibitionForUpdate(UUID uuid);
 }

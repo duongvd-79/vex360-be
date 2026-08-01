@@ -133,9 +133,12 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
 
     Page<Exhibition> findByOrganizerId(UUID organizerId, Pageable pageable);
 
-    Page<Exhibition> findByStatusAndStartDateLessThanEqual(ExhibitionStatus status, LocalDate date,
-            Pageable pageable);
-
-    Page<Exhibition> findByStatusAndEndDateLessThan(ExhibitionStatus status, LocalDate date,
-            Pageable pageable);
+    @Query("""
+            SELECT e.id FROM Exhibition e
+            WHERE (e.status = com.example.vex360.shared.enums.ExhibitionStatus.REGISTRATION AND e.startDate <= :todayPlus7)
+               OR (e.status = com.example.vex360.shared.enums.ExhibitionStatus.PUBLISHED AND e.startDate <= :today)
+               OR (e.status = com.example.vex360.shared.enums.ExhibitionStatus.ACTIVE AND e.endDate < :today)
+            """)
+    List<Integer> findDueForLifecycleTransition(@Param("today") LocalDate today,
+            @Param("todayPlus7") LocalDate todayPlus7);
 }

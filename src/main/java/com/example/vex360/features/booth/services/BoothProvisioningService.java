@@ -12,6 +12,7 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class BoothProvisioningService {
     private final BoothRepository boothRepository;
     private final ExhibitorRegistrationService exhibitorRegistrationService;
+    private final ExhibitionTimelinePolicy timelinePolicy;
 
     @Transactional
     public Optional<Booth> ensureBoothForApprovedRegistration(ExhibitorRegistration registration) {
@@ -41,7 +43,8 @@ public class BoothProvisioningService {
             return Optional.empty();
         }
 
-        ExhibitorRegistration registration = exhibitorRegistrationService.findRegistrationWithRelationsById(registrationId)
+        ExhibitorRegistration registration = exhibitorRegistrationService
+                .findRegistrationWithRelationsById(registrationId)
                 .orElse(null);
 
         if (registration == null) {
@@ -58,6 +61,13 @@ public class BoothProvisioningService {
             return existingBooth;
         }
 
+        if (registration.getExhibitionPackage() == null) {
+            throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+        }
+        if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
+            return Optional.empty();
+        }
+
         Company company;
         try {
             company = registration.getCompany();
@@ -69,11 +79,6 @@ public class BoothProvisioningService {
             if (company.getOwnerUser() == null) {
                 log.error("[PB-001/002] Company owner user missing for company ID: {}, registration ID: {}, UUID: {}",
                         company.getId(), registration.getId(), registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
-            }
-            if (registration.getExhibitionPackage() == null) {
-                log.error("[PB-001/002] Exhibition package missing for registration ID: {}, UUID: {}",
-                        registration.getId(), registration.getUuid());
                 throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
             }
         } catch (EntityNotFoundException | ObjectNotFoundException e) {

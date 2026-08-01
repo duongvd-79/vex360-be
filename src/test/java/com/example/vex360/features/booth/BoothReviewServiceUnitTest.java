@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -124,6 +125,7 @@ class BoothReviewServiceUnitTest {
 
     @Test
     void submitReviewAllocatesVersionAndStoresSchema2Snapshot() {
+        booth.setLateEditAllowedUntil(LocalDate.now(clock).plusDays(1));
         stubRequestSummary();
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
@@ -143,6 +145,7 @@ class BoothReviewServiceUnitTest {
         assertEquals(3, response.getVersionNumber());
         assertEquals(BoothReviewStatus.PENDING, response.getStatus());
         assertEquals(BoothStatus.PENDING, booth.getStatus());
+        assertEquals(null, booth.getLateEditAllowedUntil());
         assertTrue(response.getChangeSummary().isInitialSubmission());
         assertEquals(BoothReviewComparisonCompleteness.UNAVAILABLE,
                 response.getChangeSummary().getComparisonCompleteness());
@@ -237,7 +240,7 @@ class BoothReviewServiceUnitTest {
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertEquals(BoothStatus.DRAFT, response.getStatus());
         verify(exhibitionService).findExhibitionForUpdate(1);
-        verify(policyService).assertBeforeReviewDeadline(booth);
+        verify(policyService).assertCanStartEdit(booth);
     }
 
     @Test
@@ -338,6 +341,8 @@ class BoothReviewServiceUnitTest {
     @Test
     void approveAndRejectReturnSummaryOnly() {
         stubRequestSummary();
+        when(exhibitionService.findExhibitionForUpdate(exhibitionUuid))
+                .thenReturn(booth.getExhibitorRegistration().getExhibitionPackage().getExhibition());
         booth.setStatus(BoothStatus.PENDING);
         BoothReviewRequest approveRequest = reviewRequest(BoothReviewStatus.PENDING, 1);
         when(policyService.getOrganizerReviewRequest(organizer, exhibitionUuid, approveRequest.getId()))
@@ -358,6 +363,8 @@ class BoothReviewServiceUnitTest {
                 new RejectBoothReviewRequest("Missing content"));
         assertEquals("Missing content", rejected.getRejectedReason());
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        verify(exhibitionService, times(2)).findExhibitionForUpdate(exhibitionUuid);
+        verify(policyService, times(2)).assertCanReviewBooth(booth);
     }
 
     @Test

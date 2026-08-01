@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth.entities;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -98,6 +99,9 @@ public class Booth {
 
     @Column(name = "background_music_file_name", length = 255)
     String backgroundMusicFileName;
+
+    @Column(name = "late_edit_allowed_until")
+    LocalDate lateEditAllowedUntil;
 
     @Column(name = "background_music_file_size")
     Long backgroundMusicFileSize;

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,7 @@ import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuar
 import com.example.vex360.features.designrequest.services.DesignDraftGraphValidator;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.designrequest.services.DesignRequestMediaAssetService;
+import com.example.vex360.features.designrequest.services.DesignRequestLifecyclePolicy;
 import com.example.vex360.features.designrequest.services.DesignerDraftEditorService;
 import com.example.vex360.features.designrequest.services.DesignerDraftPreviewService;
 import com.example.vex360.features.product.services.ProductService;
@@ -82,6 +84,8 @@ class DesignerDraftEditorServiceUnitTest {
     DesignerDraftPreviewService previewService;
     @Mock
     DesignRequestMapper designRequestMapper;
+    @Mock
+    DesignRequestLifecyclePolicy lifecyclePolicy;
 
     private DesignerDraftEditorService service;
     private User designer;
@@ -103,7 +107,8 @@ class DesignerDraftEditorServiceUnitTest {
                 benefitGuardService,
                 graphValidator,
                 previewService,
-                designRequestMapper);
+                designRequestMapper,
+                lifecyclePolicy);
 
         designer = User.builder().id(UUID.randomUUID()).build();
         Company company = Company.builder().id(UUID.randomUUID()).build();
@@ -123,8 +128,20 @@ class DesignerDraftEditorServiceUnitTest {
         request.getDrafts().add(draft);
         emptyUsage = new DesignDraftBenefitGuardService.Usage(0, 0, 0, 0);
         when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
-        when(draftRepository.findByDesignRequestIdAndVersionNumber(request.getId(), 0))
+        lenient().when(draftRepository.findByDesignRequestIdAndVersionNumber(request.getId(), 0))
                 .thenReturn(Optional.of(draft));
+    }
+
+    @Test
+    void lifecyclePolicyBlocksGranularDraftMutation() {
+        doThrow(new AppException(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED))
+                .when(lifecyclePolicy).assertCanContinue(request);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.createPanorama(designer, request.getId(), null));
+
+        assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, exception.getErrorCode());
+        verify(draftRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -279,12 +296,12 @@ class DesignerDraftEditorServiceUnitTest {
         assertSame(
                 ErrorCode.INVALID_DESIGN_DRAFT,
                 assertThrows(
-                                AppException.class,
-                                () -> service.createHotspot(
-                                        designer,
-                                        request.getId(),
-                                        panorama.getId(),
-                                        wrongType))
+                        AppException.class,
+                        () -> service.createHotspot(
+                                designer,
+                                request.getId(),
+                                panorama.getId(),
+                                wrongType))
                         .getErrorCode());
 
         UpsertDesignDraftHotspotRequest foreignMedia = hotspotRequest(HotspotType.INFO);
@@ -293,12 +310,12 @@ class DesignerDraftEditorServiceUnitTest {
         assertSame(
                 ErrorCode.INVALID_DESIGN_DRAFT,
                 assertThrows(
-                                AppException.class,
-                                () -> service.createHotspot(
-                                        designer,
-                                        request.getId(),
-                                        panorama.getId(),
-                                        foreignMedia))
+                        AppException.class,
+                        () -> service.createHotspot(
+                                designer,
+                                request.getId(),
+                                panorama.getId(),
+                                foreignMedia))
                         .getErrorCode());
     }
 

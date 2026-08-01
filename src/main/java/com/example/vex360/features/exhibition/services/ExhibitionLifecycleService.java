@@ -1,98 +1,84 @@
 package com.example.vex360.features.exhibition.services;
 
-import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.events.ExhibitionActivatedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitionCompletedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ExhibitionLifecycleService {
 
     private final ExhibitionRepository exhibitionRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final Clock clock;
+    private final ExhibitionTimelinePolicy timelinePolicy;
+    private final TransactionTemplate requiresNewTransactionTemplate;
 
-    @Transactional
+    public ExhibitionLifecycleService(
+            ExhibitionRepository exhibitionRepository,
+            ApplicationEventPublisher eventPublisher,
+            ExhibitionTimelinePolicy timelinePolicy,
+            PlatformTransactionManager transactionManager) {
+        this.exhibitionRepository = exhibitionRepository;
+        this.eventPublisher = eventPublisher;
+        this.timelinePolicy = timelinePolicy;
+        this.requiresNewTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.requiresNewTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
     public int processLifecycleTransitions() {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = timelinePolicy.today();
+        List<Integer> dueIds = exhibitionRepository.findDueForLifecycleTransition(today,
+                today.plusDays(ExhibitionTimelinePolicy.DEFAULT_MINIMUM_LEAD_DAYS));
         int updatedCount = 0;
 
-        // 1. Transition PUBLISHED -> ACTIVE when startDate <= today
-        Page<Exhibition> publishedPage = exhibitionRepository.findByStatusAndStartDateLessThanEqual(
-                ExhibitionStatus.PUBLISHED, today, PageRequest.of(0, 100));
-
-        for (Exhibition e : publishedPage.getContent()) {
+        for (Integer exhibitionId : dueIds) {
             try {
-                if (transitionToActive(e.getId(), today)) {
+                Boolean transitioned = requiresNewTransactionTemplate
+                        .execute(status -> processSingleExhibitionTransition(exhibitionId, today));
+                if (Boolean.TRUE.equals(transitioned)) {
                     updatedCount++;
                 }
             } catch (Exception ex) {
-                log.error("Failed to transition exhibition {} to ACTIVE", e.getId(), ex);
-            }
-        }
-
-        // 2. Transition ACTIVE -> COMPLETED when endDate < today
-        Page<Exhibition> activePage = exhibitionRepository.findByStatusAndEndDateLessThan(
-                ExhibitionStatus.ACTIVE, today, PageRequest.of(0, 100));
-
-        for (Exhibition e : activePage.getContent()) {
-            try {
-                if (transitionToCompleted(e.getId(), today)) {
-                    updatedCount++;
-                }
-            } catch (Exception ex) {
-                log.error("Failed to transition exhibition {} to COMPLETED", e.getId(), ex);
+                log.error("Failed to transition exhibition {}", exhibitionId, ex);
             }
         }
 
         return updatedCount;
     }
 
-    @Transactional
-    public boolean transitionToActive(Integer exhibitionId, LocalDate today) {
+    public boolean processSingleExhibitionTransition(Integer exhibitionId, LocalDate today) {
         return exhibitionRepository.findByIdForUpdate(exhibitionId).map(exhibition -> {
-            if (exhibition.getStatus() == ExhibitionStatus.PUBLISHED
-                    && exhibition.getStartDate() != null
-                    && !exhibition.getStartDate().isAfter(today)) {
-                exhibition.setStatus(ExhibitionStatus.ACTIVE);
-                exhibitionRepository.save(exhibition);
-                log.info("[LIFECYCLE_TRANSITION] Exhibition {} ({}) status changed from PUBLISHED to ACTIVE",
-                        exhibition.getName(), exhibition.getId());
-                return true;
+            ExhibitionStatus targetStatus = timelinePolicy.resolveTargetStatus(exhibition, today);
+            if (targetStatus == null || targetStatus == exhibition.getStatus()) {
+                return false;
             }
-            return false;
-        }).orElse(false);
-    }
 
-    @Transactional
-    public boolean transitionToCompleted(Integer exhibitionId, LocalDate today) {
-        return exhibitionRepository.findByIdForUpdate(exhibitionId).map(exhibition -> {
-            if (exhibition.getStatus() == ExhibitionStatus.ACTIVE
-                    && exhibition.getEndDate() != null
-                    && exhibition.getEndDate().isBefore(today)) {
-                exhibition.setStatus(ExhibitionStatus.COMPLETED);
-                exhibitionRepository.save(exhibition);
-                log.info("[LIFECYCLE_TRANSITION] Exhibition {} ({}) status changed from ACTIVE to COMPLETED",
-                        exhibition.getName(), exhibition.getId());
+            ExhibitionStatus oldStatus = exhibition.getStatus();
+            exhibition.setStatus(targetStatus);
+            exhibitionRepository.save(exhibition);
 
+            log.info("[LIFECYCLE_TRANSITION] Exhibition {} ({}) status changed from {} to {}",
+                    exhibition.getName(), exhibition.getId(), oldStatus, targetStatus);
+
+            if (targetStatus == ExhibitionStatus.ACTIVE) {
+                eventPublisher.publishEvent(new ExhibitionActivatedEvent(this, exhibition));
+            } else if (targetStatus == ExhibitionStatus.COMPLETED) {
                 eventPublisher.publishEvent(new ExhibitionCompletedEvent(this, exhibition));
-                return true;
             }
-            return false;
+
+            return true;
         }).orElse(false);
     }
 }

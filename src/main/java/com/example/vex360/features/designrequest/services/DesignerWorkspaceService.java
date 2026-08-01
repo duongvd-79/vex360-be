@@ -74,6 +74,7 @@ public class DesignerWorkspaceService {
     private final DesignRequestMapper designRequestMapper;
     private final DesignDraftContentAssembler designDraftContentAssembler;
     private final DesignDraftDiffService designDraftDiffService;
+    private final DesignRequestLifecyclePolicy lifecyclePolicy;
 
     /**
      * Builds the workspace for an assigned request, including the current booth,
@@ -218,6 +219,7 @@ public class DesignerWorkspaceService {
         DesignRequest request = designRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
         requireAssignedDesigner(designer, request);
+        lifecyclePolicy.assertCanContinue(request);
         return request;
     }
 

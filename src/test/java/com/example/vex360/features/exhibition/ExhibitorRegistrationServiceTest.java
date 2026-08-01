@@ -256,7 +256,8 @@ class ExhibitorRegistrationServiceTest {
                 .thenReturn(true);
 
         AppException exception = assertThrows(AppException.class,
-                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth", "Test Booth Description"));
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
+                        "Test Booth Description"));
 
         assertEquals(ErrorCode.REGISTRATION_ALREADY_EXISTS, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
@@ -286,7 +287,8 @@ class ExhibitorRegistrationServiceTest {
         when(packageRepository.findById(999)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
-            registrationService.initializeRegistration(companyUser.getId(), 999, "Join expo", "Test Booth", "Test Booth Description");
+            registrationService.initializeRegistration(companyUser.getId(), 999, "Join expo", "Test Booth",
+                    "Test Booth Description");
         });
 
         assertEquals(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND, exception.getErrorCode());
@@ -314,7 +316,8 @@ class ExhibitorRegistrationServiceTest {
         when(exhibitionRepository.findByIdForUpdate(2)).thenReturn(Optional.of(pendingExhibition));
 
         AppException exception = assertThrows(AppException.class, () -> {
-            registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo", "Test Booth", "Test Booth Description");
+            registrationService.initializeRegistration(companyUser.getId(), 12, "Join expo", "Test Booth",
+                    "Test Booth Description");
         });
 
         assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
@@ -330,7 +333,8 @@ class ExhibitorRegistrationServiceTest {
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
 
         AppException exception = assertThrows(AppException.class,
-                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth", "Test Booth Description"));
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
+                        "Test Booth Description"));
 
         assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
@@ -344,7 +348,8 @@ class ExhibitorRegistrationServiceTest {
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
 
         AppException exception = assertThrows(AppException.class,
-                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth", "Test Booth Description"));
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
+                        "Test Booth Description"));
 
         assertEquals(ErrorCode.REGISTRATION_CLOSED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
@@ -358,7 +363,8 @@ class ExhibitorRegistrationServiceTest {
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
 
         AppException exception = assertThrows(AppException.class,
-                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth", "Test Booth Description"));
+                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
+                        "Test Booth Description"));
 
         assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
@@ -704,7 +710,7 @@ class ExhibitorRegistrationServiceTest {
     void testApproveRegistration_NotFound_ThrowsException() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.empty());
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.approveRegistration(organizer, registrationUuid);
@@ -722,7 +728,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.approveRegistration(organizer, registrationUuid);
@@ -734,12 +740,15 @@ class ExhibitorRegistrationServiceTest {
     void testApproveRegistration_NotPending_ThrowsException() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
+        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo")
+                .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
+                .build();
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).status(ExhibitorRegistrationStatus.APPROVED).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.approveRegistration(organizer, registrationUuid);
@@ -751,7 +760,8 @@ class ExhibitorRegistrationServiceTest {
     void testApproveRegistration_PaidPackage_StatusSetToPendingPayment() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
+        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo")
+                .status(ExhibitionStatus.REGISTRATION).startDate(LocalDate.of(2026, Month.JANUARY, 20)).build();
         PackageTemplate template = PackageTemplate.builder().id(UUID.randomUUID()).name("Std").build();
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.TEN).build();
@@ -762,7 +772,7 @@ class ExhibitorRegistrationServiceTest {
                 .currencySnapshot("USD")
                 .build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var dto = registrationService.approveRegistration(organizer, registrationUuid);
@@ -786,14 +796,15 @@ class ExhibitorRegistrationServiceTest {
     void testApproveRegistration_FreePackage_StatusSetToApproved_CreateFreePayment() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
+        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo")
+                .status(ExhibitionStatus.REGISTRATION).startDate(LocalDate.of(2026, Month.JANUARY, 20)).build();
         PackageTemplate template = PackageTemplate.builder().id(UUID.randomUUID()).name("Std").build();
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.ZERO).build();
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var dto = registrationService.approveRegistration(organizer, registrationUuid);
@@ -815,7 +826,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING_PAYMENT).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var dto = registrationService.rejectRegistration(organizer, registrationUuid, "Invalid docs");
@@ -834,7 +845,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class,
                 () -> registrationService.rejectRegistration(organizer, registrationUuid, "   "));
@@ -962,7 +973,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.APPROVED).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.rejectRegistration(organizer, registrationUuid, "Invalid docs");
@@ -981,7 +992,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).company(company).status(ExhibitorRegistrationStatus.PENDING).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var dto = registrationService.rejectRegistration(organizer, registrationUuid, "Invalid docs");
@@ -1018,7 +1029,7 @@ class ExhibitorRegistrationServiceTest {
     void testRejectRegistration_NotFound_ThrowsException() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.empty());
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.rejectRegistration(organizer, registrationUuid, "reason");
@@ -1036,7 +1047,7 @@ class ExhibitorRegistrationServiceTest {
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).uuid(registrationUuid)
                 .exhibitionPackage(ep).build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
 
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.rejectRegistration(organizer, registrationUuid, "reason");
@@ -1225,7 +1236,10 @@ class ExhibitorRegistrationServiceTest {
     void testApproveRegistration_UsesFinalPriceSnapshot() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
-        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo").build();
+        Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo")
+                .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
+                .build();
         PackageTemplate template = PackageTemplate.builder().id(UUID.randomUUID()).name("Std").build();
         ExhibitionPackage ep = ExhibitionPackage.builder().id(10).exhibition(exhibition).template(template)
                 .finalPrice(BigDecimal.valueOf(9999)) // Changed package price
@@ -1235,7 +1249,7 @@ class ExhibitorRegistrationServiceTest {
                 .finalPriceSnapshot(BigDecimal.ZERO) // Original snapshot was 0 (free)
                 .build();
 
-        when(registrationRepository.findByUuid(registrationUuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ExhibitorRegistration.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var dto = registrationService.approveRegistration(organizer, registrationUuid);

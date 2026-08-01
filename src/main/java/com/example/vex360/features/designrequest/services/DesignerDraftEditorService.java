@@ -70,6 +70,7 @@ public class DesignerDraftEditorService {
     private final DesignDraftGraphValidator graphValidator;
     private final DesignerDraftPreviewService previewService;
     private final DesignRequestMapper designRequestMapper;
+    private final DesignRequestLifecyclePolicy lifecyclePolicy;
 
     @Transactional
     public DesignDraftSettingsResponseDTO updateSettings(
@@ -295,6 +296,7 @@ public class DesignerDraftEditorService {
         if (request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
             throw new AppException(ErrorCode.DESIGN_CANCELLATION_PENDING);
         }
+        lifecyclePolicy.assertCanContinue(request);
         DesignDraft draft = draftRepository.findByDesignRequestIdAndVersionNumber(requestId, WORKING_VERSION)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
         return new EditableDraft(request, draft);

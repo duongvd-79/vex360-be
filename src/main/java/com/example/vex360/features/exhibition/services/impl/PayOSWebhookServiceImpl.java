@@ -28,7 +28,7 @@ import vn.payos.PayOS;
 import vn.payos.model.webhooks.WebhookData;
 
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
-import com.example.vex360.features.exhibition.events.ExhibitorBoothRepairRequestedEvent;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 
 @Service
@@ -41,6 +41,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
     private final PaymentFulfillmentService fulfillmentService;
     private final StoragePackageService storagePackageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ExhibitionTimelinePolicy timelinePolicy;
     private final PayOS payOS;
 
     @Override
@@ -66,13 +67,6 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
             }
             PaymentRoute route = routeOpt.get();
 
-            // Lock order: Payment first, then Registration
-            Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode)
-                    .orElseThrow(() -> {
-                        log.error("Payment not found for orderCode: {}", orderCode);
-                        return new AppException(ErrorCode.UNCATCHED_EXCEPTION);
-                    });
-
             ExhibitorRegistration registration = null;
             if (route.getPaymentType() == PaymentType.EXHIBITION_REGISTRATION) {
                 if (route.getRegistrationId() == null) {
@@ -86,25 +80,17 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                         });
             }
 
+            Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode)
+                    .orElseThrow(() -> {
+                        log.error("Payment not found for orderCode: {}", orderCode);
+                        return new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+                    });
+
             validateLockedRoute(route, payment);
 
             if (payment.getStatus() == PaymentStatus.PAID) {
                 if ("00".equals(data.getCode())) {
                     reconcileWebhookInvariants(data, payment);
-                    if (payment.getPaymentType() == PaymentType.EXHIBITION_REGISTRATION && registration != null) {
-                        boolean newlyApproved = registration.getStatus() != ExhibitorRegistrationStatus.APPROVED;
-                        if (newlyApproved) {
-                            registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-                            registrationRepository.save(registration);
-                        }
-                        fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), null);
-                        if (newlyApproved) {
-                            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
-                        } else {
-                            eventPublisher.publishEvent(new ExhibitorBoothRepairRequestedEvent(this, registration));
-                        }
-                        log.info("Duplicate webhook processed for orderCode: {}", orderCode);
-                    }
                 } else {
                     log.info("Payment with orderCode {} has already been PAID. Ignoring late failure webhook.",
                             orderCode);
@@ -126,10 +112,16 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
                     storagePackageService.markPaidAndIncrementQuota(payment.getStoragePackageOrderId());
                 } else if (registration != null) {
-                    if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT
-                            && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
-                        log.warn("Payment PAID for registration ID {} in status {}. Refusing to approve.",
+                    boolean registrationOpen = registration.getExhibitionPackage() != null
+                            && timelinePolicy.isRegistrationOpen(
+                                    registration.getExhibitionPackage().getExhibition());
+                    if (!registrationOpen
+                            || registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT
+                                    && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
+                        log.warn("Payment PAID but registration {} can no longer be fulfilled (status: {}).",
                                 registration.getId(), registration.getStatus());
+                        fulfillmentService.updateReceiptFailed(
+                                orderCode, new AppException(ErrorCode.REGISTRATION_CLOSED));
                     } else {
                         ExhibitorRegistrationStatus oldStatus = registration.getStatus();
                         registration.setStatus(ExhibitorRegistrationStatus.APPROVED);

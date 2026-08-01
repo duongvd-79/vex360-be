@@ -186,4 +186,13 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
             @Param("designerId") UUID designerId,
             @Param("statuses") List<DesignRequestStatus> statuses,
             @Param("mode") DesignRequestMode mode);
+
+    @Query("""
+            SELECT dr FROM DesignRequest dr
+            WHERE dr.booth.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
+              AND dr.status IN :statuses
+            """)
+    List<DesignRequest> findOpenByExhibitionId(
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("statuses") List<DesignRequestStatus> statuses);
 }

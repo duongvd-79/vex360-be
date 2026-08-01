@@ -81,4 +81,52 @@ class ExhibitionTimelinePolicyTest {
         exhibition.setStatus(ExhibitionStatus.PENDING);
         assertFalse(policy.isRegistrationOpen(exhibition));
     }
+
+    @Test
+    @DisplayName("Should resolve target status according to priority rules")
+    void testResolveTargetStatus() {
+        // 1. today > endDate -> COMPLETED
+        Exhibition exCompleted = Exhibition.builder()
+                .status(ExhibitionStatus.ACTIVE)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 1))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 9))
+                .build();
+        assertEquals(ExhibitionStatus.COMPLETED,
+                policy.resolveTargetStatus(exCompleted, LocalDate.of(2026, Month.JANUARY, 10)));
+
+        // 2. today >= startDate -> ACTIVE
+        Exhibition exActive = Exhibition.builder()
+                .status(ExhibitionStatus.PUBLISHED)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 10))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 15))
+                .build();
+        assertEquals(ExhibitionStatus.ACTIVE,
+                policy.resolveTargetStatus(exActive, LocalDate.of(2026, Month.JANUARY, 10)));
+
+        // 3. status == REGISTRATION and today >= startDate - 7 days -> PUBLISHED
+        Exhibition exPublished = Exhibition.builder()
+                .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 17))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
+                .build();
+        assertEquals(ExhibitionStatus.PUBLISHED,
+                policy.resolveTargetStatus(exPublished, LocalDate.of(2026, Month.JANUARY, 10)));
+
+        // 4. Otherwise -> null (no transition)
+        // REGISTRATION before T-7
+        Exhibition exRegEarly = Exhibition.builder()
+                .status(ExhibitionStatus.REGISTRATION)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
+                .build();
+        assertNull(policy.resolveTargetStatus(exRegEarly, LocalDate.of(2026, Month.JANUARY, 10)));
+
+        // PUBLISHED before T0
+        Exhibition exPubEarly = Exhibition.builder()
+                .status(ExhibitionStatus.PUBLISHED)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 15))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 20))
+                .build();
+        assertNull(policy.resolveTargetStatus(exPubEarly, LocalDate.of(2026, Month.JANUARY, 10)));
+    }
 }

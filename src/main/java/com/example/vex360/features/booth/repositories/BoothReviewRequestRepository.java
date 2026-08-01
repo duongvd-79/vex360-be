@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,4 +60,8 @@ public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewR
             @Param("organizerId") UUID organizerId,
             @Param("exhibitionUuid") UUID exhibitionUuid,
             @Param("requestId") UUID requestId);
+
+    List<BoothReviewRequest> findByBoothIdInAndStatus(
+            List<UUID> boothIds,
+            BoothReviewStatus status);
 }
