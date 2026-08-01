@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,8 @@ import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.company.entities.Company;
@@ -29,6 +32,7 @@ import com.example.vex360.features.wallet.repositories.OrganizerWalletTransactio
 import com.example.vex360.features.wallet.services.OrganizerWalletDomainService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class OrganizerWalletDomainServiceTest {
@@ -117,6 +121,61 @@ class OrganizerWalletDomainServiceTest {
         assertEquals(WalletTransactionType.EXHIBITION_RELEASE, tx.getType());
         assertEquals(new BigDecimal("0.00"), wallet.getPendingBalance());
         assertEquals(new BigDecimal("500000.00"), wallet.getAvailableBalance());
+    }
+
+    @Test
+    void releaseCompletedExhibitionRevenueReleasesOnlyRemainingCredit() {
+        Exhibition exhibition = Exhibition.builder().id(1).build();
+        wallet.setPendingBalance(new BigDecimal("100.00"));
+        when(organizerWalletTransactionRepository.sumCreditedAmountByExhibitionId(1))
+                .thenReturn(new BigDecimal("100.00"));
+        when(organizerWalletTransactionRepository.sumReleasedAmountByExhibitionId(1))
+                .thenReturn(new BigDecimal("20.00"));
+        when(organizerWalletTransactionRepository.sumReversedAmountByExhibitionId(1))
+                .thenReturn(new BigDecimal("10.00"));
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId()))
+                .thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        domainService.releaseCompletedExhibitionRevenue(company, exhibition);
+
+        assertEquals(new BigDecimal("30.00"), wallet.getPendingBalance());
+        assertEquals(new BigDecimal("70.00"), wallet.getAvailableBalance());
+        verify(organizerWalletTransactionRepository).save(any(OrganizerWalletTransaction.class));
+    }
+
+    @Test
+    void releaseCompletedExhibitionRevenueFailsWhenWalletIsMissing() {
+        Exhibition exhibition = Exhibition.builder().id(1).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> domainService.releaseCompletedExhibitionRevenue(company, exhibition));
+
+        assertSame(ErrorCode.WALLET_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void duplicateCompletionDoesNotReleaseRevenueTwice() {
+        Exhibition exhibition = Exhibition.builder().id(1).build();
+        wallet.setPendingBalance(new BigDecimal("100.00"));
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId()))
+                .thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.sumCreditedAmountByExhibitionId(1))
+                .thenReturn(new BigDecimal("100.00"));
+        when(organizerWalletTransactionRepository.sumReleasedAmountByExhibitionId(1))
+                .thenReturn(BigDecimal.ZERO, new BigDecimal("100.00"));
+        when(organizerWalletTransactionRepository.sumReversedAmountByExhibitionId(1))
+                .thenReturn(BigDecimal.ZERO);
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        domainService.releaseCompletedExhibitionRevenue(company, exhibition);
+        domainService.releaseCompletedExhibitionRevenue(company, exhibition);
+
+        assertEquals(new BigDecimal("100.00"), wallet.getAvailableBalance());
+        verify(organizerWalletTransactionRepository, times(1)).save(any());
     }
 
     @Test

@@ -27,5 +27,7 @@ public class BoothReviewRequestSummaryDTO {
     private Instant submittedAt;
     private Instant reviewedAt;
     private String rejectedReason;
+    private Instant canceledAt;
+    private String cancellationReason;
     private BoothReviewChangeSummaryDTO changeSummary;
 }

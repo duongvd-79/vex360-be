@@ -62,6 +62,7 @@ import com.example.vex360.features.designrequest.repositories.DesignRequestRepos
 import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
+import com.example.vex360.features.designrequest.services.DesignRequestLifecyclePolicy;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.designrequest.services.DesignRequestMediaAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
@@ -137,6 +138,8 @@ class DesignRequestServiceUnitTest {
     private ExhibitorMediaAssetService exhibitorMediaAssetService;
     @Mock
     private CompanyStorageService storageService;
+    @Mock
+    private DesignRequestLifecyclePolicy designRequestLifecyclePolicy;
 
     private DesignRequestService service;
     private User exhibitor;
@@ -169,7 +172,8 @@ class DesignRequestServiceUnitTest {
                 draftRetentionService,
                 draftGraphValidator,
                 draftBenefitGuardService,
-                eventPublisher);
+                eventPublisher,
+                designRequestLifecyclePolicy);
 
         exhibitor = User.builder()
                 .id(UUID.randomUUID())
@@ -297,6 +301,22 @@ class DesignRequestServiceUnitTest {
         assertEquals(company.getPhone(), saved.getContactPhone());
         verify(requestProductService).initializeAllowlist(saved, List.of());
         verify(requestMediaAssetService).initializeAllowlist(saved, List.of());
+        verify(designRequestLifecyclePolicy).assertCanCreate(booth);
+    }
+
+    @Test
+    void assignRequestStopsWhenExhibitionLifecycleIsClosed() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = pendingRequest(requestId);
+        doThrow(new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE))
+                .when(designRequestLifecyclePolicy).assertCanContinue(request);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.assignRequest(requestId, new AssignDesignRequest(designer.getId())));
+
+        assertSame(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE, exception.getErrorCode());
+        verify(userService, never()).getUserEntityByIdForUpdate(any());
     }
 
     @Test
@@ -488,6 +508,7 @@ class DesignRequestServiceUnitTest {
                 any(),
                 any(DesignDraft.class));
         verify(designDraftAssetService).cleanupUnreferencedAssets(request);
+        verify(designRequestLifecyclePolicy).assertCanContinue(request);
     }
 
     @Test
@@ -538,6 +559,7 @@ class DesignRequestServiceUnitTest {
         verify(designDraftAssetService).cleanupUnreferencedAssets(request);
         verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
+        verify(designRequestLifecyclePolicy).assertCanContinue(request);
     }
 
     @Test
@@ -587,6 +609,7 @@ class DesignRequestServiceUnitTest {
         assertEquals(DesignRequestStatus.REVISION_REQUESTED, request.getStatus());
         verify(draftCloneService).cloneLatestSubmittedToWorking(request);
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
+        verify(designRequestLifecyclePolicy).assertCanContinue(request);
     }
 
     @Test
@@ -678,6 +701,8 @@ class DesignRequestServiceUnitTest {
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         verify(draftRetentionService).retainApprovedDraft(request, draft);
         verify(designDraftAssetService).cleanupAfterApproval(request);
+        verify(designRequestLifecyclePolicy).assertCanContinue(request);
+        verify(designRequestLifecyclePolicy).grantLateEditWindowIfEligible(request);
     }
 
     @Test

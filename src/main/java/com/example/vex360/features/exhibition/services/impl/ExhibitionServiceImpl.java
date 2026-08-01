@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,8 @@ import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
+import com.example.vex360.features.exhibition.events.ExhibitionActivatedEvent;
+import com.example.vex360.features.exhibition.events.ExhibitionCompletedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -98,6 +101,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionReviewHistoryService reviewHistoryService;
     private final MailService mailService;
     private final AfterCommitExecutor afterCommitExecutor;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -437,7 +441,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> {
                     log.error("Exhibition not found for UUID: {}", uuid);
                     return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
@@ -480,7 +484,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         // Update time-window validation: must be before start date, and no exhibitors
         // registered yet
-        if (!LocalDate.now().isBefore(exhibition.getStartDate())) {
+        if (!timelinePolicy.today().isBefore(exhibition.getStartDate())) {
             log.error("Cannot update exhibition on or after its start date {}", exhibition.getStartDate());
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_STARTED);
         }
@@ -610,7 +614,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> {
                     log.error("Exhibition not found for UUID: {}", uuid);
                     return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
@@ -621,21 +625,26 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
-        if (!timelinePolicy.hasMinimumLeadTime(exhibition.getStartDate())) {
-            log.error("Cannot approve exhibition {}: start date {} does not meet minimum lead time requirement",
-                    exhibition.getId(), exhibition.getStartDate());
-            throw new AppException(ErrorCode.EXHIBITION_APPROVAL_LEAD_TIME_NOT_MET);
-        }
-
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         validatePackagesForApproval(packages);
 
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
+        ExhibitionStatus resolvedStatus = timelinePolicy.resolveTargetStatus(exhibition, timelinePolicy.today());
+        if (resolvedStatus != null) {
+            exhibition.setStatus(resolvedStatus);
+        }
+
         exhibition.setReviewedBy(admin);
         exhibition.setReviewedAt(Instant.now());
 
         exhibition = exhibitionRepository.save(exhibition);
         reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.APPROVED, null);
+
+        if (exhibition.getStatus() == ExhibitionStatus.ACTIVE) {
+            eventPublisher.publishEvent(new ExhibitionActivatedEvent(this, exhibition));
+        } else if (exhibition.getStatus() == ExhibitionStatus.COMPLETED) {
+            eventPublisher.publishEvent(new ExhibitionCompletedEvent(this, exhibition));
+        }
 
         packages = exhibitionPackageRepository.findByExhibition(exhibition);
         ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
@@ -656,7 +665,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> {
                     log.error("Exhibition not found for UUID: {}", uuid);
                     return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
@@ -690,13 +699,16 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
         ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
-        sendExhibitionReviewMailSafely(exhibition, originalExhibitionName, ExhibitionReviewStatus.REJECTED, request.getRejectedReason());
+        sendExhibitionReviewMailSafely(exhibition, originalExhibitionName, ExhibitionReviewStatus.REJECTED,
+                request.getRejectedReason());
         return response;
     }
 
-    private void sendExhibitionReviewMailSafely(Exhibition exhibition, String exhibitionName, ExhibitionReviewStatus result, String rejectedReason) {
+    private void sendExhibitionReviewMailSafely(Exhibition exhibition, String exhibitionName,
+            ExhibitionReviewStatus result, String rejectedReason) {
         User organizer = exhibition.getOrganizer();
-        if (organizer == null || organizer.getEmail() == null || organizer.getEmail().isBlank()) return;
+        if (organizer == null || organizer.getEmail() == null || organizer.getEmail().isBlank())
+            return;
         String email = organizer.getEmail();
         String fullName = organizer.getFullName();
         LocalDate startDate = exhibition.getStartDate();
@@ -1271,7 +1283,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> {
                     log.error("Exhibition not found for UUID: {}", uuid);
                     return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
@@ -1285,6 +1297,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         if (exhibition.getStatus() != ExhibitionStatus.REGISTRATION) {
             log.error("Cannot publish exhibition {} with status {}", uuid, exhibition.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_NOT_READY_TO_PUBLISH);
+        }
+
+        if (!timelinePolicy.today().isBefore(exhibition.getStartDate())) {
+            log.error("Cannot manually publish exhibition {} on or after start date {}", uuid,
+                    exhibition.getStartDate());
+            throw new AppException(ErrorCode.EXHIBITION_ALREADY_STARTED);
         }
 
         exhibition.setStatus(ExhibitionStatus.PUBLISHED);
@@ -1407,6 +1425,16 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
         return exhibitionRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional
+    public Exhibition findExhibitionForUpdate(UUID uuid) {
+        if (uuid == null) {
+            throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
+        }
+        return exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
     }
 }

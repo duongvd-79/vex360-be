@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +40,7 @@ import com.example.vex360.features.designrequest.services.DesignRequestEligibili
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
 import com.example.vex360.features.designrequest.services.DesignDraftContentAssembler;
 import com.example.vex360.features.designrequest.services.DesignDraftDiffService;
+import com.example.vex360.features.designrequest.services.DesignRequestLifecyclePolicy;
 import com.example.vex360.features.designrequest.services.DesignDraftStorageMetricsService;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.user.entities.User;
@@ -75,6 +77,8 @@ class DesignerWorkspaceServiceUnitTest {
     DesignDraftContentAssembler designDraftContentAssembler;
     @Mock
     DesignDraftDiffService designDraftDiffService;
+    @Mock
+    DesignRequestLifecyclePolicy lifecyclePolicy;
 
     private DesignerWorkspaceService service;
     private User designer;
@@ -95,7 +99,8 @@ class DesignerWorkspaceServiceUnitTest {
                 benefitGuardService,
                 designRequestMapper,
                 designDraftContentAssembler,
-                designDraftDiffService);
+                designDraftDiffService,
+                lifecyclePolicy);
         designer = User.builder().id(UUID.randomUUID()).build();
         Company company = Company.builder()
                 .id(UUID.randomUUID())
@@ -112,6 +117,18 @@ class DesignerWorkspaceServiceUnitTest {
                 .contactEmail("contact@example.com")
                 .contactPhone("0912345678")
                 .build();
+    }
+
+    @Test
+    void assignedRequestForUpdateAppliesLifecyclePolicy() {
+        when(designRequestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
+        doThrow(new AppException(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED))
+                .when(lifecyclePolicy).assertCanContinue(request);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getAssignedRequestForUpdate(designer, request.getId()));
+
+        assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, exception.getErrorCode());
     }
 
     @Test

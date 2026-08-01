@@ -2,6 +2,8 @@ package com.example.vex360.features.mail;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -923,7 +925,7 @@ public class MailServiceImpl implements MailService {
     private String formatMoney(BigDecimal amount, String currency) {
         String curr = (currency == null || currency.isBlank()) ? "VND" : currency;
         if (amount == null) return "Không xác định";
-        return new DecimalFormat("#,##0").format(amount) + " " + curr;
+        return new DecimalFormat("#,##0", DecimalFormatSymbols.getInstance(Locale.US)).format(amount) + " " + curr;
     }
 
     private void sendHtmlMail(String toEmail, String subject, String htmlContent) {

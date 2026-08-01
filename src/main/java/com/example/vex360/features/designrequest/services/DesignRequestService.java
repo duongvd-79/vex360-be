@@ -102,7 +102,8 @@ public class DesignRequestService {
             "customerCompany", "company.name",
             "assignedDesignerName", "assignedDesigner.fullName");
     private static final int MAX_ACTIVE_REQUESTS_PER_DESIGNER = 3;
-    private static final Pattern CONTACT_EMAIL_PATTERN = Pattern.compile("^[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,24}$");
+    private static final Pattern CONTACT_EMAIL_PATTERN = Pattern
+            .compile("^[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,24}$");
     private static final Pattern CONTACT_PHONE_PATTERN = Pattern.compile("^0\\d{9}$");
 
     private final DesignRequestRepository designRequestRepository;
@@ -126,6 +127,7 @@ public class DesignRequestService {
     private final DesignDraftGraphValidator draftGraphValidator;
     private final DesignDraftBenefitGuardService draftBenefitGuardService;
     private final ApplicationEventPublisher eventPublisher;
+    private final DesignRequestLifecyclePolicy designRequestLifecyclePolicy;
 
     /**
      * Creates a pending design request for an Exhibitor-owned booth. The booth
@@ -145,6 +147,7 @@ public class DesignRequestService {
         Booth booth = getCompanyBoothForUpdate(request.getBoothId(), company);
         var eligibility = eligibilityService.evaluate(booth);
         eligibilityService.assertCanCreate(eligibility);
+        designRequestLifecyclePolicy.assertCanCreate(booth);
         String contactEmail = resolveContactEmail(request.getContactEmail(), company.getEmail());
         String contactPhone = resolveContactPhone(request.getContactPhone(), company.getPhone());
         booth.setStatus(BoothStatus.DESIGN_REQUEST_PENDING);
@@ -367,6 +370,7 @@ public class DesignRequestService {
         if (request.getStatus() != DesignRequestStatus.PENDING) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
+        designRequestLifecyclePolicy.assertCanContinue(request);
 
         User designer = userService.getUserEntityByIdForUpdate(assignRequest.getDesignerId());
         if (designer.getRole() != Role.DESIGNER) {
@@ -410,6 +414,7 @@ public class DesignRequestService {
             SubmitDesignDraftRequest draftRequest) {
         DesignRequest request = getRequest(id);
         requireDesignerCanEdit(currentUser, request);
+        designRequestLifecyclePolicy.assertCanContinue(request);
 
         DesignDraft currentWorking = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() == 0)
@@ -444,6 +449,7 @@ public class DesignRequestService {
     public DesignRequestResponseDTO submitWorkingDraft(User currentUser, UUID id) {
         DesignRequest request = getRequest(id);
         requireDesignerCanEdit(currentUser, request);
+        designRequestLifecyclePolicy.assertCanContinue(request);
         DesignDraft workingDraft = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() == 0)
                 .findFirst()
@@ -479,6 +485,7 @@ public class DesignRequestService {
     public DesignRequestResponseDTO rejectDraft(User currentUser, UUID id, RejectDesignDraftRequest rejectRequest) {
         Company company = getCompanyForCurrentUser(currentUser);
         DesignRequest request = getRequestForCompany(id, company);
+        designRequestLifecyclePolicy.assertCanContinue(request);
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
@@ -527,6 +534,7 @@ public class DesignRequestService {
     public DesignRequestResponseDTO approveDraft(User currentUser, UUID id, ApproveDesignDraftRequest approveRequest) {
         Company company = getCompanyForCurrentUser(currentUser);
         DesignRequest request = getRequestForCompany(id, company);
+        designRequestLifecyclePolicy.assertCanContinue(request);
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
@@ -560,6 +568,7 @@ public class DesignRequestService {
         request.setStatus(DesignRequestStatus.APPROVED);
         request.setApprovedAt(Instant.now());
         request.getBooth().setStatus(BoothStatus.DRAFT);
+        designRequestLifecyclePolicy.grantLateEditWindowIfEligible(request);
         DesignRequest saved = designRequestRepository.save(request);
         draftRetentionService.retainApprovedDraft(saved, draft);
         designDraftAssetService.cleanupAfterApproval(saved);

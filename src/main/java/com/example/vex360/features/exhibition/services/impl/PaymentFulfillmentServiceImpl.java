@@ -16,6 +16,8 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentReceiptRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentReceiptStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -36,6 +38,7 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
     private final PaymentRepository paymentRepository;
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ExhibitionTimelinePolicy timelinePolicy;
 
     @Override
     @Transactional
@@ -137,23 +140,31 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
             return Optional.empty();
         }
 
-        Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
-        if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
-            log.warn("[PB-006] Cannot process reconciliation for orderCode {}: payment null or not PAID", orderCode);
+        Optional<PaymentRoute> route = paymentRepository.findRouteByOrderCode(orderCode);
+        if (route.isEmpty() || route.get().getPaymentType() != PaymentType.EXHIBITION_REGISTRATION
+                || route.get().getRegistrationId() == null) {
             return Optional.empty();
         }
 
-        if (payment.getPaymentType() != PaymentType.EXHIBITION_REGISTRATION
-                || payment.getExhibitorRegistration() == null) {
-            log.info("[PB-006] OrderCode {} is not an exhibition registration payment", orderCode);
-            return Optional.empty();
-        }
-
-        Integer regId = payment.getExhibitorRegistration().getId();
+        Integer regId = route.get().getRegistrationId();
         ExhibitorRegistration registration = registrationRepository.findByIdForUpdate(regId).orElse(null);
         if (registration == null) {
             log.error("[PB-006] Registration missing for orderCode {}", orderCode);
             updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+            return receiptRepository.findByOrderCode(orderCode);
+        }
+
+        Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
+        if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
+            return Optional.empty();
+        }
+
+        boolean registrationOpen = registration.getExhibitionPackage() != null
+                && timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition());
+        if (!registrationOpen
+                || registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT
+                        && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
+            updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_CLOSED));
             return receiptRepository.findByOrderCode(orderCode);
         }
 
@@ -194,7 +205,8 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
     private boolean isNonRetryableException(Throwable t) {
         if (t instanceof AppException appEx) {
             return appEx.getErrorCode() == ErrorCode.REGISTRATION_DEPENDENCY_INVALID
-                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_NOT_FOUND;
+                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_NOT_FOUND
+                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_CLOSED;
         }
         return false;
     }

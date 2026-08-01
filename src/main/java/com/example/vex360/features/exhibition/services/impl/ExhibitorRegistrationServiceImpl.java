@@ -190,9 +190,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                             if (linkData.getStatus() == PaymentLinkStatus.PAID) {
                                 payment.setStatus(PaymentStatus.PAID);
                                 payment.setPaidAt(Instant.now());
-                                registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-                                registrationRepository.save(registration);
-                                eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                                if (timelinePolicy.isRegistrationOpen(
+                                        registration.getExhibitionPackage().getExhibition())) {
+                                    registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+                                    registrationRepository.save(registration);
+                                    eventPublisher.publishEvent(
+                                            new ExhibitorRegistrationApprovedEvent(this, registration));
+                                }
                                 payment = paymentRepository.save(payment);
                             } else {
                                 payment.setStatus(PaymentStatus.FAILED);
@@ -218,6 +222,10 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getStatus() == ExhibitorRegistrationStatus.PENDING_PAYMENT
                 && (payment == null || payment.getStatus() == PaymentStatus.FAILED)) {
             validateRegistrationDependencies(registration);
+
+            if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
+                throw new AppException(ErrorCode.REGISTRATION_CLOSED);
+            }
 
             // Generate a new payment link using finalPriceSnapshot if present
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
@@ -335,14 +343,18 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
                 .orElseThrow(() -> {
                     log.error("Registration not found for UUID: {}", registrationUuid);
                     return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
                 });
 
         // Check ownership
-        if (!registration.getExhibitionPackage().getExhibition().getOrganizer().getId().equals(organizer.getId())) {
+        Exhibition exp = registration.getExhibitionPackage() != null
+                ? registration.getExhibitionPackage().getExhibition()
+                : null;
+        User expOrganizer = exp != null ? exp.getOrganizer() : null;
+        if (expOrganizer == null || expOrganizer.getId() == null || !expOrganizer.getId().equals(organizer.getId())) {
             log.error("Organizer {} is not authorized to approve registration {}", organizer.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
@@ -350,6 +362,10 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING) {
             log.error("Cannot approve registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        if (!timelinePolicy.isRegistrationOpen(exp)) {
+            throw new AppException(ErrorCode.REGISTRATION_CLOSED);
         }
 
         BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
@@ -403,7 +419,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        ExhibitorRegistration registration = registrationRepository.findByUuid(registrationUuid)
+        ExhibitorRegistration registration = registrationRepository.findByUuidForUpdate(registrationUuid)
                 .orElseThrow(() -> {
                     log.error("Registration not found for UUID: {}", registrationUuid);
                     return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
@@ -463,7 +479,9 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             Company company = registration.getCompany();
             User recipient = company != null ? company.getOwnerUser() : null;
             if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
-                log.warn("Cannot send exhibitor registration review email for registration ID {}: recipient or email missing", registration.getId());
+                log.warn(
+                        "Cannot send exhibitor registration review email for registration ID {}: recipient or email missing",
+                        registration.getId());
                 return;
             }
             ExhibitionPackage pkg = registration.getExhibitionPackage();
@@ -472,15 +490,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             String recipientFullName = recipient.getFullName();
             String exhibitionName = exhibition != null ? exhibition.getName() : "";
             String companyName = company != null ? company.getName() : "";
-            String packageName = registration.getPackageNameSnapshot() != null && !registration.getPackageNameSnapshot().isBlank()
-                    ? registration.getPackageNameSnapshot()
-                    : ((pkg != null && pkg.getTemplate() != null) ? pkg.getTemplate().getName() : "");
+            String packageName = registration.getPackageNameSnapshot() != null
+                    && !registration.getPackageNameSnapshot().isBlank()
+                            ? registration.getPackageNameSnapshot()
+                            : ((pkg != null && pkg.getTemplate() != null) ? pkg.getTemplate().getName() : "");
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                     ? registration.getFinalPriceSnapshot()
                     : (pkg != null ? pkg.getFinalPrice() : null);
-            String currency = registration.getCurrencySnapshot() != null && !registration.getCurrencySnapshot().isBlank()
-                    ? registration.getCurrencySnapshot()
-                    : "VND";
+            String currency = registration.getCurrencySnapshot() != null
+                    && !registration.getCurrencySnapshot().isBlank()
+                            ? registration.getCurrencySnapshot()
+                            : "VND";
 
             afterCommitExecutor.execute(() -> mailService.sendExhibitorRegistrationReviewResultEmail(
                     recipientEmail,
@@ -493,7 +513,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     result,
                     rejectedReason));
         } catch (Exception e) {
-            log.error("Failed to trigger exhibitor registration review email for registration ID {}: {}", registration.getId(), e.getMessage());
+            log.error("Failed to trigger exhibitor registration review email for registration ID {}: {}",
+                    registration.getId(), e.getMessage());
         }
     }
 

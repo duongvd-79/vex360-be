@@ -20,12 +20,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.entities.PaymentReceipt;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentReceiptRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.impl.PaymentFulfillmentServiceImpl;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentReceiptStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -52,6 +56,9 @@ class PaymentFulfillmentServiceImplTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private ExhibitionTimelinePolicy timelinePolicy;
 
     @InjectMocks
     private PaymentFulfillmentServiceImpl fulfillmentService;
@@ -162,17 +169,22 @@ class PaymentFulfillmentServiceImplTest {
 
     @Test
     void processFulfillmentForOrderCode_provisionsBoothAndUpdatesReceipt() {
-        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5).status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+        Exhibition exhibition = Exhibition.builder().status(ExhibitionStatus.PUBLISHED).build();
+        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
                 .build();
         Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
                 .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
         PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode).status(PaymentReceiptStatus.SUCCEEDED)
                 .build();
 
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(reg.getId())));
         when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
         when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(reg));
         when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
 
         Optional<PaymentReceipt> res = fulfillmentService.processFulfillmentForOrderCode(orderCode);
 
@@ -183,8 +195,49 @@ class PaymentFulfillmentServiceImplTest {
     }
 
     @Test
+    void processFulfillmentForOrderCode_latePaymentStaysUnapproved() {
+        Exhibition exhibition = Exhibition.builder().status(ExhibitionStatus.PUBLISHED).build();
+        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
+                .build();
+        Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
+                .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
+        PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode).status(PaymentReceiptStatus.PENDING)
+                .retryCount(0).build();
+
+        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(reg));
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(reg.getId())));
+        when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(false);
+
+        fulfillmentService.processFulfillmentForOrderCode(orderCode);
+
+        assertEquals(ExhibitorRegistrationStatus.PENDING_PAYMENT, reg.getStatus());
+        assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, receipt.getStatus());
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+    }
+
+    private PaymentRepository.PaymentRoute routeFor(Integer registrationId) {
+        return new PaymentRepository.PaymentRoute() {
+            public PaymentType getPaymentType() {
+                return PaymentType.EXHIBITION_REGISTRATION;
+            }
+
+            public Integer getRegistrationId() {
+                return registrationId;
+            }
+        };
+    }
+
+    @Test
     void replayFulfillment_resetsManualReviewAndFulfills_ReplayAlreadyApprovedDoesNotPublishEvent() {
-        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5).status(ExhibitorRegistrationStatus.APPROVED)
+        Exhibition exhibition = Exhibition.builder().status(ExhibitionStatus.PUBLISHED).build();
+        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
                 .build();
         Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
                 .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
@@ -193,8 +246,10 @@ class PaymentFulfillmentServiceImplTest {
 
         when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(manualReceipt));
         when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(reg.getId())));
         when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(reg));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(manualReceipt));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
 
         Optional<PaymentReceipt> res = fulfillmentService.replayFulfillment(orderCode, "admin@vex360.com");
 

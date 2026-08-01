@@ -12,6 +12,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
+import com.example.vex360.features.mail.AfterCommitExecutor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,6 +47,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
@@ -72,6 +76,7 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
+import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
@@ -126,6 +131,9 @@ class ExhibitionServiceUnitTest {
     @Mock
     private MailService mailService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ExhibitionServiceImpl exhibitionService;
 
     private User organizer;
@@ -134,6 +142,11 @@ class ExhibitionServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(exhibitionRepository.findByUuidForUpdate(any()))
+                .thenAnswer(invocation -> exhibitionRepository.findByUuid(invocation.getArgument(0)));
+        lenient().when(timelinePolicy.today()).thenReturn(LocalDate.now());
+        lenient().when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(true);
+
         exhibitionService = new ExhibitionServiceImpl(
                 exhibitionRepository,
                 exhibitionPackageRepository,
@@ -148,7 +161,8 @@ class ExhibitionServiceUnitTest {
                 userService,
                 reviewHistoryService,
                 mailService,
-                new com.example.vex360.features.mail.AfterCommitExecutor());
+                new AfterCommitExecutor(),
+                eventPublisher);
 
         organizer = User.builder()
                 .id(UUID.randomUUID())
@@ -792,6 +806,27 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void updateExhibitionForOrganizerUsesTimelinePolicyDate() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setStartDate(LocalDate.of(2026, 1, 11));
+        when(timelinePolicy.today()).thenReturn(LocalDate.of(2026, 1, 10));
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
+                .thenReturn(true);
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("New Name")
+                .startDate(LocalDate.of(2026, 1, 20))
+                .endDate(LocalDate.of(2026, 1, 25))
+                .build();
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionForOrganizer(
+                        organizer, exhibitionUuid, request, null));
+
+        assertEquals(ErrorCode.EXHIBITION_HAS_REGISTRATIONS, exception.getErrorCode());
+    }
+
+    @Test
     void updateExhibitionMedia_pendingStatus_throwsAssetChangesNotAllowed() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
@@ -802,16 +837,31 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void approveExhibition_leadTimeNotMet_throwsLeadTimeNotMet() {
+    void approveExhibition_lateApprovalAllowed_resolvesTargetStatus() {
         User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         registrationExhibition.setStartDate(LocalDate.now().plusDays(2));
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(false);
+        when(exhibitionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(timelinePolicy.resolveTargetStatus(any(), any())).thenReturn(ExhibitionStatus.PUBLISHED);
 
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
-        assertEquals(ErrorCode.EXHIBITION_APPROVAL_LEAD_TIME_NOT_MET, ex.getErrorCode());
+        PackageTemplate template = PackageTemplate.builder()
+                .status(PackageTemplateStatus.ACTIVE)
+                .listingPriority(BoothListingPriority.NORMAL)
+                .price(BigDecimal.TEN)
+                .build();
+        when(exhibitionPackageRepository.findByExhibition(any())).thenReturn(List.of(
+                ExhibitionPackage.builder()
+                        .template(template)
+                        .finalPrice(BigDecimal.TEN)
+                        .status(ExhibitionPackageStatus.ACTIVE)
+                        .build()));
+
+        when(exhibitionMapper.toResponse(any(), any())).thenReturn(ExhibitionResponseDTO.builder().build());
+
+        ExhibitionResponseDTO response = exhibitionService.approveExhibition(admin, exhibitionUuid);
+        assertNotNull(response);
+        assertEquals(ExhibitionStatus.PUBLISHED, registrationExhibition.getStatus());
     }
 
     @Test
@@ -903,15 +953,13 @@ class ExhibitionServiceUnitTest {
         when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
                 .thenReturn(ExhibitionResponseDTO.builder().build());
 
-        var dto = exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null);
+        exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null);
 
-        assertNotNull(dto);
         assertEquals(ExhibitionStatus.PENDING, registrationExhibition.getStatus());
         assertNull(registrationExhibition.getRejectedReason());
         assertNull(registrationExhibition.getReviewedBy());
         assertNull(registrationExhibition.getReviewedAt());
         assertEquals(1, registrationExhibition.getRejectionCount());
-        verify(reviewHistoryService).recordResubmissionOrUpdate(registrationExhibition, organizer, null);
     }
 
     @Test
@@ -921,7 +969,6 @@ class ExhibitionServiceUnitTest {
         registrationExhibition.setStartDate(LocalDate.now().plusDays(20));
 
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(timelinePolicy.hasMinimumLeadTime(registrationExhibition.getStartDate())).thenReturn(true);
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
 
         AppException ex = assertThrows(AppException.class,

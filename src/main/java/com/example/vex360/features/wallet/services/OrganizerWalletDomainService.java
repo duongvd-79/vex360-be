@@ -142,6 +142,24 @@ public class OrganizerWalletDomainService {
     }
 
     @Transactional
+    public OrganizerWalletTransaction releaseCompletedExhibitionRevenue(Company company, Exhibition exhibition) {
+        organizerWalletRepository.findWithLockByCompanyId(company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        BigDecimal credited = organizerWalletTransactionRepository
+                .sumCreditedAmountByExhibitionId(exhibition.getId());
+        BigDecimal released = organizerWalletTransactionRepository
+                .sumReleasedAmountByExhibitionId(exhibition.getId());
+        BigDecimal reversed = organizerWalletTransactionRepository
+                .sumReversedAmountByExhibitionId(exhibition.getId());
+        return releasePendingRevenue(
+                company,
+                exhibition,
+                credited.subtract(released).subtract(reversed),
+                "Lifecycle completion release for exhibition ID " + exhibition.getId(),
+                null);
+    }
+
+    @Transactional
     public OrganizerWalletTransaction reserveWithdrawal(Company company, WithdrawalRequest withdrawal,
             BigDecimal amount, User actor) {
         amount = amount.setScale(2, RoundingMode.HALF_UP);

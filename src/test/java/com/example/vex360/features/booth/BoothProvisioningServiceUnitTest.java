@@ -26,8 +26,10 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.services.BoothProvisioningService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
+import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -41,6 +43,9 @@ class BoothProvisioningServiceUnitTest {
     @Mock
     private ExhibitorRegistrationService exhibitorRegistrationService;
 
+    @Mock
+    private ExhibitionTimelinePolicy timelinePolicy;
+
     private BoothProvisioningService boothProvisioningService;
     private User exhibitorUser;
     private Company company;
@@ -48,7 +53,8 @@ class BoothProvisioningServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        boothProvisioningService = new BoothProvisioningService(boothRepository, exhibitorRegistrationService);
+        boothProvisioningService = new BoothProvisioningService(
+                boothRepository, exhibitorRegistrationService, timelinePolicy);
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -61,7 +67,11 @@ class BoothProvisioningServiceUnitTest {
                 .build();
         exhibitionPackage = ExhibitionPackage.builder()
                 .id(10)
+                .exhibition(Exhibition.builder().id(20).build())
                 .build();
+        org.mockito.Mockito.lenient()
+                .when(timelinePolicy.isRegistrationOpen(exhibitionPackage.getExhibition()))
+                .thenReturn(true);
     }
 
     @Test
@@ -116,6 +126,19 @@ class BoothProvisioningServiceUnitTest {
 
         assertTrue(result.isEmpty());
         verify(boothRepository, never()).save(any());
+    }
+
+    @Test
+    void doesNotCreateBoothAfterPreparationCloses() {
+        ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
+        when(exhibitorRegistrationService.findRegistrationWithRelationsById(registration.getId()))
+                .thenReturn(Optional.of(registration));
+        when(timelinePolicy.isRegistrationOpen(exhibitionPackage.getExhibition())).thenReturn(false);
+
+        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
+
+        assertTrue(result.isEmpty());
+        verify(boothRepository, never()).saveAndFlush(any());
     }
 
     @Test

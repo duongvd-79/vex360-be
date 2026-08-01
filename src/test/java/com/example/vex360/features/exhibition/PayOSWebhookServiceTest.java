@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,7 +36,11 @@ import com.example.vex360.features.exhibition.services.PaymentFulfillmentService
 import com.example.vex360.features.exhibition.services.impl.PayOSWebhookServiceImpl;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
+import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.Payment;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.enums.PaymentType;
@@ -61,6 +69,9 @@ class PayOSWebhookServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
+    private ExhibitionTimelinePolicy timelinePolicy;
+
+    @Mock
     private PayOS payOS;
 
     @Mock
@@ -76,12 +87,19 @@ class PayOSWebhookServiceTest {
 
     @BeforeEach
     void setup() {
+        Exhibition exhibition = Exhibition.builder()
+                .id(10)
+                .status(ExhibitionStatus.PUBLISHED)
+                .startDate(LocalDate.now().plusDays(10))
+                .build();
         pendingRegistration = ExhibitorRegistration.builder()
                 .id(1)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
                 .company(Company.builder().id(UUID.randomUUID())
                         .name("Test Co").build())
                 .build();
+        org.mockito.Mockito.lenient().when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
 
         pendingPayment = Payment.builder()
                 .id(100)
@@ -149,6 +167,9 @@ class PayOSWebhookServiceTest {
         verify(paymentRepository).save(pendingPayment);
         verify(registrationRepository).save(pendingRegistration);
         verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+        InOrder locks = inOrder(registrationRepository, paymentRepository);
+        locks.verify(registrationRepository).findByIdForUpdate(pendingRegistration.getId());
+        locks.verify(paymentRepository).findByOrderCodeForUpdate(pendingPayment.getOrderCode());
     }
 
     @Test
@@ -238,7 +259,7 @@ class PayOSWebhookServiceTest {
     }
 
     @Test
-    void paidPayment_duplicateSuccessWebhook_repairsAndVerifiesBooth() {
+    void paidPayment_duplicateSuccessWebhook_isIdempotent() {
         Object mockBody = new Object();
         pendingPayment.setStatus(PaymentStatus.PAID);
         pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
@@ -251,7 +272,25 @@ class PayOSWebhookServiceTest {
         assertNotNull(result);
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
         verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
-        verify(eventPublisher).publishEvent(any(ExhibitorBoothRepairRequestedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorBoothRepairRequestedEvent.class));
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void lateSuccessWebhook_recordsPaidButDoesNotApprove() {
+        Object mockBody = new Object();
+        Exhibition exhibition = pendingRegistration.getExhibitionPackage().getExhibition();
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(false);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(mockBody);
+
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        assertEquals(ExhibitorRegistrationStatus.PENDING_PAYMENT, pendingRegistration.getStatus());
+        verify(fulfillmentService).updateReceiptFailed(eq(pendingPayment.getOrderCode()), any(AppException.class));
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test

@@ -26,12 +26,33 @@ public class ExhibitionTimelinePolicy {
         return exhibition.getStartDate().minusDays(BOOTH_DEADLINE_DAYS_BEFORE_START);
     }
 
+    public LocalDate today() {
+        return LocalDate.now(clock);
+    }
+
+    public ExhibitionStatus resolveTargetStatus(Exhibition exhibition, LocalDate today) {
+        if (exhibition == null || exhibition.getStartDate() == null || exhibition.getEndDate() == null) {
+            return null;
+        }
+        if (today.isAfter(exhibition.getEndDate())) {
+            return ExhibitionStatus.COMPLETED;
+        }
+        if (!today.isBefore(exhibition.getStartDate())) {
+            return ExhibitionStatus.ACTIVE;
+        }
+        if (exhibition.getStatus() == ExhibitionStatus.REGISTRATION
+                && !today.isBefore(exhibition.getStartDate().minusDays(DEFAULT_MINIMUM_LEAD_DAYS))) {
+            return ExhibitionStatus.PUBLISHED;
+        }
+        return null;
+    }
+
     public boolean isBoothPreparationOpen(Exhibition exhibition) {
         LocalDate deadline = getBoothReviewDeadline(exhibition);
         if (deadline == null) {
             return false;
         }
-        return !LocalDate.now(clock).isAfter(deadline);
+        return !today().isAfter(deadline);
     }
 
     public boolean isRegistrationOpen(Exhibition exhibition) {
@@ -50,7 +71,7 @@ public class ExhibitionTimelinePolicy {
         if (deadline == null) {
             return 0;
         }
-        return ChronoUnit.DAYS.between(LocalDate.now(clock), deadline);
+        return ChronoUnit.DAYS.between(today(), deadline);
     }
 
     public boolean hasMinimumLeadTime(LocalDate startDate) {
@@ -61,7 +82,7 @@ public class ExhibitionTimelinePolicy {
         if (startDate == null) {
             return false;
         }
-        LocalDate minStartDate = LocalDate.now(clock).plusDays(minDays);
+        LocalDate minStartDate = today().plusDays(minDays);
         return !startDate.isBefore(minStartDate);
     }
 }

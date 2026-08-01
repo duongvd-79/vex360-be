@@ -18,7 +18,7 @@ public class ExhibitionLifecycleScheduler {
 
     ExhibitionLifecycleService exhibitionLifecycleService;
 
-    @Scheduled(cron = "${app.exhibition.lifecycle-cron:0 0 * * * *}")
+    @Scheduled(cron = "${app.exhibition.lifecycle-cron:0 5 0 * * *}", zone = "UTC")
     public void runLifecycleTransitions() {
         log.info("[Lifecycle Job] Running scheduled exhibition lifecycle transitions...");
         try {

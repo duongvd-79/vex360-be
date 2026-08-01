@@ -73,6 +73,7 @@ public class BoothReviewContentAssembler {
                 .exhibitionName(exhibition == null ? null : exhibition.getName())
                 .status(request.getStatus()).submittedAt(request.getSubmittedAt())
                 .reviewedAt(request.getReviewedAt()).rejectedReason(request.getRejectedReason())
+                .canceledAt(request.getCanceledAt()).cancellationReason(request.getCancellationReason())
                 .changeSummary(changeSummary)
                 .build();
     }
@@ -196,7 +197,8 @@ public class BoothReviewContentAssembler {
         return OrganizerBoothSummaryDTO.builder()
                 .id(booth.getId()).companyId(company == null ? null : company.getId())
                 .ownerName(company == null || company.getOwnerUser() == null
-                        ? null : company.getOwnerUser().getFullName())
+                        ? null
+                        : company.getOwnerUser().getFullName())
                 .packageName(packageName)
                 .contactEmail(company == null ? null : company.getEmail())
                 .contactPhone(company == null ? null : company.getPhone())
