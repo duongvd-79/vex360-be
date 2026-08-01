@@ -76,8 +76,8 @@ class BoothProvisioningServiceUnitTest {
 
         assertTrue(result.isPresent());
         Booth booth = result.get();
-        assertEquals("VEX Company", booth.getName());
-        assertNull(booth.getDescription());
+        assertEquals("Requested Booth", booth.getName());
+        assertEquals("Requested Booth Description", booth.getDescription());
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         assertFalse(booth.getIsTemplate());
         assertSame(company, booth.getCompany());
@@ -197,6 +197,8 @@ class BoothProvisioningServiceUnitTest {
                 .company(company)
                 .exhibitionPackage(exhibitionPackage)
                 .status(status)
+                .boothName("Requested Booth")
+                .boothDescription("Requested Booth Description")
                 .build();
     }
 }

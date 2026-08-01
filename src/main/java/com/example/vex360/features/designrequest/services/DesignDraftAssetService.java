@@ -415,6 +415,10 @@ public class DesignDraftAssetService {
     }
 
     private void validateFile(MultipartFile file, DesignDraftAssetType type) {
+        if (type == DesignDraftAssetType.PANORAMA) {
+            FileUploadUtils.validatePanoramaFile(file);
+            return;
+        }
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }

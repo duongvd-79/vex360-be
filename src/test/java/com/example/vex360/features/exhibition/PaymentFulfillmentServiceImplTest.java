@@ -162,7 +162,7 @@ class PaymentFulfillmentServiceImplTest {
 
     @Test
     void processFulfillmentForOrderCode_provisionsBoothAndUpdatesReceipt() {
-        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5).status(ExhibitorRegistrationStatus.APPROVED)
+        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5).status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .build();
         Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
                 .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
@@ -178,11 +178,12 @@ class PaymentFulfillmentServiceImplTest {
 
         assertTrue(res.isPresent());
         assertEquals(PaymentReceiptStatus.SUCCEEDED, res.get().getStatus());
+        assertEquals(ExhibitorRegistrationStatus.APPROVED, reg.getStatus());
         verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test
-    void replayFulfillment_resetsManualReviewAndFulfills() {
+    void replayFulfillment_resetsManualReviewAndFulfills_ReplayAlreadyApprovedDoesNotPublishEvent() {
         ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5).status(ExhibitorRegistrationStatus.APPROVED)
                 .build();
         Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
@@ -198,6 +199,6 @@ class PaymentFulfillmentServiceImplTest {
         Optional<PaymentReceipt> res = fulfillmentService.replayFulfillment(orderCode, "admin@vex360.com");
 
         assertTrue(res.isPresent());
-        verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 }

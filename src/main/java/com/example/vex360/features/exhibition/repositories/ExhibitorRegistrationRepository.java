@@ -80,13 +80,13 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             "WHERE e.organizer.id = :organizerId " +
             "AND (:exhibitionUuid IS NULL OR e.uuid = :exhibitionUuid) " +
             "AND (:status IS NULL OR r.status = :status) " +
-            "AND (:keyword IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
+            "AND (:keyword IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.boothName) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
                     +
                     "WHERE r.exhibitionPackage.exhibition.organizer.id = :organizerId " +
                     "AND (:exhibitionUuid IS NULL OR r.exhibitionPackage.exhibition.uuid = :exhibitionUuid) "
                     +
                     "AND (:status IS NULL OR r.status = :status) " +
-                    "AND (:keyword IS NULL OR LOWER(r.company.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+                    "AND (:keyword IS NULL OR LOWER(r.company.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.boothName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<ExhibitorRegistration> searchForOrganizer(
             @Param("organizerId") UUID organizerId,
             @Param("exhibitionUuid") UUID exhibitionUuid,
@@ -103,11 +103,11 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             "LEFT JOIN FETCH r.reviewedBy " +
             "WHERE r.company.id = :companyId " +
             "AND (:status IS NULL OR r.status = :status) " +
-            "AND (:keyword IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
+            "AND (:keyword IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.boothName) LIKE LOWER(CONCAT('%', :keyword, '%')))", countQuery = "SELECT COUNT(r) FROM ExhibitorRegistration r "
                     +
                     "WHERE r.company.id = :companyId " +
                     "AND (:status IS NULL OR r.status = :status) " +
-                    "AND (:keyword IS NULL OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+                    "AND (:keyword IS NULL OR LOWER(r.exhibitionPackage.exhibition.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.boothName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<ExhibitorRegistration> searchForExhibitor(
             @Param("companyId") UUID companyId,
             @Param("status") ExhibitorRegistrationStatus status,

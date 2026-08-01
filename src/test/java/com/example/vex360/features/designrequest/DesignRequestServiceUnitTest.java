@@ -203,7 +203,7 @@ class DesignRequestServiceUnitTest {
     @Test
     void getRequestsForAdminNormalizesKeywordAndMapsSortAliases() {
         Pageable pageable = PageRequest.of(2, 5, Sort.by(
-                Sort.Order.desc(DesignRequest::getBooth),
+                Sort.Order.desc("boothName"),
                 Sort.Order.asc(DesignRequest::getStatus)));
         Pageable mappedPageable = PageRequest.of(2, 5, Sort.by(
                 Sort.Order.desc(PropertyPath.of(DesignRequest::getBooth).then(Booth::getName)),

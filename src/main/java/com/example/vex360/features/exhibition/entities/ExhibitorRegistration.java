@@ -74,6 +74,12 @@ public class ExhibitorRegistration {
     @Column(name = "participation_reason", columnDefinition = "TEXT")
     String participationReason;
 
+    @Column(name = "booth_name", nullable = false, length = 255)
+    String boothName;
+
+    @Column(name = "booth_description", nullable = false, columnDefinition = "TEXT")
+    String boothDescription;
+
     // Snapshot fields to preserve template state at registration time
     @Column(name = "package_name_snapshot")
     String packageNameSnapshot;

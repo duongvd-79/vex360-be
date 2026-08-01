@@ -36,11 +36,13 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
@@ -113,6 +115,9 @@ class ExhibitionServiceUnitTest {
     @Mock
     private ExhibitionReviewHistoryService reviewHistoryService;
 
+    @Mock
+    private MailService mailService;
+
     private ExhibitionServiceImpl exhibitionService;
 
     private User organizer;
@@ -133,7 +138,9 @@ class ExhibitionServiceUnitTest {
                 cloudService,
                 timelinePolicy,
                 userService,
-                reviewHistoryService);
+                reviewHistoryService,
+                mailService,
+                new com.example.vex360.features.mail.AfterCommitExecutor());
 
         organizer = User.builder()
                 .id(UUID.randomUUID())
@@ -784,6 +791,31 @@ class ExhibitionServiceUnitTest {
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
         assertEquals(ErrorCode.EXHIBITION_APPROVAL_LEAD_TIME_NOT_MET, ex.getErrorCode());
+    }
+
+    @Test
+    void rejectExhibition_ThirdRejectionEmailsOriginalName() {
+        User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setRejectionCount(2);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(Collections.emptyList());
+
+        exhibitionService.rejectExhibition(admin, exhibitionUuid,
+                RejectExhibitionRequest.builder().rejectedReason("Missing documents").build());
+
+        assertTrue(registrationExhibition.getName().startsWith("Expo 2026 (Rejected-"));
+        verify(mailService).sendExhibitionReviewResultEmail(
+                eq("organizer@example.com"),
+                eq("Test Organizer"),
+                eq("Expo 2026"),
+                any(),
+                any(),
+                eq("REJECTED"),
+                eq("Missing documents"),
+                eq(3),
+                any());
     }
 
     @Test

@@ -270,7 +270,10 @@ public class BoothTemplateService {
         if (defaultCount > 1) {
             throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
         }
-        if (!files.keySet().equals(fileKeys)) {
+        if (!files.keySet().containsAll(fileKeys)) {
+            throw new AppException(ErrorCode.PANORAMA_FILE_REQUIRED);
+        }
+        if (!fileKeys.containsAll(files.keySet())) {
             throw new AppException(ErrorCode.PANORAMA_FILE_INVALID);
         }
     }

@@ -1,6 +1,7 @@
 package com.example.vex360.features.booth.listeners;
 
 import com.example.vex360.features.booth.services.BoothProvisioningService;
+import com.example.vex360.features.exhibition.events.ExhibitorBoothRepairRequestedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,14 @@ public class ExhibitorRegistrationApprovedListener {
     @Transactional
     public void handleExhibitorRegistrationApproved(ExhibitorRegistrationApprovedEvent event) {
         log.info("Received ExhibitorRegistrationApprovedEvent for registration ID: {}",
+                event.getRegistration().getId());
+        boothProvisioningService.ensureBoothForApprovedRegistration(event.getRegistration());
+    }
+
+    @EventListener
+    @Transactional
+    public void handleExhibitorBoothRepairRequested(ExhibitorBoothRepairRequestedEvent event) {
+        log.info("Received ExhibitorBoothRepairRequestedEvent for registration ID: {}",
                 event.getRegistration().getId());
         boothProvisioningService.ensureBoothForApprovedRegistration(event.getRegistration());
     }

@@ -157,14 +157,17 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
             return receiptRepository.findByOrderCode(orderCode);
         }
 
-        if (registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
+        boolean newlyApproved = registration.getStatus() != ExhibitorRegistrationStatus.APPROVED;
+        if (newlyApproved) {
             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
             registrationRepository.save(registration);
         }
 
         try {
             updateReceiptSucceeded(orderCode, regId, null);
-            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+            if (newlyApproved) {
+                eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+            }
             log.info("[PB-006] Reconciliation auto-fulfilled for orderCode {}", orderCode);
         } catch (Throwable t) {
             updateReceiptFailed(orderCode, t);

@@ -36,10 +36,15 @@ import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
+import com.example.vex360.features.mail.AfterCommitExecutor;
+import com.example.vex360.features.mail.MailService;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BoothReviewService {
     private final BoothRepository boothRepository;
     private final BoothReviewRequestRepository boothReviewRequestRepository;
@@ -50,6 +55,8 @@ public class BoothReviewService {
     private final BoothReviewDiffService diffService;
     private final BoothReviewContentAssembler contentAssembler;
     private final ExhibitionService exhibitionService;
+    private final MailService mailService;
+    private final AfterCommitExecutor afterCommitExecutor;
     private final Clock clock;
 
     @Transactional
@@ -145,7 +152,9 @@ public class BoothReviewService {
         request.getBooth().setStatus(BoothStatus.PUBLISHED);
         BoothReviewRequest saved = boothReviewRequestRepository.save(request);
         boothRepository.save(request.getBooth());
-        return toSummary(saved);
+        BoothReviewRequestSummaryDTO summary = toSummary(saved);
+        sendBoothReviewMailSafely(saved, BoothReviewStatus.APPROVED);
+        return summary;
     }
 
     @Transactional
@@ -168,7 +177,39 @@ public class BoothReviewService {
         request.getBooth().setStatus(BoothStatus.DRAFT);
         BoothReviewRequest saved = boothReviewRequestRepository.save(request);
         boothRepository.save(request.getBooth());
-        return toSummary(saved);
+        BoothReviewRequestSummaryDTO summary = toSummary(saved);
+        sendBoothReviewMailSafely(saved, BoothReviewStatus.REJECTED);
+        return summary;
+    }
+
+    private void sendBoothReviewMailSafely(BoothReviewRequest request, BoothReviewStatus result) {
+        User recipient = request.getSubmittedBy();
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) return;
+        String email = recipient.getEmail();
+        String fullName = recipient.getFullName();
+        Booth booth = request.getBooth();
+        String boothName = booth != null ? booth.getName() : "";
+        String exhibitionName = "";
+        if (booth != null && booth.getExhibitorRegistration() != null
+                && booth.getExhibitorRegistration().getExhibitionPackage() != null
+                && booth.getExhibitorRegistration().getExhibitionPackage().getExhibition() != null) {
+            exhibitionName = booth.getExhibitorRegistration().getExhibitionPackage().getExhibition().getName();
+        }
+        Integer versionNumber = request.getVersionNumber();
+        String resultStr = result != null ? result.name() : null;
+        String rejectedReason = request.getRejectedReason();
+        Instant reviewedAt = request.getReviewedAt();
+        String finalExhibitionName = exhibitionName;
+
+        afterCommitExecutor.execute(() -> mailService.sendBoothReviewResultEmail(
+                email,
+                fullName,
+                boothName,
+                finalExhibitionName,
+                versionNumber,
+                resultStr,
+                rejectedReason,
+                reviewedAt));
     }
 
     @Transactional(readOnly = true)

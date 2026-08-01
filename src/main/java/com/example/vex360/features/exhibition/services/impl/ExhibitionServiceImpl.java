@@ -62,6 +62,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
+import com.example.vex360.features.mail.AfterCommitExecutor;
+import com.example.vex360.features.mail.MailService;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -91,6 +94,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private final ExhibitionTimelinePolicy timelinePolicy;
     private final UserService userService;
     private final ExhibitionReviewHistoryService reviewHistoryService;
+    private final MailService mailService;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Transactional
@@ -687,7 +692,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.APPROVED, null);
 
         packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        sendExhibitionReviewMailSafely(exhibition, exhibition.getName(), ExhibitionReviewStatus.APPROVED, null);
+        return response;
     }
 
     @Override
@@ -714,6 +721,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_ALREADY_REVIEWED);
         }
 
+        String originalExhibitionName = exhibition.getName();
         exhibition.setStatus(ExhibitionStatus.REJECTED);
         exhibition.setRejectedReason(request.getRejectedReason());
         exhibition.setReviewedBy(admin);
@@ -735,7 +743,32 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 request.getRejectedReason());
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        sendExhibitionReviewMailSafely(exhibition, originalExhibitionName, ExhibitionReviewStatus.REJECTED, request.getRejectedReason());
+        return response;
+    }
+
+    private void sendExhibitionReviewMailSafely(Exhibition exhibition, String exhibitionName, ExhibitionReviewStatus result, String rejectedReason) {
+        User organizer = exhibition.getOrganizer();
+        if (organizer == null || organizer.getEmail() == null || organizer.getEmail().isBlank()) return;
+        String email = organizer.getEmail();
+        String fullName = organizer.getFullName();
+        LocalDate startDate = exhibition.getStartDate();
+        LocalDate endDate = exhibition.getEndDate();
+        String resultStr = result != null ? result.name() : null;
+        int rejectionCount = exhibition.getRejectionCount();
+        Instant reviewedAt = exhibition.getReviewedAt();
+
+        afterCommitExecutor.execute(() -> mailService.sendExhibitionReviewResultEmail(
+                email,
+                fullName,
+                exhibitionName,
+                startDate,
+                endDate,
+                resultStr,
+                rejectedReason,
+                rejectionCount,
+                reviewedAt));
     }
 
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png");

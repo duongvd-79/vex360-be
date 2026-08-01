@@ -239,7 +239,7 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @RequestParam(required = false, defaultValue = "PANORAMA") DesignDraftAssetType assetType,
-            @RequestPart("file") MultipartFile file) {
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         return created(designDraftAssetService.uploadAsset(userDetails.getUser(), id, file, assetType));
     }
 

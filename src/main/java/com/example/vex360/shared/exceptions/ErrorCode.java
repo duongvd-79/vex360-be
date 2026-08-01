@@ -44,6 +44,26 @@ public enum ErrorCode {
             HttpStatus.CONTENT_TOO_LARGE),
     STORAGE_QUOTA_EXCEEDED("FILE-006", "Dung lượng lưu trữ của doanh nghiệp đã đầy. Vui lòng nâng cấp gói lưu trữ.",
             HttpStatus.CONTENT_TOO_LARGE),
+    PANORAMA_FILE_REQUIRED(
+            "FILE-007",
+            "Vui lòng chọn một tệp ảnh panorama để tải lên.",
+            HttpStatus.BAD_REQUEST),
+    PANORAMA_FORMAT_NOT_SUPPORTED(
+            "FILE-008",
+            "Ảnh panorama chỉ hỗ trợ định dạng JPEG, PNG hoặc WEBP.",
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE),
+    PANORAMA_IMAGE_CONTENT_INVALID(
+            "FILE-009",
+            "Tệp tải lên không phải là ảnh panorama hợp lệ hoặc nội dung tệp không khớp với định dạng đã khai báo.",
+            HttpStatus.UNPROCESSABLE_CONTENT),
+    PANORAMA_ASPECT_RATIO_INVALID(
+            "FILE-010",
+            "Ảnh panorama phải có tỉ lệ chính xác 2:1, trong đó chiều rộng bằng hai lần chiều cao.",
+            HttpStatus.UNPROCESSABLE_CONTENT),
+    PANORAMA_RESOLUTION_EXCEEDED(
+            "FILE-011",
+            "Độ phân giải ảnh panorama vượt quá giới hạn cho phép 8192 × 4096 pixel.",
+            HttpStatus.UNPROCESSABLE_CONTENT),
     STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói lưu trữ.", HttpStatus.NOT_FOUND),
     STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
     STORAGE_PACKAGE_NAME_DUPLICATED("STORAGE-003", "Tên gói lưu trữ đã tồn tại trong hệ thống.", HttpStatus.CONFLICT),

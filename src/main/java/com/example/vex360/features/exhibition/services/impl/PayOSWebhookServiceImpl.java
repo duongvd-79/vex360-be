@@ -28,6 +28,7 @@ import vn.payos.PayOS;
 import vn.payos.model.webhooks.WebhookData;
 
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
+import com.example.vex360.features.exhibition.events.ExhibitorBoothRepairRequestedEvent;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 
 @Service
@@ -91,12 +92,17 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 if ("00".equals(data.getCode())) {
                     reconcileWebhookInvariants(data, payment);
                     if (payment.getPaymentType() == PaymentType.EXHIBITION_REGISTRATION && registration != null) {
-                        if (registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
+                        boolean newlyApproved = registration.getStatus() != ExhibitorRegistrationStatus.APPROVED;
+                        if (newlyApproved) {
                             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                             registrationRepository.save(registration);
                         }
                         fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), null);
-                        eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                        if (newlyApproved) {
+                            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                        } else {
+                            eventPublisher.publishEvent(new ExhibitorBoothRepairRequestedEvent(this, registration));
+                        }
                         log.info("Duplicate webhook processed for orderCode: {}", orderCode);
                     }
                 } else {
@@ -125,13 +131,16 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                         log.warn("Payment PAID for registration ID {} in status {}. Refusing to approve.",
                                 registration.getId(), registration.getStatus());
                     } else {
+                        ExhibitorRegistrationStatus oldStatus = registration.getStatus();
                         registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
                         registrationRepository.save(registration);
 
                         fulfillmentService.updateReceiptSucceeded(orderCode, registration.getId(), null);
-                        eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
-                        log.info("Payment PAID and approval event published for registration ID: {}",
-                                registration.getId());
+                        if (oldStatus != ExhibitorRegistrationStatus.APPROVED) {
+                            eventPublisher.publishEvent(new ExhibitorRegistrationApprovedEvent(this, registration));
+                            log.info("Payment PAID and approval event published for registration ID: {}",
+                                    registration.getId());
+                        }
                     }
                 }
             } else {

@@ -8,8 +8,10 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import com.example.vex360.shared.utils.LogSanitizer;
@@ -88,6 +90,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+        log.warn("Method argument type mismatch for request: {} - parameter '{}'",
+                LogSanitizer.sanitize(request.getRequestURI()),
+                LogSanitizer.sanitize(ex.getName()));
+
+        ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(errorCode.getHttpStatus().value())
+                .error(errorCode.getHttpStatus().name())
+                .code(errorCode.getCode())
+                .message("Tham số '" + ex.getName() + "' không hợp lệ")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+    }
+
     // 4. Multipart request exceptions (unsupported part media type or missing
     // required parts)
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
@@ -126,6 +149,11 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(HttpServletRequest request) {
+        return handleAppException(new AppException(ErrorCode.FILE_SIZE_EXCEEDED), request);
     }
 
     // 5. Method Not Allowed

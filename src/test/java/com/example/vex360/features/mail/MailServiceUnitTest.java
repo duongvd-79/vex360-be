@@ -7,8 +7,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import com.example.vex360.shared.enums.DesignRequestStatus;
+import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.Role;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -31,7 +38,7 @@ class MailServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        mailService = new MailServiceImpl(emailTransport);
+        mailService = new MailServiceImpl(emailTransport, "http://localhost:5175/login");
     }
 
     @Test
@@ -112,6 +119,266 @@ class MailServiceUnitTest {
                 eq("verify@example.com"),
                 eq("Xác nhận yêu cầu hợp tác - Vex360"),
                 contains("http://confirm"));
+    }
+
+    @Test
+    void testSendPartnershipGuestApprovedEmail_Success() {
+        mailService.sendPartnershipGuestApprovedEmail(
+                "guest@example.com",
+                "Guest User",
+                "tempPass123",
+                Role.EXHIBITOR,
+                "Tech Corp");
+
+        verify(emailTransport).send(
+                eq("guest@example.com"),
+                eq("Yêu cầu hợp tác đã được phê duyệt - Thông tin tài khoản VEX360"),
+                contains("tempPass123"));
+    }
+
+    @Test
+    void testSendExhibitionReviewResultEmail_ApprovedAndRejected() {
+        mailService.sendExhibitionReviewResultEmail(
+                "org@example.com",
+                "Org Name",
+                "AI Expo",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                "APPROVED",
+                null,
+                0,
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("org@example.com"),
+                eq("Triển lãm \"AI Expo\" đã được phê duyệt - VEX360"),
+                contains("AI Expo"));
+
+        mailService.sendExhibitionReviewResultEmail(
+                "org@example.com",
+                "Org Name",
+                "AI Expo",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                "REJECTED",
+                "Incomplete documents",
+                2,
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("org@example.com"),
+                eq("Triển lãm \"AI Expo\" chưa được phê duyệt - VEX360"),
+                contains("2/3"));
+    }
+
+    @Test
+    void testSendExhibitionReviewResultEmail_InvalidStatus() {
+        mailService.sendExhibitionReviewResultEmail(
+                "org@example.com",
+                "Org Name",
+                "AI Expo",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                null,
+                null,
+                0,
+                Instant.now());
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testSendExhibitorRegistrationReviewResultEmail_PendingPaymentAndApprovedAndRejected() {
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "Gold Package",
+                BigDecimal.valueOf(5000000),
+                "VND",
+                ExhibitorRegistrationStatus.PENDING_PAYMENT,
+                null);
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Đăng ký tham gia \"Tech Expo 2026\" đã được duyệt - Vui lòng thanh toán"),
+                contains("5,000,000 VND"));
+
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "Free Package",
+                BigDecimal.ZERO,
+                "VND",
+                ExhibitorRegistrationStatus.APPROVED,
+                null);
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Đăng ký tham gia \"Tech Expo 2026\" đã được phê duyệt - VEX360"),
+                contains("Miễn phí"));
+
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "Gold Package",
+                BigDecimal.valueOf(5000000),
+                "VND",
+                ExhibitorRegistrationStatus.REJECTED,
+                "Ineligible category");
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Đăng ký tham gia \"Tech Expo 2026\" chưa được phê duyệt"),
+                contains("Ineligible category"));
+    }
+
+    @Test
+    void testSendExhibitorRegistrationReviewResultEmail_GenericApprovalDoesNotClaimFreePayment() {
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com", "Exhibitor Name", "Tech Ltd", "Tech Expo 2026",
+                "Gold Package", BigDecimal.valueOf(5000000), "VND",
+                ExhibitorRegistrationStatus.APPROVED, null);
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com", "Exhibitor Name", "Tech Ltd", "Tech Expo 2026",
+                "Unknown Package", null, "VND",
+                ExhibitorRegistrationStatus.APPROVED, null);
+
+        ArgumentCaptor<String> htmlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailTransport, times(2)).send(
+                eq("exhibitor@example.com"),
+                eq("Đăng ký tham gia \"Tech Expo 2026\" đã được phê duyệt - VEX360"),
+                htmlCaptor.capture());
+
+        assertThat(htmlCaptor.getAllValues().get(0))
+                .contains("5,000,000 VND")
+                .doesNotContain("Gói miễn phí", "Thanh toán thành công");
+        assertThat(htmlCaptor.getAllValues().get(1))
+                .contains("Kh&ocirc;ng x&aacute;c")
+                .doesNotContain("Gói miễn phí", "Thanh toán thành công", "0 VND");
+    }
+
+    @Test
+    void testSendExhibitorRegistrationPaymentConfirmedEmail_Success() {
+        mailService.sendExhibitorRegistrationPaymentConfirmedEmail(
+                "paid@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "VIP Package",
+                BigDecimal.valueOf(10000000),
+                "VND",
+                123456789L,
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("paid@example.com"),
+                eq("Thanh toán thành công - Đăng ký \"Tech Expo 2026\" đã được xác nhận"),
+                contains("123456789"));
+    }
+
+    @Test
+    void testSendBoothReviewResultEmail_ApprovedAndRejected() {
+        mailService.sendBoothReviewResultEmail(
+                "booth@example.com",
+                "Booth Owner",
+                "Smart Home Booth",
+                "Tech Expo 2026",
+                1,
+                "APPROVED",
+                null,
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("booth@example.com"),
+                eq("Gian hàng \"Smart Home Booth\" đã được phê duyệt và xuất bản"),
+                contains("v1"));
+
+        mailService.sendBoothReviewResultEmail(
+                "booth@example.com",
+                "Booth Owner",
+                "Smart Home Booth",
+                "Tech Expo 2026",
+                1,
+                "REJECTED",
+                "Low resolution panorama",
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("booth@example.com"),
+                eq("Gian hàng \"Smart Home Booth\" cần được chỉnh sửa"),
+                contains("Low resolution panorama"));
+    }
+
+    @Test
+    void testSendDesignDraftReviewResultEmail_ApprovedAndRevisionRequested() {
+        mailService.sendDesignDraftReviewResultEmail(
+                "designer@example.com",
+                "Designer Name",
+                "Design Co",
+                "3D Booth A",
+                2,
+                DesignRequestStatus.APPROVED,
+                null);
+
+        verify(emailTransport).send(
+                eq("designer@example.com"),
+                eq("Bản thiết kế cho gian hàng \"3D Booth A\" đã được phê duyệt"),
+                contains("v2"));
+
+        mailService.sendDesignDraftReviewResultEmail(
+                "designer@example.com",
+                "Designer Name",
+                "Design Co",
+                "3D Booth A",
+                2,
+                DesignRequestStatus.REVISION_REQUESTED,
+                "Adjust lighting");
+
+        verify(emailTransport).send(
+                eq("designer@example.com"),
+                eq("Bản thiết kế cho gian hàng \"3D Booth A\" cần được chỉnh sửa"),
+                contains("Adjust lighting"));
+    }
+
+    @Test
+    void testSendDesignCancellationDecisionEmail_DesignerAndExhibitor() {
+        mailService.sendDesignCancellationDecisionEmail(
+                "exhibitor@example.com",
+                "Exhibitor",
+                false,
+                "Company A",
+                "Booth X",
+                "APPROVED",
+                "Budget issue",
+                "Approved by admin",
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Yêu cầu hủy thiết kế gian hàng \"Booth X\" đã được chấp thuận"),
+                contains("Approved by admin"));
+
+        mailService.sendDesignCancellationDecisionEmail(
+                "designer@example.com",
+                "Designer",
+                true,
+                "Company A",
+                "Booth X",
+                "APPROVED",
+                "Budget issue",
+                "Approved by admin",
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("designer@example.com"),
+                eq("Yêu cầu thiết kế gian hàng \"Booth X\" đã bị hủy"),
+                contains("Approved by admin"));
     }
 
     @Test

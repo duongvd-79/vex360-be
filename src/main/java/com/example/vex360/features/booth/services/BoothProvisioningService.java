@@ -83,8 +83,8 @@ public class BoothProvisioningService {
         }
 
         Booth booth = Booth.builder()
-                .name(company.getName())
-                .description(null)
+                .name(registration.getBoothName())
+                .description(registration.getBoothDescription())
                 .status(BoothStatus.DRAFT)
                 .isTemplate(false)
                 .createdBy(company.getOwnerUser())

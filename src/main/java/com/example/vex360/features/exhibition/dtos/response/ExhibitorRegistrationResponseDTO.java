@@ -36,6 +36,8 @@ public class ExhibitorRegistrationResponseDTO {
     private String currencySnapshot;
     private String exhibitionName;
     private String participationReason;
+    private String boothName;
+    private String boothDescription;
     private String rejectedReason;
     private String reviewedByName;
 }

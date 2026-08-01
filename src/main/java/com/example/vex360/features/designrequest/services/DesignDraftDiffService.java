@@ -197,10 +197,10 @@ public class DesignDraftDiffService {
         boothSafe.forEach(p -> boothMap.put(boothPanoKey(p), p));
 
         Map<String, DesignDraftPanorama> currMap = new LinkedHashMap<>();
-        currSafe.forEach(p -> currMap.put(draftPanoKey(p), p));
+        currSafe.forEach(p -> currMap.put(draftPanoKeyForBooth(p), p));
 
         for (DesignDraftPanorama curr : currSafe) {
-            String key = draftPanoKey(curr);
+            String key = draftPanoKeyForBooth(curr);
             Panorama prev = boothMap.get(key);
             if (prev == null) {
                 items.add(DesignDraftChangeItemDTO.builder()
@@ -330,7 +330,7 @@ public class DesignDraftDiffService {
 
         Map<String, DraftHotspotPair> currMap = new LinkedHashMap<>();
         for (DesignDraftPanorama p : currPanos) {
-            String pKey = draftPanoKey(p);
+            String pKey = draftPanoKeyForBooth(p);
             if (p.getHotspots() != null) {
                 for (DesignDraftHotspot h : p.getHotspots()) {
                     currMap.put(draftHotspotKey(pKey, h), new DraftHotspotPair(p, h));
@@ -432,7 +432,7 @@ public class DesignDraftDiffService {
         if (!Objects.equals(prevPos, currPos)) {
             changes.add(new FieldChangeDTO("position", prevPos, currPos));
         }
-        String prevTarget = prev.getTargetPanorama() == null ? null : prev.getTargetPanorama().getName();
+        String prevTarget = prev.getTargetPanorama() == null ? null : prev.getTargetPanorama().getId().toString();
         String currTarget = curr.getTargetDraftPanoramaKey();
         if (!Objects.equals(currTarget, prevTarget)) {
             changes.add(new FieldChangeDTO("targetPanorama", prevTarget, currTarget));
@@ -583,6 +583,11 @@ public class DesignDraftDiffService {
         if (p.getImageKey() != null && !p.getImageKey().isBlank()) return p.getImageKey();
         if (p.getId() != null) return p.getId().toString();
         return p.getName() == null ? "" : p.getName();
+    }
+
+    private String draftPanoKeyForBooth(DesignDraftPanorama p) {
+        if (p != null && p.getImageKey() != null && !p.getImageKey().isBlank()) return p.getImageKey();
+        return draftPanoKey(p);
     }
 
     private String draftHotspotKey(String panoKey, DesignDraftHotspot h) {
