@@ -159,7 +159,9 @@ public class PartnershipRequestService {
         }
 
         Instant startInstant = startDate != null ? startDate.atStartOfDay(ZoneId.systemDefault()).toInstant() : null;
-        Instant endInstant = endDate != null ? endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1) : null;
+        Instant endInstant = endDate != null
+                ? endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1)
+                : null;
 
         Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<PartnershipRequestResponseDTO> requests = partnershipRequestRepository
@@ -285,6 +287,7 @@ public class PartnershipRequestService {
                 .message(normalize(request.getMessage()))
                 .acceptedPolicy(Boolean.TRUE)
                 .status(PartnershipRequestStatus.PENDING)
+                .createdAt(Instant.now())
                 .build();
     }
 

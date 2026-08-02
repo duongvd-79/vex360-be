@@ -613,6 +613,75 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
+    void rejectFinalDraftCancelsRequestAndDeletesDesignerDrafts() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        request.setReviewCount(1);
+        request.setQuotaCharged(true);
+        request.getDrafts().add(DesignDraft.builder()
+                .id(UUID.randomUUID())
+                .designRequest(request)
+                .versionNumber(1)
+                .build());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.rejectFinalDraft(exhibitor, requestId, "  Not suitable  ");
+
+        assertEquals(DesignRequestStatus.CANCELED, request.getStatus());
+        assertEquals(BoothStatus.DRAFT, booth.getStatus());
+        assertEquals("Not suitable", request.getCancellationReason());
+        assertTrue(request.getCanceledAt() != null);
+        assertTrue(request.getDrafts().isEmpty());
+        assertEquals(1, request.getReviewCount());
+        assertEquals(true, request.getQuotaCharged());
+        assertSame(designer, request.getAssignedDesigner());
+        verify(designDraftRepository).flush();
+        verify(designDraftAssetService).cleanupAfterApproval(request);
+        verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
+        verify(designRequestLifecyclePolicy).assertCanContinue(request);
+    }
+
+    @Test
+    void rejectFinalDraftRequiresSubmittedStatus() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.rejectFinalDraft(exhibitor, requestId, "Not suitable"));
+
+        assertSame(ErrorCode.INVALID_DESIGN_REQUEST_STATUS, exception.getErrorCode());
+        verify(designRequestRepository, never()).save(any());
+        verify(designDraftAssetService, never()).cleanupAfterApproval(any());
+    }
+
+    @Test
+    void rejectFinalDraftRejectsPendingCancellationDecision() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
+        request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
+        request.getDrafts().add(DesignDraft.builder()
+                .id(UUID.randomUUID())
+                .designRequest(request)
+                .versionNumber(1)
+                .build());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.rejectFinalDraft(exhibitor, requestId, "Not suitable"));
+
+        assertSame(ErrorCode.INVALID_DESIGN_REQUEST_STATUS, exception.getErrorCode());
+        verify(designRequestRepository, never()).save(any());
+    }
+
+    @Test
     void cancelPendingRequestRefundsCreateAction() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = pendingRequest(requestId);

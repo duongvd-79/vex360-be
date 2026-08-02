@@ -69,15 +69,41 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             @Param("endDate") LocalDate endDate,
             Pageable pageable);
 
-    default Page<Exhibition> searchAdminExhibitions(
-            String keyword,
-            List<ExhibitionStatus> statuses,
-            String category,
-            LocalDate startDate,
-            LocalDate endDate,
-            Pageable pageable) {
-        return searchExhibitions(keyword, statuses, category, startDate, endDate, pageable);
-    }
+    @Query(value = """
+            SELECT e AS exhibition, COALESCE(c.name, o.fullName) AS companyName
+            FROM Exhibition e
+            LEFT JOIN e.organizer o
+            LEFT JOIN Company c ON c.ownerUser = o
+            WHERE (:keyword IS NULL
+                OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (e.status IN :statuses)
+              AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+              AND (:startDate IS NULL OR e.startDate >= :startDate)
+              AND (:endDate IS NULL OR e.endDate <= :endDate)
+            """, countQuery = """
+            SELECT COUNT(e) FROM Exhibition e
+            LEFT JOIN e.organizer o
+            LEFT JOIN Company c ON c.ownerUser = o
+            WHERE (:keyword IS NULL
+                OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (e.status IN :statuses)
+              AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
+              AND (:startDate IS NULL OR e.startDate >= :startDate)
+              AND (:endDate IS NULL OR e.endDate <= :endDate)
+            """)
+    Page<AdminExhibitionProjection> searchAdminExhibitions(
+            @Param("keyword") String keyword,
+            @Param("statuses") List<ExhibitionStatus> statuses,
+            @Param("category") String category,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
 
     long countByStatus(ExhibitionStatus status);
 

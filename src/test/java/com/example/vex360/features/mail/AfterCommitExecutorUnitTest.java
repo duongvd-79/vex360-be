@@ -70,4 +70,15 @@ class AfterCommitExecutorUnitTest {
 
         assertEquals(0, counter.get());
     }
+
+    @Test
+    void execute_ActiveTransaction_NoSynchronization_RunsImmediately() {
+        AtomicInteger counter = new AtomicInteger(0);
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.clearSynchronization();
+
+        executor.execute(counter::incrementAndGet);
+
+        assertEquals(1, counter.get());
+    }
 }

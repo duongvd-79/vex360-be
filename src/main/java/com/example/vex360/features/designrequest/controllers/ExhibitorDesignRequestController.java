@@ -163,4 +163,13 @@ public class ExhibitorDesignRequestController extends BaseController {
             @Valid @RequestBody RejectDesignDraftRequest request) {
         return ok(designRequestService.rejectDraft(userDetails.getUser(), id, request));
     }
+
+    @PostMapping("/{id}/reject-final")
+    @Operation(summary = "Exhibitor permanently rejects a submitted design", description = "Rejects the design submitted by the Designer, ends the design request, and returns the booth to DRAFT.")
+    public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> rejectFinalDraft(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody RequestDesignCancellationRequest request) {
+        return ok(designRequestService.rejectFinalDraft(userDetails.getUser(), id, request.getReason()));
+    }
 }

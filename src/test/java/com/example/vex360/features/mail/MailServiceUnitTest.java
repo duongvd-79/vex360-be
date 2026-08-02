@@ -1,8 +1,8 @@
 package com.example.vex360.features.mail;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.web.util.HtmlUtils;
 
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -406,5 +407,259 @@ class MailServiceUnitTest {
 
         assertDoesNotThrow(() -> mailService.sendForgotPasswordEmail("test@example.com", "http://reset"));
         assertThat(output).contains("Email provider failed_injected");
+    }
+
+    @Test
+    void testSendEmail_InvalidOrNullEmail_Skipped() {
+        mailService.sendForgotPasswordEmail(null, "http://reset");
+        mailService.sendForgotPasswordEmail("   ", "http://reset");
+        mailService.sendRegistrationVerificationEmail(null, "http://verify");
+        mailService.sendPasswordChangeNotificationEmail(null);
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testSendExhibitionReviewResultEmail_MaxRejectionsLimit() {
+        mailService.sendExhibitionReviewResultEmail(
+                "org@example.com",
+                "Org Name",
+                "AI Expo",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                "REJECTED",
+                "Exceeded limits",
+                3,
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("org@example.com"),
+                eq("Triển lãm \"AI Expo\" chưa được phê duyệt - VEX360"),
+                contains("Triển lãm này đã đạt giới hạn tối đa 3 lần xét duyệt và không thể gửi lại."));
+    }
+
+    @Test
+    void testSendExhibitionReviewResultEmail_NullDatesAndInstant() {
+        mailService.sendExhibitionReviewResultEmail(
+                "org@example.com",
+                "Org Name",
+                "AI Expo",
+                null,
+                null,
+                "APPROVED",
+                null,
+                0,
+                null);
+
+        verify(emailTransport).send(
+                eq("org@example.com"),
+                eq("Triển lãm \"AI Expo\" đã được phê duyệt - VEX360"),
+                contains("AI Expo"));
+    }
+
+    @Test
+    void testSendExhibitorRegistrationReviewResultEmail_InvalidStatus() {
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "Gold Package",
+                BigDecimal.valueOf(5000000),
+                "VND",
+                ExhibitorRegistrationStatus.PENDING,
+                null);
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testSendExhibitorRegistrationReviewResultEmail_NullPriceAndReason() {
+        mailService.sendExhibitorRegistrationReviewResultEmail(
+                "exhibitor@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "Gold Package",
+                null,
+                null,
+                ExhibitorRegistrationStatus.REJECTED,
+                null);
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Đăng ký tham gia \"Tech Expo 2026\" chưa được phê duyệt"),
+                contains(HtmlUtils.htmlEscape("Không có ghi chú bổ sung")));
+    }
+
+    @Test
+    void testSendExhibitorRegistrationPaymentConfirmedEmail_NullOrderCodeAndPaidAtAndAmount() {
+        mailService.sendExhibitorRegistrationPaymentConfirmedEmail(
+                "paid@example.com",
+                "Exhibitor Name",
+                "Tech Ltd",
+                "Tech Expo 2026",
+                "VIP Package",
+                null,
+                null,
+                null,
+                null);
+
+        verify(emailTransport).send(
+                eq("paid@example.com"),
+                eq("Thanh toán thành công - Đăng ký \"Tech Expo 2026\" đã được xác nhận"),
+                contains(HtmlUtils.htmlEscape("Không có")));
+    }
+
+    @Test
+    void testSendBoothReviewResultEmail_InvalidStatusAndNullValues() {
+        mailService.sendBoothReviewResultEmail(
+                "booth@example.com",
+                "Booth Owner",
+                "Smart Home Booth",
+                "Tech Expo 2026",
+                null,
+                "INVALID_STATUS",
+                null,
+                null);
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+
+        mailService.sendBoothReviewResultEmail(
+                "booth@example.com",
+                "Booth Owner",
+                "Smart Home Booth",
+                "Tech Expo 2026",
+                null,
+                "APPROVED",
+                null,
+                null);
+
+        verify(emailTransport).send(
+                eq("booth@example.com"),
+                eq("Gian hàng \"Smart Home Booth\" đã được phê duyệt và xuất bản"),
+                contains("v1"));
+
+        mailService.sendBoothReviewResultEmail(
+                "booth@example.com",
+                "Booth Owner",
+                "Smart Home Booth",
+                "Tech Expo 2026",
+                null,
+                "REJECTED",
+                null,
+                null);
+
+        verify(emailTransport).send(
+                eq("booth@example.com"),
+                eq("Gian hàng \"Smart Home Booth\" cần được chỉnh sửa"),
+                contains(HtmlUtils.htmlEscape("Không có ghi chú bổ sung")));
+    }
+
+    @Test
+    void testSendDesignDraftReviewResultEmail_InvalidStatusAndNullValues() {
+        mailService.sendDesignDraftReviewResultEmail(
+                "designer@example.com",
+                "Designer Name",
+                "Design Co",
+                "3D Booth A",
+                null,
+                DesignRequestStatus.PENDING,
+                null);
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+
+        mailService.sendDesignDraftReviewResultEmail(
+                "designer@example.com",
+                "Designer Name",
+                "Design Co",
+                "3D Booth A",
+                null,
+                DesignRequestStatus.REVISION_REQUESTED,
+                null);
+
+        verify(emailTransport).send(
+                eq("designer@example.com"),
+                eq("Bản thiết kế cho gian hàng \"3D Booth A\" cần được chỉnh sửa"),
+                contains(HtmlUtils.htmlEscape("Không có ghi chú bổ sung")));
+    }
+
+    @Test
+    void testSendDesignCancellationDecisionEmail_DesignerRecipient_Rejected() {
+        mailService.sendDesignCancellationDecisionEmail(
+                "designer@example.com",
+                "Designer",
+                true,
+                "Company A",
+                "Booth X",
+                "REJECTED",
+                "Budget issue",
+                "Rejected by admin",
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("designer@example.com"),
+                eq("Tiếp tục thực hiện thiết kế gian hàng \"Booth X\""),
+                contains("Từ chối hủy (Tiếp tục)"));
+    }
+
+    @Test
+    void testSendDesignCancellationDecisionEmail_ExhibitorRecipient_Rejected() {
+        mailService.sendDesignCancellationDecisionEmail(
+                "exhibitor@example.com",
+                "Exhibitor",
+                false,
+                "Company A",
+                "Booth X",
+                "REJECTED",
+                "Budget issue",
+                "Rejected by admin",
+                Instant.now());
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Yêu cầu hủy thiết kế gian hàng \"Booth X\" chưa được chấp thuận"),
+                contains("Tiếp tục thực hiện"));
+    }
+
+    @Test
+    void testSendDesignCancellationDecisionEmail_InvalidStatusAndNullValues() {
+        mailService.sendDesignCancellationDecisionEmail(
+                "exhibitor@example.com",
+                "Exhibitor",
+                false,
+                "Company A",
+                "Booth X",
+                "INVALID_STATUS",
+                null,
+                null,
+                null);
+
+        verify(emailTransport, never()).send(anyString(), anyString(), anyString());
+
+        mailService.sendDesignCancellationDecisionEmail(
+                "exhibitor@example.com",
+                "Exhibitor",
+                false,
+                "Company A",
+                "Booth X",
+                "APPROVED",
+                null,
+                null,
+                null);
+
+        verify(emailTransport).send(
+                eq("exhibitor@example.com"),
+                eq("Yêu cầu hủy thiết kế gian hàng \"Booth X\" đã được chấp thuận"),
+                contains(HtmlUtils.htmlEscape("Không có ghi chú bổ sung")));
+    }
+
+    @Test
+    void testSendMail_ExceptionWithNullMessage(CapturedOutput output) {
+        doThrow(new RuntimeException((String) null))
+                .when(emailTransport).send(eq("test@example.com"), contains("VEX360"), contains("http://reset"));
+
+        assertDoesNotThrow(() -> mailService.sendForgotPasswordEmail("test@example.com", "http://reset"));
+        assertThat(output).contains("RuntimeException");
     }
 }
