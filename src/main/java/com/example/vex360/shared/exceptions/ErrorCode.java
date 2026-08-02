@@ -67,6 +67,11 @@ public enum ErrorCode {
     STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói lưu trữ.", HttpStatus.NOT_FOUND),
     STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
     STORAGE_PACKAGE_NAME_DUPLICATED("STORAGE-003", "Tên gói lưu trữ đã tồn tại trong hệ thống.", HttpStatus.CONFLICT),
+    STORAGE_PACKAGE_INACTIVE("STORAGE-005", "Gói lưu trữ này hiện không còn được mở bán.",
+            HttpStatus.CONFLICT),
+    STORAGE_PACKAGE_ORDER_SNAPSHOT_MISSING("STORAGE-006",
+            "Đơn hàng lưu trữ thiếu thông tin dung lượng tại thời điểm mua. Vui lòng liên hệ quản trị viên.",
+            HttpStatus.CONFLICT),
     INPUT_FAILED("USER-004", "Dữ liệu nhập vào không hợp lệ.", HttpStatus.BAD_REQUEST),
     OLDPASSWORD_FAILED("USER-005", "Mật khẩu hiện tại không chính xác.", HttpStatus.BAD_REQUEST),
 

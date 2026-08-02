@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -173,17 +177,103 @@ class CompanyServiceUnitTest {
     }
 
     @Test
-    void createCompany_Success_WithIncompleteProfileStatus() {
-        when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    void ensureCompanyForCompanyRole_ExistingCompany_ReturnsWithoutOverwrite() {
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
 
-        Company result = companyService.createCompany(owner, "New Company", "contact@company.com", "0912345678");
+        Optional<Company> result = companyService.ensureCompanyForCompanyRole(
+                owner, "Tên mới", "new@example.com", "0999999999");
 
-        assertEquals("New Company", result.getName());
-        assertEquals("contact@company.com", result.getEmail());
-        assertEquals("0912345678", result.getPhone());
-        assertEquals(CompanyStatus.INCOMPLETE_PROFILE, result.getStatus());
-        assertSame(owner, result.getOwnerUser());
-        verify(companyRepository).save(any(Company.class));
+        assertTrue(result.isPresent());
+        assertSame(company, result.get());
+        assertEquals("Company A", company.getName());
+        assertEquals("owner@example.com", company.getEmail());
+        verify(companyRepository, never()).insertCompanyIfAbsent(
+                anyString(), anyString(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void ensureCompanyForCompanyRole_NonCompanyRole_IsAbsoluteNoOp() {
+        owner.setRole(Role.VISITOR);
+
+        Optional<Company> result = companyService.ensureCompanyForCompanyRole(
+                owner, "Không được tạo", "visitor@example.com", "0900000000");
+
+        assertTrue(result.isEmpty());
+        verifyNoInteractions(companyRepository);
+    }
+
+    @Test
+    void ensureCompanyForCompanyRole_MissingCompany_CreatesWithPreferredValues() {
+        Company created = Company.builder()
+                .id(UUID.randomUUID())
+                .ownerUser(owner)
+                .name("Công ty Mộc Việt")
+                .email("contact@mocviet.vn")
+                .phone("0912345678")
+                .status(CompanyStatus.INCOMPLETE_PROFILE)
+                .build();
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
+        when(companyRepository.findByOwnerUserIdForUpdate(owner.getId())).thenReturn(Optional.of(created));
+
+        Optional<Company> result = companyService.ensureCompanyForCompanyRole(
+                owner, "  Công ty Mộc Việt  ", " contact@mocviet.vn ", " 0912345678 ");
+
+        assertSame(created, result.orElseThrow());
+        verify(companyRepository).insertCompanyIfAbsent(
+                anyString(),
+                eq(owner.getId().toString()),
+                eq("Công ty Mộc Việt"),
+                eq("contact@mocviet.vn"),
+                eq("0912345678"),
+                eq(CompanyStatus.INCOMPLETE_PROFILE.name()));
+    }
+
+    @Test
+    void ensureCompanyForCompanyRole_BlankPreferredValues_UsesUserFallbacks() {
+        owner.setFullName("Nguyễn Văn An");
+        owner.setPhoneNumber("0987654321");
+        Company created = Company.builder().id(UUID.randomUUID()).ownerUser(owner).build();
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
+        when(companyRepository.findByOwnerUserIdForUpdate(owner.getId())).thenReturn(Optional.of(created));
+
+        companyService.ensureCompanyForCompanyRole(owner, " ", null, "");
+
+        verify(companyRepository).insertCompanyIfAbsent(
+                anyString(),
+                eq(owner.getId().toString()),
+                eq("Nguyễn Văn An"),
+                eq("owner@example.com"),
+                eq("0987654321"),
+                eq(CompanyStatus.INCOMPLETE_PROFILE.name()));
+    }
+
+    @Test
+    void ensureCompanyForCompanyRole_ConcurrentInsertLosesRace_ReturnsWinner() {
+        Company winner = Company.builder()
+                .id(UUID.randomUUID())
+                .ownerUser(owner)
+                .name("Company from other request")
+                .status(CompanyStatus.INCOMPLETE_PROFILE)
+                .build();
+        when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
+        when(companyRepository.insertCompanyIfAbsent(
+                anyString(), anyString(), anyString(), any(), any(), anyString()))
+                .thenReturn(0);
+        when(companyRepository.findByOwnerUserIdForUpdate(owner.getId())).thenReturn(Optional.of(winner));
+
+        Optional<Company> result = companyService.ensureCompanyForCompanyRole(
+                owner, "Losing request", null, null);
+
+        assertSame(winner, result.orElseThrow());
+    }
+
+    @Test
+    void ensureCompanyForCompanyRole_NullOwner_ThrowsUnauthenticatedWithoutRepositoryAccess() {
+        AppException exception = assertThrows(AppException.class,
+                () -> companyService.ensureCompanyForCompanyRole(null, null, null, null));
+
+        assertSame(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        verifyNoInteractions(companyRepository);
     }
 
     @Test

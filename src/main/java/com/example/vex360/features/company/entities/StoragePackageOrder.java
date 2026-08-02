@@ -58,7 +58,11 @@ public class StoragePackageOrder {
     @Column(name = "package_name_snapshot")
     String packageNameSnapshot;
 
-    @Column(name = "quota_bytes_snapshot")
+    /**
+     * Dung lượng khách đã mua tại thời điểm tạo đơn. Không lấy lại quota từ
+     * StoragePackage khi webhook hoàn tất vì admin có thể đã chỉnh sửa gói.
+     */
+    @Column(name = "quota_bytes_snapshot", updatable = false)
     Long quotaBytesSnapshot;
 
     @Column(name = "price_vnd_snapshot")

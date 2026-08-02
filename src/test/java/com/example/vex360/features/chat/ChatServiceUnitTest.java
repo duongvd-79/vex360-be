@@ -29,6 +29,7 @@ import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.chat.services.ChatService;
+import com.example.vex360.features.chat.services.PresenceService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.entities.User;
@@ -52,6 +53,8 @@ class ChatServiceUnitTest {
     UserService userService;
     @Mock
     ExhibitionService exhibitionService;
+    @Mock
+    PresenceService presenceService;
     @InjectMocks
     ChatService chatService;
 

@@ -13,6 +13,7 @@ import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.CompanyStatus;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
@@ -70,16 +71,51 @@ public class CompanyService {
         return companyRepository.existsByOwnerUserId(ownerUserId);
     }
 
+    /**
+     * Ensures an eligible company-role user owns exactly one company.
+     *
+     * Non-company roles are an intentional no-op: the method does not query,
+     * create, log, or raise a company-related error for them.
+     */
     @Transactional
-    public Company createCompany(User ownerUser, String name, String email, String phone) {
-        Company company = Company.builder()
-                .ownerUser(ownerUser)
-                .name(name)
-                .email(email)
-                .phone(phone)
-                .status(CompanyStatus.INCOMPLETE_PROFILE)
-                .build();
-        return companyRepository.save(company);
+    public Optional<Company> ensureCompanyForCompanyRole(
+            User ownerUser,
+            String preferredName,
+            String preferredEmail,
+            String preferredPhone) {
+        if (ownerUser == null || ownerUser.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (ownerUser.getRole() != Role.EXHIBITOR && ownerUser.getRole() != Role.ORGANIZER) {
+            return Optional.empty();
+        }
+
+        Optional<Company> existingCompany = companyRepository.findByOwnerUserId(ownerUser.getId());
+        if (existingCompany.isPresent()) {
+            return existingCompany;
+        }
+
+        String name = firstNonBlank(preferredName, ownerUser.getFullName(), ownerUser.getEmail());
+        if (name == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        String email = firstNonBlank(preferredEmail, ownerUser.getEmail());
+        String phone = firstNonBlank(preferredPhone, ownerUser.getPhoneNumber());
+
+        companyRepository.insertCompanyIfAbsent(
+                UUID.randomUUID().toString(),
+                ownerUser.getId().toString(),
+                name,
+                email,
+                phone,
+                CompanyStatus.INCOMPLETE_PROFILE.name());
+
+        // This is a locking/current read, so it sees the row committed by a
+        // concurrent winner even under MySQL's default REPEATABLE READ level.
+        return Optional.of(companyRepository.findByOwnerUserIdForUpdate(ownerUser.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION)));
     }
 
     private Company getCompanyForCurrentUser(User currentUser) {
@@ -102,5 +138,14 @@ public class CompanyService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

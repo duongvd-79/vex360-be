@@ -30,7 +30,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.partnership.dtos.request.RejectPartnershipRequest;
@@ -175,16 +174,13 @@ class PartnershipRequestServiceUnitTest {
                 .fullName(inv.getArgument(0, CreateUserRequest.class).getFullName())
                 .role(inv.getArgument(0, CreateUserRequest.class).getRole())
                 .status(inv.getArgument(1, UserStatus.class)).build());
-        when(companyService.createCompany(any(), anyString(), anyString(), anyString()))
-                .thenAnswer(inv -> Company.builder().id(UUID.randomUUID()).name(inv.getArgument(1)).phone(inv.getArgument(3)).build());
-
         PartnershipRequestResponseDTO response = partnershipRequestService.approveRequest(requestId);
 
         assertEquals(PartnershipAccountAction.CREATE_NEW_ACCOUNT.name(), response.getAccountAction());
         assertEquals("APPROVED", response.getStatus());
         assertNotNull(request.getReviewedAt());
         verify(userService).createUser(any(CreateUserRequest.class), eq(UserStatus.ACTIVE));
-        verify(companyService).createCompany(any(User.class), eq("Vex360 Partner"), eq("requester@example.com"), eq("0912345678"));
+        verify(companyService).ensureCompanyForCompanyRole(any(User.class), eq("Vex360 Partner"), eq("requester@example.com"), eq("0912345678"));
         verify(mailService).sendPartnershipGuestApprovedEmail(eq("requester@example.com"), eq("Requester Name"), anyString(), eq(Role.EXHIBITOR), eq("Vex360 Partner"));
     }
 
@@ -197,20 +193,17 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
         when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(false);
-        when(companyService.createCompany(any(), anyString(), anyString(), anyString())).thenReturn(Company.builder().build());
-
         PartnershipRequestResponseDTO response = partnershipRequestService.approveRequest(requestId);
 
         assertEquals(Role.ORGANIZER, user.getRole());
         assertEquals(PartnershipAccountAction.UPGRADE_EXISTING_USER.name(), response.getAccountAction());
         assertEquals("APPROVED", response.getStatus());
-        verify(companyService).createCompany(any(User.class), anyString(), anyString(), anyString());
+        verify(companyService).ensureCompanyForCompanyRole(any(User.class), anyString(), anyString(), anyString());
         verify(mailService).sendPartnershipApprovedEmail("user@example.com", "User Name", Role.ORGANIZER, "Vex360 Partner");
     }
 
     @Test
-    void approveAuthenticatedRequestDoesNotCreateCompanyWhenAlreadyExists() {
+    void approveAuthenticatedRequestDelegatesToIdempotentCompanyEnsure() {
         UUID requestId = UUID.randomUUID();
         PartnershipRequest request = pendingRequest(requestId, user, Role.ORGANIZER);
         request.setRequesterEmail("user@example.com");
@@ -218,11 +211,10 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
         when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(true);
-
         partnershipRequestService.approveRequest(requestId);
 
-        verify(companyService, never()).createCompany(any(), anyString(), anyString(), anyString());
+        verify(companyService).ensureCompanyForCompanyRole(
+                eq(user), eq("Vex360 Partner"), eq("user@example.com"), eq("0912345678"));
     }
 
     @Test
@@ -475,8 +467,6 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
         when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(true);
-
         partnershipRequestService.approveRequest(requestId);
 
         verify(mailService).sendPartnershipApprovedEmail(eq("different@example.com"), eq("Requester Name"), eq(Role.ORGANIZER), anyString());
@@ -491,8 +481,6 @@ class PartnershipRequestServiceUnitTest {
         when(partnershipRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
         when(userService.getUserEntityById(user.getId())).thenReturn(user);
         when(userService.saveUserEntity(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(companyService.existsByOwnerUserId(user.getId())).thenReturn(true);
-
         partnershipRequestService.approveRequest(requestId);
 
         verify(mailService).sendPartnershipApprovedEmail(eq("user@example.com"), eq("User Name"), eq(Role.ORGANIZER), anyString());
