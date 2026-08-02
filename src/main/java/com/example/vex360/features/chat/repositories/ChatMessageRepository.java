@@ -13,7 +13,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     List<ChatMessage> findByRoomIdOrderBySentAtAsc(UUID roomId);
 
     @Modifying
-    @Query("UPDATE ChatMessage m SET m.readAt = CURRENT_TIMESTAMP WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")
+    @Query("UPDATE ChatMessage m SET m.readAt = instant WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")
     void markMessagesAsRead(UUID roomId, UUID userId);
 
     @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.room.id = :roomId AND m.sender.id != :userId AND m.readAt IS NULL")

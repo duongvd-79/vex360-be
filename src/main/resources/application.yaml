@@ -79,7 +79,7 @@ app:
     frontend-url: ${PARTNERSHIP_FRONTEND_URL:http://localhost:5175/partnership/verified}
 
   # Database Seeder
-  seeder:
+  seed:
     enabled: ${APP_SEED_ENABLED:false}
 
 ---
