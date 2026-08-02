@@ -83,6 +83,8 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
+            "companyName", "c.name",
+            "company.name", "c.name",
             "exhibitionName", "name",
             "expectedBoothCount", "estimatedBooths",
             "status", "status");
@@ -295,7 +297,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
                 normalizedKeyword, statuses, normalizedCategory, startDate, endDate, mappedPageable)
-                .map(exhibitionMapper::toResponse);
+                .map(row -> exhibitionMapper.toResponse(row.getExhibition()).toBuilder()
+                        .companyName(row.getCompanyName())
+                        .build());
 
         return PageResponse.from(exhibitions);
     }

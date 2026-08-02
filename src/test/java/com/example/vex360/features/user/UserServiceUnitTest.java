@@ -556,27 +556,15 @@ class UserServiceUnitTest {
         assertNull(createdUser.getAvatarUrl());
     }
 
-    @Test
-    void getUsersWithEmptyKeyword_PassesNullToRepository() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "   "})
+    void getUsersWithBlankOrEmptyKeyword_PassesNullToRepository(String keyword) {
         PageRequest pageable = PageRequest.of(0, 10);
 
         when(userRepository.searchUsers(null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        PageResponse<UserResponseDTO> response = userService.getUsers("", null, null, pageable);
-
-        assertEquals(0, response.getContent().size());
-        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(pageable));
-    }
-
-    @Test
-    void getUsersWithBlankKeyword_PassesNullToRepository() {
-        PageRequest pageable = PageRequest.of(0, 10);
-
-        when(userRepository.searchUsers(null, null, null, pageable))
-                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
-
-        PageResponse<UserResponseDTO> response = userService.getUsers("   ", null, null, pageable);
+        PageResponse<UserResponseDTO> response = userService.getUsers(keyword, null, null, pageable);
 
         assertEquals(0, response.getContent().size());
         verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(pageable));
