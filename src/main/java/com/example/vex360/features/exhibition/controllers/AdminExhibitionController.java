@@ -50,9 +50,9 @@ public class AdminExhibitionController extends BaseController {
     @GetMapping
     @Operation(
             summary = "Admin xem danh sách yêu cầu mở triển lãm",
-            description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo tên triển lãm, tên/email organizer hoặc tên tổ chức; lọc theo status, category và thời gian diễn ra. APPROVED đại diện cho REGISTRATION/PUBLISHED/ACTIVE/COMPLETED.")
+            description = "Trả về danh sách đơn đăng ký mở triển lãm của các organizer có phân trang. Có thể tìm kiếm theo tên triển lãm, tên/email organizer hoặc tên công ty; lọc theo status, category và thời gian diễn ra. APPROVED đại diện cho REGISTRATION/PUBLISHED/ACTIVE/COMPLETED.")
     public ResponseEntity<ApiResponse<PageResponse<ExhibitionResponseDTO>>> getExhibitions(
-            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên/email organizer, tên tổ chức)")
+            @Parameter(description = "Từ khóa tìm kiếm (tên triển lãm, tên/email organizer, tên công ty)")
             @RequestParam(required = false) String keyword,
             @Parameter(description = "Trạng thái của triển lãm; APPROVED lấy các trạng thái đã được duyệt")
             @RequestParam(required = false) AdminExhibitionStatusFilter status,

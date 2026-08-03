@@ -105,9 +105,11 @@ spring:
             enable: true
 app:
   payos:
-    client-id: ${LOCAL_PAYOS_CLIENT_ID}
-    api-key: ${LOCAL_PAYOS_API_KEY}
-    checksum-key: ${LOCAL_PAYOS_CHECKSUM_KEY}
+    # Local development can boot without real PayOS credentials. Production
+    # remains strict in the aiven profile and in PayOSConfig.
+    client-id: ${LOCAL_PAYOS_CLIENT_ID:mock_local_client_id}
+    api-key: ${LOCAL_PAYOS_API_KEY:mock_local_api_key}
+    checksum-key: ${LOCAL_PAYOS_CHECKSUM_KEY:mock_local_checksum_key}
     return-url: ${PAYOS_RETURN_URL:http://localhost:5175/payment/success}
     cancel-url: ${PAYOS_CANCEL_URL:http://localhost:5175/payment/cancel}
     storage-return-url: ${PAYOS_STORAGE_RETURN_URL:http://localhost:5175/storage/payment/success}

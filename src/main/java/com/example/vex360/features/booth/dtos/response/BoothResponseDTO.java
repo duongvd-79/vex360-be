@@ -37,6 +37,11 @@ public class BoothResponseDTO {
     private String companyName;
     private String companyIndustry;
     private String companyEmail;
+    private String companyPhone;
+    private String companyAddress;
+    private String companyWebsite;
+    private String companyLogoUrl;
+    private String companyDescription;
     private List<PanoramaResponseDTO> panoramas;
     private LocalDate boothReviewDeadline;
     private Boolean boothPreparationOpen;

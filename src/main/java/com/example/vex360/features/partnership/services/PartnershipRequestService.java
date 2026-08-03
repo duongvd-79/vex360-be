@@ -159,7 +159,9 @@ public class PartnershipRequestService {
         }
 
         Instant startInstant = startDate != null ? startDate.atStartOfDay(ZoneId.systemDefault()).toInstant() : null;
-        Instant endInstant = endDate != null ? endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1) : null;
+        Instant endInstant = endDate != null
+                ? endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1)
+                : null;
 
         Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<PartnershipRequestResponseDTO> requests = partnershipRequestRepository
@@ -228,7 +230,7 @@ public class PartnershipRequestService {
                 .build();
 
         User savedUser = userService.createUser(userRequest, UserStatus.ACTIVE);
-        companyService.createCompany(
+        companyService.ensureCompanyForCompanyRole(
                 savedUser,
                 normalize(request.getOrganizationName()),
                 normalize(request.getRequesterEmail()),
@@ -252,13 +254,11 @@ public class PartnershipRequestService {
         user.setRole(request.getRequestedRole());
         User savedUser = userService.saveUserEntity(user);
 
-        if (!companyService.existsByOwnerUserId(savedUser.getId())) {
-            companyService.createCompany(
-                    savedUser,
-                    normalize(request.getOrganizationName()),
-                    normalize(request.getRequesterEmail()),
-                    normalize(request.getRequesterPhoneNumber()));
-        }
+        companyService.ensureCompanyForCompanyRole(
+                savedUser,
+                normalize(request.getOrganizationName()),
+                normalize(request.getRequesterEmail()),
+                normalize(request.getRequesterPhoneNumber()));
 
         String notificationEmail = resolveNotificationEmail(request, savedUser);
         String notificationName = resolveNotificationName(request, savedUser);
@@ -285,6 +285,7 @@ public class PartnershipRequestService {
                 .message(normalize(request.getMessage()))
                 .acceptedPolicy(Boolean.TRUE)
                 .status(PartnershipRequestStatus.PENDING)
+                .createdAt(Instant.now())
                 .build();
     }
 

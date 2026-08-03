@@ -514,6 +514,43 @@ public class DesignRequestService {
     }
 
     /**
+     * Permanently rejects a submitted design, removes its drafts and staging
+     * assets, and returns the booth to Exhibitor editing.
+     */
+    @Transactional
+    public DesignRequestResponseDTO rejectFinalDraft(User currentUser, UUID id, String reason) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        DesignRequest request = getRequestForCompany(id, company);
+        designRequestLifecyclePolicy.assertCanContinue(request);
+        if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED
+                || request.getCancellationStatus() == DesignRequestCancellationStatus.REQUESTED) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
+        }
+        boolean hasSubmittedDraft = request.getDrafts().stream()
+                .anyMatch(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0);
+        if (!hasSubmittedDraft) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+        String rejectionReason = trimToNull(reason);
+        if (rejectionReason == null) {
+            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        }
+
+        DesignRequestStatus previousStatus = request.getStatus();
+        request.setStatus(DesignRequestStatus.CANCELED);
+        request.setCancellationReason(rejectionReason);
+        request.setCanceledAt(Instant.now());
+        request.getBooth().setStatus(BoothStatus.DRAFT);
+        request.getDrafts().clear();
+        designDraftRepository.flush();
+
+        DesignRequest saved = designRequestRepository.save(request);
+        designDraftAssetService.cleanupAfterApproval(saved);
+        publishStatusChanged(saved, currentUser, previousStatus);
+        return toResponse(saved);
+    }
+
+    /**
      * Approves the latest submitted draft and replaces the booth's panorama and
      * hotspot content with that draft. The request becomes APPROVED, the booth
      * returns to DRAFT for Exhibitor editing, and superseded design assets are

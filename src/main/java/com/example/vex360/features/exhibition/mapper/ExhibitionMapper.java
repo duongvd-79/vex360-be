@@ -24,6 +24,7 @@ public interface ExhibitionMapper {
     @Mapping(target = "estimatedBooths", source = "exhibition.estimatedBooths")
     @Mapping(target = "status", source = "exhibition.status")
     @Mapping(target = "organizerName", source = "exhibition.organizer.fullName")
+    @Mapping(target = "companyName", ignore = true)
     @Mapping(target = "organizationName", ignore = true)
     @Mapping(target = "email", ignore = true)
     @Mapping(target = "phone", ignore = true)
@@ -42,6 +43,7 @@ public interface ExhibitionMapper {
     ExhibitionResponseDTO toResponse(Exhibition exhibition, List<ExhibitionPackage> packages);
 
     @Mapping(target = "organizerName", source = "organizer.fullName")
+    @Mapping(target = "companyName", ignore = true)
     @Mapping(target = "organizationName", ignore = true)
     @Mapping(target = "email", ignore = true)
     @Mapping(target = "phone", ignore = true)
