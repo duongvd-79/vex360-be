@@ -153,7 +153,7 @@ public class StoragePackageService {
 
     @Transactional
     public void markPaidAndIncrementQuota(Integer storagePackageOrderId) {
-        StoragePackageOrder order = storagePackageOrderRepository.findById(storagePackageOrderId)
+        StoragePackageOrder order = storagePackageOrderRepository.findByIdForUpdate(storagePackageOrderId)
                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
 
         if (order.getStatus() == StoragePackageOrderStatus.PAID) {
@@ -178,7 +178,6 @@ public class StoragePackageService {
             log.error("Cannot increment storage quota because company {} was not found", company.getId());
             throw new AppException(ErrorCode.COMPANY_NOT_FOUND);
         }
-        company.setStorageQuotaBytes(company.getStorageQuotaBytes() + quotaSnapshot);
         log.info("Storage package PAID. Company {} quota atomically increased by {}B", company.getId(), quotaSnapshot);
     }
 

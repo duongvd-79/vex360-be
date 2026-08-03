@@ -255,6 +255,7 @@ class PayOSWebhookServiceTest {
         webhookServiceWrapper.handleWebhook(mockBody);
 
         verify(storagePackageService).markPaidAndIncrementQuota(77);
+        verify(fulfillmentService).updateReceiptSucceeded(123456L, null, null);
         verify(registrationRepository, never()).save(any());
     }
 
