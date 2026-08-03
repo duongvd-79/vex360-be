@@ -111,6 +111,7 @@ public class ChatService {
     }
 
     // ── 4. Chi tiết 1 phòng chat (kèm lịch sử tin nhắn) ─────────
+    @Transactional(readOnly = true)
     public ChatRoomResponse getRoomById(UUID roomId, UUID userId) {
         var room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -139,6 +140,7 @@ public class ChatService {
     }
 
     // ── 5. Danh sách phòng chat của 1 user ───────────────────────
+    @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRoomsForUser(User user) {
         String role = user.getRole().name();
 
