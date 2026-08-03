@@ -111,6 +111,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
 
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
                     storagePackageService.markPaidAndIncrementQuota(payment.getStoragePackageOrderId());
+                    fulfillmentService.updateReceiptSucceeded(orderCode, null, null);
                 } else if (registration != null) {
                     boolean registrationOpen = registration.getExhibitionPackage() != null
                             && timelinePolicy.isRegistrationOpen(
