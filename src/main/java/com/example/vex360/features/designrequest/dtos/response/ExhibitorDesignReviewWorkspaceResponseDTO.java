@@ -25,6 +25,7 @@ public class ExhibitorDesignReviewWorkspaceResponseDTO {
     private DesignRequestMode mode;
     private Integer remainingDesignActions;
     private BoothResponseDTO currentBooth;
+    private String submittedThumbnailUrl;
     private DesignDraftWorkspaceResponseDTO latestSubmittedDraft;
     private List<ProductResponseDTO> requiredProducts;
     private List<ProductResponseDTO> optionalProducts;
