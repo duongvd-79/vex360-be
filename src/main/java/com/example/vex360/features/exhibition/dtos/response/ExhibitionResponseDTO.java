@@ -28,6 +28,7 @@ public class ExhibitionResponseDTO {
     private Integer estimatedBooths;
     private String status;
     private String organizerName;
+    private String companyName;
     private String organizationName;
     private String email;
     private String phone;

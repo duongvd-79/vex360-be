@@ -60,6 +60,7 @@ import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.mapper.ExhibitionMapper;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.exhibition.repositories.AdminExhibitionProjection;
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
@@ -304,13 +305,17 @@ class ExhibitionServiceUnitTest {
 
     @Test
     void searchExhibitionsForAdminMapsApprovedAndFrontendSortAliases() {
+        String companyName = "VEX Organizer Company";
+
         Pageable requestedPageable = PageRequest.of(
                 1, 10, Sort.by(
+                        Sort.Order.asc("companyName"),
                         Sort.Order.asc("organizerName"),
                         Sort.Order.desc("expectedBoothCount"),
                         Sort.Order.asc("exhibitionName")));
         Pageable mappedPageable = PageRequest.of(
                 1, 10, Sort.by(
+                        Sort.Order.asc("c.name"),
                         Sort.Order.asc("organizer.fullName"),
                         Sort.Order.desc("estimatedBooths"),
                         Sort.Order.asc("name")));
@@ -319,12 +324,18 @@ class ExhibitionServiceUnitTest {
                 ExhibitionStatus.PUBLISHED,
                 ExhibitionStatus.ACTIVE,
                 ExhibitionStatus.COMPLETED);
-        Page<Exhibition> page = new PageImpl<>(List.of(registrationExhibition), mappedPageable, 11);
+        AdminExhibitionProjection row = mock(AdminExhibitionProjection.class);
+        when(row.getExhibition()).thenReturn(registrationExhibition);
+        when(row.getCompanyName()).thenReturn(companyName);
+        Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), mappedPageable, 11);
         when(exhibitionRepository.searchAdminExhibitions(
                 "Expo", approvedStatuses, "Tech", null, null, mappedPageable))
                 .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition))
-                .thenReturn(ExhibitionResponseDTO.builder().name("Expo 2026").build());
+                .thenReturn(ExhibitionResponseDTO.builder()
+                        .name("Expo 2026")
+                        .organizerName(organizer.getFullName())
+                        .build());
 
         PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForAdmin(
                 " Expo ", AdminExhibitionStatusFilter.APPROVED, " Tech ",
@@ -334,6 +345,8 @@ class ExhibitionServiceUnitTest {
         assertEquals(10, result.getSize());
         assertEquals(11, result.getTotalElements());
         assertEquals("Expo 2026", result.getContent().get(0).getName());
+        assertEquals(companyName, result.getContent().get(0).getCompanyName());
+        assertEquals(organizer.getFullName(), result.getContent().get(0).getOrganizerName());
         verify(exhibitionRepository).searchAdminExhibitions(
                 "Expo", approvedStatuses, "Tech", null, null, mappedPageable);
     }
@@ -357,12 +370,22 @@ class ExhibitionServiceUnitTest {
     void searchExhibitionsForAdminUsesAllStatusesWhenFilterIsMissing() {
         Pageable pageable = PageRequest.of(0, 10);
         List<ExhibitionStatus> allStatuses = List.of(ExhibitionStatus.values());
+        AdminExhibitionProjection row = mock(AdminExhibitionProjection.class);
+        when(row.getExhibition()).thenReturn(registrationExhibition);
+        when(row.getCompanyName()).thenReturn(organizer.getFullName());
+        Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), pageable, 1);
         when(exhibitionRepository.searchAdminExhibitions(
                 null, allStatuses, null, null, null, pageable))
-                .thenReturn(Page.empty(pageable));
+                .thenReturn(page);
+        when(exhibitionMapper.toResponse(registrationExhibition))
+                .thenReturn(ExhibitionResponseDTO.builder()
+                        .organizerName(organizer.getFullName())
+                        .build());
 
-        exhibitionService.searchExhibitionsForAdmin(null, null, null, null, null, pageable);
+        PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForAdmin(
+                null, null, null, null, null, pageable);
 
+        assertEquals(organizer.getFullName(), result.getContent().get(0).getCompanyName());
         verify(exhibitionRepository).searchAdminExhibitions(
                 null, allStatuses, null, null, null, pageable);
     }
