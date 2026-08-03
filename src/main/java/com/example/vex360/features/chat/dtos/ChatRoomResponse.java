@@ -20,8 +20,10 @@ public class ChatRoomResponse {
     private UUID roomId;
     private String exhibitorName;
     private String exhibitorAvatar;
+    private boolean exhibitorOnline;
     private String visitorName;
     private String visitorAvatar;
+    private boolean visitorOnline;
     private Instant lastMessageAt;
     private String lastMessagePreview;
     private List<ChatMessagePayload> messages;

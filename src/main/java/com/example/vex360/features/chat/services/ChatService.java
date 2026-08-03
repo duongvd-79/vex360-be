@@ -29,6 +29,11 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final UserService userService;
     private final ExhibitionService exhibitionService;
+    private final PresenceService presenceService;
+
+    private boolean isOnline(UUID userId) {
+        return presenceService.isOnline(userId);
+    }
 
     // ── 1. Tạo hoặc lấy phòng chat ──────────────────────────────
     @Transactional
@@ -64,8 +69,10 @@ public class ChatService {
                 .roomId(room.getId())
                 .exhibitorName(exhibitorUser.getFullName())
                 .exhibitorAvatar(exhibitorUser.getAvatarUrl())
+                .exhibitorOnline(isOnline(exhibitorUser.getId()))
                 .visitorName(visitorUser.getFullName())
                 .visitorAvatar(visitorUser.getAvatarUrl())
+                .visitorOnline(isOnline(visitorUser.getId()))
                 .lastMessageAt(room.getLastMessageAt())
                 .lastMessagePreview(room.getLastMessagePreview())
                 .messages(messages)
@@ -111,6 +118,7 @@ public class ChatService {
     }
 
     // ── 4. Chi tiết 1 phòng chat (kèm lịch sử tin nhắn) ─────────
+    @Transactional(readOnly = true)
     public ChatRoomResponse getRoomById(UUID roomId, UUID userId) {
         var room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -130,8 +138,10 @@ public class ChatService {
                 .roomId(room.getId())
                 .exhibitorName(room.getExhibitorUser().getFullName())
                 .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
+                .exhibitorOnline(isOnline(room.getExhibitorUser().getId()))
                 .visitorName(room.getVisitorUser().getFullName())
                 .visitorAvatar(room.getVisitorUser().getAvatarUrl())
+                .visitorOnline(isOnline(room.getVisitorUser().getId()))
                 .lastMessageAt(room.getLastMessageAt())
                 .lastMessagePreview(room.getLastMessagePreview())
                 .messages(messages)
@@ -139,6 +149,7 @@ public class ChatService {
     }
 
     // ── 5. Danh sách phòng chat của 1 user ───────────────────────
+    @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRoomsForUser(User user) {
         String role = user.getRole().name();
 
@@ -150,8 +161,10 @@ public class ChatService {
                 .roomId(room.getId())
                 .exhibitorName(room.getExhibitorUser().getFullName())
                 .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
+                .exhibitorOnline(isOnline(room.getExhibitorUser().getId()))
                 .visitorName(room.getVisitorUser().getFullName())
                 .visitorAvatar(room.getVisitorUser().getAvatarUrl())
+                .visitorOnline(isOnline(room.getVisitorUser().getId()))
                 .lastMessageAt(room.getLastMessageAt())
                 .lastMessagePreview(room.getLastMessagePreview())
                 .unreadCount((int) chatMessageRepository.countUnreadByRoomIdAndUserId(room.getId(),

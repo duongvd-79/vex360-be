@@ -40,6 +40,7 @@ import com.example.vex360.features.company.repositories.StoragePackageOrderRepos
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -60,6 +61,9 @@ class StoragePackageServiceUnitTest {
 
     @Mock
     private CompanyService companyService;
+
+    @Mock
+    private CompanyStorageService companyStorageService;
 
     @InjectMocks
     private StoragePackageService storagePackageService;
@@ -178,6 +182,7 @@ class StoragePackageServiceUnitTest {
                 .build();
 
         when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
+        when(companyRepository.incrementStorageQuota(company.getId(), 5000L)).thenReturn(1);
 
         storagePackageService.markPaidAndIncrementQuota(7);
 
@@ -309,9 +314,11 @@ class StoragePackageServiceUnitTest {
                 .storagePackage(storagePackage)
                 .orderCode(123456L)
                 .amountVnd(100000L)
+                .quotaBytesSnapshot(2000L)
                 .status(StoragePackageOrderStatus.PENDING)
                 .build();
         when(storagePackageOrderRepository.findById(10)).thenReturn(Optional.of(order));
+        when(companyRepository.incrementStorageQuota(company.getId(), 2000L)).thenReturn(1);
 
         storagePackageService.markPaidAndIncrementQuota(10);
 

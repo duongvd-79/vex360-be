@@ -25,6 +25,44 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     @Query("SELECT company FROM Company company WHERE company.ownerUser.id = :ownerUserId")
     Optional<Company> findByOwnerUserIdForUpdate(@Param("ownerUserId") UUID ownerUserId);
 
+    /**
+     * Atomically creates the initial company row without changing an existing
+     * profile. The unique owner_user_id constraint serializes concurrent
+     * requests; a duplicate becomes a no-op and the service reads the winner.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO companies (
+                id,
+                owner_user_id,
+                name,
+                email,
+                phone,
+                status,
+                storage_quota_bytes,
+                storage_used_bytes,
+                storage_reserved_bytes
+            ) VALUES (
+                UUID_TO_BIN(:companyId),
+                UUID_TO_BIN(:ownerUserId),
+                :name,
+                :email,
+                :phone,
+                :status,
+                524288000,
+                0,
+                0
+            )
+            ON DUPLICATE KEY UPDATE owner_user_id = owner_user_id
+            """, nativeQuery = true)
+    int insertCompanyIfAbsent(
+            @Param("companyId") String companyId,
+            @Param("ownerUserId") String ownerUserId,
+            @Param("name") String name,
+            @Param("email") String email,
+            @Param("phone") String phone,
+            @Param("status") String status);
+
     @Modifying
     @Query("UPDATE Company c SET c.storageQuotaBytes = c.storageQuotaBytes + :quotaBytes WHERE c.id = :id")
     int incrementStorageQuota(@Param("id") UUID id, @Param("quotaBytes") Long quotaBytes);
