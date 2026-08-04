@@ -13,6 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,6 +88,11 @@ import com.example.vex360.features.product.repositories.ProductCategoryRepositor
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.wallet.dtos.UpdatePayoutProfileRequestDTO;
+import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
+import com.example.vex360.features.wallet.repositories.OrganizerWalletRepository;
+import com.example.vex360.features.wallet.services.CompanyPayoutProfileService;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.BoothListingPriority;
@@ -125,6 +131,7 @@ import lombok.extern.slf4j.Slf4j;
  * không làm hỏng toàn bộ quá trình seed.
  */
 @Component
+@Order(1)
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
@@ -234,6 +241,10 @@ public class DataSeeder implements ApplicationRunner {
         private final ChatRoomRepository chatRoomRepository;
         private final ChatMessageRepository chatMessageRepository;
         private final BoothLeadRepository boothLeadRepository;
+        private final CompanyPayoutProfileRepository companyPayoutProfileRepository;
+        private final OrganizerWalletRepository organizerWalletRepository;
+        private final CompanyPayoutProfileService companyPayoutProfileService;
+        private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
 
         private final PasswordEncoder passwordEncoder;
         private final Cloudinary cloudinary;
@@ -253,7 +264,12 @@ public class DataSeeder implements ApplicationRunner {
                 }
 
                 if (userRepository.existsByEmail(MARKER_EMAIL)) {
-                        log.info("[SEED] Dữ liệu test đã tồn tại -> bỏ qua.");
+                        User existingOrganizer = userRepository.findByEmail(MARKER_EMAIL).orElseThrow();
+                        User existingAdmin = userRepository.findByEmail("admin@vex360.local").orElseThrow();
+                        Company existingOrganizerCompany = companyRepository.findByOwnerUserId(existingOrganizer.getId())
+                                        .orElseThrow();
+                        seedOrganizerFinance(existingOrganizer, existingAdmin, existingOrganizerCompany);
+                        log.info("[SEED] Core test data already exists; organizer finance data is ready.");
                         return;
                 }
 
@@ -511,6 +527,10 @@ public class DataSeeder implements ApplicationRunner {
                                 .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS))
                                 .build());
                 log.info("[SEED] Đã tạo 8 payment (PAID/PENDING/FAILED/EXPIRED)");
+
+                // ---------- 8A. ORGANIZER WALLET + PAYOUT PROFILE ----------
+                seedOrganizerFinance(organizer, admin, orgCompany);
+                log.info("[SEED] Seeded organizer wallet ledger and VERIFIED payout profile");
 
                 // ---------- 9. BOOTHS ----------
                 Uploaded boothThumb1 = upload(IMG_SHOWROOM, "seed/booth");
@@ -1029,6 +1049,27 @@ public class DataSeeder implements ApplicationRunner {
                                 DEFAULT_PASSWORD);
 
                 log.info("[SEED] HOÀN TẤT (đã tắt phần seed analytics event giả lập).");
+        }
+
+        private void seedOrganizerFinance(User organizer, User admin, Company company) {
+                if (organizerWalletRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        paymentRepository.findAll().stream()
+                                        .filter(payment -> payment.getStatus() == PaymentStatus.PAID)
+                                        .filter(payment -> payment.getPaymentReference() != null
+                                                        && payment.getPaymentReference().startsWith("SEED-"))
+                                        .forEach(paymentRevenueRecognitionService::recognizeRevenueForPayment);
+                }
+
+                if (companyPayoutProfileRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        companyPayoutProfileService.updateProfileForOrganizer(organizer,
+                                        UpdatePayoutProfileRequestDTO.builder()
+                                                        .bankCode("VCB")
+                                                        .bankNameSnapshot("Vietcombank")
+                                                        .accountNumber("0123456789")
+                                                        .accountHolderName("NGUYEN VAN AN")
+                                                        .build());
+                        companyPayoutProfileService.verifyProfileForAdmin(company.getId(), admin);
+                }
         }
 
         // ================= Helpers =================
