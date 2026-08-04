@@ -14,7 +14,8 @@ public class PresenceController {
 
     private final PresenceService presenceService;
 
-    // FE gọi định kỳ (vd. mỗi 20s) khi có người dùng đã đăng nhập mở app, bất kể đang ở màn nào,
+    // FE gọi định kỳ (vd. mỗi 20s) khi có người dùng đã đăng nhập mở app, bất kể
+    // đang ở màn nào,
     // để cập nhật "đang online" — xem PresenceService.
     @PostMapping("/api/v1/presence/heartbeat")
     public ResponseEntity<Void> heartbeat(@AuthenticationPrincipal CustomUserDetails userDetails) {

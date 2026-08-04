@@ -130,7 +130,8 @@ class ChatServiceUnitTest {
         request.setExhibitionId(exhibitionUuid);
         request.setExhibitorUserId(exhibitorId);
 
-        when(exhibitionService.findExhibitionEntityByUuid(exhibitionUuid)).thenThrow(new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+        when(exhibitionService.findExhibitionEntityByUuid(exhibitionUuid))
+                .thenThrow(new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
 
         AppException exception = assertThrows(AppException.class,
                 () -> chatService.getOrCreateRoom(visitorId, request));

@@ -275,7 +275,8 @@ class CompanyStorageServiceUnitTest {
     void adjustReservation_QuotaExceeded_ThrowsStorageQuotaExceeded() {
         stubCompanyLock();
 
-        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401 overflows quota
+        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401
+        // overflows quota
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.adjustReservation(company, 50L, 401L));
 
