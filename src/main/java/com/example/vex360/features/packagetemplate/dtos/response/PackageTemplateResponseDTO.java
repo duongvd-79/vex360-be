@@ -26,7 +26,6 @@ public class PackageTemplateResponseDTO {
     private Integer maxEmbeddedVideosPerBooth;
     private Integer maxPanoramasPerBooth;
     private Integer maxHotspotsPerBooth;
-    private Long storageLimitMb;
     private BoothListingPriority listingPriority;
     private PackageTemplateStatus status;
     private Instant createdAt;

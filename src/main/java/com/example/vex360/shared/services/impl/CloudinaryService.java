@@ -186,6 +186,34 @@ public class CloudinaryService implements CloudService {
         }
     }
 
+    @Override
+    @Transactional
+    public long deleteAndGetSize(String publicId, String resourceType) {
+        if (publicId == null || publicId.isBlank()) {
+            return 0L;
+        }
+        return deleteAndGetSizeInternal(publicId, resourceType);
+    }
+
+    private long deleteAndGetSizeInternal(String publicId, String resourceType) {
+        try {
+            return deleteCloudinaryResource(publicId, resourceType);
+        } catch (Exception e) {
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    private long deleteCloudinaryResource(String publicId, String resourceType) throws Exception {
+        Map<?, ?> params = ObjectUtils.asMap("resource_type", resolveResourceType(resourceType));
+        Map<?, ?> resource = cloudinary.api().resource(publicId, params);
+        Map<?, ?> result = cloudinary.uploader().destroy(publicId, params);
+        if (!"ok".equals(result.get("result"))) {
+            return 0L;
+        }
+        Object bytes = resource.get("bytes");
+        return bytes instanceof Number number ? number.longValue() : 0L;
+    }
+
     private Integer toInteger(Object value) {
         return value instanceof Number number ? number.intValue() : null;
     }

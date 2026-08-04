@@ -11,9 +11,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChangePasswordRequest {
     @NotBlank(message = "Mật khẩu hiện tại không được để trống")
+    @Size(max = 72, message = "Mật khẩu hiện tại không được vượt quá 72 ký tự.")
     private String oldPassword;
 
     @NotBlank(message = "Mật khẩu mới không được để trống")
-    @Size(min = 8, message = "Mật khẩu mới phải có độ dài tối thiểu là 8 ký tự")
+    @Size(min = 8, max = 72, message = "Mật khẩu mới phải có từ 8 đến 72 ký tự.")
     private String newPassword;
 }

@@ -22,7 +22,6 @@ public class PackageTemplateMapper {
                 template.getMaxEmbeddedVideosPerBooth(),
                 template.getMaxPanoramasPerBooth(),
                 template.getMaxHotspotsPerBooth(),
-                template.getStorageLimitMb(),
                 template.getListingPriority(),
                 template.getStatus(),
                 template.getCreatedAt(),

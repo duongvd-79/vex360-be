@@ -49,7 +49,6 @@ public class PackageTemplateService {
                 .maxEmbeddedVideosPerBooth(request.getMaxEmbeddedVideosPerBooth())
                 .maxPanoramasPerBooth(request.getMaxPanoramasPerBooth())
                 .maxHotspotsPerBooth(request.getMaxHotspotsPerBooth())
-                .storageLimitMb(request.getStorageLimitMb())
                 .listingPriority(request.getListingPriority())
                 .status(PackageTemplateStatus.ACTIVE)
                 .build();
@@ -104,7 +103,6 @@ public class PackageTemplateService {
         template.setMaxEmbeddedVideosPerBooth(request.getMaxEmbeddedVideosPerBooth());
         template.setMaxPanoramasPerBooth(request.getMaxPanoramasPerBooth());
         template.setMaxHotspotsPerBooth(request.getMaxHotspotsPerBooth());
-        template.setStorageLimitMb(request.getStorageLimitMb());
         template.setListingPriority(request.getListingPriority());
 
         return packageTemplateMapper.toResponse(packageTemplateRepository.save(template));
