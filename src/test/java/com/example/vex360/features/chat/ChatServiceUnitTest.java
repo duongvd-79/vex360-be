@@ -308,7 +308,7 @@ class ChatServiceUnitTest {
                 .thenReturn(List.of(room));
         when(chatMessageRepository.countUnreadByRoomIdAndUserId(roomId, exhibitorId)).thenReturn(3L);
 
-        List<ChatRoomResponse> result = chatService.getRoomsForUser(exhibitorUser);
+        List<ChatRoomResponse> result = chatService.getRoomsForUser(exhibitorId, Role.EXHIBITOR);
 
         assertEquals(1, result.size());
         assertEquals(3, result.get(0).getUnreadCount());
@@ -328,7 +328,7 @@ class ChatServiceUnitTest {
                 .thenReturn(List.of(room));
         when(chatMessageRepository.countUnreadByRoomIdAndUserId(roomId, visitorId)).thenReturn(0L);
 
-        List<ChatRoomResponse> result = chatService.getRoomsForUser(visitorUser);
+        List<ChatRoomResponse> result = chatService.getRoomsForUser(visitorId, Role.VISITOR);
 
         assertEquals(1, result.size());
         verify(chatRoomRepository).findByVisitorUserIdOrderByLastMessageAtDesc(visitorId);
@@ -343,7 +343,7 @@ class ChatServiceUnitTest {
         when(chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(exhibitorId))
                 .thenReturn(List.of());
 
-        List<ChatRoomResponse> result = chatService.getRoomsForUser(exhibitorUser);
+        List<ChatRoomResponse> result = chatService.getRoomsForUser(exhibitorId, Role.EXHIBITOR);
 
         assertTrue(result.isEmpty());
     }

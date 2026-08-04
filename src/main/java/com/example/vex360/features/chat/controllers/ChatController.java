@@ -42,7 +42,9 @@ public class ChatController {
         public ResponseEntity<List<ChatRoomResponse>> getMyRooms(
                         @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-                return ResponseEntity.ok(chatService.getRoomsForUser(userDetails.getUser()));
+                return ResponseEntity.ok(chatService.getRoomsForUser(
+                                userDetails.getUser().getId(),
+                                userDetails.getUser().getRole()));
         }
 
         // ── REST: Lấy chi tiết 1 phòng chat kèm lịch sử tin nhắn ───

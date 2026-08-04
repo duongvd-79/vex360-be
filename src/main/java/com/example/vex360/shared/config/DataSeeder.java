@@ -7,12 +7,16 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.Sort;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +40,8 @@ import com.example.vex360.features.booth.repositories.BoothReviewRequestReposito
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.chat.entities.ChatMessage;
+import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
@@ -48,8 +54,21 @@ import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.entities.DesignDraft;
+import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
+import com.example.vex360.features.designrequest.entities.DesignRequestMessage;
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMessageRepository;
+import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
+import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
@@ -78,6 +97,11 @@ import com.example.vex360.features.product.repositories.ProductCategoryRepositor
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.wallet.dtos.UpdatePayoutProfileRequestDTO;
+import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
+import com.example.vex360.features.wallet.repositories.OrganizerWalletRepository;
+import com.example.vex360.features.wallet.services.CompanyPayoutProfileService;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.BoothListingPriority;
@@ -116,6 +140,7 @@ import lombok.extern.slf4j.Slf4j;
  * không làm hỏng toàn bộ quá trình seed.
  */
 @Component
+@Order(1)
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
@@ -125,7 +150,80 @@ public class DataSeeder implements ApplicationRunner {
         private static final String MARKER_EMAIL = "organizer@vex360.local";
         private static final String LEGACY_GUEST_LEAD_EMAIL = "khachle@example.com";
         private static final String DEFAULT_PASSWORD = "123456";
-
+        private static final String EXHREG_TEST_EMAIL = "exhreg.tester@vex360.local";
+        private static final UUID EXHREG_EXHIBITION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHREG_CANCEL_EXHIBITION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa7");
+        private static final UUID EXHREG_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afc0");
+        private static final UUID EXHBTH_PANORAMA_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_TARGET_PANORAMA_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa7");
+        private static final UUID EXHBTH_HOTSPOT_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_MEDIA_ASSET_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_TEMPLATE_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afb0");
+        private static final UUID EXHBTH_TEMPLATE_PANORAMA_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afb1");
+        private static final UUID EXHBTH_TEMPLATE_TARGET_PANORAMA_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afb2");
+        private static final UUID EXHBTH_TEMPLATE_HOTSPOT_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afb3");
+        private static final UUID EXHBTH_PRODUCT_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHBTH_CATEGORY_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHLED_LEAD_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        private static final UUID EXHDSG_ELIGIBLE_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad00");
+        private static final UUID EXHDSG_CANCEL_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad01");
+        private static final UUID EXHDSG_ASSIGNED_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad02");
+        private static final UUID EXHDSG_APPROVE_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad03");
+        private static final UUID EXHDSG_REVIEW_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad04");
+        private static final UUID EXHDSG_REJECT_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad05");
+        private static final UUID EXHDSG_FINAL_REJECT_BOOTH_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ad06");
+        private static final UUID EXHDSG_CANCEL_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac01");
+        private static final UUID EXHDSG_ASSIGNED_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac02");
+        private static final UUID EXHDSG_APPROVE_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac03");
+        private static final UUID EXHDSG_REVIEW_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac04");
+        private static final UUID EXHDSG_REJECT_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac05");
+        private static final UUID EXHDSG_FINAL_REJECT_REQUEST_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ac06");
+        private static final UUID EXHDSG_ELIGIBLE_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae00");
+        private static final UUID EXHDSG_CANCEL_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae01");
+        private static final UUID EXHDSG_ASSIGNED_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae02");
+        private static final UUID EXHDSG_APPROVE_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae03");
+        private static final UUID EXHDSG_REVIEW_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae04");
+        private static final UUID EXHDSG_REJECT_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae05");
+        private static final UUID EXHDSG_FINAL_REJECT_REGISTRATION_UUID = UUID
+                        .fromString("3fa85f64-5717-4562-b3fc-2c963f66ae06");
+        private static final int SHRPKG_ORDER_PACKAGE_ID = 1;
         /**
          * Ảnh panorama 360 <b>equirectangular thật</b> (4096x2048), bối cảnh trong nhà
          * hợp với nền tảng triển lãm ảo: sảnh đón khách triển lãm, khu trưng bày bảo
@@ -218,9 +316,19 @@ public class DataSeeder implements ApplicationRunner {
         private final PartnershipRequestRepository partnershipRequestRepository;
         private final BoothReviewRequestRepository boothReviewRequestRepository;
         private final DesignRequestRepository designRequestRepository;
+        private final DesignDraftRepository designDraftRepository;
+        private final DesignDraftPanoramaRepository designDraftPanoramaRepository;
+        private final DesignRequestMessageRepository designRequestMessageRepository;
+        private final DesignRequestProductRepository designRequestProductRepository;
+        private final DesignRequestMediaAssetRepository designRequestMediaAssetRepository;
+        private final DesignRequestBaselineService designRequestBaselineService;
         private final ChatRoomRepository chatRoomRepository;
         private final ChatMessageRepository chatMessageRepository;
         private final BoothLeadRepository boothLeadRepository;
+        private final CompanyPayoutProfileRepository companyPayoutProfileRepository;
+        private final OrganizerWalletRepository organizerWalletRepository;
+        private final CompanyPayoutProfileService companyPayoutProfileService;
+        private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
 
         private final PasswordEncoder passwordEncoder;
         private final Cloudinary cloudinary;
@@ -240,7 +348,20 @@ public class DataSeeder implements ApplicationRunner {
                 }
 
                 if (userRepository.existsByEmail(MARKER_EMAIL)) {
-                        log.info("[SEED] Dữ liệu test đã tồn tại -> bỏ qua.");
+                        ensureExhibitorRegistrationApiFixtures();
+                        ensureExhibitorBoothApiFixtures();
+                        ensureExhibitorDesignRequestApiFixtures();
+                        ensureStoragePackageApiFixtures();
+                        ensureExhibitorLeadApiFixtures();
+                        ensureExhibitorReportApiFixtures();
+                        log.info("[SEED] Dữ liệu demo đã tồn tại; fixture EXHREG đã được kiểm tra/cập nhật.");
+                        User existingOrganizer = userRepository.findByEmail(MARKER_EMAIL).orElseThrow();
+                        User existingAdmin = userRepository.findByEmail("admin@vex360.local").orElseThrow();
+                        Company existingOrganizerCompany = companyRepository
+                                        .findByOwnerUserId(existingOrganizer.getId())
+                                        .orElseThrow();
+                        seedOrganizerFinance(existingOrganizer, existingAdmin, existingOrganizerCompany);
+                        log.info("[SEED] Core test data already exists; organizer finance data is ready.");
                         return;
                 }
 
@@ -253,6 +374,8 @@ public class DataSeeder implements ApplicationRunner {
                 User organizer = createUser(MARKER_EMAIL, "Nguyễn Văn An", Role.ORGANIZER, "0901111111", 12);
                 User exhibitor1 = createUser("exhibitor@vex360.local", "Trần Quang Huy", Role.EXHIBITOR, "0902222222",
                                 13);
+                User exhregTester = createUser(EXHREG_TEST_EMAIL, "Nguyễn Kiểm Thử", Role.EXHIBITOR, "0907777777",
+                                27);
                 User exhibitor2 = createUser("exhibitor2@vex360.local", "Lê Thái Dương", Role.EXHIBITOR, "0903333333",
                                 14);
                 User designer = createUser("designer@vex360.local", "Phạm Thiên An", Role.DESIGNER, "0904444444", 15);
@@ -275,7 +398,7 @@ public class DataSeeder implements ApplicationRunner {
                                 "0906555555", 25);
                 User exhibitor4 = createUser("exhibitor4@vex360.local", "Tạ Đã Lưu Trữ", Role.EXHIBITOR,
                                 "0906666666", 26);
-                log.info("[SEED] Đã tạo 12 user - phủ đủ Role, UserStatus, AuthProvider (mật khẩu chung: {})",
+                log.info("[SEED] Đã tạo 13 user - phủ đủ Role, UserStatus, AuthProvider (mật khẩu chung: {})",
                                 DEFAULT_PASSWORD);
 
                 // ---------- 2. COMPANIES (phủ đủ 3 CompanyStatus) ----------
@@ -283,6 +406,9 @@ public class DataSeeder implements ApplicationRunner {
                                 "Sự kiện & Triển lãm", "Đơn vị tổ chức triển lãm ảo hàng đầu.", "logo-abc");
                 Company company1 = createCompany(exhibitor1, "Công ty Nội thất Mộc Việt",
                                 "Nội thất", "Chuyên nội thất gỗ tự nhiên cao cấp.", "logo-mocviet");
+                Company exhregTestCompany = createCompany(exhregTester, "Công ty Kiểm thử EXHREG",
+                                "Kiểm thử phần mềm", "Dữ liệu chuyên dùng cho test API đăng ký triển lãm.",
+                                "logo-exhreg-test");
                 Company company2 = createCompany(exhibitor2, "Công ty Công nghệ TechVina",
                                 "Công nghệ", "Giải pháp thiết bị thông minh cho doanh nghiệp.", "logo-techvina");
                 createCompany(exhibitor3, "Công ty TNHH Hồ Sơ Chưa Đủ",
@@ -290,7 +416,7 @@ public class DataSeeder implements ApplicationRunner {
                 createCompany(exhibitor4, "Công ty CP Ngừng Hoạt Động",
                                 "Bán lẻ", "Doanh nghiệp đã ngừng tham gia nền tảng.", "logo-archived",
                                 CompanyStatus.ARCHIVED);
-                log.info("[SEED] Đã tạo 5 company (ACTIVE / INCOMPLETE_PROFILE / ARCHIVED)");
+                log.info("[SEED] Đã tạo 6 company (ACTIVE / INCOMPLETE_PROFILE / ARCHIVED)");
 
                 // ---------- 3. PACKAGE TEMPLATES ----------
                 PackageTemplate basicTemplate = packageTemplateRepository.save(PackageTemplate.builder()
@@ -321,6 +447,17 @@ public class DataSeeder implements ApplicationRunner {
                                 .storageLimitMb(2000L).listingPriority(BoothListingPriority.PRIORITY)
                                 .status(PackageTemplateStatus.INACTIVE).build());
                 log.info("[SEED] Đã tạo 3 package template (phủ đủ BoothListingPriority + PackageTemplateStatus)");
+
+                // Fixture riêng cho EXHREG_1..7. Đặt trước các exhibition package khác để
+                // package đăng ký có ID=1 trên database sạch như test sheet đang dùng.
+                ensureExhibitorRegistrationApiFixtures(
+                                organizer, admin, exhregTester, exhregTestCompany, basicTemplate);
+                ensureExhibitorBoothApiFixtures(
+                                admin, exhregTester, exhregTestCompany, basicTemplate);
+                ensureExhibitorDesignRequestApiFixtures();
+                ensureStoragePackageApiFixtures();
+                ensureExhibitorLeadApiFixtures();
+                ensureExhibitorReportApiFixtures();
 
                 // ---------- 4. EXHIBITIONS (phủ đủ 6 trạng thái) ----------
                 // Ngày trải quanh "hôm nay" để triển lãm đang diễn ra và bao trùm các event
@@ -391,6 +528,7 @@ public class DataSeeder implements ApplicationRunner {
                 // ---------- 6. EXHIBITION PACKAGES ----------
                 ExhibitionPackage basicPackage = savePackage(basicTemplate, exhibition, "5000000");
                 ExhibitionPackage premiumPackage = savePackage(premiumTemplate, exhibition, "13500000");
+                ExhibitionPackage designTestPackage = savePackage(basicTemplate, exhRegistration, "5000000");
                 ExhibitionPackage regPackage = savePackage(basicTemplate, exhRegistration, "4500000");
                 savePackage(premiumTemplate, exhRegistration, "12000000");
                 savePackage(basicTemplate, exhActive, "6000000");
@@ -398,33 +536,50 @@ public class DataSeeder implements ApplicationRunner {
                 // Gói active để tạo booth mock; vẫn giữ thêm một gói inactive để phủ enum.
                 ExhibitionPackage completedPremiumPackage = savePackage(premiumTemplate, exhCompleted, "11000000");
                 savePackage(premiumTemplate, exhCompleted, "11000000", ExhibitionPackageStatus.INACTIVE);
-                log.info("[SEED] Đã tạo 8 exhibition package (phủ đủ ExhibitionPackageStatus)");
+                log.info("[SEED] Đã tạo 9 exhibition package (phủ đủ ExhibitionPackageStatus)");
 
                 // ---------- 7. EXHIBITOR REGISTRATIONS (phủ đủ 5 trạng thái) ----------
                 ExhibitorRegistration reg1 = exhibitorRegistrationRepository.save(buildRegistration(
                                 premiumPackage, company1, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Chúng tôi muốn giới thiệu bộ sưu tập nội thất gỗ mới.", null));
+                                admin, "Chúng tôi muốn giới thiệu bộ sưu tập nội thất gỗ mới.", null,
+                                "Gian hàng Nội thất Mộc Việt",
+                                "Gian hàng giới thiệu bộ sưu tập nội thất gỗ cao cấp Mộc Việt."));
                 ExhibitorRegistration reg2 = exhibitorRegistrationRepository.save(buildRegistration(
                                 basicPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING_PAYMENT,
-                                null, "TechVina mong muốn tiếp cận khách hàng doanh nghiệp.", null));
-                ExhibitorRegistration reg3 = exhibitorRegistrationRepository.save(buildRegistration(
-                                regPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING,
-                                null, "TechVina muốn trưng bày giải pháp vật liệu thông minh.", null));
+                                null, "TechVina mong muốn tiếp cận khách hàng doanh nghiệp.", null,
+                                "Gian hàng TechVina IoT",
+                                "Gian hàng giới thiệu giải pháp nhà thông minh và thiết bị IoT TechVina."));
+                ExhibitorRegistration designTestRegistration = exhibitorRegistrationRepository.save(buildRegistration(
+                                designTestPackage, company2, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                admin, "TechVina sử dụng dịch vụ thiết kế gian hàng 360.", null,
+                                "Gian hàng TechVina", "Trưng bày thiết bị công nghệ thông minh."));
+                ExhibitorRegistration payosWebhookTestRegistration = exhibitorRegistrationRepository
+                                .save(buildRegistration(
+                                                regPackage, company2, basicTemplate,
+                                                ExhibitorRegistrationStatus.PENDING_PAYMENT,
+                                                null, "Dữ liệu kiểm thử tích hợp webhook PayOS.", null,
+                                                "PAYHK Webhook Integration Test",
+                                                "Gian hàng chuyên dùng cho kiểm thử webhook PayOS."));
                 ExhibitorRegistration reg4 = exhibitorRegistrationRepository.save(buildRegistration(
                                 regPackage, company1, basicTemplate, ExhibitorRegistrationStatus.REJECTED,
                                 organizer, "Mộc Việt đăng ký gian hàng nội thất gỗ.",
-                                "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm."));
+                                "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm.",
+                                "Gian hàng Gỗ Mộc Việt", "Bộ sưu tập sản phẩm gỗ tự nhiên cao cấp."));
                 ExhibitorRegistration reg5 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPackage, company2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
-                                null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null));
+                                null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null,
+                                "Gian hàng TechVina Cũ", "Gian hàng thử nghiệm của TechVina."));
                 ExhibitorRegistration completedReg1 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPackage, company1, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null));
+                                admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null,
+                                "Mộc Việt - Bộ sưu tập Mùa Thu", "Nội thất gỗ tự nhiên cho không gian sống mùa thu."));
                 ExhibitorRegistration completedReg2 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPremiumPackage, company2, premiumTemplate,
                                 ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null));
-                log.info("[SEED] Đã tạo 5 exhibitor registration "
+                                admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null,
+                                "TechVina Home - Nhà thông minh",
+                                "Thiết bị thông minh cho không gian nội thất hiện đại."));
+                log.info("[SEED] Đã tạo 9 exhibitor registration "
                                 + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
 
                 // ---------- 8. PAYMENTS ----------
@@ -440,6 +595,20 @@ public class DataSeeder implements ApplicationRunner {
                                 .systemFee(new BigDecimal("500000")).organizerPayout(new BigDecimal("4500000"))
                                 .currency("VND").paymentProvider("PAYOS")
                                 .status(PaymentStatus.PENDING).build());
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(payosWebhookTestRegistration)
+                                .paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("4500000"))
+                                .systemFee(new BigDecimal("450000")).organizerPayout(new BigDecimal("4050000"))
+                                .currency("VND").paymentProvider("PAYOS")
+                                .status(PaymentStatus.PENDING).build());
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(designTestRegistration)
+                                .paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("5000000"))
+                                .systemFee(new BigDecimal("500000")).organizerPayout(new BigDecimal("4500000"))
+                                .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-DESIGN-TEST")
+                                .status(PaymentStatus.PAID).paidAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
                 paymentRepository.save(Payment.builder()
                                 .exhibitorRegistration(reg4).paymentType(PaymentType.EXHIBITION_REGISTRATION)
                                 .orderCode(orderCode()).amount(new BigDecimal("4500000"))
@@ -467,7 +636,11 @@ public class DataSeeder implements ApplicationRunner {
                                 .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-AUTUMN-002")
                                 .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS))
                                 .build());
-                log.info("[SEED] Đã tạo 4 payment (PAID/PENDING/FAILED/EXPIRED)");
+                log.info("[SEED] Đã tạo 8 payment (PAID/PENDING/FAILED/EXPIRED)");
+
+                // ---------- 8A. ORGANIZER WALLET + PAYOUT PROFILE ----------
+                seedOrganizerFinance(organizer, admin, orgCompany);
+                log.info("[SEED] Seeded organizer wallet ledger and VERIFIED payout profile");
 
                 // ---------- 9. BOOTHS ----------
                 Uploaded boothThumb1 = upload(IMG_SHOWROOM, "seed/booth");
@@ -481,8 +654,8 @@ public class DataSeeder implements ApplicationRunner {
                 Uploaded boothThumb2 = upload(IMG_SENSOR, "seed/booth");
                 Booth booth2 = boothRepository.save(Booth.builder()
                                 .name("Gian hàng TechVina").description("Trưng bày thiết bị công nghệ thông minh.")
-                                .status(BoothStatus.DRAFT).isTemplate(false)
-                                .createdBy(exhibitor2).company(company2).exhibitorRegistration(reg2)
+                                .status(BoothStatus.DESIGNING).isTemplate(false)
+                                .createdBy(exhibitor2).company(company2).exhibitorRegistration(designTestRegistration)
                                 .thumbnailUrl(boothThumb2.url()).thumbnailPublicId(boothThumb2.publicId())
                                 .displayTemplateKey("modern").build());
 
@@ -777,12 +950,14 @@ public class DataSeeder implements ApplicationRunner {
                 // booth2 chưa có panorama nào -> INITIAL_DESIGN; booth1 đã có nội dung/đã
                 // publish
                 // -> các yêu cầu sau đó là REDESIGN.
-                designRequestRepository.save(DesignRequest.builder()
+                DesignRequest assignedDesignRequest = designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth2).company(company2).requestedBy(exhibitor2)
                                 .assignedDesigner(designer).status(DesignRequestStatus.ASSIGNED)
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Cần thiết kế gian hàng tông xanh công nghệ, tối giản.")
                                 .reviewCount(0).assignedAt(Instant.now().minus(1, ChronoUnit.DAYS)).build());
+                designRequestBaselineService.createWorkingBaseline(assignedDesignRequest);
+                assignedDesignRequest = designRequestRepository.save(assignedDesignRequest);
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)
                                 .status(DesignRequestStatus.PENDING)
@@ -814,25 +989,32 @@ public class DataSeeder implements ApplicationRunner {
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Exhibitor tự huỷ do đổi kế hoạch.")
                                 .reviewCount(0).canceledAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
+                designRequestProductRepository.save(DesignRequestProduct.builder()
+                                .designRequest(assignedDesignRequest).product(sensor)
+                                .requiredFromBaseline(false).build());
+                designRequestMediaAssetRepository.save(DesignRequestMediaAsset.builder()
+                                .designRequest(assignedDesignRequest).mediaAsset(poster)
+                                .requiredFromBaseline(false).build());
+                designRequestMessageRepository.save(DesignRequestMessage.builder()
+                                .designRequest(assignedDesignRequest).sender(exhibitor2)
+                                .message("Vui lòng ưu tiên sản phẩm cảm biến và poster giới thiệu trong thiết kế.")
+                                .build());
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus + DesignRequestMode)");
 
                 // ---------- 21. CHAT ROOM + MESSAGES ----------
-                // ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
-                // .exhibition(exhibition).exhibitorUser(exhibitor1).visitorUser(visitor)
-                // .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
-                // .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
-                // .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không
-                // ạ?")
-                // .build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                // .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng
-                // nhé!").build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                // .senderRole(Role.EXHIBITOR.name()).content("Bên mình có hỗ trợ giao hàng toàn
-                // quốc ạ.")
-                // .build());
-                // log.info("[SEED] Đã tạo 1 chat room + 3 message");
+                ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
+                                .exhibition(exhActive).exhibitorUser(exhibitor1).visitorUser(visitor)
+                                .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
+                                .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
+                                .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không ạ?")
+                                .build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                                .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng nhé!").build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                                .senderRole(Role.EXHIBITOR.name())
+                                .content("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
+                log.info("[SEED] Đã tạo 1 chat room + 3 message");
 
                 // ---------- 22. NOTIFICATIONS (không có repository -> dùng EntityManager)
                 // ----------
@@ -850,7 +1032,6 @@ public class DataSeeder implements ApplicationRunner {
                 // Rải event đúng trong thời gian triển lãm đã kết thúc. Nhờ đó tab Analytics
                 // của /organizer/dashboard/exhibitions/{id} có đầy đủ KPI, chart và ranking.
                 User[] autumnVisitors = { visitor, exhibitor1, exhibitor2 };
-                Booth[] autumnBooths = { completedBooth1, completedBooth2 };
                 int[] autumnDays = { 2, 5, 9, 14, 19, 24 };
                 int[] autumnViews = { 6, 9, 7, 12, 10, 14 };
                 int autumnAnalyticsEvents = 0;
@@ -979,6 +1160,27 @@ public class DataSeeder implements ApplicationRunner {
                 log.info("[SEED] HOÀN TẤT (đã tắt phần seed analytics event giả lập).");
         }
 
+        private void seedOrganizerFinance(User organizer, User admin, Company company) {
+                if (organizerWalletRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        paymentRepository.findAll().stream()
+                                        .filter(payment -> payment.getStatus() == PaymentStatus.PAID)
+                                        .filter(payment -> payment.getPaymentReference() != null
+                                                        && payment.getPaymentReference().startsWith("SEED-"))
+                                        .forEach(paymentRevenueRecognitionService::recognizeRevenueForPayment);
+                }
+
+                if (companyPayoutProfileRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        companyPayoutProfileService.updateProfileForOrganizer(organizer,
+                                        UpdatePayoutProfileRequestDTO.builder()
+                                                        .bankCode("VCB")
+                                                        .bankNameSnapshot("Vietcombank")
+                                                        .accountNumber("0123456789")
+                                                        .accountHolderName("NGUYEN VAN AN")
+                                                        .build());
+                        companyPayoutProfileService.verifyProfileForAdmin(company.getId(), admin);
+                }
+        }
+
         // ================= Helpers =================
 
         private User createUser(String email, String fullName, Role role, String phone, int avatarIndex) {
@@ -1026,18 +1228,1196 @@ public class DataSeeder implements ApplicationRunner {
                                 .build());
         }
 
+        private void ensureExhibitorRegistrationApiFixtures() {
+                User organizer = userRepository.findByEmail(MARKER_EMAIL).orElse(null);
+                User admin = userRepository.findByEmail("admin@vex360.local").orElse(null);
+                if (organizer == null || admin == null) {
+                        log.warn("[SEED][EXHREG] Thiếu organizer/admin nền; không thể bổ sung fixture API.");
+                        return;
+                }
+
+                User tester = userRepository.findByEmail(EXHREG_TEST_EMAIL)
+                                .orElseGet(() -> createUser(
+                                                EXHREG_TEST_EMAIL,
+                                                "Nguyễn Kiểm Thử",
+                                                Role.EXHIBITOR,
+                                                "0907777777",
+                                                27));
+                tester.setFullName("Nguyễn Kiểm Thử");
+                tester.setPhoneNumber("0907777777");
+                tester.setRole(Role.EXHIBITOR);
+                tester.setProvider(AuthProvider.LOCAL);
+                tester.setStatus(UserStatus.ACTIVE);
+                tester.setPassword(passwordEncoder.encode(DEFAULT_PASSWORD));
+                User persistedTester = userRepository.save(tester);
+
+                Company testCompany = companyRepository.findByOwnerUserId(persistedTester.getId())
+                                .orElseGet(() -> createCompany(
+                                                persistedTester,
+                                                "Công ty Kiểm thử EXHREG",
+                                                "Kiểm thử phần mềm",
+                                                "Dữ liệu chuyên dùng cho test API đăng ký triển lãm.",
+                                                "logo-exhreg-test"));
+                testCompany.setName("Công ty Kiểm thử EXHREG");
+                testCompany.setIndustry("Kiểm thử phần mềm");
+                testCompany.setDescription("Dữ liệu chuyên dùng cho test API đăng ký triển lãm.");
+                testCompany.setEmail(EXHREG_TEST_EMAIL);
+                testCompany.setPhone("0907777777");
+                testCompany.setAddress("Phòng kiểm thử VEX360, Hà Nội");
+                testCompany.setStatus(CompanyStatus.ACTIVE);
+                testCompany = companyRepository.save(testCompany);
+
+                PackageTemplate template = packageTemplateRepository
+                                .findByStatus(PackageTemplateStatus.ACTIVE, Sort.by("createdAt").ascending())
+                                .stream()
+                                .filter(candidate -> "Gói Cơ Bản".equals(candidate.getName()))
+                                .findFirst()
+                                .orElseGet(() -> packageTemplateRepository
+                                                .findByStatus(PackageTemplateStatus.ACTIVE,
+                                                                Sort.by("createdAt").ascending())
+                                                .stream()
+                                                .findFirst()
+                                                .orElse(null));
+                if (template == null) {
+                        log.warn("[SEED][EXHREG] Không có package template ACTIVE; không thể bổ sung fixture API.");
+                        return;
+                }
+
+                ensureExhibitorRegistrationApiFixtures(organizer, admin, persistedTester, testCompany, template);
+        }
+
+        private void ensureExhibitorRegistrationApiFixtures(
+                        User organizer,
+                        User admin,
+                        User tester,
+                        Company testCompany,
+                        PackageTemplate template) {
+                LocalDate today = LocalDate.now();
+                Exhibition discoveryExhibition = ensureExhregExhibition(
+                                EXHREG_EXHIBITION_UUID,
+                                organizer,
+                                admin,
+                                "Triển lãm Kiểm thử Đăng ký Exhibitor",
+                                "Kiểm thử API",
+                                "Fixture cố định cho EXHREG_1, EXHREG_2 và EXHREG_4.",
+                                today.plusDays(45),
+                                today.plusDays(60));
+                Exhibition cancellationExhibition = ensureExhregExhibition(
+                                EXHREG_CANCEL_EXHIBITION_UUID,
+                                organizer,
+                                admin,
+                                "Triển lãm Kiểm thử Hủy đăng ký Exhibitor",
+                                "Kiểm thử API",
+                                "Fixture cố định cho EXHREG_3, EXHREG_5, EXHREG_6 và EXHREG_7.",
+                                today.plusDays(50),
+                                today.plusDays(65));
+
+                ExhibitionPackage registrationPackage = ensureExhregPackage(
+                                template, discoveryExhibition, "2500000");
+                ExhibitionPackage cancellationPackage = ensureExhregPackage(
+                                template, cancellationExhibition, "2500000");
+
+                // Đưa các đăng ký chưa hoàn tất do lần test POST trước về trạng thái không
+                // còn active để EXHREG_4 có thể chạy lại sau khi restart ứng dụng.
+                exhibitorRegistrationRepository
+                                .findByCompanyIdAndExhibitionPackageExhibitionId(
+                                                testCompany.getId(), discoveryExhibition.getId())
+                                .stream()
+                                .filter(registration -> registration.getStatus() == ExhibitorRegistrationStatus.PENDING
+                                                || registration.getStatus() == ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                                .forEach(registration -> {
+                                        registration.setStatus(ExhibitorRegistrationStatus.CANCELED);
+                                        exhibitorRegistrationRepository.save(registration);
+                                });
+
+                ExhibitorRegistration cancellableRegistration = exhibitorRegistrationRepository
+                                .findByUuid(EXHREG_REGISTRATION_UUID)
+                                .orElseGet(() -> {
+                                        ExhibitorRegistration registration = buildRegistration(
+                                                        cancellationPackage,
+                                                        testCompany,
+                                                        template,
+                                                        ExhibitorRegistrationStatus.PENDING,
+                                                        null,
+                                                        "Kiểm thử xem chi tiết, trạng thái thanh toán và hủy đăng ký.",
+                                                        null);
+                                        registration.setUuid(EXHREG_REGISTRATION_UUID);
+                                        return registration;
+                                });
+                cancellableRegistration.setExhibitionPackage(cancellationPackage);
+                cancellableRegistration.setCompany(testCompany);
+                cancellableRegistration.setStatus(ExhibitorRegistrationStatus.PENDING);
+                cancellableRegistration.setReviewedBy(null);
+                cancellableRegistration.setRejectedReason(null);
+                cancellableRegistration.setParticipationReason(
+                                "Kiểm thử xem chi tiết, trạng thái thanh toán và hủy đăng ký.");
+                cancellableRegistration.setBoothName("Gian hàng kiểm thử EXHREG");
+                cancellableRegistration.setBoothDescription(
+                                "Gian hàng fixture dành riêng cho kiểm thử API đăng ký triển lãm.");
+                cancellableRegistration = exhibitorRegistrationRepository.save(cancellableRegistration);
+
+                var fixturePayments = paymentRepository
+                                .findByExhibitorRegistrationIdForUpdate(cancellableRegistration.getId());
+                fixturePayments.stream()
+                                .filter(payment -> payment.getStatus() != PaymentStatus.PAID)
+                                .forEach(payment -> {
+                                        payment.setStatus(PaymentStatus.FAILED);
+                                        paymentRepository.save(payment);
+                                });
+                if (fixturePayments.isEmpty()) {
+                        paymentRepository.save(Payment.builder()
+                                        .exhibitorRegistration(cancellableRegistration)
+                                        .paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                        .orderCode(orderCode())
+                                        .amount(new BigDecimal("2500000"))
+                                        .systemFee(new BigDecimal("250000"))
+                                        .organizerPayout(new BigDecimal("2250000"))
+                                        .currency("VND")
+                                        .paymentProvider("PAYOS")
+                                        .paymentReference("SEED-EXHREG-CANCEL")
+                                        .checkoutUrl("https://pay.payos.vn/web/seed-exhreg-cancel")
+                                        .status(PaymentStatus.FAILED)
+                                        .build());
+                }
+
+                log.info("[SEED][EXHREG] READY | email={} | password={} | exhibitionUuid={} "
+                                + "| exhibitionPackageId={} | registrationUuid={}",
+                                EXHREG_TEST_EMAIL,
+                                DEFAULT_PASSWORD,
+                                EXHREG_EXHIBITION_UUID,
+                                registrationPackage.getId(),
+                                EXHREG_REGISTRATION_UUID);
+        }
+
+        private Exhibition ensureExhregExhibition(
+                        UUID uuid,
+                        User organizer,
+                        User admin,
+                        String name,
+                        String category,
+                        String description,
+                        LocalDate startDate,
+                        LocalDate endDate) {
+                Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
+                                .orElseGet(() -> saveExhibition(
+                                                uuid,
+                                                organizer,
+                                                name,
+                                                category,
+                                                description,
+                                                startDate,
+                                                endDate,
+                                                20,
+                                                ExhibitionStatus.REGISTRATION,
+                                                admin,
+                                                null));
+                exhibition.setOrganizer(organizer);
+                exhibition.setName(name);
+                exhibition.setCategory(category);
+                exhibition.setDescription(description);
+                exhibition.setStartDate(startDate);
+                exhibition.setEndDate(endDate);
+                exhibition.setEstimatedBooths(20);
+                exhibition.setStatus(ExhibitionStatus.REGISTRATION);
+                exhibition.setReviewedBy(admin);
+                exhibition.setRejectedReason(null);
+                exhibition.setRejectionCount(0);
+                return exhibitionRepository.save(exhibition);
+        }
+
+        private ExhibitionPackage ensureExhregPackage(
+                        PackageTemplate template,
+                        Exhibition exhibition,
+                        String finalPrice) {
+                ExhibitionPackage exhibitionPackage = exhibitionPackageRepository
+                                .findByExhibitionIdAndTemplateId(exhibition.getId(), template.getId())
+                                .orElseGet(() -> ExhibitionPackage.builder()
+                                                .template(template)
+                                                .exhibition(exhibition)
+                                                .build());
+                exhibitionPackage.setFinalPrice(new BigDecimal(finalPrice));
+                exhibitionPackage.setStatus(ExhibitionPackageStatus.ACTIVE);
+                return exhibitionPackageRepository.save(exhibitionPackage);
+        }
+
+        private void ensureExhibitorBoothApiFixtures() {
+                User admin = userRepository.findByEmail("admin@vex360.local").orElse(null);
+                User tester = userRepository.findByEmail(EXHREG_TEST_EMAIL).orElse(null);
+                if (admin == null || tester == null) {
+                        log.warn("[SEED][EXHBTH] Thiếu admin hoặc tài khoản Exhibitor fixture.");
+                        return;
+                }
+
+                Company testCompany = companyRepository.findByOwnerUserId(tester.getId()).orElse(null);
+                Exhibition exhibition = exhibitionRepository.findByUuid(EXHREG_EXHIBITION_UUID).orElse(null);
+                if (testCompany == null || exhibition == null) {
+                        log.warn("[SEED][EXHBTH] Thiếu company hoặc triển lãm EXHREG nền.");
+                        return;
+                }
+
+                ExhibitionPackage exhibitionPackage = exhibitionPackageRepository
+                                .findByExhibitionId(exhibition.getId())
+                                .stream()
+                                .filter(candidate -> candidate.getStatus() == ExhibitionPackageStatus.ACTIVE)
+                                .findFirst()
+                                .orElse(null);
+                if (exhibitionPackage == null || exhibitionPackage.getTemplate() == null) {
+                        log.warn("[SEED][EXHBTH] Không có exhibition package ACTIVE để cấp booth fixture.");
+                        return;
+                }
+
+                ensureExhibitorBoothApiFixtures(
+                                admin,
+                                tester,
+                                testCompany,
+                                exhibitionPackage.getTemplate());
+        }
+
+        private void ensureExhibitorBoothApiFixtures(
+                        User admin,
+                        User tester,
+                        Company testCompany,
+                        PackageTemplate template) {
+                Exhibition exhibition = exhibitionRepository.findByUuid(EXHREG_EXHIBITION_UUID)
+                                .orElseThrow();
+                ExhibitionPackage exhibitionPackage = ensureExhregPackage(template, exhibition, "2500000");
+
+                testCompany.setStatus(CompanyStatus.ACTIVE);
+                testCompany.setStorageQuotaBytes(Math.max(
+                                testCompany.getStorageQuotaBytes() == null ? 0L : testCompany.getStorageQuotaBytes(),
+                                2_147_483_648L));
+                Company persistedTestCompany = companyRepository.save(testCompany);
+
+                ExhibitorRegistration registration = exhibitorRegistrationRepository
+                                .findByUuid(EXHBTH_REGISTRATION_UUID)
+                                .orElseGet(() -> {
+                                        ExhibitorRegistration created = buildRegistration(
+                                                        exhibitionPackage,
+                                                        persistedTestCompany,
+                                                        template,
+                                                        ExhibitorRegistrationStatus.APPROVED,
+                                                        admin,
+                                                        "Fixture cho bộ test quản lý booth EXHBTH.",
+                                                        null);
+                                        created.setUuid(EXHBTH_REGISTRATION_UUID);
+                                        return created;
+                                });
+                registration.setExhibitionPackage(exhibitionPackage);
+                registration.setCompany(persistedTestCompany);
+                registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+                registration.setReviewedBy(admin);
+                registration.setRejectedReason(null);
+                registration.setBoothName("Gian hàng kiểm thử EXHBTH");
+                registration.setBoothDescription("Fixture cố định cho API quản lý booth và nội dung.");
+                registration = exhibitorRegistrationRepository.save(registration);
+
+                Booth exhibitorBooth = boothRepository.findById(EXHBTH_BOOTH_UUID).orElse(null);
+                if (exhibitorBooth == null) {
+                        exhibitorBooth = insertBoothFixtureShell(EXHBTH_BOOTH_UUID, tester);
+                }
+                exhibitorBooth.setName("Gian hàng kiểm thử EXHBTH");
+                exhibitorBooth.setDescription("Fixture có thể khôi phục sau khi chạy test tạo, sửa hoặc xóa.");
+                exhibitorBooth.setStatus(BoothStatus.PUBLISHED);
+                exhibitorBooth.setIsTemplate(false);
+                exhibitorBooth.setCreatedBy(tester);
+                exhibitorBooth.setCompany(persistedTestCompany);
+                exhibitorBooth.setExhibitorRegistration(registration);
+                exhibitorBooth.setThumbnailUrl(IMG_SHOWROOM);
+                exhibitorBooth.setThumbnailPublicId(null);
+                exhibitorBooth.setBackgroundMusicUrl("https://example.com/seed/exhbth-background.mp3");
+                exhibitorBooth.setBackgroundMusicPublicId("seed/exhbth/background-music");
+                exhibitorBooth.setBackgroundMusicFileName("exhbth-background.mp3");
+                exhibitorBooth.setBackgroundMusicFileSize(1_024L);
+                exhibitorBooth.setDisplayTemplateKey("classic");
+                exhibitorBooth.setLateEditAllowedUntil(null);
+                exhibitorBooth = boothRepository.save(exhibitorBooth);
+
+                boothReviewRequestRepository.deleteAll(
+                                boothReviewRequestRepository.findByBoothIdInAndStatus(
+                                                List.of(exhibitorBooth.getId()),
+                                                BoothReviewStatus.PENDING));
+                resetFixtureContent(
+                                exhibitorBooth,
+                                EXHBTH_PANORAMA_UUID,
+                                EXHBTH_TARGET_PANORAMA_UUID,
+                                EXHBTH_HOTSPOT_UUID,
+                                "Không gian chính EXHBTH");
+
+                ProductCategory category = productCategoryRepository.findById(EXHBTH_CATEGORY_UUID).orElse(null);
+                if (category == null) {
+                        category = insertProductCategoryFixtureShell(EXHBTH_CATEGORY_UUID, persistedTestCompany);
+                }
+                category.setCompany(persistedTestCompany);
+                category.setName("Danh mục kiểm thử EXHBTH");
+                category.setDescription("Danh mục cố định cho EXHBTH_38 đến EXHBTH_45.");
+                category.setStatus(ProductCategoryStatus.ACTIVE);
+                category = productCategoryRepository.save(category);
+
+                Product product = productRepository.findById(EXHBTH_PRODUCT_UUID).orElse(null);
+                if (product == null) {
+                        product = insertProductFixtureShell(
+                                        EXHBTH_PRODUCT_UUID, persistedTestCompany, category);
+                }
+                product.setCompany(persistedTestCompany);
+                product.setCategory(category);
+                product.setName("Sản phẩm kiểm thử EXHBTH");
+                product.setSku("EXHBTH-FIXTURE-001");
+                product.setDescription("Sản phẩm cố định cho API xem, cập nhật và xóa.");
+                product.setPrice(new BigDecimal("100000"));
+                product.setCurrency("VND");
+                product.setThumbnailUrl(IMG_SOFA);
+                product.setThumbnailPublicId("seed/exhbth/product");
+                product.setThumbnailFileSize(1_024L);
+                product.setStatus(ProductStatus.ACTIVE);
+                productRepository.save(product);
+
+                MediaAsset mediaAsset = mediaAssetRepository.findById(EXHBTH_MEDIA_ASSET_UUID).orElse(null);
+                if (mediaAsset == null) {
+                        mediaAsset = insertMediaAssetFixtureShell(
+                                        EXHBTH_MEDIA_ASSET_UUID, persistedTestCompany);
+                }
+                mediaAsset.setCompany(persistedTestCompany);
+                mediaAsset.setName("Media kiểm thử EXHBTH");
+                mediaAsset.setType(MediaAssetType.IMAGE);
+                mediaAsset.setUrl(IMG_EXPO_HALL);
+                mediaAsset.setPublicId("seed/exhbth/media-asset");
+                mediaAsset.setMimeType("image/jpeg");
+                mediaAsset.setFileSize(2_048L);
+                mediaAssetRepository.save(mediaAsset);
+
+                Booth boothTemplate = boothRepository.findById(EXHBTH_TEMPLATE_UUID).orElse(null);
+                if (boothTemplate == null) {
+                        boothTemplate = insertBoothFixtureShell(EXHBTH_TEMPLATE_UUID, admin);
+                }
+                boothTemplate.setName("Booth template kiểm thử EXHBTH");
+                boothTemplate.setDescription("Template cố định dùng cho API Admin và thao tác apply của Exhibitor.");
+                boothTemplate.setStatus(BoothStatus.PUBLISHED);
+                boothTemplate.setIsTemplate(true);
+                boothTemplate.setCreatedBy(admin);
+                boothTemplate.setCompany(null);
+                boothTemplate.setExhibitorRegistration(null);
+                boothTemplate.setThumbnailUrl(IMG_EXPO_BOOTHS);
+                boothTemplate.setThumbnailPublicId(null);
+                boothTemplate.setBackgroundMusicUrl(null);
+                boothTemplate.setBackgroundMusicPublicId(null);
+                boothTemplate.setBackgroundMusicFileName(null);
+                boothTemplate.setBackgroundMusicFileSize(null);
+                boothTemplate.setDisplayTemplateKey("classic");
+                boothTemplate = boothRepository.save(boothTemplate);
+                resetFixtureContent(
+                                boothTemplate,
+                                EXHBTH_TEMPLATE_PANORAMA_UUID,
+                                EXHBTH_TEMPLATE_TARGET_PANORAMA_UUID,
+                                EXHBTH_TEMPLATE_HOTSPOT_UUID,
+                                "Không gian template EXHBTH");
+
+                log.info("[SEED][EXHBTH] READY | exhibitorEmail={} | adminEmail={} | password={} "
+                                + "| boothUuid={} | panoramaUuid={} | hotspotUuid={} | mediaAssetUuid={} "
+                                + "| templateUuid={} | templatePanoramaUuid={} | templateHotspotUuid={} "
+                                + "| productUuid={} | categoryUuid={}",
+                                EXHREG_TEST_EMAIL,
+                                "admin@vex360.local",
+                                DEFAULT_PASSWORD,
+                                EXHBTH_BOOTH_UUID,
+                                EXHBTH_PANORAMA_UUID,
+                                EXHBTH_HOTSPOT_UUID,
+                                EXHBTH_MEDIA_ASSET_UUID,
+                                EXHBTH_TEMPLATE_UUID,
+                                EXHBTH_TEMPLATE_PANORAMA_UUID,
+                                EXHBTH_TEMPLATE_HOTSPOT_UUID,
+                                EXHBTH_PRODUCT_UUID,
+                                EXHBTH_CATEGORY_UUID);
+        }
+
+        /**
+         * Rebuilds an isolated, idempotent data set for EXHDSG_1..13.
+         *
+         * <p>
+         * Mutating cases deliberately use different requests so approve, reject,
+         * cancel and cancellation-request can be executed in any order without
+         * invalidating the remaining happy cases.
+         * </p>
+         */
+        private void ensureExhibitorDesignRequestApiFixtures() {
+                User admin = userRepository.findByEmail("admin@vex360.local").orElse(null);
+                User tester = userRepository.findByEmail(EXHREG_TEST_EMAIL).orElse(null);
+                User designer = userRepository.findByEmail("designer@vex360.local").orElse(null);
+                if (admin == null || tester == null || designer == null) {
+                        log.warn("[SEED][EXHDSG] Missing admin, Exhibitor fixture, or Designer fixture.");
+                        return;
+                }
+
+                Company company = companyRepository.findByOwnerUserId(tester.getId()).orElse(null);
+                Exhibition exhibition = exhibitionRepository.findByUuid(EXHREG_EXHIBITION_UUID).orElse(null);
+                if (company == null || exhibition == null) {
+                        log.warn("[SEED][EXHDSG] Missing EXHREG company or exhibition foundation.");
+                        return;
+                }
+
+                ExhibitionPackage exhibitionPackage = exhibitionPackageRepository
+                                .findByExhibitionId(exhibition.getId())
+                                .stream()
+                                .filter(candidate -> candidate.getStatus() == ExhibitionPackageStatus.ACTIVE)
+                                .findFirst()
+                                .orElse(null);
+                if (exhibitionPackage == null || exhibitionPackage.getTemplate() == null) {
+                        log.warn("[SEED][EXHDSG] Missing ACTIVE exhibition package.");
+                        return;
+                }
+
+                company.setStatus(CompanyStatus.ACTIVE);
+                company.setEmail(EXHREG_TEST_EMAIL);
+                company.setPhone("0907777777");
+                company = companyRepository.save(company);
+
+                List<UUID> boothIds = List.of(
+                                EXHDSG_ELIGIBLE_BOOTH_UUID,
+                                EXHDSG_CANCEL_BOOTH_UUID,
+                                EXHDSG_ASSIGNED_BOOTH_UUID,
+                                EXHDSG_APPROVE_BOOTH_UUID,
+                                EXHDSG_REVIEW_BOOTH_UUID,
+                                EXHDSG_REJECT_BOOTH_UUID,
+                                EXHDSG_FINAL_REJECT_BOOTH_UUID);
+
+                // Also remove a random request created by EXHDSG_2 in a previous run.
+                List<UUID> existingRequestIds = entityManager.createQuery("""
+                                SELECT request.id
+                                FROM DesignRequest request
+                                WHERE request.booth.id IN :boothIds
+                                """, UUID.class)
+                                .setParameter("boothIds", boothIds)
+                                .getResultList();
+                if (!existingRequestIds.isEmpty()) {
+                        designRequestRepository.deleteAll(designRequestRepository.findAllById(existingRequestIds));
+                        designRequestRepository.flush();
+                        // Hibernate keeps deleted UUID entities in the persistence context. Clear
+                        // them before recreating the same deterministic IDs below.
+                        entityManager.clear();
+                }
+
+                PackageTemplate template = exhibitionPackage.getTemplate();
+                Booth eligibleBooth = ensureExhdsgBooth(
+                                EXHDSG_ELIGIBLE_BOOTH_UUID,
+                                EXHDSG_ELIGIBLE_REGISTRATION_UUID,
+                                "EXHDSG - Booth eligible to create request",
+                                BoothStatus.DRAFT,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth cancelBooth = ensureExhdsgBooth(
+                                EXHDSG_CANCEL_BOOTH_UUID,
+                                EXHDSG_CANCEL_REGISTRATION_UUID,
+                                "EXHDSG - Booth with pending request",
+                                BoothStatus.DESIGN_REQUEST_PENDING,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth assignedBooth = ensureExhdsgBooth(
+                                EXHDSG_ASSIGNED_BOOTH_UUID,
+                                EXHDSG_ASSIGNED_REGISTRATION_UUID,
+                                "EXHDSG - Booth with assigned request",
+                                BoothStatus.DESIGNING,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth approveBooth = ensureExhdsgBooth(
+                                EXHDSG_APPROVE_BOOTH_UUID,
+                                EXHDSG_APPROVE_REGISTRATION_UUID,
+                                "EXHDSG - Booth awaiting approval",
+                                BoothStatus.DESIGNING,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth reviewBooth = ensureExhdsgBooth(
+                                EXHDSG_REVIEW_BOOTH_UUID,
+                                EXHDSG_REVIEW_REGISTRATION_UUID,
+                                "EXHDSG - Booth review workspace",
+                                BoothStatus.DESIGNING,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth rejectBooth = ensureExhdsgBooth(
+                                EXHDSG_REJECT_BOOTH_UUID,
+                                EXHDSG_REJECT_REGISTRATION_UUID,
+                                "EXHDSG - Booth awaiting revision decision",
+                                BoothStatus.DESIGNING,
+                                tester, admin, company, exhibitionPackage, template);
+                Booth finalRejectBooth = ensureExhdsgBooth(
+                                EXHDSG_FINAL_REJECT_BOOTH_UUID,
+                                EXHDSG_FINAL_REJECT_REGISTRATION_UUID,
+                                "EXHDSG - Booth awaiting final rejection",
+                                BoothStatus.DESIGNING,
+                                tester, admin, company, exhibitionPackage, template);
+
+                seedExhdsgRequest(
+                                EXHDSG_CANCEL_REQUEST_UUID, cancelBooth, company, tester, null,
+                                DesignRequestStatus.PENDING);
+                seedExhdsgRequest(
+                                EXHDSG_ASSIGNED_REQUEST_UUID, assignedBooth, company, tester, designer,
+                                DesignRequestStatus.ASSIGNED);
+                DesignRequest approveRequest = seedExhdsgRequest(
+                                EXHDSG_APPROVE_REQUEST_UUID, approveBooth, company, tester, designer,
+                                DesignRequestStatus.DRAFT_SUBMITTED);
+                DesignRequest reviewRequest = seedExhdsgRequest(
+                                EXHDSG_REVIEW_REQUEST_UUID, reviewBooth, company, tester, designer,
+                                DesignRequestStatus.DRAFT_SUBMITTED);
+                DesignRequest rejectRequest = seedExhdsgRequest(
+                                EXHDSG_REJECT_REQUEST_UUID, rejectBooth, company, tester, designer,
+                                DesignRequestStatus.DRAFT_SUBMITTED);
+                DesignRequest finalRejectRequest = seedExhdsgRequest(
+                                EXHDSG_FINAL_REJECT_REQUEST_UUID, finalRejectBooth, company, tester, designer,
+                                DesignRequestStatus.DRAFT_SUBMITTED);
+
+                seedExhdsgDraft(approveRequest, 1, "Draft ready for EXHDSG_5 approval.");
+                seedExhdsgDraft(reviewRequest, 1, "Historical draft used by EXHDSG_8.");
+                seedExhdsgDraft(reviewRequest, 2, "Latest draft used by EXHDSG_12 workspace.");
+                seedExhdsgDraft(rejectRequest, 1, "Draft ready for EXHDSG_11 rejection.");
+                seedExhdsgDraft(finalRejectRequest, 1, "Draft ready for EXHDSG_13 final rejection.");
+
+                designRequestMessageRepository.save(DesignRequestMessage.builder()
+                                .designRequest(reviewRequest)
+                                .sender(designer)
+                                .message("Please review version 2; the main panorama has been finalized.")
+                                .build());
+                designRequestMessageRepository.save(DesignRequestMessage.builder()
+                                .designRequest(reviewRequest)
+                                .sender(tester)
+                                .message("Received. I will review the latest draft.")
+                                .build());
+
+                log.info("[SEED][EXHDSG] READY | exhibitorEmail={} | password={} | eligibleBoothUuid={} "
+                                + "| cancelRequestUuid={} | assignedRequestUuid={} | approveRequestUuid={} "
+                                + "| reviewRequestUuid={} | rejectRequestUuid={} | finalRejectRequestUuid={}",
+                                EXHREG_TEST_EMAIL,
+                                DEFAULT_PASSWORD,
+                                eligibleBooth.getId(),
+                                EXHDSG_CANCEL_REQUEST_UUID,
+                                EXHDSG_ASSIGNED_REQUEST_UUID,
+                                EXHDSG_APPROVE_REQUEST_UUID,
+                                EXHDSG_REVIEW_REQUEST_UUID,
+                                EXHDSG_REJECT_REQUEST_UUID,
+                                EXHDSG_FINAL_REJECT_REQUEST_UUID);
+        }
+
+        private Booth ensureExhdsgBooth(
+                        UUID boothId,
+                        UUID registrationUuid,
+                        String boothName,
+                        BoothStatus boothStatus,
+                        User tester,
+                        User admin,
+                        Company company,
+                        ExhibitionPackage exhibitionPackage,
+                        PackageTemplate template) {
+                ExhibitorRegistration registration = exhibitorRegistrationRepository
+                                .findByUuid(registrationUuid)
+                                .orElseGet(() -> {
+                                        ExhibitorRegistration created = buildRegistration(
+                                                        exhibitionPackage,
+                                                        company,
+                                                        template,
+                                                        ExhibitorRegistrationStatus.APPROVED,
+                                                        admin,
+                                                        "Dedicated fixture for EXHDSG API tests.",
+                                                        null);
+                                        created.setUuid(registrationUuid);
+                                        return created;
+                                });
+                registration.setExhibitionPackage(exhibitionPackage);
+                registration.setCompany(company);
+                registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+                registration.setReviewedBy(admin);
+                registration.setRejectedReason(null);
+                registration.setParticipationReason("Dedicated fixture for EXHDSG API tests.");
+                registration.setBoothName(boothName);
+                registration.setBoothDescription(
+                                "Isolated booth data for Exhibitor design-request collaboration tests.");
+                registration.setPackageNameSnapshot(template.getName());
+                registration.setPriceSnapshot(template.getPrice());
+                registration.setFinalPriceSnapshot(exhibitionPackage.getFinalPrice());
+                registration.setCurrencySnapshot(template.getCurrency());
+                registration.setMaxProductsPerBoothSnapshot(template.getMaxProductsPerBooth());
+                registration.setMaxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth());
+                registration.setMaxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth());
+                registration.setMaxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth());
+                registration.setStorageLimitMbSnapshot(template.getStorageLimitMb());
+                registration.setListingPrioritySnapshot(template.getListingPriority());
+                registration = exhibitorRegistrationRepository.save(registration);
+
+                Booth booth = boothRepository.findById(boothId).orElse(null);
+                if (booth == null) {
+                        booth = insertBoothFixtureShell(boothId, tester);
+                }
+                booth.setName(boothName);
+                booth.setDescription("Dedicated and resettable EXHDSG test fixture.");
+                booth.setStatus(boothStatus);
+                booth.setIsTemplate(false);
+                booth.setCreatedBy(tester);
+                booth.setCompany(company);
+                booth.setExhibitorRegistration(registration);
+                booth.setThumbnailUrl(null);
+                booth.setThumbnailPublicId(null);
+                booth.setBackgroundMusicUrl(null);
+                booth.setBackgroundMusicPublicId(null);
+                booth.setBackgroundMusicFileName(null);
+                booth.setBackgroundMusicFileSize(null);
+                booth.setDisplayTemplateKey("classic");
+                booth.setLateEditAllowedUntil(null);
+                booth = boothRepository.save(booth);
+                clearExhdsgBoothContent(booth);
+                return booth;
+        }
+
+        private void clearExhdsgBoothContent(Booth booth) {
+                List<Panorama> panoramas = panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId());
+                if (panoramas.isEmpty()) {
+                        return;
+                }
+                List<UUID> panoramaIds = panoramas.stream().map(Panorama::getId).toList();
+                hotspotRepository.clearTargetsForPanoramas(panoramaIds);
+                hotspotRepository.flush();
+                for (Panorama panorama : panoramas) {
+                        hotspotRepository.deleteAll(
+                                        hotspotRepository.findBySourcePanoramaIdOrderByNameAsc(panorama.getId()));
+                }
+                hotspotRepository.flush();
+                panoramaRepository.deleteAll(panoramas);
+                panoramaRepository.flush();
+        }
+
+        private DesignRequest seedExhdsgRequest(
+                        UUID requestId,
+                        Booth booth,
+                        Company company,
+                        User tester,
+                        User designer,
+                        DesignRequestStatus status) {
+                DesignRequest request = designRequestRepository.findById(requestId).orElse(null);
+                if (request == null) {
+                        request = insertDesignRequestFixtureShell(requestId, booth, company, tester);
+                }
+                request.setBooth(booth);
+                request.setCompany(company);
+                request.setRequestedBy(tester);
+                request.setAssignedDesigner(designer);
+                request.setStatus(status);
+                request.setMode(DesignRequestMode.INITIAL_DESIGN);
+                request.setNote("Dedicated fixture for EXHDSG API tests.");
+                request.setContactEmail(company.getEmail());
+                request.setContactPhone(company.getPhone());
+                request.setReviewCount(0);
+                request.setQuotaCharged(true);
+                request.setCancellationStatus(DesignRequestCancellationStatus.NONE);
+                request.setCancellationReason(null);
+                request.setCancellationRequestedAt(null);
+                request.setCancellationResolvedAt(null);
+                request.setCancellationResolutionNote(null);
+                request.setAssignedAt(designer == null ? null : Instant.now().minus(2, ChronoUnit.DAYS));
+                request.setApprovedAt(null);
+                request.setCanceledAt(null);
+                return designRequestRepository.save(request);
+        }
+
+        private DesignRequest insertDesignRequestFixtureShell(
+                        UUID id,
+                        Booth booth,
+                        Company company,
+                        User tester) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO design_requests (
+                                    id, booth_id, company_id, requested_by_user_id,
+                                    status, mode, note, contact_email, contact_phone,
+                                    review_count, quota_charged, cancellation_status,
+                                    created_at, updated_at
+                                ) VALUES (
+                                    :id, :boothId, :companyId, :requestedById,
+                                    'PENDING', 'INITIAL_DESIGN', 'EXHDSG fixture', :contactEmail, :contactPhone,
+                                    0, true, 'NONE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("boothId", booth.getId())
+                                .setParameter("companyId", company.getId())
+                                .setParameter("requestedById", tester.getId())
+                                .setParameter("contactEmail", company.getEmail())
+                                .setParameter("contactPhone", company.getPhone())
+                                .executeUpdate();
+                return designRequestRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException(
+                                                "Cannot create EXHDSG design request fixture " + id));
+        }
+
+        private void seedExhdsgDraft(DesignRequest request, int versionNumber, String note) {
+                DesignDraft draft = designDraftRepository.save(DesignDraft.builder()
+                                .designRequest(request)
+                                .versionNumber(versionNumber)
+                                .note(note)
+                                .boothName(request.getBooth().getName() + " - draft v" + versionNumber)
+                                .boothDescription("Submitted booth design fixture for Exhibitor review.")
+                                .displayTemplateKey("classic")
+                                .thumbnailAction(DesignDraftFileAction.KEEP)
+                                .backgroundMusicAction(DesignDraftFileAction.KEEP)
+                                .submittedAt(Instant.now().minus(3L - versionNumber, ChronoUnit.HOURS))
+                                .build());
+                DesignDraftPanorama panorama = designDraftPanoramaRepository.save(DesignDraftPanorama.builder()
+                                .draft(draft)
+                                .clientKey("exhdsg-" + request.getId() + "-v" + versionNumber + "-p1")
+                                .name("EXHDSG panorama v" + versionNumber)
+                                .imageUrl(PANORAMA_IMAGES[(versionNumber - 1) % PANORAMA_IMAGES.length])
+                                .imageKey("seed/exhdsg/" + request.getId() + "/v" + versionNumber + "/panorama-1")
+                                .orderIndex(0)
+                                .isDefault(true)
+                                .build());
+                draft.getPanoramas().add(panorama);
+        }
+
+        /**
+         * Ensures SHRPKG_2 can keep the packageId=1 body from the supplied test
+         * sheet on both a clean and an existing local database.
+         */
+        private void ensureStoragePackageApiFixtures() {
+                User tester = userRepository.findByEmail(EXHREG_TEST_EMAIL).orElse(null);
+                Company company = tester == null
+                                ? null
+                                : companyRepository.findByOwnerUserId(tester.getId()).orElse(null);
+                if (tester == null || company == null) {
+                        log.warn("[SEED][SHRPKG] Missing Exhibitor fixture account or company.");
+                        return;
+                }
+
+                tester.setRole(Role.EXHIBITOR);
+                tester.setStatus(UserStatus.ACTIVE);
+                userRepository.save(tester);
+                company.setStatus(CompanyStatus.ACTIVE);
+                companyRepository.save(company);
+
+                StoragePackage storagePackage = storagePackageRepository
+                                .findById(SHRPKG_ORDER_PACKAGE_ID)
+                                .orElse(null);
+                if (storagePackage == null) {
+                        entityManager.flush();
+                        entityManager.createNativeQuery("""
+                                        INSERT INTO storage_packages (
+                                            id, name, description, quota_bytes, price_vnd,
+                                            is_active, created_at, updated_at
+                                        ) VALUES (
+                                            :id, :name, :description, :quotaBytes, :priceVnd,
+                                            true, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                        )
+                                        """)
+                                        .setParameter("id", SHRPKG_ORDER_PACKAGE_ID)
+                                        .setParameter("name", "SHRPKG - 1 GB storage test package")
+                                        .setParameter("description", "Deterministic ACTIVE package for SHRPKG_2.")
+                                        .setParameter("quotaBytes", 1_073_741_824L)
+                                        .setParameter("priceVnd", 50_000L)
+                                        .executeUpdate();
+                        storagePackage = storagePackageRepository.findById(SHRPKG_ORDER_PACKAGE_ID)
+                                        .orElseThrow(() -> new IllegalStateException(
+                                                        "Cannot create SHRPKG storage package fixture"));
+                }
+
+                storagePackage.setName("SHRPKG - Gói lưu trữ 1 GB");
+                storagePackage.setDescription("Gói ACTIVE cố định dùng để kiểm thử tạo đơn nâng cấp lưu trữ.");
+                storagePackage.setQuotaBytes(1_073_741_824L);
+                storagePackage.setPriceVnd(50_000L);
+                storagePackage.setIsActive(true);
+                storagePackageRepository.save(storagePackage);
+
+                log.info("[SEED][SHRPKG] READY | exhibitorEmail={} | password={} "
+                                + "| packageId={} | packageActive=true | quotaBytes={} | priceVnd={}",
+                                EXHREG_TEST_EMAIL,
+                                DEFAULT_PASSWORD,
+                                SHRPKG_ORDER_PACKAGE_ID,
+                                storagePackage.getQuotaBytes(),
+                                storagePackage.getPriceVnd());
+        }
+
+        private void ensureExhibitorLeadApiFixtures() {
+                User visitor = userRepository.findByEmail("visitor@vex360.local").orElse(null);
+                Booth booth = boothRepository.findById(EXHBTH_BOOTH_UUID).orElse(null);
+                if (visitor == null || booth == null || booth.getCompany() == null) {
+                        log.warn("[SEED][EXHLED] Thiếu visitor hoặc booth EXHBTH nền; không thể bổ sung fixture API.");
+                        return;
+                }
+
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                DELETE FROM booth_leads
+                                WHERE booth_id = :boothId
+                                  AND id <> :leadId
+                                """)
+                                .setParameter("boothId", booth.getId())
+                                .setParameter("leadId", EXHLED_LEAD_UUID)
+                                .executeUpdate();
+
+                BoothLead conflictingLead = boothLeadRepository
+                                .findByBoothIdAndVisitorId(booth.getId(), visitor.getId())
+                                .filter(existing -> !EXHLED_LEAD_UUID.equals(existing.getId()))
+                                .orElse(null);
+                if (conflictingLead != null) {
+                        boothLeadRepository.delete(conflictingLead);
+                        boothLeadRepository.flush();
+                }
+
+                BoothLead lead = boothLeadRepository.findById(EXHLED_LEAD_UUID).orElse(null);
+                if (lead == null) {
+                        lead = insertBoothLeadFixtureShell(EXHLED_LEAD_UUID, booth, visitor);
+                }
+                lead.setBooth(booth);
+                lead.setVisitor(visitor);
+                lead.setFullName("Hoàng An Vy");
+                lead.setEmail("visitor@vex360.local");
+                lead.setPhoneNumber("0905555555");
+                lead.setCompanyName("An Vy Studio");
+                lead.setMessage("Tôi quan tâm đến sản phẩm và muốn nhận báo giá chi tiết.");
+                lead.setStatus(LeadStatus.CONTACTED);
+                lead.setExhibitorNote("Fixture EXHLED: đã liên hệ lần đầu.");
+                lead.setConsentAt(Instant.now().minus(2, ChronoUnit.DAYS));
+                boothLeadRepository.save(lead);
+                boothLeadRepository.flush();
+                entityManager.createNativeQuery("""
+                                UPDATE booth_leads
+                                SET created_at = :createdAt,
+                                    updated_at = CURRENT_TIMESTAMP(6)
+                                WHERE id = :leadId
+                                """)
+                                .setParameter("createdAt", Instant.now().minus(2, ChronoUnit.DAYS))
+                                .setParameter("leadId", EXHLED_LEAD_UUID)
+                                .executeUpdate();
+
+                log.info("[SEED][EXHLED] READY | exhibitorEmail={} | password={} | leadUuid={} "
+                                + "| boothUuid={} | visitorEmail={} | initialStatus={}",
+                                EXHREG_TEST_EMAIL,
+                                DEFAULT_PASSWORD,
+                                EXHLED_LEAD_UUID,
+                                EXHBTH_BOOTH_UUID,
+                                "visitor@vex360.local",
+                                LeadStatus.CONTACTED);
+        }
+
+        private BoothLead insertBoothLeadFixtureShell(UUID id, Booth booth, User visitor) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO booth_leads (
+                                    id, booth_id, visitor_user_id, full_name, email,
+                                    phone_number, company_name, message, status,
+                                    exhibitor_note, consent_at, created_at, updated_at
+                                ) VALUES (
+                                    :id, :boothId, :visitorId, 'EXHLED fixture', 'visitor@vex360.local',
+                                    '0905555555', 'An Vy Studio', 'EXHLED fixture', 'CONTACTED',
+                                    'EXHLED fixture', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("boothId", booth.getId())
+                                .setParameter("visitorId", visitor.getId())
+                                .executeUpdate();
+                return boothLeadRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo booth lead fixture " + id));
+        }
+
+        private void ensureExhibitorReportApiFixtures() {
+                User visitor = userRepository.findByEmail("visitor@vex360.local").orElse(null);
+                Booth booth = boothRepository.findById(EXHBTH_BOOTH_UUID).orElse(null);
+                Exhibition exhibition = booth == null
+                                || booth.getExhibitorRegistration() == null
+                                || booth.getExhibitorRegistration().getExhibitionPackage() == null
+                                                ? null
+                                                : booth.getExhibitorRegistration().getExhibitionPackage()
+                                                                .getExhibition();
+                if (visitor == null || booth == null || exhibition == null) {
+                        log.warn("[SEED][EXHRPT] Thiếu visitor, booth hoặc exhibition nền; không thể bổ sung fixture API.");
+                        return;
+                }
+
+                entityManager.flush();
+                entityManager.createNativeQuery("DELETE FROM analytics_events WHERE booth_id = :boothId")
+                                .setParameter("boothId", booth.getId())
+                                .executeUpdate();
+
+                int[] daysAgo = { 6, 3, 1 };
+                int[] viewsPerDay = { 2, 3, 4 };
+                int[] productClicksPerDay = { 1, 2, 2 };
+                int[] hotspotClicksPerDay = { 1, 1, 2 };
+                int[] chatsPerDay = { 1, 1, 2 };
+                int[][] durationsPerDay = {
+                                { 25, 75 },
+                                { 120, 240, 360 },
+                                { 45, 180, 420, 90 }
+                };
+                ZoneId zone = ZoneId.systemDefault();
+                int eventCount = 0;
+
+                for (int dayIndex = 0; dayIndex < daysAgo.length; dayIndex++) {
+                        Instant dayStart = LocalDate.now().minusDays(daysAgo[dayIndex])
+                                        .atStartOfDay(zone).toInstant();
+
+                        for (int viewIndex = 0; viewIndex < viewsPerDay[dayIndex]; viewIndex++) {
+                                Instant viewTime = dayStart.plus(9 + viewIndex, ChronoUnit.HOURS)
+                                                .plus(viewIndex * 5L, ChronoUnit.MINUTES);
+                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_VIEW, visitor, exhibition, booth,
+                                                null, null, viewTime, exhrptMetadata(null));
+                                int duration = durationsPerDay[dayIndex][viewIndex];
+                                seedAnalyticsEvent(AnalyticsEventType.BOOTH_LEAVE, visitor, exhibition, booth,
+                                                null, duration, viewTime.plus(duration, ChronoUnit.SECONDS),
+                                                exhrptMetadata(null));
+                                eventCount += 2;
+                        }
+
+                        for (int clickIndex = 0; clickIndex < productClicksPerDay[dayIndex]; clickIndex++) {
+                                seedAnalyticsEvent(AnalyticsEventType.PRODUCT_CLICK, visitor, exhibition, booth,
+                                                null, null,
+                                                dayStart.plus(14, ChronoUnit.HOURS)
+                                                                .plus(clickIndex, ChronoUnit.MINUTES),
+                                                exhrptMetadata("Sản phẩm kiểm thử EXHBTH"));
+                                eventCount++;
+                        }
+                        for (int clickIndex = 0; clickIndex < hotspotClicksPerDay[dayIndex]; clickIndex++) {
+                                seedAnalyticsEvent(AnalyticsEventType.HOTSPOT_CLICK, visitor, exhibition, booth,
+                                                null, null,
+                                                dayStart.plus(15, ChronoUnit.HOURS)
+                                                                .plus(clickIndex, ChronoUnit.MINUTES),
+                                                exhrptMetadata("Đi tới khu vực 2"));
+                                eventCount++;
+                        }
+                        for (int chatIndex = 0; chatIndex < chatsPerDay[dayIndex]; chatIndex++) {
+                                seedAnalyticsEvent(AnalyticsEventType.CHAT_INITIATED, visitor, exhibition, booth,
+                                                null, null,
+                                                dayStart.plus(16, ChronoUnit.HOURS)
+                                                                .plus(chatIndex, ChronoUnit.MINUTES),
+                                                exhrptMetadata(null));
+                                eventCount++;
+                        }
+                }
+
+                log.info("[SEED][EXHRPT] READY | exhibitorEmail={} | password={} | boothUuid={} "
+                                + "| views=9 | interactions=9 | productClicks=5 | chats=4 | leads=1 | events={}",
+                                EXHREG_TEST_EMAIL,
+                                DEFAULT_PASSWORD,
+                                EXHBTH_BOOTH_UUID,
+                                eventCount);
+        }
+
+        private String exhrptMetadata(String clickableName) {
+                if (clickableName == null) {
+                        return "{\"fixture\":\"EXHRPT\"}";
+                }
+                return "{\"fixture\":\"EXHRPT\",\"name\":\"" + clickableName + "\"}";
+        }
+
+        private void resetFixtureContent(
+                        Booth booth,
+                        UUID sourcePanoramaId,
+                        UUID targetPanoramaId,
+                        UUID hotspotId,
+                        String namePrefix) {
+                List<Panorama> existingPanoramas = panoramaRepository
+                                .findByBoothIdOrderByOrderIndexAsc(booth.getId());
+                for (Panorama panorama : existingPanoramas) {
+                        List<Hotspot> removableHotspots = hotspotRepository
+                                        .findBySourcePanoramaIdOrderByNameAsc(panorama.getId())
+                                        .stream()
+                                        .filter(hotspot -> !hotspotId.equals(hotspot.getId()))
+                                        .toList();
+                        hotspotRepository.deleteAll(removableHotspots);
+                }
+                hotspotRepository.flush();
+
+                List<UUID> extraPanoramaIds = existingPanoramas.stream()
+                                .map(Panorama::getId)
+                                .filter(id -> !sourcePanoramaId.equals(id) && !targetPanoramaId.equals(id))
+                                .toList();
+                if (!extraPanoramaIds.isEmpty()) {
+                        hotspotRepository.deleteAll(hotspotRepository.findAllByTargetPanoramaIdIn(extraPanoramaIds));
+                        hotspotRepository.flush();
+                        panoramaRepository.deleteAll(existingPanoramas.stream()
+                                        .filter(panorama -> extraPanoramaIds.contains(panorama.getId()))
+                                        .toList());
+                        panoramaRepository.flush();
+                }
+
+                Panorama sourcePanorama = ensureFixturePanorama(
+                                sourcePanoramaId, booth, namePrefix, 0, true);
+                Panorama targetPanorama = ensureFixturePanorama(
+                                targetPanoramaId, booth, namePrefix + " - khu vực 2", 1, false);
+
+                Hotspot hotspot = hotspotRepository.findById(hotspotId).orElse(null);
+                if (hotspot == null) {
+                        hotspot = insertHotspotFixtureShell(hotspotId, sourcePanorama, targetPanorama);
+                }
+                hotspot.setType(HotspotType.NAV);
+                hotspot.setName("Đi tới khu vực 2");
+                hotspot.setSourcePanorama(sourcePanorama);
+                hotspot.setTargetPanorama(targetPanorama);
+                hotspot.setProduct(null);
+                hotspot.setMediaAsset(null);
+                hotspot.setInfoText(null);
+                hotspot.setXPosition(1.0);
+                hotspot.setYPosition(0.0);
+                hotspot.setZPosition(-1.0);
+                hotspot.setIconStyle("arrow");
+                hotspot.setScale(1.0);
+                hotspot.setZIndex(1);
+                hotspot.setMediaClickAction(null);
+                hotspot.setInfoContentType(null);
+                hotspotRepository.save(hotspot);
+        }
+
+        private Panorama ensureFixturePanorama(
+                        UUID id,
+                        Booth booth,
+                        String name,
+                        int orderIndex,
+                        boolean isDefault) {
+                Panorama panorama = panoramaRepository.findById(id).orElse(null);
+                if (panorama == null) {
+                        panorama = insertPanoramaFixtureShell(id, booth);
+                }
+                panorama.setBooth(booth);
+                panorama.setName(name);
+                panorama.setImageUrl(PANORAMA_IMAGES[orderIndex % PANORAMA_IMAGES.length]);
+                panorama.setImageKey(Boolean.TRUE.equals(booth.getIsTemplate())
+                                ? "seed/exhbth/template-panorama/" + id
+                                : null);
+                panorama.setFileSize(0L);
+                panorama.setOrderIndex(orderIndex);
+                panorama.setIsDefault(isDefault);
+                panorama.setIsTemplateDerived(booth.getIsTemplate());
+                return panoramaRepository.save(panorama);
+        }
+
+        private Booth insertBoothFixtureShell(UUID id, User createdBy) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO booths (
+                                    id, name, status, is_template, created_by_id,
+                                    display_template_key, created_at, updated_at
+                                ) VALUES (
+                                    :id, 'EXHBTH fixture', 'DRAFT', false, :createdById,
+                                    'classic', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("createdById", createdBy.getId())
+                                .executeUpdate();
+                return boothRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo booth fixture " + id));
+        }
+
+        private Panorama insertPanoramaFixtureShell(UUID id, Booth booth) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO panoramas (
+                                    id, booth_id, name, image_url, order_index,
+                                    is_default, is_template_derived, created_at, updated_at
+                                ) VALUES (
+                                    :id, :boothId, 'EXHBTH panorama', :imageUrl, 0,
+                                    false, false, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("boothId", booth.getId())
+                                .setParameter("imageUrl", PANORAMA_IMAGES[0])
+                                .executeUpdate();
+                return panoramaRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo panorama fixture " + id));
+        }
+
+        private Hotspot insertHotspotFixtureShell(
+                        UUID id,
+                        Panorama sourcePanorama,
+                        Panorama targetPanorama) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO hotspots (
+                                    id, type, name, source_panorama_id, target_panorama_id,
+                                    x_position, y_position, z_position
+                                ) VALUES (
+                                    :id, 'NAV', 'EXHBTH hotspot', :sourcePanoramaId, :targetPanoramaId,
+                                    1.0, 0.0, -1.0
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("sourcePanoramaId", sourcePanorama.getId())
+                                .setParameter("targetPanoramaId", targetPanorama.getId())
+                                .executeUpdate();
+                return hotspotRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo hotspot fixture " + id));
+        }
+
+        private ProductCategory insertProductCategoryFixtureShell(UUID id, Company company) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO product_categories (
+                                    id, company_id, name, status, created_at, updated_at
+                                ) VALUES (
+                                    :id, :companyId, 'EXHBTH category', 'ACTIVE',
+                                    CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("companyId", company.getId())
+                                .executeUpdate();
+                return productCategoryRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo category fixture " + id));
+        }
+
+        private Product insertProductFixtureShell(UUID id, Company company, ProductCategory category) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO products (
+                                    id, company_id, category_id, name, sku, description,
+                                    price, currency, thumbnail_url, thumbnail_public_id,
+                                    thumbnail_file_size, status, created_at, updated_at
+                                ) VALUES (
+                                    :id, :companyId, :categoryId, 'EXHBTH product', 'EXHBTH-FIXTURE-001',
+                                    'EXHBTH fixture', 100000, 'VND', :thumbnailUrl,
+                                    'seed/exhbth/product', 1024, 'ACTIVE',
+                                    CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("companyId", company.getId())
+                                .setParameter("categoryId", category.getId())
+                                .setParameter("thumbnailUrl", IMG_SOFA)
+                                .executeUpdate();
+                return productRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo product fixture " + id));
+        }
+
+        private MediaAsset insertMediaAssetFixtureShell(UUID id, Company company) {
+                entityManager.flush();
+                entityManager.createNativeQuery("""
+                                INSERT INTO media_assets (
+                                    id, company_id, name, type, url, public_id,
+                                    mime_type, file_size, created_at
+                                ) VALUES (
+                                    :id, :companyId, 'EXHBTH media', 'IMAGE', :url,
+                                    'seed/exhbth/media-asset', 'image/jpeg', 2048,
+                                    CURRENT_TIMESTAMP(6)
+                                )
+                                """)
+                                .setParameter("id", id)
+                                .setParameter("companyId", company.getId())
+                                .setParameter("url", IMG_EXPO_HALL)
+                                .executeUpdate();
+                return mediaAssetRepository.findById(id)
+                                .orElseThrow(() -> new IllegalStateException("Không thể tạo media fixture " + id));
+        }
+
         private Exhibition saveExhibition(User organizer, String name, String category, String description,
                         LocalDate startDate, LocalDate endDate, int estimatedBooths,
                         ExhibitionStatus status, User reviewedBy, String rejectedReason) {
-                Exhibition exhibition = exhibitionRepository.save(Exhibition.builder()
+                return saveExhibition(null, organizer, name, category, description, startDate, endDate,
+                                estimatedBooths, status, reviewedBy, rejectedReason);
+        }
+
+        private Exhibition saveExhibition(UUID uuid, User organizer, String name, String category, String description,
+                        LocalDate startDate, LocalDate endDate, int estimatedBooths,
+                        ExhibitionStatus status, User reviewedBy, String rejectedReason) {
+                Exhibition.ExhibitionBuilder exhibitionBuilder = Exhibition.builder()
                                 .organizer(organizer).name(name).category(category).description(description)
                                 .startDate(startDate).endDate(endDate).estimatedBooths(estimatedBooths)
                                 .status(status)
                                 .reviewedBy(reviewedBy)
                                 .reviewedAt(reviewedBy != null ? Instant.now().minus(2, ChronoUnit.DAYS) : null)
                                 .rejectedReason(rejectedReason)
-                                .rejectionCount(rejectedReason != null ? 1 : 0)
-                                .build());
+                                .rejectionCount(rejectedReason != null ? 1 : 0);
+                if (uuid != null) {
+                        exhibitionBuilder.uuid(uuid);
+                }
+                Exhibition exhibition = exhibitionRepository.save(exhibitionBuilder.build());
 
                 ExhibitionReviewStatus reviewStatus = ExhibitionReviewStatus.PENDING;
                 if (status == ExhibitionStatus.REJECTED) {
@@ -1082,10 +2462,23 @@ public class DataSeeder implements ApplicationRunner {
         private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, Company company,
                         PackageTemplate template, ExhibitorRegistrationStatus status, User reviewedBy,
                         String reason, String rejectedReason) {
+                return buildRegistration(pkg, company, template, status, reviewedBy, reason, rejectedReason,
+                                "Gian hàng " + company.getName(),
+                                "Mô tả gian hàng " + company.getName() + " tại triển lãm.");
+        }
+
+        private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, Company company,
+                        PackageTemplate template, ExhibitorRegistrationStatus status, User reviewedBy,
+                        String reason, String rejectedReason, String boothName, String boothDescription) {
                 return ExhibitorRegistration.builder()
                                 .exhibitionPackage(pkg).company(company).status(status)
                                 .reviewedBy(reviewedBy).participationReason(reason)
                                 .rejectedReason(rejectedReason)
+                                .boothName("Gian hàng " + company.getName())
+                                .boothDescription(reason != null ? reason : "Gian hàng dữ liệu mẫu VEX360.")
+                                .boothName(boothName != null ? boothName : "Gian hàng " + company.getName())
+                                .boothDescription(boothDescription != null ? boothDescription
+                                                : "Mô tả gian hàng " + company.getName())
                                 .packageNameSnapshot(template.getName())
                                 .priceSnapshot(template.getPrice())
                                 .finalPriceSnapshot(pkg.getFinalPrice())

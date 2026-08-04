@@ -2,6 +2,7 @@ package com.example.vex360.features.chat.repositories;
 
 import com.example.vex360.features.chat.entities.ChatRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import java.time.Instant;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,8 +16,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
     Optional<ChatRoom> findByExhibitionIdAndExhibitorUserIdAndVisitorUserId(
             Integer exhibitionId, UUID exhibitorUserId, UUID visitorUserId);
 
+    @EntityGraph(attributePaths = { "exhibitorUser", "visitorUser" })
     List<ChatRoom> findByExhibitorUserIdOrderByLastMessageAtDesc(UUID exhibitorUserId);
 
+    @EntityGraph(attributePaths = { "exhibitorUser", "visitorUser" })
     List<ChatRoom> findByVisitorUserIdOrderByLastMessageAtDesc(UUID visitorUserId);
 
     @Query(value = """

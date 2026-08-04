@@ -2,6 +2,7 @@ package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +39,9 @@ import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftHotspotRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
@@ -66,6 +71,12 @@ class DesignerDraftEditorServiceUnitTest {
     DesignDraftRepository draftRepository;
     @Mock
     DesignDraftAssetRepository draftAssetRepository;
+    @Mock
+    DesignDraftPanoramaRepository draftPanoramaRepository;
+    @Mock
+    DesignDraftHotspotRepository draftHotspotRepository;
+    @Mock
+    DesignDraftMediaAssetRepository draftMediaAssetRepository;
     @Mock
     DesignDraftAssetService assetService;
     @Mock
@@ -99,6 +110,9 @@ class DesignerDraftEditorServiceUnitTest {
                 requestRepository,
                 draftRepository,
                 draftAssetRepository,
+                draftPanoramaRepository,
+                draftHotspotRepository,
+                draftMediaAssetRepository,
                 assetService,
                 requestProductService,
                 requestMediaAssetService,
@@ -130,6 +144,24 @@ class DesignerDraftEditorServiceUnitTest {
         when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         lenient().when(draftRepository.findByDesignRequestIdAndVersionNumber(request.getId(), 0))
                 .thenReturn(Optional.of(draft));
+        lenient().when(draftPanoramaRepository.saveAndFlush(any(DesignDraftPanorama.class)))
+                .thenAnswer(invocation -> {
+                    DesignDraftPanorama entity = invocation.getArgument(0);
+                    entity.setId(UUID.randomUUID());
+                    return entity;
+                });
+        lenient().when(draftHotspotRepository.saveAndFlush(any(DesignDraftHotspot.class)))
+                .thenAnswer(invocation -> {
+                    DesignDraftHotspot entity = invocation.getArgument(0);
+                    entity.setId(UUID.randomUUID());
+                    return entity;
+                });
+        lenient().when(draftMediaAssetRepository.saveAndFlush(any(DesignDraftMediaAsset.class)))
+                .thenAnswer(invocation -> {
+                    DesignDraftMediaAsset entity = invocation.getArgument(0);
+                    entity.setId(UUID.randomUUID());
+                    return entity;
+                });
     }
 
     @Test
@@ -168,6 +200,7 @@ class DesignerDraftEditorServiceUnitTest {
         assertEquals("designer/panorama", panorama.getImageKey());
         assertEquals(0, panorama.getOrderIndex());
         assertTrue(panorama.getIsDefault());
+        assertNotNull(panorama.getId());
         verify(graphValidator).validateWorkingGraph(request, draft);
         verify(benefitGuardService).assertMutationAllowed(request, emptyUsage, draft);
     }
@@ -221,6 +254,7 @@ class DesignerDraftEditorServiceUnitTest {
         assertEquals(HotspotType.INFO, hotspot.getType());
         assertEquals(HotspotInfoContentType.TEXT, hotspot.getInfoContentType());
         assertEquals("Company introduction", hotspot.getInfoText());
+        assertNotNull(hotspot.getId());
         assertNull(hotspot.getProduct());
         assertNull(hotspot.getMediaAsset());
         verify(benefitGuardService).assertMutationAllowed(request, emptyUsage, draft);
@@ -508,6 +542,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         assertEquals(0, draft.getMediaAssets().get(0).getSortOrder());
         assertEquals("Intro", draft.getMediaAssets().get(0).getTitle());
+        assertNotNull(draft.getMediaAssets().get(0).getId());
     }
 
     @Test

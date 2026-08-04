@@ -2,6 +2,7 @@ package com.example.vex360.shared.config;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +11,7 @@ import com.example.vex360.features.user.services.UserService;
 import lombok.RequiredArgsConstructor;
 
 @Component
+@Order(0)
 @RequiredArgsConstructor
 public class AdminAccountInitializer implements ApplicationRunner {
 
