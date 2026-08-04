@@ -11,6 +11,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
+import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -150,12 +151,10 @@ public class ChatService {
 
     // ── 5. Danh sách phòng chat của 1 user ───────────────────────
     @Transactional(readOnly = true)
-    public List<ChatRoomResponse> getRoomsForUser(User user) {
-        String role = user.getRole().name();
-
-        List<ChatRoom> rooms = role.equals("EXHIBITOR")
-                ? chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(user.getId())
-                : chatRoomRepository.findByVisitorUserIdOrderByLastMessageAtDesc(user.getId());
+    public List<ChatRoomResponse> getRoomsForUser(UUID userId, Role role) {
+        List<ChatRoom> rooms = role == Role.EXHIBITOR
+                ? chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(userId)
+                : chatRoomRepository.findByVisitorUserIdOrderByLastMessageAtDesc(userId);
 
         return rooms.stream().map(room -> ChatRoomResponse.builder()
                 .roomId(room.getId())
@@ -168,7 +167,7 @@ public class ChatService {
                 .lastMessageAt(room.getLastMessageAt())
                 .lastMessagePreview(room.getLastMessagePreview())
                 .unreadCount((int) chatMessageRepository.countUnreadByRoomIdAndUserId(room.getId(),
-                        user.getId()))
+                        userId))
                 .messages(List.of())
                 .build()).toList();
     }
