@@ -51,5 +51,12 @@ public class ChatRoom {
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();
+        // Phòng mới chưa có tin nhắn nào — coi thời điểm tạo phòng là "hoạt động gần
+        // nhất"
+        // để cột này không bao giờ NULL (một số schema cũ ràng buộc NOT NULL ở cột này)
+        // và để phòng mới sắp xếp đúng thứ tự trong danh sách "gần đây".
+        if (this.lastMessageAt == null) {
+            this.lastMessageAt = this.createdAt;
+        }
     }
 }

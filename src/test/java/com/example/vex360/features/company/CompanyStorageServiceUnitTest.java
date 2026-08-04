@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.company.dtos.response.StorageUsageResponseDTO;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.shared.exceptions.AppException;
@@ -28,9 +27,6 @@ class CompanyStorageServiceUnitTest {
 
     @Mock
     private CompanyRepository companyRepository;
-
-    @Mock
-    private MediaAssetRepository mediaAssetRepository;
 
     @InjectMocks
     private CompanyStorageService companyStorageService;
@@ -279,7 +275,8 @@ class CompanyStorageServiceUnitTest {
     void adjustReservation_QuotaExceeded_ThrowsStorageQuotaExceeded() {
         stubCompanyLock();
 
-        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401 overflows quota
+        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401
+        // overflows quota
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.adjustReservation(company, 50L, 401L));
 
@@ -334,5 +331,39 @@ class CompanyStorageServiceUnitTest {
         StorageUsageResponseDTO result = companyStorageService.getUsage(overCompany);
 
         assertEquals(0L, result.getAvailableBytes());
+    }
+
+    @Test
+    void getUsage_SplitsMediaAssetBytesFromProductBytes() {
+        // usedBytes=100 gồm cả media lẫn sản phẩm; media chiếm 60 -> sản phẩm còn 40.
+        StorageUsageResponseDTO result = companyStorageService.getUsage(company, 60L);
+
+        assertEquals(100L, result.getUsedBytes());
+        assertEquals(60L, result.getMediaAssetUsedBytes());
+        assertEquals(40L, result.getProductUsedBytes());
+    }
+
+    @Test
+    void getUsage_MediaAssetBytesExceedUsedBytes_ProductUsedBytesClampedToZero() {
+        // Dữ liệu media và usedBytes được truy vấn độc lập nhau nên có thể lệch pha;
+        // productUsedBytes không được phép âm.
+        StorageUsageResponseDTO result = companyStorageService.getUsage(company, 150L);
+
+        assertEquals(150L, result.getMediaAssetUsedBytes());
+        assertEquals(0L, result.getProductUsedBytes());
+    }
+
+    @Test
+    void getUsage_CompanyIdNull_ReturnsUsageWithoutMediaBreakdown() {
+        Company companyWithoutId = Company.builder()
+                .storageUsedBytes(100L)
+                .storageReservedBytes(0L)
+                .storageQuotaBytes(500L)
+                .build();
+
+        StorageUsageResponseDTO result = companyStorageService.getUsage(companyWithoutId);
+
+        assertEquals(0L, result.getMediaAssetUsedBytes());
+        assertEquals(100L, result.getProductUsedBytes());
     }
 }

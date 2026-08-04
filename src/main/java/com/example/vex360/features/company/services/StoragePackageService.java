@@ -46,6 +46,7 @@ public class StoragePackageService {
     private final StoragePackageOrderRepository storagePackageOrderRepository;
     private final CompanyRepository companyRepository;
     private final CompanyService companyService;
+    private final CompanyStorageService companyStorageService;
 
     @Value("${app.payos.storage-return-url:http://localhost:5175/storage/payment/success}")
     private String returnUrl;
@@ -111,6 +112,9 @@ public class StoragePackageService {
 
         StoragePackage pkg = storagePackageRepository.findById(request.getPackageId())
                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_NOT_FOUND));
+        if (!Boolean.TRUE.equals(pkg.getIsActive())) {
+            throw new AppException(ErrorCode.STORAGE_PACKAGE_INACTIVE);
+        }
 
         long orderCode = System.currentTimeMillis() / 1000 * 1000000L + random.nextLong(1000000L);
 
@@ -149,7 +153,7 @@ public class StoragePackageService {
 
     @Transactional
     public void markPaidAndIncrementQuota(Integer storagePackageOrderId) {
-        StoragePackageOrder order = storagePackageOrderRepository.findById(storagePackageOrderId)
+        StoragePackageOrder order = storagePackageOrderRepository.findByIdForUpdate(storagePackageOrderId)
                 .orElseThrow(() -> new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_NOT_FOUND));
 
         if (order.getStatus() == StoragePackageOrderStatus.PAID) {
@@ -157,31 +161,29 @@ public class StoragePackageService {
             return;
         }
 
+        Long quotaSnapshot = order.getQuotaBytesSnapshot();
+        if (quotaSnapshot == null || quotaSnapshot <= 0) {
+            log.error("Storage order {} has no valid quota snapshot; refusing to grant mutable package quota",
+                    order.getId());
+            throw new AppException(ErrorCode.STORAGE_PACKAGE_ORDER_SNAPSHOT_MISSING);
+        }
+
         order.setStatus(StoragePackageOrderStatus.PAID);
         order.setPaidAt(Instant.now());
         storagePackageOrderRepository.save(order);
 
-        long quotaToAdd = order.getQuotaBytesSnapshot() != null ? order.getQuotaBytesSnapshot()
-                : order.getStoragePackage().getQuotaBytes();
         Company company = order.getCompany();
-        companyRepository.incrementStorageQuota(company.getId(), quotaToAdd);
-        company.setStorageQuotaBytes(company.getStorageQuotaBytes() + quotaToAdd);
-        log.info("Storage package PAID. Company {} quota atomically increased by {}B", company.getId(), quotaToAdd);
+        int updatedRows = companyRepository.incrementStorageQuota(company.getId(), quotaSnapshot);
+        if (updatedRows != 1) {
+            log.error("Cannot increment storage quota because company {} was not found", company.getId());
+            throw new AppException(ErrorCode.COMPANY_NOT_FOUND);
+        }
+        log.info("Storage package PAID. Company {} quota atomically increased by {}B", company.getId(), quotaSnapshot);
     }
 
     public StorageUsageResponseDTO getUsage(User currentUser) {
         Company company = companyService.getCompanyEntityForCurrentUser(currentUser);
-        long used = company.getStorageUsedBytes();
-        long reserved = company.getStorageReservedBytes() == null ? 0 : company.getStorageReservedBytes();
-        long quota = company.getStorageQuotaBytes();
-        double percentage = quota > 0 ? (double) used / quota * 100 : 0;
-        return StorageUsageResponseDTO.builder()
-                .usedBytes(used)
-                .reservedBytes(reserved)
-                .quotaBytes(quota)
-                .availableBytes(Math.max(0, quota - used - reserved))
-                .usedPercentage(Math.round(percentage * 10.0) / 10.0)
-                .build();
+        return companyStorageService.getUsage(company);
     }
 
     public StoragePackageResponseDTO updatePackage(Integer id, CreateStoragePackageRequest request) {

@@ -75,7 +75,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(
             HttpMessageNotReadableException ex,
             HttpServletRequest request) {
-        log.warn("Request body is not readable for request: {}", LogSanitizer.sanitize(request.getRequestURI()));
+        String causeMessage = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        log.warn("Request body is not readable for request: {} - {}",
+                LogSanitizer.sanitize(request.getRequestURI()),
+                LogSanitizer.sanitize(causeMessage));
 
         ErrorCode errorCode = ErrorCode.VALIDATION_FAILED;
         ErrorResponse errorResponse = ErrorResponse.builder()

@@ -230,7 +230,7 @@ public class PartnershipRequestService {
                 .build();
 
         User savedUser = userService.createUser(userRequest, UserStatus.ACTIVE);
-        companyService.createCompany(
+        companyService.ensureCompanyForCompanyRole(
                 savedUser,
                 normalize(request.getOrganizationName()),
                 normalize(request.getRequesterEmail()),
@@ -254,13 +254,11 @@ public class PartnershipRequestService {
         user.setRole(request.getRequestedRole());
         User savedUser = userService.saveUserEntity(user);
 
-        if (!companyService.existsByOwnerUserId(savedUser.getId())) {
-            companyService.createCompany(
-                    savedUser,
-                    normalize(request.getOrganizationName()),
-                    normalize(request.getRequesterEmail()),
-                    normalize(request.getRequesterPhoneNumber()));
-        }
+        companyService.ensureCompanyForCompanyRole(
+                savedUser,
+                normalize(request.getOrganizationName()),
+                normalize(request.getRequesterEmail()),
+                normalize(request.getRequesterPhoneNumber()));
 
         String notificationEmail = resolveNotificationEmail(request, savedUser);
         String notificationName = resolveNotificationName(request, savedUser);

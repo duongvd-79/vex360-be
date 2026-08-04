@@ -40,6 +40,7 @@ import com.example.vex360.features.company.repositories.StoragePackageOrderRepos
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.services.StoragePackageService;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -60,6 +61,9 @@ class StoragePackageServiceUnitTest {
 
     @Mock
     private CompanyService companyService;
+
+    @Mock
+    private CompanyStorageService companyStorageService;
 
     @InjectMocks
     private StoragePackageService storagePackageService;
@@ -165,7 +169,7 @@ class StoragePackageServiceUnitTest {
     }
 
     @Test
-    void testHandleStoragePackagePaymentCompleted_UsesQuotaBytesSnapshot() {
+    void markPaidAndIncrementQuota_UsesSingleAtomicQuotaIncrement() {
         StoragePackageOrder order = StoragePackageOrder.builder()
                 .id(7)
                 .orderCode(123456L)
@@ -177,12 +181,13 @@ class StoragePackageServiceUnitTest {
                 .status(StoragePackageOrderStatus.PENDING)
                 .build();
 
-        when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
+        when(storagePackageOrderRepository.findByIdForUpdate(7)).thenReturn(Optional.of(order));
+        when(companyRepository.incrementStorageQuota(company.getId(), 5000L)).thenReturn(1);
 
         storagePackageService.markPaidAndIncrementQuota(7);
 
         assertEquals(StoragePackageOrderStatus.PAID, order.getStatus());
-        assertEquals(6000L, company.getStorageQuotaBytes());
+        assertEquals(1000L, company.getStorageQuotaBytes());
         verify(companyRepository).incrementStorageQuota(company.getId(), 5000L);
     }
 
@@ -198,7 +203,7 @@ class StoragePackageServiceUnitTest {
                 .status(StoragePackageOrderStatus.PAID)
                 .build();
 
-        when(storagePackageOrderRepository.findById(7)).thenReturn(Optional.of(order));
+        when(storagePackageOrderRepository.findByIdForUpdate(7)).thenReturn(Optional.of(order));
 
         storagePackageService.markPaidAndIncrementQuota(7);
 
@@ -309,22 +314,24 @@ class StoragePackageServiceUnitTest {
                 .storagePackage(storagePackage)
                 .orderCode(123456L)
                 .amountVnd(100000L)
+                .quotaBytesSnapshot(2000L)
                 .status(StoragePackageOrderStatus.PENDING)
                 .build();
-        when(storagePackageOrderRepository.findById(10)).thenReturn(Optional.of(order));
+        when(storagePackageOrderRepository.findByIdForUpdate(10)).thenReturn(Optional.of(order));
+        when(companyRepository.incrementStorageQuota(company.getId(), 2000L)).thenReturn(1);
 
         storagePackageService.markPaidAndIncrementQuota(10);
 
         assertEquals(StoragePackageOrderStatus.PAID, order.getStatus());
         assertNotNull(order.getPaidAt());
-        assertEquals(3000L, company.getStorageQuotaBytes()); // 1000 (initial) + 2000 (package quota)
+        assertEquals(1000L, company.getStorageQuotaBytes());
         verify(storagePackageOrderRepository).save(order);
         verify(companyRepository).incrementStorageQuota(company.getId(), 2000L);
     }
 
     @Test
     void handleStoragePackagePaymentCompleted_OrderNotFound_ThrowsStoragePackageOrderNotFound() {
-        when(storagePackageOrderRepository.findById(99)).thenReturn(Optional.empty());
+        when(storagePackageOrderRepository.findByIdForUpdate(99)).thenReturn(Optional.empty());
 
         AppException exception = assertThrows(AppException.class,
                 () -> storagePackageService.markPaidAndIncrementQuota(99));
