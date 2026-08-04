@@ -127,6 +127,11 @@ public class CompanyService {
                 .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
+    public boolean isLogoAssetReferenced(String publicId) {
+        return companyRepository.existsByLogoUrlContaining(publicId);
+    }
+
     private boolean hasCompleteProfile(Company company) {
         return hasText(company.getIndustry())
                 && hasText(company.getDescription())

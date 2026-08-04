@@ -17,6 +17,9 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
 
     boolean existsByOwnerUserId(UUID ownerUserId);
 
+    @Query("SELECT COUNT(c) > 0 FROM Company c WHERE c.logoUrl LIKE CONCAT('%/', :publicId, '.%') OR c.logoUrl LIKE CONCAT('%/', :publicId)")
+    boolean existsByLogoUrlContaining(@Param("publicId") String publicId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT company FROM Company company WHERE company.id = :id")
     Optional<Company> findByIdForUpdate(@Param("id") UUID id);

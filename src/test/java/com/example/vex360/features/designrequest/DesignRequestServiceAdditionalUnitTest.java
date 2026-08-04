@@ -53,6 +53,7 @@ import com.example.vex360.features.designrequest.services.DesignDraftRetentionSe
 import com.example.vex360.features.designrequest.services.DesignDraftSettingsService;
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
+import com.example.vex360.features.designrequest.services.DesignRequestLifecyclePolicy;
 import com.example.vex360.features.designrequest.services.DesignRequestMediaAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestProductService;
 import com.example.vex360.features.designrequest.services.DesignRequestService;
@@ -110,6 +111,8 @@ class DesignRequestServiceAdditionalUnitTest {
     private DesignDraftBenefitGuardService draftBenefitGuardService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private DesignRequestLifecyclePolicy designRequestLifecyclePolicy;
 
     @InjectMocks
     private DesignRequestService service;

@@ -1,10 +1,12 @@
 package com.example.vex360.features.auth.repositories;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.auth.entities.RefreshToken;
@@ -24,4 +26,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Inte
     void deleteByUser(User user);
 
     List<RefreshToken> findAllByUser(User user);
+
+    @Modifying
+    @Query("DELETE FROM RefreshToken token WHERE token.expiryDate < :cutoff")
+    int deleteByExpiryDateBefore(@Param("cutoff") Instant cutoff);
 }

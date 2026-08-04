@@ -15,6 +15,11 @@ import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.entities.Product;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+    boolean existsByThumbnailPublicId(String publicId);
+
+    @Query("SELECT COUNT(content) > 0 FROM ProductContent content WHERE content.publicId = :publicId")
+    boolean existsContentByPublicId(@Param("publicId") String publicId);
+
     @Query("""
             SELECT p FROM Product p
             WHERE p.company.id = :companyId
