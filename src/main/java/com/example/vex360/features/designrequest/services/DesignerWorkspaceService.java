@@ -26,6 +26,7 @@ import com.example.vex360.features.designrequest.dtos.response.DesignDraftWorksp
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
+import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
@@ -47,6 +48,7 @@ import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 
 import lombok.RequiredArgsConstructor;
 
@@ -241,9 +243,9 @@ public class DesignerWorkspaceService {
                 .toList();
         List<SubmitDesignDraftMediaAssetRequest> mediaAssets = draft.getMediaAssets() == null ? List.of()
                 : draft.getMediaAssets().stream()
-                        .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
-                        .map(this::toMediaAssetRequest)
-                        .toList();
+                .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
+                .map(this::toMediaAssetRequest)
+                .toList();
         return new DesignDraftWorkspaceResponseDTO(
                 draft.getId(),
                 draft.getVersionNumber(),
@@ -263,7 +265,7 @@ public class DesignerWorkspaceService {
         return working != null
                 && working.getVersionNumber() == WORKING_VERSION
                 && (request.getStatus() == DesignRequestStatus.ASSIGNED
-                        || request.getStatus() == DesignRequestStatus.REVISION_REQUESTED)
+                || request.getStatus() == DesignRequestStatus.REVISION_REQUESTED)
                 && request.getCancellationStatus() != DesignRequestCancellationStatus.REQUESTED;
     }
 
@@ -350,6 +352,7 @@ public class DesignerWorkspaceService {
                 .mode(request.getMode())
                 .remainingDesignActions(eligibilityService.remainingActions(request.getBooth()))
                 .currentBooth(boothMapper.toBoothResponseDTO(request.getBooth()))
+                .submittedThumbnailUrl(resolveThumbnailUrl(request, latest))
                 .latestSubmittedDraft(toDraftResponse(latest))
                 .requiredProducts(required)
                 .optionalProducts(optional)
@@ -364,9 +367,22 @@ public class DesignerWorkspaceService {
                 .build();
     }
 
+    private String resolveThumbnailUrl(DesignRequest request, DesignDraft draft) {
+        DesignDraftFileAction action = draft.getThumbnailAction() == null
+                ? DesignDraftFileAction.KEEP
+                : draft.getThumbnailAction();
+        DesignDraftAsset asset = draft.getThumbnailAsset();
+
+        return switch (action) {
+            case KEEP -> asset == null ? request.getBooth().getThumbnailUrl() : asset.getUrl();
+            case REPLACE -> asset == null ? null : asset.getUrl();
+            case CLEAR -> null;
+        };
+    }
+
     @Transactional(readOnly = true)
     public DesignDraftWorkspaceResponseDTO getHistoricalDraftPreview(User exhibitor, UUID requestId,
-            Integer versionNumber) {
+                                                                     Integer versionNumber) {
         Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
         DesignRequest request = designRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));

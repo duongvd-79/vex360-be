@@ -31,6 +31,9 @@ import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftHotspotRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.designrequest.services.DesignRequestLifecyclePolicy;
@@ -54,6 +57,12 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
     private DesignDraftRepository draftRepository;
     @Mock
     private DesignDraftAssetRepository draftAssetRepository;
+    @Mock
+    private DesignDraftPanoramaRepository draftPanoramaRepository;
+    @Mock
+    private DesignDraftHotspotRepository draftHotspotRepository;
+    @Mock
+    private DesignDraftMediaAssetRepository draftMediaAssetRepository;
     @Mock
     private DesignDraftAssetService assetService;
     @Mock
@@ -86,6 +95,9 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
                 requestRepository,
                 draftRepository,
                 draftAssetRepository,
+                draftPanoramaRepository,
+                draftHotspotRepository,
+                draftMediaAssetRepository,
                 assetService,
                 requestProductService,
                 requestMediaAssetService,

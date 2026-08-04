@@ -20,14 +20,14 @@ import com.example.vex360.features.booth.enums.BoothStatus;
 public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     @Query(value = """
             SELECT DISTINCT product
-            FROM Hotspot hotspot
-            JOIN hotspot.product product
+            FROM Product product, Hotspot hotspot
             JOIN hotspot.sourcePanorama panorama
             JOIN panorama.booth booth
             JOIN booth.exhibitorRegistration registration
             JOIN registration.exhibitionPackage exhibitionPackage
             JOIN exhibitionPackage.exhibition exhibition
-            WHERE exhibition.uuid = :exhibitionUuid
+            WHERE hotspot.product = product
+              AND exhibition.uuid = :exhibitionUuid
               AND booth.status = :boothStatus
               AND booth.isTemplate = false
               AND product.status = :productStatus
@@ -37,14 +37,14 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
                 OR LOWER(booth.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
             """, countQuery = """
             SELECT COUNT(DISTINCT product.id)
-            FROM Hotspot hotspot
-            JOIN hotspot.product product
+            FROM Product product, Hotspot hotspot
             JOIN hotspot.sourcePanorama panorama
             JOIN panorama.booth booth
             JOIN booth.exhibitorRegistration registration
             JOIN registration.exhibitionPackage exhibitionPackage
             JOIN exhibitionPackage.exhibition exhibition
-            WHERE exhibition.uuid = :exhibitionUuid
+            WHERE hotspot.product = product
+              AND exhibition.uuid = :exhibitionUuid
               AND booth.status = :boothStatus
               AND booth.isTemplate = false
               AND product.status = :productStatus

@@ -16,6 +16,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Sort;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,8 @@ import com.example.vex360.features.booth.repositories.BoothReviewRequestReposito
 import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.MediaAssetRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.chat.entities.ChatMessage;
+import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
@@ -60,7 +63,12 @@ import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestMessageRepository;
+import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
+import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
+import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignRequestProductRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
+import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
@@ -89,6 +97,11 @@ import com.example.vex360.features.product.repositories.ProductCategoryRepositor
 import com.example.vex360.features.product.repositories.ProductRepository;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.repositories.UserRepository;
+import com.example.vex360.features.wallet.dtos.UpdatePayoutProfileRequestDTO;
+import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
+import com.example.vex360.features.wallet.repositories.OrganizerWalletRepository;
+import com.example.vex360.features.wallet.services.CompanyPayoutProfileService;
+import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionService;
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.BoothListingPriority;
@@ -127,6 +140,7 @@ import lombok.extern.slf4j.Slf4j;
  * không làm hỏng toàn bộ quá trình seed.
  */
 @Component
+@Order(1)
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
@@ -305,9 +319,16 @@ public class DataSeeder implements ApplicationRunner {
         private final DesignDraftRepository designDraftRepository;
         private final DesignDraftPanoramaRepository designDraftPanoramaRepository;
         private final DesignRequestMessageRepository designRequestMessageRepository;
+        private final DesignRequestProductRepository designRequestProductRepository;
+        private final DesignRequestMediaAssetRepository designRequestMediaAssetRepository;
+        private final DesignRequestBaselineService designRequestBaselineService;
         private final ChatRoomRepository chatRoomRepository;
         private final ChatMessageRepository chatMessageRepository;
         private final BoothLeadRepository boothLeadRepository;
+        private final CompanyPayoutProfileRepository companyPayoutProfileRepository;
+        private final OrganizerWalletRepository organizerWalletRepository;
+        private final CompanyPayoutProfileService companyPayoutProfileService;
+        private final PaymentRevenueRecognitionService paymentRevenueRecognitionService;
 
         private final PasswordEncoder passwordEncoder;
         private final Cloudinary cloudinary;
@@ -334,6 +355,13 @@ public class DataSeeder implements ApplicationRunner {
                         ensureExhibitorLeadApiFixtures();
                         ensureExhibitorReportApiFixtures();
                         log.info("[SEED] Dữ liệu demo đã tồn tại; fixture EXHREG đã được kiểm tra/cập nhật.");
+                        User existingOrganizer = userRepository.findByEmail(MARKER_EMAIL).orElseThrow();
+                        User existingAdmin = userRepository.findByEmail("admin@vex360.local").orElseThrow();
+                        Company existingOrganizerCompany = companyRepository
+                                        .findByOwnerUserId(existingOrganizer.getId())
+                                        .orElseThrow();
+                        seedOrganizerFinance(existingOrganizer, existingAdmin, existingOrganizerCompany);
+                        log.info("[SEED] Core test data already exists; organizer finance data is ready.");
                         return;
                 }
 
@@ -500,6 +528,7 @@ public class DataSeeder implements ApplicationRunner {
                 // ---------- 6. EXHIBITION PACKAGES ----------
                 ExhibitionPackage basicPackage = savePackage(basicTemplate, exhibition, "5000000");
                 ExhibitionPackage premiumPackage = savePackage(premiumTemplate, exhibition, "13500000");
+                ExhibitionPackage designTestPackage = savePackage(basicTemplate, exhRegistration, "5000000");
                 ExhibitionPackage regPackage = savePackage(basicTemplate, exhRegistration, "4500000");
                 savePackage(premiumTemplate, exhRegistration, "12000000");
                 savePackage(basicTemplate, exhActive, "6000000");
@@ -507,33 +536,50 @@ public class DataSeeder implements ApplicationRunner {
                 // Gói active để tạo booth mock; vẫn giữ thêm một gói inactive để phủ enum.
                 ExhibitionPackage completedPremiumPackage = savePackage(premiumTemplate, exhCompleted, "11000000");
                 savePackage(premiumTemplate, exhCompleted, "11000000", ExhibitionPackageStatus.INACTIVE);
-                log.info("[SEED] Đã tạo 8 exhibition package (phủ đủ ExhibitionPackageStatus)");
+                log.info("[SEED] Đã tạo 9 exhibition package (phủ đủ ExhibitionPackageStatus)");
 
                 // ---------- 7. EXHIBITOR REGISTRATIONS (phủ đủ 5 trạng thái) ----------
                 ExhibitorRegistration reg1 = exhibitorRegistrationRepository.save(buildRegistration(
                                 premiumPackage, company1, premiumTemplate, ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Chúng tôi muốn giới thiệu bộ sưu tập nội thất gỗ mới.", null));
+                                admin, "Chúng tôi muốn giới thiệu bộ sưu tập nội thất gỗ mới.", null,
+                                "Gian hàng Nội thất Mộc Việt",
+                                "Gian hàng giới thiệu bộ sưu tập nội thất gỗ cao cấp Mộc Việt."));
                 ExhibitorRegistration reg2 = exhibitorRegistrationRepository.save(buildRegistration(
                                 basicPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING_PAYMENT,
-                                null, "TechVina mong muốn tiếp cận khách hàng doanh nghiệp.", null));
-                ExhibitorRegistration reg3 = exhibitorRegistrationRepository.save(buildRegistration(
-                                regPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING,
-                                null, "TechVina muốn trưng bày giải pháp vật liệu thông minh.", null));
+                                null, "TechVina mong muốn tiếp cận khách hàng doanh nghiệp.", null,
+                                "Gian hàng TechVina IoT",
+                                "Gian hàng giới thiệu giải pháp nhà thông minh và thiết bị IoT TechVina."));
+                ExhibitorRegistration designTestRegistration = exhibitorRegistrationRepository.save(buildRegistration(
+                                designTestPackage, company2, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
+                                admin, "TechVina sử dụng dịch vụ thiết kế gian hàng 360.", null,
+                                "Gian hàng TechVina", "Trưng bày thiết bị công nghệ thông minh."));
+                ExhibitorRegistration payosWebhookTestRegistration = exhibitorRegistrationRepository
+                                .save(buildRegistration(
+                                                regPackage, company2, basicTemplate,
+                                                ExhibitorRegistrationStatus.PENDING_PAYMENT,
+                                                null, "Dữ liệu kiểm thử tích hợp webhook PayOS.", null,
+                                                "PAYHK Webhook Integration Test",
+                                                "Gian hàng chuyên dùng cho kiểm thử webhook PayOS."));
                 ExhibitorRegistration reg4 = exhibitorRegistrationRepository.save(buildRegistration(
                                 regPackage, company1, basicTemplate, ExhibitorRegistrationStatus.REJECTED,
                                 organizer, "Mộc Việt đăng ký gian hàng nội thất gỗ.",
-                                "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm."));
+                                "Ngành hàng không phù hợp với chủ đề vật liệu xây dựng của triển lãm.",
+                                "Gian hàng Gỗ Mộc Việt", "Bộ sưu tập sản phẩm gỗ tự nhiên cao cấp."));
                 ExhibitorRegistration reg5 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPackage, company2, basicTemplate, ExhibitorRegistrationStatus.CANCELED,
-                                null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null));
+                                null, "Đăng ký rồi tự huỷ do thay đổi kế hoạch kinh doanh.", null,
+                                "Gian hàng TechVina Cũ", "Gian hàng thử nghiệm của TechVina."));
                 ExhibitorRegistration completedReg1 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPackage, company1, basicTemplate, ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null));
+                                admin, "Trưng bày bộ sưu tập nội thất gỗ mùa thu.", null,
+                                "Mộc Việt - Bộ sưu tập Mùa Thu", "Nội thất gỗ tự nhiên cho không gian sống mùa thu."));
                 ExhibitorRegistration completedReg2 = exhibitorRegistrationRepository.save(buildRegistration(
                                 completedPremiumPackage, company2, premiumTemplate,
                                 ExhibitorRegistrationStatus.APPROVED,
-                                admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null));
-                log.info("[SEED] Đã tạo 5 exhibitor registration "
+                                admin, "Giới thiệu giải pháp nhà thông minh cho không gian sống.", null,
+                                "TechVina Home - Nhà thông minh",
+                                "Thiết bị thông minh cho không gian nội thất hiện đại."));
+                log.info("[SEED] Đã tạo 9 exhibitor registration "
                                 + "(APPROVED/PENDING_PAYMENT/PENDING/REJECTED/CANCELED)");
 
                 // ---------- 8. PAYMENTS ----------
@@ -549,6 +595,20 @@ public class DataSeeder implements ApplicationRunner {
                                 .systemFee(new BigDecimal("500000")).organizerPayout(new BigDecimal("4500000"))
                                 .currency("VND").paymentProvider("PAYOS")
                                 .status(PaymentStatus.PENDING).build());
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(payosWebhookTestRegistration)
+                                .paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("4500000"))
+                                .systemFee(new BigDecimal("450000")).organizerPayout(new BigDecimal("4050000"))
+                                .currency("VND").paymentProvider("PAYOS")
+                                .status(PaymentStatus.PENDING).build());
+                paymentRepository.save(Payment.builder()
+                                .exhibitorRegistration(designTestRegistration)
+                                .paymentType(PaymentType.EXHIBITION_REGISTRATION)
+                                .orderCode(orderCode()).amount(new BigDecimal("5000000"))
+                                .systemFee(new BigDecimal("500000")).organizerPayout(new BigDecimal("4500000"))
+                                .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-DESIGN-TEST")
+                                .status(PaymentStatus.PAID).paidAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
                 paymentRepository.save(Payment.builder()
                                 .exhibitorRegistration(reg4).paymentType(PaymentType.EXHIBITION_REGISTRATION)
                                 .orderCode(orderCode()).amount(new BigDecimal("4500000"))
@@ -576,7 +636,11 @@ public class DataSeeder implements ApplicationRunner {
                                 .currency("VND").paymentProvider("PAYOS").paymentReference("SEED-AUTUMN-002")
                                 .status(PaymentStatus.PAID).paidAt(completedPaymentTime.plus(2, ChronoUnit.DAYS))
                                 .build());
-                log.info("[SEED] Đã tạo 4 payment (PAID/PENDING/FAILED/EXPIRED)");
+                log.info("[SEED] Đã tạo 8 payment (PAID/PENDING/FAILED/EXPIRED)");
+
+                // ---------- 8A. ORGANIZER WALLET + PAYOUT PROFILE ----------
+                seedOrganizerFinance(organizer, admin, orgCompany);
+                log.info("[SEED] Seeded organizer wallet ledger and VERIFIED payout profile");
 
                 // ---------- 9. BOOTHS ----------
                 Uploaded boothThumb1 = upload(IMG_SHOWROOM, "seed/booth");
@@ -590,8 +654,8 @@ public class DataSeeder implements ApplicationRunner {
                 Uploaded boothThumb2 = upload(IMG_SENSOR, "seed/booth");
                 Booth booth2 = boothRepository.save(Booth.builder()
                                 .name("Gian hàng TechVina").description("Trưng bày thiết bị công nghệ thông minh.")
-                                .status(BoothStatus.DRAFT).isTemplate(false)
-                                .createdBy(exhibitor2).company(company2).exhibitorRegistration(reg2)
+                                .status(BoothStatus.DESIGNING).isTemplate(false)
+                                .createdBy(exhibitor2).company(company2).exhibitorRegistration(designTestRegistration)
                                 .thumbnailUrl(boothThumb2.url()).thumbnailPublicId(boothThumb2.publicId())
                                 .displayTemplateKey("modern").build());
 
@@ -886,12 +950,14 @@ public class DataSeeder implements ApplicationRunner {
                 // booth2 chưa có panorama nào -> INITIAL_DESIGN; booth1 đã có nội dung/đã
                 // publish
                 // -> các yêu cầu sau đó là REDESIGN.
-                designRequestRepository.save(DesignRequest.builder()
+                DesignRequest assignedDesignRequest = designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth2).company(company2).requestedBy(exhibitor2)
                                 .assignedDesigner(designer).status(DesignRequestStatus.ASSIGNED)
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Cần thiết kế gian hàng tông xanh công nghệ, tối giản.")
                                 .reviewCount(0).assignedAt(Instant.now().minus(1, ChronoUnit.DAYS)).build());
+                designRequestBaselineService.createWorkingBaseline(assignedDesignRequest);
+                assignedDesignRequest = designRequestRepository.save(assignedDesignRequest);
                 designRequestRepository.save(DesignRequest.builder()
                                 .booth(booth1).company(company1).requestedBy(exhibitor1)
                                 .status(DesignRequestStatus.PENDING)
@@ -923,25 +989,32 @@ public class DataSeeder implements ApplicationRunner {
                                 .mode(DesignRequestMode.INITIAL_DESIGN)
                                 .note("Exhibitor tự huỷ do đổi kế hoạch.")
                                 .reviewCount(0).canceledAt(Instant.now().minus(2, ChronoUnit.DAYS)).build());
+                designRequestProductRepository.save(DesignRequestProduct.builder()
+                                .designRequest(assignedDesignRequest).product(sensor)
+                                .requiredFromBaseline(false).build());
+                designRequestMediaAssetRepository.save(DesignRequestMediaAsset.builder()
+                                .designRequest(assignedDesignRequest).mediaAsset(poster)
+                                .requiredFromBaseline(false).build());
+                designRequestMessageRepository.save(DesignRequestMessage.builder()
+                                .designRequest(assignedDesignRequest).sender(exhibitor2)
+                                .message("Vui lòng ưu tiên sản phẩm cảm biến và poster giới thiệu trong thiết kế.")
+                                .build());
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus + DesignRequestMode)");
 
                 // ---------- 21. CHAT ROOM + MESSAGES ----------
-                // ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
-                // .exhibition(exhibition).exhibitorUser(exhibitor1).visitorUser(visitor)
-                // .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
-                // .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
-                // .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không
-                // ạ?")
-                // .build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                // .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng
-                // nhé!").build());
-                // chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
-                // .senderRole(Role.EXHIBITOR.name()).content("Bên mình có hỗ trợ giao hàng toàn
-                // quốc ạ.")
-                // .build());
-                // log.info("[SEED] Đã tạo 1 chat room + 3 message");
+                ChatRoom room = chatRoomRepository.save(ChatRoom.builder()
+                                .exhibition(exhActive).exhibitorUser(exhibitor1).visitorUser(visitor)
+                                .lastMessageAt(Instant.now().minus(5, ChronoUnit.MINUTES))
+                                .lastMessagePreview("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(visitor)
+                                .senderRole(Role.VISITOR.name()).content("Chào shop, sofa này còn hàng không ạ?")
+                                .build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                                .senderRole(Role.EXHIBITOR.name()).content("Chào bạn, sản phẩm còn hàng nhé!").build());
+                chatMessageRepository.save(ChatMessage.builder().room(room).sender(exhibitor1)
+                                .senderRole(Role.EXHIBITOR.name())
+                                .content("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
+                log.info("[SEED] Đã tạo 1 chat room + 3 message");
 
                 // ---------- 22. NOTIFICATIONS (không có repository -> dùng EntityManager)
                 // ----------
@@ -959,7 +1032,6 @@ public class DataSeeder implements ApplicationRunner {
                 // Rải event đúng trong thời gian triển lãm đã kết thúc. Nhờ đó tab Analytics
                 // của /organizer/dashboard/exhibitions/{id} có đầy đủ KPI, chart và ranking.
                 User[] autumnVisitors = { visitor, exhibitor1, exhibitor2 };
-                Booth[] autumnBooths = { completedBooth1, completedBooth2 };
                 int[] autumnDays = { 2, 5, 9, 14, 19, 24 };
                 int[] autumnViews = { 6, 9, 7, 12, 10, 14 };
                 int autumnAnalyticsEvents = 0;
@@ -1086,6 +1158,27 @@ public class DataSeeder implements ApplicationRunner {
                                 DEFAULT_PASSWORD);
 
                 log.info("[SEED] HOÀN TẤT (đã tắt phần seed analytics event giả lập).");
+        }
+
+        private void seedOrganizerFinance(User organizer, User admin, Company company) {
+                if (organizerWalletRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        paymentRepository.findAll().stream()
+                                        .filter(payment -> payment.getStatus() == PaymentStatus.PAID)
+                                        .filter(payment -> payment.getPaymentReference() != null
+                                                        && payment.getPaymentReference().startsWith("SEED-"))
+                                        .forEach(paymentRevenueRecognitionService::recognizeRevenueForPayment);
+                }
+
+                if (companyPayoutProfileRepository.findByCompanyId(company.getId()).isEmpty()) {
+                        companyPayoutProfileService.updateProfileForOrganizer(organizer,
+                                        UpdatePayoutProfileRequestDTO.builder()
+                                                        .bankCode("VCB")
+                                                        .bankNameSnapshot("Vietcombank")
+                                                        .accountNumber("0123456789")
+                                                        .accountHolderName("NGUYEN VAN AN")
+                                                        .build());
+                        companyPayoutProfileService.verifyProfileForAdmin(company.getId(), admin);
+                }
         }
 
         // ================= Helpers =================
@@ -1539,9 +1632,11 @@ public class DataSeeder implements ApplicationRunner {
         /**
          * Rebuilds an isolated, idempotent data set for EXHDSG_1..13.
          *
-         * <p>Mutating cases deliberately use different requests so approve, reject,
+         * <p>
+         * Mutating cases deliberately use different requests so approve, reject,
          * cancel and cancellation-request can be executed in any order without
-         * invalidating the remaining happy cases.</p>
+         * invalidating the remaining happy cases.
+         * </p>
          */
         private void ensureExhibitorDesignRequestApiFixtures() {
                 User admin = userRepository.findByEmail("admin@vex360.local").orElse(null);
@@ -1725,7 +1820,8 @@ public class DataSeeder implements ApplicationRunner {
                 registration.setRejectedReason(null);
                 registration.setParticipationReason("Dedicated fixture for EXHDSG API tests.");
                 registration.setBoothName(boothName);
-                registration.setBoothDescription("Isolated booth data for Exhibitor design-request collaboration tests.");
+                registration.setBoothDescription(
+                                "Isolated booth data for Exhibitor design-request collaboration tests.");
                 registration.setPackageNameSnapshot(template.getName());
                 registration.setPriceSnapshot(template.getPrice());
                 registration.setFinalPriceSnapshot(exhibitionPackage.getFinalPrice());
@@ -2018,7 +2114,8 @@ public class DataSeeder implements ApplicationRunner {
                                 || booth.getExhibitorRegistration() == null
                                 || booth.getExhibitorRegistration().getExhibitionPackage() == null
                                                 ? null
-                                                : booth.getExhibitorRegistration().getExhibitionPackage().getExhibition();
+                                                : booth.getExhibitorRegistration().getExhibitionPackage()
+                                                                .getExhibition();
                 if (visitor == null || booth == null || exhibition == null) {
                         log.warn("[SEED][EXHRPT] Thiếu visitor, booth hoặc exhibition nền; không thể bổ sung fixture API.");
                         return;
@@ -2365,12 +2462,23 @@ public class DataSeeder implements ApplicationRunner {
         private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, Company company,
                         PackageTemplate template, ExhibitorRegistrationStatus status, User reviewedBy,
                         String reason, String rejectedReason) {
+                return buildRegistration(pkg, company, template, status, reviewedBy, reason, rejectedReason,
+                                "Gian hàng " + company.getName(),
+                                "Mô tả gian hàng " + company.getName() + " tại triển lãm.");
+        }
+
+        private ExhibitorRegistration buildRegistration(ExhibitionPackage pkg, Company company,
+                        PackageTemplate template, ExhibitorRegistrationStatus status, User reviewedBy,
+                        String reason, String rejectedReason, String boothName, String boothDescription) {
                 return ExhibitorRegistration.builder()
                                 .exhibitionPackage(pkg).company(company).status(status)
                                 .reviewedBy(reviewedBy).participationReason(reason)
                                 .rejectedReason(rejectedReason)
                                 .boothName("Gian hàng " + company.getName())
                                 .boothDescription(reason != null ? reason : "Gian hàng dữ liệu mẫu VEX360.")
+                                .boothName(boothName != null ? boothName : "Gian hàng " + company.getName())
+                                .boothDescription(boothDescription != null ? boothDescription
+                                                : "Mô tả gian hàng " + company.getName())
                                 .packageNameSnapshot(template.getName())
                                 .priceSnapshot(template.getPrice())
                                 .finalPriceSnapshot(pkg.getFinalPrice())

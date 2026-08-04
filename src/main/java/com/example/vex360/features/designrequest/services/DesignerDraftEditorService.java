@@ -42,6 +42,9 @@ import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftHotspotRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftMediaAssetRepository;
+import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
@@ -61,6 +64,9 @@ public class DesignerDraftEditorService {
     private final DesignRequestRepository requestRepository;
     private final DesignDraftRepository draftRepository;
     private final DesignDraftAssetRepository draftAssetRepository;
+    private final DesignDraftPanoramaRepository draftPanoramaRepository;
+    private final DesignDraftHotspotRepository draftHotspotRepository;
+    private final DesignDraftMediaAssetRepository draftMediaAssetRepository;
     private final DesignDraftAssetService assetService;
     private final DesignRequestProductService requestProductService;
     private final DesignRequestMediaAssetService requestMediaAssetService;
@@ -130,7 +136,7 @@ public class DesignerDraftEditorService {
         normalizePanoramas(draft);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        draftRepository.saveAndFlush(draft);
+        draftPanoramaRepository.saveAndFlush(panorama);
         return previewService.toPanoramaResponse(panorama);
     }
 
@@ -240,7 +246,7 @@ public class DesignerDraftEditorService {
         source.getHotspots().add(hotspot);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        draftRepository.saveAndFlush(draft);
+        draftHotspotRepository.saveAndFlush(hotspot);
         return previewService.toHotspotResponse(hotspot);
     }
 
@@ -692,7 +698,7 @@ public class DesignerDraftEditorService {
                 .sortOrder(nextMediaSortOrder(draft))
                 .build();
         draft.getMediaAssets().add(mediaAsset);
-        draftRepository.saveAndFlush(draft);
+        draftMediaAssetRepository.saveAndFlush(mediaAsset);
 
         return designRequestMapper.toMediaAssetResponse(mediaAsset);
     }
