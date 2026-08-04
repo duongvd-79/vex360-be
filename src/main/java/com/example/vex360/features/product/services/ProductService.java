@@ -416,4 +416,10 @@ public class ProductService {
                 .map(productMapper::toResponse)
                 .collect(Collectors.toMap(ProductResponseDTO::getId, p -> p));
     }
+
+    @Transactional(readOnly = true)
+    public boolean isAssetReferenced(String publicId) {
+        return productRepository.existsByThumbnailPublicId(publicId)
+                || productRepository.existsContentByPublicId(publicId);
+    }
 }

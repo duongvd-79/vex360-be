@@ -490,4 +490,9 @@ public class DesignDraftAssetService {
                 asset.getQuotaState(),
                 asset.getCreatedAt());
     }
+
+    @Transactional(readOnly = true)
+    public boolean isAssetReferenced(String publicId) {
+        return assetRepository.existsByPublicId(publicId);
+    }
 }

@@ -41,6 +41,13 @@ app:
     cloud-name: ${CLOUDINARY_CLOUD_NAME}
     api-key: ${CLOUDINARY_API_KEY}
     api-secret: ${CLOUDINARY_API_SECRET}
+    orphan-cleanup:
+      enabled: ${CLOUDINARY_ORPHAN_CLEANUP_ENABLED:false}
+      cron: ${CLOUDINARY_ORPHAN_CLEANUP_CRON:0 30 2 * * *}
+      grace-period: ${CLOUDINARY_ORPHAN_CLEANUP_GRACE_PERIOD:PT24H}
+      page-size: ${CLOUDINARY_ORPHAN_CLEANUP_PAGE_SIZE:100}
+      max-scanned-per-run: ${CLOUDINARY_ORPHAN_CLEANUP_MAX_SCANNED:1000}
+      max-deletions-per-run: ${CLOUDINARY_ORPHAN_CLEANUP_MAX_DELETIONS:100}
 
   wallet:
     encryption:

@@ -124,4 +124,6 @@ public interface ExhibitionService {
 	Exhibition findExhibitionForUpdate(Integer id);
 
 	Exhibition findExhibitionForUpdate(UUID uuid);
+
+	boolean isAssetReferenced(String publicId);
 }
