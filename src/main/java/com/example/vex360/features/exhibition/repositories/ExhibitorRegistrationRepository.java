@@ -38,6 +38,10 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
 
     boolean existsByExhibitionPackageId(Integer exhibitionPackageId);
 
+    List<ExhibitorRegistration> findByCompanyIdAndExhibitionPackageExhibitionId(
+            UUID companyId,
+            Integer exhibitionId);
+
     @Query("SELECT COUNT(r) > 0 FROM ExhibitorRegistration r " +
             "WHERE r.company.id = :companyId " +
             "AND r.exhibitionPackage.exhibition.id = :exhibitionId " +
