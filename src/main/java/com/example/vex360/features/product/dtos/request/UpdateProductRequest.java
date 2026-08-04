@@ -6,7 +6,10 @@ import java.util.UUID;
 
 import com.example.vex360.features.product.enums.ProductStatus;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -42,6 +45,16 @@ public class UpdateProductRequest {
     private String thumbnailUrl;
     private String thumbnailPublicId;
     private Long thumbnailFileSize;
+
+    @JsonIgnore
+    @AssertTrue(message = "URL, Public ID và kích thước ảnh đại diện phải được cung cấp cùng nhau.")
+    public boolean isThumbnailMetadataConsistent() {
+        int count = 0;
+        if (thumbnailUrl != null && !thumbnailUrl.isBlank()) count++;
+        if (thumbnailPublicId != null && !thumbnailPublicId.isBlank()) count++;
+        if (thumbnailFileSize != null) count++;
+        return count == 0 || count == 3;
+    }
 
     private List<UUID> existingContentIds;
 

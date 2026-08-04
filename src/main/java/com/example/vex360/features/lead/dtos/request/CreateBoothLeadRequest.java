@@ -18,7 +18,7 @@ public record CreateBoothLeadRequest(
         @Size(max = 255, message = "Email không được vượt quá 255 ký tự.")
         String email,
 
-        @Pattern(regexp = "0\\d{9}", message = "Số điện thoại không hợp lệ")
+        @Size(max = 30, message = "Số điện thoại không được vượt quá 30 ký tự.")
         String phoneNumber,
 
         @NotBlank(message = "Vui lòng nhập tên công ty hoặc tổ chức.")

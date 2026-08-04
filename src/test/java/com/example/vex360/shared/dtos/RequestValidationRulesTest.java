@@ -11,6 +11,7 @@ import com.example.vex360.features.analytics.dtos.request.RecordAnalyticsEventRe
 import com.example.vex360.features.analytics.enums.AnalyticsEventType;
 import com.example.vex360.features.chat.dtos.SendChatMessageRequest;
 import com.example.vex360.features.designrequest.dtos.request.ReorderDesignDraftPanoramasRequest;
+import com.example.vex360.features.lead.dtos.request.CreateBoothLeadRequest;
 import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
 
 import jakarta.validation.Validation;
@@ -66,6 +67,15 @@ class RequestValidationRulesTest {
         DeleteUploadRequest request = new DeleteUploadRequest("a".repeat(501), "image");
 
         assertHasMessage(request, "Public ID không được vượt quá 500 ký tự.");
+    }
+
+    @Test
+    void acceptsPreviouslySupportedInternationalLeadPhoneNumber() {
+        CreateBoothLeadRequest request = new CreateBoothLeadRequest(
+                "Nguyen Van An", "lead@example.com", "+84 912 345 678", "Vex360", null, true);
+
+        assertTrue(validator.validate(request).stream()
+                .noneMatch(error -> error.getPropertyPath().toString().equals("phoneNumber")));
     }
 
     private void assertHasMessage(Object request, String expectedMessage) {

@@ -105,9 +105,6 @@ public class ExhibitorRegistration {
     @Column(name = "max_hotspots_per_booth_snapshot")
     Integer maxHotspotsPerBoothSnapshot;
 
-    @Column(name = "storage_limit_mb_snapshot")
-    Long storageLimitMbSnapshot;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "listing_priority_snapshot", columnDefinition = "VARCHAR(50)")
     BoothListingPriority listingPrioritySnapshot;
