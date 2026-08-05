@@ -44,6 +44,7 @@ public class ExhibitorRegistration {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Integer id;
 
+
     @Column(name = "uuid", nullable = false, unique = true)
     @Builder.Default
     UUID uuid = UUID.randomUUID();
