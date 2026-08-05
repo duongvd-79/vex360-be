@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,8 +23,7 @@ import com.example.vex360.features.wallet.dtos.UpdatePayoutProfileRequestDTO;
 import com.example.vex360.features.wallet.enums.PayoutProfileStatus;
 import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
 import com.example.vex360.features.wallet.services.CompanyPayoutProfileService;
-import com.example.vex360.features.wallet.services.PayoutProfileEncryptionService;
-import com.example.vex360.features.wallet.services.PayoutProfileEncryptionService.EncryptedAccountData;
+import com.example.vex360.features.wallet.services.OrganizerWalletDomainService;
 
 @ExtendWith(MockitoExtension.class)
 class CompanyPayoutProfileServiceTest {
@@ -35,7 +35,7 @@ class CompanyPayoutProfileServiceTest {
     private CompanyService companyService;
 
     @Mock
-    private PayoutProfileEncryptionService encryptionService;
+    private OrganizerWalletDomainService walletDomainService;
 
     @InjectMocks
     private CompanyPayoutProfileService payoutProfileService;
@@ -58,10 +58,7 @@ class CompanyPayoutProfileServiceTest {
                 .accountHolderName("NGUYEN VAN A")
                 .build();
 
-        EncryptedAccountData encrypted = new EncryptedAccountData("cipher", "nonce", 1, "7890");
-
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(encryptionService.encryptAccountNumber("1234567890", company.getId())).thenReturn(encrypted);
         when(payoutProfileRepository.findByCompanyId(company.getId())).thenReturn(Optional.empty());
         when(payoutProfileRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -70,7 +67,9 @@ class CompanyPayoutProfileServiceTest {
         assertNotNull(response);
         assertEquals(PayoutProfileStatus.VERIFIED, response.getStatus());
         assertEquals("****7890", response.getAccountNumberMasked());
+        assertEquals("1234567890", response.getAccountNumber());
         assertEquals("VCB", response.getBankCode());
         assertEquals("NGUYEN VAN A", response.getAccountHolderName());
+        verify(walletDomainService).getOrCreateWallet(company);
     }
 }

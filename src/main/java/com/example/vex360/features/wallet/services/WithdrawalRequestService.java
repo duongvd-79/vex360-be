@@ -43,7 +43,6 @@ public class WithdrawalRequestService {
     CompanyService companyService;
     CompanyPayoutProfileRepository payoutProfileRepository;
     OrganizerWalletDomainService walletDomainService;
-    PayoutProfileEncryptionService encryptionService;
 
     public static final BigDecimal MINIMUM_WITHDRAWAL_AMOUNT = new BigDecimal("100000.00");
 
@@ -87,10 +86,7 @@ public class WithdrawalRequestService {
                 .status(WithdrawalStatus.PENDING)
                 .bankCodeSnapshot(profile.getBankCode())
                 .bankNameSnapshot(profile.getBankNameSnapshot())
-                .accountNumberCiphertextSnapshot(profile.getAccountNumberCiphertext())
-                .accountNumberNonceSnapshot(profile.getAccountNumberNonce())
-                .encryptionKeyVersionSnapshot(profile.getEncryptionKeyVersion())
-                .accountNumberLast4Snapshot(profile.getAccountNumberLast4())
+                .accountNumberSnapshot(profile.getAccountNumber())
                 .accountHolderNameSnapshot(profile.getAccountHolderName())
                 .requestedBy(user)
                 .build();
@@ -231,27 +227,11 @@ public class WithdrawalRequestService {
     }
 
     @Transactional(readOnly = true)
-    public String decryptWithdrawalAccountNumberForAdmin(UUID uuid, User adminUser) {
+    public String getFullWithdrawalAccountNumberForAdmin(UUID uuid) {
         WithdrawalRequest request = withdrawalRequestRepository.findByUuid(uuid)
-                .orElseThrow(() -> {
-                    log.warn(
-                            "[AUDIT_WALLET_DECRYPT] action=DECRYPT_ACCOUNT actor_id={} withdrawal_uuid={} outcome=FAILED reason=NOT_FOUND timestamp={}",
-                            adminUser != null ? adminUser.getId() : "UNKNOWN", uuid, java.time.Instant.now());
-                    return new AppException(ErrorCode.WITHDRAWAL_REQUEST_NOT_FOUND);
-                });
+                .orElseThrow(() -> new AppException(ErrorCode.WITHDRAWAL_REQUEST_NOT_FOUND));
 
-        String decrypted = encryptionService.decryptAccountNumber(
-                request.getAccountNumberCiphertextSnapshot(),
-                request.getAccountNumberNonceSnapshot(),
-                request.getEncryptionKeyVersionSnapshot(),
-                request.getCompany().getId());
-
-        log.info(
-                "[AUDIT_WALLET_DECRYPT] action=DECRYPT_ACCOUNT actor_id={} withdrawal_uuid={} company_id={} outcome=SUCCESS timestamp={}",
-                adminUser != null ? adminUser.getId() : "UNKNOWN", uuid, request.getCompany().getId(),
-                java.time.Instant.now());
-
-        return decrypted;
+        return request.getAccountNumberSnapshot();
     }
 
     private Company getCompanyForUser(User user) {
@@ -264,7 +244,10 @@ public class WithdrawalRequestService {
     }
 
     private WithdrawalRequestResponseDTO mapToResponse(WithdrawalRequest request) {
-        String masked = "****" + request.getAccountNumberLast4Snapshot();
+        String accNum = request.getAccountNumberSnapshot();
+        String masked = (accNum != null && accNum.length() >= 4)
+                ? "****" + accNum.substring(accNum.length() - 4)
+                : "****";
         return WithdrawalRequestResponseDTO.builder()
                 .uuid(request.getUuid())
                 .companyId(request.getCompany().getId())
@@ -276,6 +259,7 @@ public class WithdrawalRequestService {
                 .bankCodeSnapshot(request.getBankCodeSnapshot())
                 .bankNameSnapshot(request.getBankNameSnapshot())
                 .accountNumberMaskedSnapshot(masked)
+                .accountNumberSnapshot(accNum)
                 .accountHolderNameSnapshot(request.getAccountHolderNameSnapshot())
                 .requestedAt(request.getRequestedAt())
                 .approvedAt(request.getApprovedAt())

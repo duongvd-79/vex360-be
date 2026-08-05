@@ -16,7 +16,6 @@ import com.example.vex360.features.wallet.dtos.UpdatePayoutProfileRequestDTO;
 import com.example.vex360.features.wallet.entities.CompanyPayoutProfile;
 import com.example.vex360.features.wallet.enums.PayoutProfileStatus;
 import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
-import com.example.vex360.features.wallet.services.PayoutProfileEncryptionService.EncryptedAccountData;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -34,7 +33,7 @@ public class CompanyPayoutProfileService {
 
     CompanyPayoutProfileRepository payoutProfileRepository;
     CompanyService companyService;
-    PayoutProfileEncryptionService encryptionService;
+    OrganizerWalletDomainService walletDomainService;
 
     @Transactional(readOnly = true)
     public CompanyPayoutProfileResponseDTO getProfileForOrganizer(User user) {
@@ -48,18 +47,12 @@ public class CompanyPayoutProfileService {
     public CompanyPayoutProfileResponseDTO updateProfileForOrganizer(User user, UpdatePayoutProfileRequestDTO dto) {
         Company company = getCompanyForUser(user);
 
-        EncryptedAccountData encrypted = encryptionService.encryptAccountNumber(dto.getAccountNumber(),
-                company.getId());
-
         CompanyPayoutProfile profile = payoutProfileRepository.findByCompanyId(company.getId())
                 .orElseGet(() -> CompanyPayoutProfile.builder().company(company).build());
 
         profile.setBankCode(dto.getBankCode().trim());
         profile.setBankNameSnapshot(dto.getBankNameSnapshot().trim());
-        profile.setAccountNumberCiphertext(encrypted.ciphertextBase64());
-        profile.setAccountNumberNonce(encrypted.nonceBase64());
-        profile.setEncryptionKeyVersion(encrypted.keyVersion());
-        profile.setAccountNumberLast4(encrypted.last4());
+        profile.setAccountNumber(dto.getAccountNumber().trim());
         profile.setAccountHolderName(dto.getAccountHolderName().trim().toUpperCase());
         profile.setStatus(PayoutProfileStatus.VERIFIED);
         profile.setVerifiedBy(null);
@@ -69,7 +62,9 @@ public class CompanyPayoutProfileService {
         profile.setRejectedReason(null);
 
         profile = payoutProfileRepository.save(profile);
-        log.info("Payout profile updated and auto-verified for company {}.", company.getId());
+        walletDomainService.getOrCreateWallet(company);
+        log.info("Payout profile updated and auto-verified for company {}. Organizer wallet initialized.",
+                company.getId());
 
         return mapToResponse(profile);
     }
@@ -87,15 +82,18 @@ public class CompanyPayoutProfileService {
     }
 
     @Transactional(readOnly = true)
-    public String decryptAccountNumberForAdmin(UUID companyId, User adminUser) {
-        log.info("Admin {} requested decryption of bank account for company {}", adminUser.getId(), companyId);
+    public String getFullAccountNumberForOrganizer(User user) {
+        Company company = getCompanyForUser(user);
+        CompanyPayoutProfile profile = payoutProfileRepository.findByCompanyId(company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PAYOUT_PROFILE_NOT_FOUND));
+        return profile.getAccountNumber();
+    }
+
+    @Transactional(readOnly = true)
+    public String getFullAccountNumberForAdmin(UUID companyId) {
         CompanyPayoutProfile profile = payoutProfileRepository.findByCompanyId(companyId)
                 .orElseThrow(() -> new AppException(ErrorCode.PAYOUT_PROFILE_NOT_FOUND));
-
-        return encryptionService.decryptAccountNumber(
-                profile.getAccountNumberCiphertext(),
-                profile.getAccountNumberNonce(),
-                companyId);
+        return profile.getAccountNumber();
     }
 
     private Company getCompanyForUser(User user) {
@@ -103,13 +101,17 @@ public class CompanyPayoutProfileService {
     }
 
     private CompanyPayoutProfileResponseDTO mapToResponse(CompanyPayoutProfile profile) {
-        String masked = "****" + profile.getAccountNumberLast4();
+        String accNum = profile.getAccountNumber();
+        String masked = (accNum != null && accNum.length() >= 4)
+                ? "****" + accNum.substring(accNum.length() - 4)
+                : "****";
         return CompanyPayoutProfileResponseDTO.builder()
                 .companyId(profile.getCompany().getId())
                 .companyName(profile.getCompany().getName())
                 .bankCode(profile.getBankCode())
                 .bankNameSnapshot(profile.getBankNameSnapshot())
                 .accountNumberMasked(masked)
+                .accountNumber(accNum)
                 .accountHolderName(profile.getAccountHolderName())
                 .status(profile.getStatus())
                 .verifiedAt(profile.getVerifiedAt())

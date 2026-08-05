@@ -68,12 +68,11 @@ public class AdminWalletController extends BaseController {
         return ok(payoutProfileService.getProfilesForAdmin(status, pageable));
     }
 
-    @GetMapping("/payout-profiles/{companyId}/decrypted-account")
-    @Operation(summary = "Giải mã số tài khoản ngân hàng", description = "Chỉ sử dụng khi Admin thực hiện chuyển khoản ngoài hệ thống. Có ghi log audit.")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getDecryptedAccount(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+    @GetMapping("/payout-profiles/{companyId}/full-account")
+    @Operation(summary = "Xem số tài khoản ngân hàng đầy đủ", description = "Chỉ sử dụng khi Admin thực hiện chuyển khoản ngoài hệ thống")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getFullAccount(
             @PathVariable("companyId") UUID companyId) {
-        String plainAccount = payoutProfileService.decryptAccountNumberForAdmin(companyId, userDetails.getUser());
+        String plainAccount = payoutProfileService.getFullAccountNumberForAdmin(companyId);
         return ok(Map.of("accountNumber", plainAccount));
     }
 
@@ -93,13 +92,11 @@ public class AdminWalletController extends BaseController {
         return ok(withdrawalRequestService.getWithdrawalRequestDetailsForAdmin(uuid));
     }
 
-    @GetMapping("/withdrawals/{uuid}/decrypted-account")
-    @Operation(summary = "Giải mã số tài khoản ngân hàng từ snapshot đơn rút tiền", description = "Admin lấy số tài khoản ngân hàng snapshot theo đơn rút tiền. Có ghi log audit.")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getDecryptedWithdrawalAccount(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+    @GetMapping("/withdrawals/{uuid}/full-account")
+    @Operation(summary = "Xem số tài khoản ngân hàng đầy đủ từ snapshot đơn rút tiền", description = "Admin lấy số tài khoản ngân hàng snapshot theo đơn rút tiền")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getFullWithdrawalAccount(
             @PathVariable("uuid") UUID uuid) {
-        String plainAccount = withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid,
-                userDetails.getUser());
+        String plainAccount = withdrawalRequestService.getFullWithdrawalAccountNumberForAdmin(uuid);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(ApiResponse.success(Map.of("accountNumber", plainAccount)));

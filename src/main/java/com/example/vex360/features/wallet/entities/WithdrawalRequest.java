@@ -76,17 +76,8 @@ public class WithdrawalRequest {
     @Column(name = "bank_name_snapshot", nullable = false, length = 100)
     String bankNameSnapshot;
 
-    @Column(name = "account_number_ciphertext_snapshot", nullable = false, columnDefinition = "TEXT")
-    String accountNumberCiphertextSnapshot;
-
-    @Column(name = "account_number_nonce_snapshot", nullable = false, length = 255)
-    String accountNumberNonceSnapshot;
-
-    @Column(name = "encryption_key_version_snapshot", nullable = false)
-    Integer encryptionKeyVersionSnapshot;
-
-    @Column(name = "account_number_last4_snapshot", nullable = false, length = 10)
-    String accountNumberLast4Snapshot;
+    @Column(name = "account_number_snapshot", nullable = false, length = 50)
+    String accountNumberSnapshot;
 
     @Column(name = "account_holder_name_snapshot", nullable = false, length = 255)
     String accountHolderNameSnapshot;

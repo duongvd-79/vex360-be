@@ -1177,7 +1177,6 @@ public class DataSeeder implements ApplicationRunner {
                                                         .accountNumber("0123456789")
                                                         .accountHolderName("NGUYEN VAN AN")
                                                         .build());
-                        companyPayoutProfileService.verifyProfileForAdmin(company.getId(), admin);
                 }
         }
 

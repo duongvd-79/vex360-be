@@ -55,17 +55,8 @@ public class CompanyPayoutProfile {
     @Column(name = "bank_name_snapshot", nullable = false, length = 100)
     String bankNameSnapshot;
 
-    @Column(name = "account_number_ciphertext", nullable = false, columnDefinition = "TEXT")
-    String accountNumberCiphertext;
-
-    @Column(name = "account_number_nonce", nullable = false, length = 255)
-    String accountNumberNonce;
-
-    @Column(name = "encryption_key_version", nullable = false)
-    Integer encryptionKeyVersion;
-
-    @Column(name = "account_number_last4", nullable = false, length = 10)
-    String accountNumberLast4;
+    @Column(name = "account_number", nullable = false, length = 50)
+    String accountNumber;
 
     @Column(name = "account_holder_name", nullable = false, length = 255)
     String accountHolderName;
