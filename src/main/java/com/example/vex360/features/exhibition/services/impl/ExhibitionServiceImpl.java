@@ -1441,4 +1441,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         return exhibitionRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAssetReferenced(String publicId) {
+        return exhibitionAssetRepository.existsByPublicId(publicId);
+    }
 }

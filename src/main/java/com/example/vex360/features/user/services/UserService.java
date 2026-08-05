@@ -272,4 +272,9 @@ public class UserService {
     public List<User> findUsersByRoleAndStatus(Role role, UserStatus status) {
         return userRepository.findByRoleAndStatusOrderByFullNameAsc(role, status);
     }
+
+    @Transactional(readOnly = true)
+    public boolean isAvatarAssetReferenced(String publicId) {
+        return userRepository.existsByAvatarUrlContaining(publicId);
+    }
 }

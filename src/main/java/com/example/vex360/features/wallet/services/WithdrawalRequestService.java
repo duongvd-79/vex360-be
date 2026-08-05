@@ -258,6 +258,11 @@ public class WithdrawalRequestService {
         return companyService.getCompanyEntityForCurrentUser(user);
     }
 
+    @Transactional(readOnly = true)
+    public boolean isProofAssetReferenced(String publicId) {
+        return withdrawalRequestRepository.existsByProofUrlContaining(publicId);
+    }
+
     private WithdrawalRequestResponseDTO mapToResponse(WithdrawalRequest request) {
         String masked = "****" + request.getAccountNumberLast4Snapshot();
         return WithdrawalRequestResponseDTO.builder()

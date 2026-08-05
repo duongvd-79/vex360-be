@@ -25,6 +25,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
 
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.avatarUrl LIKE CONCAT('%/', :publicId, '.%') OR u.avatarUrl LIKE CONCAT('%/', :publicId)")
+    boolean existsByAvatarUrlContaining(@Param("publicId") String publicId);
+
     @Query("""
             SELECT u FROM User u
             WHERE (:keyword IS NULL
