@@ -30,6 +30,9 @@ public enum ErrorCode {
     PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD("AUTH-007",
             "Tài khoản đăng nhập qua dịch vụ bên ngoài không hỗ trợ đổi mật khẩu.",
             HttpStatus.BAD_REQUEST),
+    PROVIDER_NOT_SUPPORT_FORGOT_PASSWORD("AUTH-008",
+            "Tài khoản của bạn đã được đăng ký qua Google và không hỗ trợ quên mật khẩu. Vui lòng đăng nhập lại bằng Google.",
+            HttpStatus.BAD_REQUEST),
 
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "Không tìm thấy thông tin người dùng.", HttpStatus.NOT_FOUND),
