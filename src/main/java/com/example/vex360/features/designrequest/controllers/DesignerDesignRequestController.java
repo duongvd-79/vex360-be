@@ -50,9 +50,6 @@ import com.example.vex360.features.designrequest.services.DesignDraftAssetServic
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
 import com.example.vex360.features.designrequest.enums.DesignDraftPreviewSource;
-import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
-import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
-import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.features.designrequest.services.DesignerDraftEditorService;
 import com.example.vex360.features.designrequest.services.DesignerDraftPreviewService;
 import com.example.vex360.shared.controllers.BaseController;
@@ -74,7 +71,6 @@ public class DesignerDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;
     private final DesignerWorkspaceService designerWorkspaceService;
     private final DesignDraftAssetService designDraftAssetService;
-    private final DesignRequestCommunicationService communicationService;
     private final DesignerDraftEditorService draftEditorService;
     private final DesignerDraftPreviewService draftPreviewService;
 
@@ -186,24 +182,6 @@ public class DesignerDesignRequestController extends BaseController {
             @PathVariable UUID panoramaId,
             @PathVariable UUID hotspotId) {
         return ok(draftEditorService.deleteHotspot(userDetails.getUser(), id, panoramaId, hotspotId));
-    }
-
-    @GetMapping("/{id}/messages")
-    @Operation(summary = "Designer xem tin nhắn trao đổi làm rõ", description = "Trả về lịch sử các tin nhắn trao đổi làm rõ đối với yêu cầu thiết kế được phân công.")
-    public ResponseEntity<ApiResponse<PageResponse<DesignRequestMessageResponseDTO>>> getMessages(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @ParameterObject @PageableDefault(page = 0, size = 20, sort = "createdAt") Pageable pageable) {
-        return ok(communicationService.getForDesigner(userDetails.getUser(), id, pageable));
-    }
-
-    @PostMapping("/{id}/messages")
-    @Operation(summary = "Designer gửi tin nhắn trao đổi làm rõ", description = "Gửi tin nhắn trao đổi làm rõ đến Exhibitor liên quan đến bản thiết kế.")
-    public ResponseEntity<ApiResponse<DesignRequestMessageResponseDTO>> sendMessage(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @Valid @RequestBody CreateDesignRequestMessageRequest request) {
-        return created(communicationService.sendForDesigner(userDetails.getUser(), id, request.getMessage()));
     }
 
     @GetMapping("/{id}/products")

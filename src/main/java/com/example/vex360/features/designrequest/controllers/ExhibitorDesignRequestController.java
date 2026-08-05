@@ -24,11 +24,8 @@ import com.example.vex360.features.designrequest.dtos.request.CreateDesignReques
 import com.example.vex360.features.designrequest.dtos.request.RejectDesignDraftRequest;
 
 import com.example.vex360.features.designrequest.dtos.request.RequestDesignCancellationRequest;
-import com.example.vex360.features.designrequest.dtos.request.CreateDesignRequestMessageRequest;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestEligibilityResponseDTO;
-import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignRequestSummaryResponseDTO;
-import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.features.designrequest.services.DesignerWorkspaceService;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignRequestResponseDTO;
@@ -52,7 +49,6 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Exhibitor - Design Requests", description = "Exhibitor gửi và review yêu cầu thiết kế booth")
 public class ExhibitorDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;
-    private final DesignRequestCommunicationService communicationService;
     private final DesignerWorkspaceService workspaceService;
 
     @PostMapping
@@ -103,24 +99,6 @@ public class ExhibitorDesignRequestController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody RequestDesignCancellationRequest request) {
         return ok(designRequestService.requestCancellation(userDetails.getUser(), id, request.getReason()));
-    }
-
-    @GetMapping("/{id}/messages")
-    @Operation(summary = "Exhibitor xem tin nhắn trao đổi làm rõ", description = "Lấy lịch sử tin nhắn trao đổi làm rõ giữa Exhibitor và Designer cho yêu cầu thiết kế này.")
-    public ResponseEntity<ApiResponse<PageResponse<DesignRequestMessageResponseDTO>>> getMessages(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @ParameterObject @PageableDefault(page = 0, size = 20, sort = "createdAt") Pageable pageable) {
-        return ok(communicationService.getForExhibitor(userDetails.getUser(), id, pageable));
-    }
-
-    @PostMapping("/{id}/messages")
-    @Operation(summary = "Exhibitor gửi tin nhắn trao đổi làm rõ", description = "Gửi tin nhắn trao đổi làm rõ cho Designer về yêu cầu thiết kế này.")
-    public ResponseEntity<ApiResponse<DesignRequestMessageResponseDTO>> sendMessage(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID id,
-            @Valid @RequestBody CreateDesignRequestMessageRequest request) {
-        return created(communicationService.sendForExhibitor(userDetails.getUser(), id, request.getMessage()));
     }
 
     @PostMapping("/{id}/approve")
