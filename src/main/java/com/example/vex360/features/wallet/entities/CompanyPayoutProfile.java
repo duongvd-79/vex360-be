@@ -32,7 +32,7 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "company_payout_profiles", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_company_payout_profiles_company", columnNames = "company_id")
+        @UniqueConstraint(name = "uk_company_payout_profiles_company", columnNames = "company_id")
 })
 @Getter
 @Setter
@@ -73,7 +73,7 @@ public class CompanyPayoutProfile {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
-    PayoutProfileStatus status = PayoutProfileStatus.PENDING_VERIFICATION;
+    PayoutProfileStatus status = PayoutProfileStatus.VERIFIED;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")

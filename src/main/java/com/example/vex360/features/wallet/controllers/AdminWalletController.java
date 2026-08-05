@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.wallet.dtos.AdminCreateCommissionPolicyRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminMarkPaidWithdrawalRequestDTO;
-import com.example.vex360.features.wallet.dtos.AdminRejectPayoutProfileRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminRejectWithdrawalRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminReversalRequestDTO;
 import com.example.vex360.features.wallet.dtos.CommissionPolicyResponseDTO;
@@ -67,24 +66,6 @@ public class AdminWalletController extends BaseController {
             @RequestParam(name = "status", required = false) PayoutProfileStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(payoutProfileService.getProfilesForAdmin(status, pageable));
-    }
-
-    @PostMapping("/payout-profiles/{companyId}/verify")
-    @Operation(summary = "Phê duyệt tài khoản nhận tiền", description = "Duyệt thông tin tài khoản nhận tiền để Organizer có thể tạo đơn rút")
-    public ResponseEntity<ApiResponse<CompanyPayoutProfileResponseDTO>> verifyPayoutProfile(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("companyId") UUID companyId) {
-        return ok(payoutProfileService.verifyProfileForAdmin(companyId, userDetails.getUser()));
-    }
-
-    @PostMapping("/payout-profiles/{companyId}/reject")
-    @Operation(summary = "Từ chối tài khoản nhận tiền", description = "Từ chối thông tin tài khoản kèm lý do")
-    public ResponseEntity<ApiResponse<CompanyPayoutProfileResponseDTO>> rejectPayoutProfile(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("companyId") UUID companyId,
-            @Valid @RequestBody AdminRejectPayoutProfileRequestDTO request) {
-        return ok(payoutProfileService.rejectProfileForAdmin(companyId, request.getRejectedReason(),
-                userDetails.getUser()));
     }
 
     @GetMapping("/payout-profiles/{companyId}/decrypted-account")

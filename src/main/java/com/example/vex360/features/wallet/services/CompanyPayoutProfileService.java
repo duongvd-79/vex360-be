@@ -61,15 +61,15 @@ public class CompanyPayoutProfileService {
         profile.setEncryptionKeyVersion(encrypted.keyVersion());
         profile.setAccountNumberLast4(encrypted.last4());
         profile.setAccountHolderName(dto.getAccountHolderName().trim().toUpperCase());
-        profile.setStatus(PayoutProfileStatus.PENDING_VERIFICATION);
+        profile.setStatus(PayoutProfileStatus.VERIFIED);
         profile.setVerifiedBy(null);
-        profile.setVerifiedAt(null);
+        profile.setVerifiedAt(Instant.now());
         profile.setRejectedBy(null);
         profile.setRejectedAt(null);
         profile.setRejectedReason(null);
 
         profile = payoutProfileRepository.save(profile);
-        log.info("Payout profile updated for company {}. Reset status to PENDING_VERIFICATION.", company.getId());
+        log.info("Payout profile updated and auto-verified for company {}.", company.getId());
 
         return mapToResponse(profile);
     }
@@ -84,40 +84,6 @@ public class CompanyPayoutProfileService {
             page = payoutProfileRepository.findAll(pageable);
         }
         return PageResponse.from(page.map(this::mapToResponse));
-    }
-
-    @Transactional
-    public CompanyPayoutProfileResponseDTO verifyProfileForAdmin(UUID companyId, User adminUser) {
-        CompanyPayoutProfile profile = payoutProfileRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new AppException(ErrorCode.PAYOUT_PROFILE_NOT_FOUND));
-
-        profile.setStatus(PayoutProfileStatus.VERIFIED);
-        profile.setVerifiedBy(adminUser);
-        profile.setVerifiedAt(Instant.now());
-        profile.setRejectedBy(null);
-        profile.setRejectedAt(null);
-        profile.setRejectedReason(null);
-
-        profile = payoutProfileRepository.save(profile);
-        log.info("Payout profile for company {} VERIFIED by admin {}", companyId, adminUser.getId());
-        return mapToResponse(profile);
-    }
-
-    @Transactional
-    public CompanyPayoutProfileResponseDTO rejectProfileForAdmin(UUID companyId, String reason, User adminUser) {
-        CompanyPayoutProfile profile = payoutProfileRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new AppException(ErrorCode.PAYOUT_PROFILE_NOT_FOUND));
-
-        profile.setStatus(PayoutProfileStatus.REJECTED);
-        profile.setRejectedBy(adminUser);
-        profile.setRejectedAt(Instant.now());
-        profile.setRejectedReason(reason != null ? reason.trim() : "Rejected by admin");
-        profile.setVerifiedBy(null);
-        profile.setVerifiedAt(null);
-
-        profile = payoutProfileRepository.save(profile);
-        log.info("Payout profile for company {} REJECTED by admin {}", companyId, adminUser.getId());
-        return mapToResponse(profile);
     }
 
     @Transactional(readOnly = true)
