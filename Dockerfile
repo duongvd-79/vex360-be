@@ -28,7 +28,7 @@ COPY --from=build --chown=appuser:appgroup /app/target/vex360-0.0.1-SNAPSHOT.jar
 USER appuser
 
 ENV PORT=8080
-ENV JAVA_TOOL_OPTIONS="-Xmx256m -XX:MaxMetaspaceSize=128m -Xss256k"
+ENV JAVA_TOOL_OPTIONS="-Xmx192m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=48m -Xss256k"
 
 EXPOSE 8080
 

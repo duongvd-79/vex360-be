@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.wallet.dtos.AdminCreateCommissionPolicyRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminMarkPaidWithdrawalRequestDTO;
-import com.example.vex360.features.wallet.dtos.AdminRejectPayoutProfileRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminRejectWithdrawalRequestDTO;
 import com.example.vex360.features.wallet.dtos.AdminReversalRequestDTO;
 import com.example.vex360.features.wallet.dtos.CommissionPolicyResponseDTO;
@@ -69,30 +68,11 @@ public class AdminWalletController extends BaseController {
         return ok(payoutProfileService.getProfilesForAdmin(status, pageable));
     }
 
-    @PostMapping("/payout-profiles/{companyId}/verify")
-    @Operation(summary = "Phê duyệt tài khoản nhận tiền", description = "Duyệt thông tin tài khoản nhận tiền để Organizer có thể tạo đơn rút")
-    public ResponseEntity<ApiResponse<CompanyPayoutProfileResponseDTO>> verifyPayoutProfile(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+    @GetMapping("/payout-profiles/{companyId}/full-account")
+    @Operation(summary = "Xem số tài khoản ngân hàng đầy đủ", description = "Chỉ sử dụng khi Admin thực hiện chuyển khoản ngoài hệ thống")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getFullAccount(
             @PathVariable("companyId") UUID companyId) {
-        return ok(payoutProfileService.verifyProfileForAdmin(companyId, userDetails.getUser()));
-    }
-
-    @PostMapping("/payout-profiles/{companyId}/reject")
-    @Operation(summary = "Từ chối tài khoản nhận tiền", description = "Từ chối thông tin tài khoản kèm lý do")
-    public ResponseEntity<ApiResponse<CompanyPayoutProfileResponseDTO>> rejectPayoutProfile(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("companyId") UUID companyId,
-            @Valid @RequestBody AdminRejectPayoutProfileRequestDTO request) {
-        return ok(payoutProfileService.rejectProfileForAdmin(companyId, request.getRejectedReason(),
-                userDetails.getUser()));
-    }
-
-    @GetMapping("/payout-profiles/{companyId}/decrypted-account")
-    @Operation(summary = "Giải mã số tài khoản ngân hàng", description = "Chỉ sử dụng khi Admin thực hiện chuyển khoản ngoài hệ thống. Có ghi log audit.")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getDecryptedAccount(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("companyId") UUID companyId) {
-        String plainAccount = payoutProfileService.decryptAccountNumberForAdmin(companyId, userDetails.getUser());
+        String plainAccount = payoutProfileService.getFullAccountNumberForAdmin(companyId);
         return ok(Map.of("accountNumber", plainAccount));
     }
 
@@ -112,13 +92,11 @@ public class AdminWalletController extends BaseController {
         return ok(withdrawalRequestService.getWithdrawalRequestDetailsForAdmin(uuid));
     }
 
-    @GetMapping("/withdrawals/{uuid}/decrypted-account")
-    @Operation(summary = "Giải mã số tài khoản ngân hàng từ snapshot đơn rút tiền", description = "Admin lấy số tài khoản ngân hàng snapshot theo đơn rút tiền. Có ghi log audit.")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getDecryptedWithdrawalAccount(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+    @GetMapping("/withdrawals/{uuid}/full-account")
+    @Operation(summary = "Xem số tài khoản ngân hàng đầy đủ từ snapshot đơn rút tiền", description = "Admin lấy số tài khoản ngân hàng snapshot theo đơn rút tiền")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getFullWithdrawalAccount(
             @PathVariable("uuid") UUID uuid) {
-        String plainAccount = withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid,
-                userDetails.getUser());
+        String plainAccount = withdrawalRequestService.getFullWithdrawalAccountNumberForAdmin(uuid);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(ApiResponse.success(Map.of("accountNumber", plainAccount)));

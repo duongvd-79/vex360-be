@@ -77,6 +77,10 @@ public class PasswordService {
         }
 
         User persistedUser = user.get();
+        if (persistedUser.getProvider() != AuthProvider.LOCAL) {
+            throw new AppException(ErrorCode.PROVIDER_NOT_SUPPORT_FORGOT_PASSWORD);
+        }
+
         resetTokenRepository.deleteByUser(persistedUser);
         String tokenValue = UUID.randomUUID().toString();
         resetTokenRepository.save(PasswordResetToken.builder()

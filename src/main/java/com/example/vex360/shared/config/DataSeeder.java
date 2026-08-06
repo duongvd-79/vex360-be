@@ -80,7 +80,6 @@ import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.lead.entities.BoothLead;
 import com.example.vex360.shared.enums.LeadStatus;
 import com.example.vex360.features.lead.repositories.BoothLeadRepository;
-import com.example.vex360.features.notification.entities.Notification;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.features.partnership.entities.PartnershipRequest;
@@ -1014,18 +1013,6 @@ public class DataSeeder implements ApplicationRunner {
                                 .content("Bên mình có hỗ trợ giao hàng toàn quốc ạ.").build());
                 log.info("[SEED] Đã tạo 1 chat room + 3 message");
 
-                // ---------- 22. NOTIFICATIONS (không có repository -> dùng EntityManager)
-                // ----------
-                entityManager.persist(Notification.builder().recipient(exhibitor1).recipientRole(Role.EXHIBITOR)
-                                .title("Đăng ký gian hàng được duyệt")
-                                .content("Đăng ký của bạn tại triển lãm VEX360 2026 đã được duyệt.")
-                                .deepLink("/exhibitor/dashboard").isRead(false).build());
-                entityManager.persist(Notification.builder().recipient(organizer).recipientRole(Role.ORGANIZER)
-                                .title("Có gian hàng chờ duyệt")
-                                .content("Gian hàng TechVina đang chờ bạn xét duyệt nội dung.")
-                                .deepLink("/organizer/dashboard").isRead(false).build());
-                log.info("[SEED] Đã tạo 2 notification");
-
                 // ---------- 23. ANALYTICS: TRIỂN LÃM NỘI THẤT MÙA THU 2025 ----------
                 // Rải event đúng trong thời gian triển lãm đã kết thúc. Nhờ đó tab Analytics
                 // của /organizer/dashboard/exhibitions/{id} có đầy đủ KPI, chart và ranking.
@@ -1175,7 +1162,6 @@ public class DataSeeder implements ApplicationRunner {
                                                         .accountNumber("0123456789")
                                                         .accountHolderName("NGUYEN VAN AN")
                                                         .build());
-                        companyPayoutProfileService.verifyProfileForAdmin(company.getId(), admin);
                 }
         }
 

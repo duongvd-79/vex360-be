@@ -32,7 +32,7 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "company_payout_profiles", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_company_payout_profiles_company", columnNames = "company_id")
+        @UniqueConstraint(name = "uk_company_payout_profiles_company", columnNames = "company_id")
 })
 @Getter
 @Setter
@@ -55,17 +55,8 @@ public class CompanyPayoutProfile {
     @Column(name = "bank_name_snapshot", nullable = false, length = 100)
     String bankNameSnapshot;
 
-    @Column(name = "account_number_ciphertext", nullable = false, columnDefinition = "TEXT")
-    String accountNumberCiphertext;
-
-    @Column(name = "account_number_nonce", nullable = false, length = 255)
-    String accountNumberNonce;
-
-    @Column(name = "encryption_key_version", nullable = false)
-    Integer encryptionKeyVersion;
-
-    @Column(name = "account_number_last4", nullable = false, length = 10)
-    String accountNumberLast4;
+    @Column(name = "account_number", nullable = false, length = 50)
+    String accountNumber;
 
     @Column(name = "account_holder_name", nullable = false, length = 255)
     String accountHolderName;
@@ -73,7 +64,7 @@ public class CompanyPayoutProfile {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
-    PayoutProfileStatus status = PayoutProfileStatus.PENDING_VERIFICATION;
+    PayoutProfileStatus status = PayoutProfileStatus.VERIFIED;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")

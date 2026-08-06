@@ -25,6 +25,7 @@ public class CompanyPayoutProfileResponseDTO {
     String bankCode;
     String bankNameSnapshot;
     String accountNumberMasked;
+    String accountNumber;
     String accountHolderName;
     PayoutProfileStatus status;
     Instant verifiedAt;
