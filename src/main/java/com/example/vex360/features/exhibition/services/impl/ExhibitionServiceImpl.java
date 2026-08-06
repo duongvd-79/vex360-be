@@ -256,7 +256,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
-        return exhibitionMapper.toPublicResponse(exhibition, null);
+        ExhibitionResponseDTO dto = exhibitionMapper.toPublicResponse(exhibition, null);
+        companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
+                .ifPresent(c -> dto.setCompanyName(c.getName()));
+        return dto;
     }
 
     @Override
