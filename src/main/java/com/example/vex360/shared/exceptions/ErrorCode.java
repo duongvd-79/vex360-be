@@ -172,7 +172,6 @@ public enum ErrorCode {
     DESIGN_PRODUCT_LOCKED("DESIGN-010", "Sản phẩm đang được sử dụng ở một yêu cầu thiết kế khác.", HttpStatus.CONFLICT),
     DESIGN_CANCELLATION_PENDING("DESIGN-011", "Yêu cầu hủy thiết kế đang chờ quản trị viên phê duyệt.",
             HttpStatus.CONFLICT),
-    DESIGN_MESSAGE_NOT_ALLOWED("DESIGN-012", "Bạn không có quyền tham gia luồng trao đổi này.", HttpStatus.FORBIDDEN),
     DESIGN_MEDIA_ASSET_NOT_ALLOWED("DESIGN-013", "Tệp phương tiện này không nằm trong danh sách cho phép thiết kế.",
             HttpStatus.FORBIDDEN),
     DESIGN_MEDIA_ASSET_LOCKED("DESIGN-014", "Tệp phương tiện đang được sử dụng ở một yêu cầu thiết kế.",

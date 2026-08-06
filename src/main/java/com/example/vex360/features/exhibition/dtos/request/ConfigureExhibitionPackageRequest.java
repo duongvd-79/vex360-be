@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,5 +21,6 @@ public class ConfigureExhibitionPackageRequest {
 
     @NotNull(message = "Giá tiền không được để trống")
     @DecimalMin(value = "0.0", message = "Giá tiền không được âm")
+    @Digits(integer = 13, fraction = 2, message = "Giá tiền tối đa 13 chữ số nguyên và 2 chữ số thập phân.")
     private BigDecimal finalPrice;
 }

@@ -180,7 +180,6 @@ class BoothBenefitGuardServiceUnitTest {
                 .maxEmbeddedVideosPerBoothSnapshot(1)
                 .maxPanoramasPerBoothSnapshot(3)
                 .maxHotspotsPerBoothSnapshot(5)
-                .storageLimitMbSnapshot(1L)
                 .build();
     }
 

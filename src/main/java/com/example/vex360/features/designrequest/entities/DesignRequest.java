@@ -136,8 +136,4 @@ public class DesignRequest {
     @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     List<DesignRequestMediaAsset> mediaAssets = new ArrayList<>();
-
-    @OneToMany(mappedBy = "designRequest", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    List<DesignRequestMessage> messages = new ArrayList<>();
 }

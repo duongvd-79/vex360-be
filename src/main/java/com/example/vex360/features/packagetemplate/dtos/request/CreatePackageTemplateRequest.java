@@ -5,9 +5,11 @@ import java.math.BigDecimal;
 import com.example.vex360.shared.enums.BoothListingPriority;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,13 +19,16 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreatePackageTemplateRequest {
     @NotBlank(message = "Tên gói không được để trống")
+    @Size(max = 255, message = "Tên gói không được vượt quá 255 ký tự.")
     private String name;
 
     @NotBlank(message = "Mô tả gói không được để trống")
+    @Size(max = 5000, message = "Mô tả gói không được vượt quá 5000 ký tự.")
     private String description;
 
     @NotNull(message = "Giá gói không được để trống")
     @DecimalMin(value = "0.00", message = "Giá gói phải lớn hơn hoặc bằng 0")
+    @Digits(integer = 13, fraction = 2, message = "Giá gói tối đa 13 chữ số nguyên và 2 chữ số thập phân.")
     private BigDecimal price;
 
     private String currency;
@@ -43,10 +48,6 @@ public class CreatePackageTemplateRequest {
     @NotNull(message = "Số hotspot tối đa mỗi gian hàng không được để trống")
     @Min(value = 1, message = "Số hotspot tối đa mỗi gian hàng phải lớn hơn hoặc bằng 1")
     private Integer maxHotspotsPerBooth;
-
-    @NotNull(message = "Dung lượng lưu trữ không được để trống")
-    @Min(value = 1, message = "Dung lượng lưu trữ phải lớn hơn hoặc bằng 1")
-    private Long storageLimitMb;
 
     @NotNull(message = "Vị trí hiển thị không được để trống")
     private BoothListingPriority listingPriority;

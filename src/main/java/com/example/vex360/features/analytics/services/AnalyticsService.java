@@ -131,9 +131,9 @@ public class AnalyticsService {
 
                 // 1. Tra cứu các entity liên quan nếu client có gửi ID
                 Exhibition exhibition = null;
-                if (request.getExhibitionUuid() != null && !request.getExhibitionUuid().isBlank()) {
+                if (request.getExhibitionUuid() != null) {
                         exhibition = exhibitionService
-                                        .findExhibitionEntityByUuid(UUID.fromString(request.getExhibitionUuid()));
+                                        .findExhibitionEntityByUuid(request.getExhibitionUuid());
                 }
 
                 Booth booth = null;

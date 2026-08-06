@@ -148,7 +148,6 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
                 .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
                 .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
-                .storageLimitMbSnapshot(template.getStorageLimitMb())
                 .listingPrioritySnapshot(template.getListingPriority())
                 .build();
         return registrationRepository.save(registration);
