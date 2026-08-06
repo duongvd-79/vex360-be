@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -91,6 +92,33 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+    }
+
+    @ExceptionHandler(HttpMessageNotWritableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotWritableException(
+            HttpMessageNotWritableException ex,
+            HttpServletRequest request) {
+        if (isClientAbort(ex)) {
+            log.debug("Client connection aborted before response could be written to {}: {}",
+                    LogSanitizer.sanitize(request.getRequestURI()),
+                    LogSanitizer.sanitize(ex.getMessage()));
+            return null;
+        }
+
+        return handleRuntimeException(ex, request);
+    }
+
+    private boolean isClientAbort(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            String message = cause.getMessage();
+            if ("ClientAbortException".equals(cause.getClass().getSimpleName())
+                    || message != null && (message.contains("Broken pipe")
+                            || message.contains("Connection reset by peer")
+                            || message.contains("An established connection was aborted"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

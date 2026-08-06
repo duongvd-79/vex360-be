@@ -59,9 +59,11 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
+import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
@@ -99,6 +101,9 @@ class ExhibitorRegistrationServiceTest {
 
     @Mock
     private PayOSIntegrationService payOSIntegrationService;
+
+    @Mock
+    private PaymentFulfillmentService paymentFulfillmentService;
 
     @Mock
     private BoothProvisioningService boothProvisioningService;
@@ -519,7 +524,28 @@ class ExhibitorRegistrationServiceTest {
 
         assertNotNull(dto);
         Assertions.assertNull(dto.getCheckoutUrl());
-        assertEquals("FAILED", dto.getPaymentStatus());
+        assertEquals("PENDING", dto.getPaymentStatus());
+    }
+
+    @Test
+    void getRegistrationDetails_databaseFailureIsNotHidden() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenThrow(new IllegalStateException("database unavailable"));
+
+        assertThrows(IllegalStateException.class,
+                () -> registrationService.getRegistrationDetails(registrationUuid, companyUser.getId()));
     }
 
     @Test
@@ -918,6 +944,7 @@ class ExhibitorRegistrationServiceTest {
 
         Payment pendingPayment = Payment.builder()
                 .id(100)
+                .orderCode(123456L)
                 .status(PaymentStatus.PENDING)
                 .checkoutUrl("oldCheckoutUrl")
                 .build();
@@ -928,11 +955,89 @@ class ExhibitorRegistrationServiceTest {
         when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
                 .thenReturn(Optional.of(pendingPayment));
 
+        PaymentLink mockLink = mock(PaymentLink.class);
+        when(mockLink.getStatus()).thenReturn(PaymentLinkStatus.PENDING);
+        when(payOSIntegrationService.getPaymentLinkInformation(123456L)).thenReturn(mockLink);
+
         var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
 
         assertNotNull(dto);
         assertEquals("oldCheckoutUrl", dto.getCheckoutUrl());
         verify(payOSIntegrationService, never()).createPaymentLink(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void getRegistrationDetails_payOSLookupFails_keepsPendingPayment() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        Payment pendingPayment = Payment.builder()
+                .id(100)
+                .orderCode(123456L)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("existing-checkout-url")
+                .build();
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(pendingPayment));
+        when(payOSIntegrationService.getPaymentLinkInformation(123456L))
+                .thenThrow(new RuntimeException("PayOS timeout"));
+
+        var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
+
+        assertEquals(PaymentStatus.PENDING, pendingPayment.getStatus());
+        assertEquals("existing-checkout-url", dto.getCheckoutUrl());
+        verify(paymentRepository, never()).save(any(Payment.class));
+        verify(payOSIntegrationService, never()).createPaymentLink(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void getRegistrationDetails_cancelledPayOSLink_regeneratesNewLink() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+
+        Payment pendingPayment = Payment.builder()
+                .id(100)
+                .orderCode(123456L)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("cancelledCheckoutUrl")
+                .build();
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(pendingPayment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentLink mockLink = mock(PaymentLink.class);
+        when(mockLink.getStatus()).thenReturn(PaymentLinkStatus.CANCELLED);
+        when(payOSIntegrationService.getPaymentLinkInformation(123456L)).thenReturn(mockLink);
+
+        CreatePaymentLinkResponse response = mock(CreatePaymentLinkResponse.class);
+        when(response.getCheckoutUrl()).thenReturn("fresh-new-checkout-url");
+        when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
+                .thenReturn(response);
+
+        var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
+
+        assertEquals(PaymentStatus.FAILED, pendingPayment.getStatus());
+        assertEquals("fresh-new-checkout-url", dto.getCheckoutUrl());
+        verify(payOSIntegrationService).createPaymentLink(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1080,6 +1185,37 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void getRegistrationsForExhibitor_pendingPaymentIsReadOnly() {
+        Pageable pageable = PageRequest.of(0, 10);
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        Payment payment = Payment.builder()
+                .id(100)
+                .orderCode(123456L)
+                .exhibitorRegistration(registration)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("existing-checkout-url")
+                .build();
+        Page<ExhibitorRegistration> page = new PageImpl<>(List.of(registration), pageable, 1);
+
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.searchForExhibitor(company.getId(), null, null, pageable)).thenReturn(page);
+        when(paymentRepository.findLatestPaymentsByRegistrationIds(List.of(1))).thenReturn(List.of(payment));
+
+        PageResponse<ExhibitorRegistrationResponseDTO> result = registrationService.getRegistrationsForExhibitor(
+                companyUser, null, null, pageable);
+
+        assertEquals("existing-checkout-url", result.getContent().get(0).getCheckoutUrl());
+        verify(payOSIntegrationService, never()).getPaymentLinkInformation(any());
+        verify(payOSIntegrationService, never()).createPaymentLink(any(), any(), any(), any(), any());
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
     void testGetRegistrationsForExhibitor_Unauthenticated_ThrowsException() {
         Pageable pageable = PageRequest.of(0, 10);
 
@@ -1159,7 +1295,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testGetRegistrationDetails_PendingPaymentMissingCheckoutUrl_QueriesPayOSAndReconcilesPaid() {
+    void testGetRegistrationDetails_PaidAtPayOS_DelegatesFulfillmentAndPublishesCompletion() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
@@ -1190,8 +1326,11 @@ class ExhibitorRegistrationServiceTest {
         var dto = registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
 
         assertNotNull(dto);
-        assertEquals("APPROVED", registration.getStatus().name());
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
         verify(paymentRepository).save(argThat(p -> p.getStatus() == PaymentStatus.PAID));
+        verify(paymentFulfillmentService).processFulfillmentForOrderCode(123456L);
+        verify(eventPublisher).publishEvent(any(ExhibitionPaymentCompletedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
     @Test
