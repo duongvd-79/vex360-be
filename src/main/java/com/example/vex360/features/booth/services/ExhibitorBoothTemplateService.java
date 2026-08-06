@@ -46,18 +46,12 @@ public class ExhibitorBoothTemplateService {
     private final BoothMapper boothMapper;
 
     @Transactional(readOnly = true)
-    public PageResponse<ExhibitorBoothTemplateSummaryResponseDTO> getCompatibleTemplates(
-            User currentUser,
-            UUID boothId,
+    public PageResponse<ExhibitorBoothTemplateSummaryResponseDTO> getPublishedTemplates(
             String keyword,
             Pageable pageable) {
-        Booth booth = getBoothForCurrentUser(currentUser, boothId);
-        TemplateLimits limits = getTemplateLimits(booth);
-        Page<Booth> templates = boothRepository.searchCompatibleTemplates(
+        Page<Booth> templates = boothRepository.searchTemplates(
                 normalizeKeyword(keyword),
                 BoothStatus.PUBLISHED,
-                limits.maxPanoramas(),
-                limits.maxHotspots(),
                 pageable);
 
         List<UUID> templateIds = templates.getContent().stream().map(Booth::getId).toList();
@@ -76,15 +70,10 @@ public class ExhibitorBoothTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public ExhibitorBoothTemplateResponseDTO getCompatibleTemplate(
-            User currentUser,
-            UUID boothId,
-            UUID templateId) {
-        Booth booth = getBoothForCurrentUser(currentUser, boothId);
-        Booth template = getPublishedTemplate(templateId);
+    public ExhibitorBoothTemplateResponseDTO getPublishedTemplate(UUID templateId) {
+        Booth template = findPublishedTemplate(templateId);
         List<Panorama> panoramas = panoramaRepository.findDetailsByBoothId(template.getId());
         validateTemplate(template, panoramas);
-        assertCompatible(getTemplateLimits(booth), panoramas);
         return toTemplateResponse(template, panoramas);
     }
 
@@ -187,13 +176,7 @@ public class ExhibitorBoothTemplateService {
                 boothMapper.toPanoramaResponseDTOs(panoramas));
     }
 
-    private Booth getBoothForCurrentUser(User currentUser, UUID boothId) {
-        Company company = companyService.getCompanyEntityForCurrentUser(currentUser);
-        return boothRepository.findCompanyBoothById(boothId, company.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
-    }
-
-    private Booth getPublishedTemplate(UUID templateId) {
+    private Booth findPublishedTemplate(UUID templateId) {
         return boothRepository.findTemplateById(templateId)
                 .filter(template -> template.getStatus() == BoothStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));

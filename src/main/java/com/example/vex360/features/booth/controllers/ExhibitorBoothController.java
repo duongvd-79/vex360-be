@@ -32,8 +32,6 @@ import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
 import com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
-import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateResponseDTO;
-import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
@@ -95,29 +93,6 @@ public class ExhibitorBoothController extends BaseController {
             @PathVariable UUID boothId) {
         BoothBenefitUsageResponseDTO response = exhibitorBoothService.getBoothBenefitUsage(userDetails.getUser(), boothId);
         return ok(response);
-    }
-
-    @GetMapping("/{boothId}/templates")
-    public ResponseEntity<ApiResponse<PageResponse<ExhibitorBoothTemplateSummaryResponseDTO>>> getCompatibleTemplates(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID boothId,
-            @RequestParam(required = false) String keyword,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "name",
-                    direction = Sort.Direction.ASC) Pageable pageable) {
-        return ok(exhibitorBoothTemplateService.getCompatibleTemplates(
-                userDetails.getUser(), boothId, keyword, pageable));
-    }
-
-    @GetMapping("/{boothId}/templates/{templateId}")
-    public ResponseEntity<ApiResponse<ExhibitorBoothTemplateResponseDTO>> getCompatibleTemplate(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID boothId,
-            @PathVariable UUID templateId) {
-        return ok(exhibitorBoothTemplateService.getCompatibleTemplate(
-                userDetails.getUser(), boothId, templateId));
     }
 
     @PostMapping("/{boothId}/templates/{templateId}/apply")
