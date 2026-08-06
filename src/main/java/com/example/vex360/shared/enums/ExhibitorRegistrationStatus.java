@@ -5,5 +5,6 @@ public enum ExhibitorRegistrationStatus {
     PENDING_PAYMENT,
     APPROVED,
     REJECTED,
-    CANCELED
+    CANCELED,
+    EXPIRED
 }

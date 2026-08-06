@@ -23,6 +23,7 @@ public class ExhibitorRegistrationResponseDTO {
     private UUID companyUserId;
     private String status;
     private Instant submittedAt;
+    private Instant reservedUntil;
     private String checkoutUrl;
     private String paymentStatus;
     private Long orderCode;

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
@@ -176,4 +177,26 @@ public interface ExhibitorRegistrationRepository extends JpaRepository<Exhibitor
             @Param("exhibitionIds") List<Integer> exhibitionIds,
             @Param("statuses") Collection<ExhibitorRegistrationStatus> statuses);
 
+    @Query("""
+            SELECT COUNT(r)
+            FROM ExhibitorRegistration r
+            WHERE r.exhibitionPackage.id = :packageId
+              AND (r.status = com.example.vex360.shared.enums.ExhibitorRegistrationStatus.APPROVED
+                   OR (r.status = com.example.vex360.shared.enums.ExhibitorRegistrationStatus.PENDING_PAYMENT
+                       AND r.reservedUntil > :now))
+            """)
+    long countActiveAndReservedByPackageId(
+            @Param("packageId") Integer packageId,
+            @Param("now") java.time.Instant now);
+
+    @Query("""
+            SELECT r
+            FROM ExhibitorRegistration r
+            WHERE r.status = com.example.vex360.shared.enums.ExhibitorRegistrationStatus.PENDING_PAYMENT
+              AND r.reservedUntil IS NOT NULL
+              AND r.reservedUntil <= :now
+            """)
+    List<ExhibitorRegistration> findExpiredPendingRegistrations(
+            @Param("now") Instant now,
+            Pageable pageable);
 }

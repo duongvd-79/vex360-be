@@ -2,6 +2,7 @@ package com.example.vex360.features.exhibition.services.impl;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,7 @@ import com.example.vex360.features.mail.MailService;
 @RequiredArgsConstructor
 @Slf4j
 public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationService {
+    private static final long RESERVATION_TTL_HOURS = 24L;
 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
@@ -368,15 +370,26 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.REGISTRATION_CLOSED);
         }
 
+        ExhibitionPackage pkg = registration.getExhibitionPackage();
+        if (pkg != null && pkg.getMaxBooths() != null) {
+            long activeAndReservedCount = registrationRepository.countActiveAndReservedByPackageId(pkg.getId(),
+                    Instant.now());
+            if (activeAndReservedCount >= pkg.getMaxBooths()) {
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_FULL);
+            }
+        }
+
         BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                 ? registration.getFinalPriceSnapshot()
-                : registration.getExhibitionPackage().getFinalPrice();
+                : (pkg != null ? pkg.getFinalPrice() : BigDecimal.ZERO);
         if (finalPrice.compareTo(BigDecimal.ZERO) == 0) {
             // Free package: direct approve
             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+            registration.setReservedUntil(null);
         } else {
-            // Paid package: set to PENDING_PAYMENT
+            // Paid package: set to PENDING_PAYMENT with reservation TTL
             registration.setStatus(ExhibitorRegistrationStatus.PENDING_PAYMENT);
+            registration.setReservedUntil(Instant.now().plus(RESERVATION_TTL_HOURS, ChronoUnit.HOURS));
         }
         registration.setReviewedBy(organizer);
         registration.setRejectedReason(null);
@@ -584,6 +597,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .companyUserId(owner != null ? owner.getId() : null)
                 .status(registration.getStatus().name())
                 .submittedAt(registration.getSubmittedAt())
+                .reservedUntil(registration.getReservedUntil())
                 .checkoutUrl(payment != null ? payment.getCheckoutUrl() : null)
                 .paymentStatus(payment != null ? payment.getStatus().name() : null)
                 .orderCode(payment != null ? payment.getOrderCode() : null)
