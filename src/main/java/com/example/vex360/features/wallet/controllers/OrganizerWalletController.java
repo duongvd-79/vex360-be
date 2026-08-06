@@ -1,5 +1,6 @@
 package com.example.vex360.features.wallet.controllers;
 
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -86,6 +87,14 @@ public class OrganizerWalletController extends BaseController {
     public ResponseEntity<ApiResponse<CompanyPayoutProfileResponseDTO>> getPayoutProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ok(payoutProfileService.getProfileForOrganizer(userDetails.getUser()));
+    }
+
+    @GetMapping("/payout-profile/full-account")
+    @Operation(summary = "Xem số tài khoản nhận tiền đầy đủ", description = "Trả về số tài khoản ngân hàng chưa mã hóa của chính doanh nghiệp")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getFullPayoutAccount(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        String fullAccount = payoutProfileService.getFullAccountNumberForOrganizer(userDetails.getUser());
+        return ok(Map.of("accountNumber", fullAccount));
     }
 
     @PutMapping("/payout-profile")

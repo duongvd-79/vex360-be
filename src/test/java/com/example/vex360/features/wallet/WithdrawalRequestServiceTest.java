@@ -70,10 +70,7 @@ class WithdrawalRequestServiceTest {
                 .company(company)
                 .bankCode("VCB")
                 .bankNameSnapshot("Vietcombank")
-                .accountNumberCiphertext("cipher")
-                .accountNumberNonce("nonce")
-                .encryptionKeyVersion(1)
-                .accountNumberLast4("1234")
+                .accountNumber("1234567890")
                 .accountHolderName("NGUYEN VAN A")
                 .status(PayoutProfileStatus.VERIFIED)
                 .build();

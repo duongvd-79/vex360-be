@@ -277,4 +277,10 @@ public class UserService {
     public boolean isAvatarAssetReferenced(String publicId) {
         return userRepository.existsByAvatarUrlContaining(publicId);
     }
+
+    @Transactional
+    public long deleteUnverifiedPendingLocalUsersOlderThan(Instant cutoff) {
+        return userRepository.deleteByStatusAndProviderAndCreatedAtBefore(
+                UserStatus.PENDING, AuthProvider.LOCAL, cutoff);
+    }
 }

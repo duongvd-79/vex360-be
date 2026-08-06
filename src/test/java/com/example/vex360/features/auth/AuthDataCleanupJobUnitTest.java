@@ -4,6 +4,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 
@@ -17,6 +18,7 @@ import com.example.vex360.features.auth.jobs.AuthDataCleanupJob;
 import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
 import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
 import com.example.vex360.features.auth.repositories.RegistrationTokenRepository;
+import com.example.vex360.features.user.services.UserService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthDataCleanupJobUnitTest {
@@ -27,6 +29,8 @@ class AuthDataCleanupJobUnitTest {
     private RegistrationTokenRepository registrationTokenRepository;
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
+    @Mock
+    private UserService userService;
 
     private Clock clock;
     private AuthDataCleanupJob job;
@@ -38,6 +42,7 @@ class AuthDataCleanupJobUnitTest {
                 passwordResetTokenRepository,
                 registrationTokenRepository,
                 refreshTokenRepository,
+                userService,
                 clock);
     }
 
@@ -55,4 +60,14 @@ class AuthDataCleanupJobUnitTest {
         verify(refreshTokenRepository).deleteByExpiryDateBefore(expectedCutoff);
     }
 
+    @Test
+    void cleanupPendingUsers_DeletesUnverifiedPendingLocalUsersOlderThan7Days() {
+        Instant expectedCutoff = Instant.parse("2026-08-04T00:15:00Z").minus(Duration.ofDays(7));
+        when(userService.deleteUnverifiedPendingLocalUsersOlderThan(expectedCutoff))
+                .thenReturn(4L);
+
+        job.cleanupPendingUsers();
+
+        verify(userService).deleteUnverifiedPendingLocalUsersOlderThan(expectedCutoff);
+    }
 }
