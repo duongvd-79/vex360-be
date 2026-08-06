@@ -488,7 +488,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             String recipientEmail = recipient.getEmail();
             String recipientFullName = recipient.getFullName();
             String exhibitionName = exhibition != null ? exhibition.getName() : "";
-            String companyName = company != null ? company.getName() : "";
+            String companyName = company.getName();
             String packageName = registration.getPackageNameSnapshot() != null
                     && !registration.getPackageNameSnapshot().isBlank()
                             ? registration.getPackageNameSnapshot()

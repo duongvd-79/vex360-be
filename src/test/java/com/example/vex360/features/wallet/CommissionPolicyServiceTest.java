@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,8 @@ import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.wallet.entities.CommissionPolicy;
 import com.example.vex360.features.wallet.repositories.CommissionPolicyRepository;
 import com.example.vex360.features.wallet.services.CommissionPolicyService;
+import com.example.vex360.features.exhibition.services.CommissionCalculator.CommissionResult;
+import com.example.vex360.features.user.entities.User;
 
 @ExtendWith(MockitoExtension.class)
 class CommissionPolicyServiceTest {
@@ -94,5 +97,62 @@ class CommissionPolicyServiceTest {
         assertEquals(new BigDecimal("10499.90"), result.systemFee());
         assertEquals(new BigDecimal("89499.10"), result.organizerPayout());
         assertEquals(result.amount(), result.systemFee().add(result.organizerPayout()));
+    }
+
+    @Test
+    void calculateCommissionHandlesNullInputsAndNullRate() {
+        CommissionPolicy policy = CommissionPolicy.builder().rateBasisPoints(null).build();
+        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
+                .thenReturn(Optional.of(policy));
+
+        CommissionResult result = commissionPolicyService.calculateCommission(null, null);
+
+        assertEquals(new BigDecimal("0.00"), result.amount());
+        assertEquals(new BigDecimal("0.00"), result.systemFee());
+        assertEquals(new BigDecimal("0.00"), result.organizerPayout());
+        assertEquals(0, result.rateBasisPoints());
+    }
+
+    @Test
+    void calculateCommissionTreatsNonPositiveRateAsZero() {
+        CommissionPolicy policy = CommissionPolicy.builder().rateBasisPoints(-1).build();
+        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
+                .thenReturn(Optional.of(policy));
+
+        CommissionCalculationResult result = commissionPolicyService
+                .calculateCommissionResult(new BigDecimal("1.235"), null);
+
+        assertEquals(new BigDecimal("1.24"), result.amount());
+        assertEquals(new BigDecimal("0.00"), result.systemFee());
+    }
+
+    @Test
+    void createPolicyRejectsRatesOutsideAllowedRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> commissionPolicyService.createPolicy(-1, Instant.now(), null));
+        assertThrows(IllegalArgumentException.class,
+                () -> commissionPolicyService.createPolicy(10000, Instant.now(), null));
+    }
+
+    @Test
+    void createPolicyRejectsDuplicateEffectiveTime() {
+        Instant effectiveAt = Instant.parse("2026-01-01T00:00:00Z");
+        when(commissionPolicyRepository.existsByEffectiveAt(effectiveAt)).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> commissionPolicyService.createPolicy(1000, effectiveAt, null));
+    }
+
+    @Test
+    void createPolicyUsesCurrentTimeAndPersistsAdmin() {
+        User admin = User.builder().build();
+        when(commissionPolicyRepository.existsByEffectiveAt(any())).thenReturn(false);
+        when(commissionPolicyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CommissionPolicy result = commissionPolicyService.createPolicy(0, null, admin);
+
+        assertEquals(0, result.getRateBasisPoints());
+        assertEquals(admin, result.getCreatedBy());
+        assertNotNull(result.getEffectiveAt());
     }
 }

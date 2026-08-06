@@ -438,6 +438,124 @@ class PayOSWebhookServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    @Test
+    void handleWebhook_rejectsIncompleteRouteAndMissingLockedRows() {
+        Object body = new Object();
+        PaymentRoute route = mock(PaymentRoute.class);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        when(paymentRepository.findRouteByOrderCode(123456L)).thenReturn(Optional.of(route));
+        when(route.getPaymentType()).thenReturn(PaymentType.EXHIBITION_REGISTRATION);
+
+        when(route.getRegistrationId()).thenReturn(null);
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+
+        when(route.getRegistrationId()).thenReturn(99);
+        when(registrationRepository.findByIdForUpdate(99)).thenReturn(Optional.empty());
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+
+        when(route.getRegistrationId()).thenReturn(1);
+        when(registrationRepository.findByIdForUpdate(1)).thenReturn(Optional.of(pendingRegistration));
+        when(paymentRepository.findByOrderCodeForUpdate(123456L)).thenReturn(Optional.empty());
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+    }
+
+    @Test
+    void handleWebhook_auditsGenericFailureAfterVerification() {
+        Object body = new Object();
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        when(paymentRepository.findRouteByOrderCode(123456L)).thenThrow(new RuntimeException("database"));
+
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+
+        verify(fulfillmentService).updateReceiptFailed(eq(123456L), any(RuntimeException.class));
+    }
+
+    @Test
+    void handleWebhook_propagatesAppExceptionBeforeOrderCodeIsKnown() {
+        Object body = new Object();
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenThrow(new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+
+        verify(fulfillmentService, never()).updateReceiptFailed(any(), any());
+    }
+
+    @Test
+    void handleWebhook_rejectsLockedPaymentTypeAndRegistrationMismatch() {
+        Object body = new Object();
+        PaymentRoute route = mock(PaymentRoute.class);
+        pendingPayment.setPaymentType(PaymentType.EXHIBITION_REGISTRATION);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        when(paymentRepository.findRouteByOrderCode(123456L)).thenReturn(Optional.of(route));
+        when(paymentRepository.findByOrderCodeForUpdate(123456L)).thenReturn(Optional.of(pendingPayment));
+
+        when(route.getPaymentType()).thenReturn(PaymentType.STORAGE_PACKAGE);
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+
+        when(route.getPaymentType()).thenReturn(PaymentType.EXHIBITION_REGISTRATION);
+        when(route.getRegistrationId()).thenReturn(2);
+        when(registrationRepository.findByIdForUpdate(2)).thenReturn(Optional.of(pendingRegistration));
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+    }
+
+    @Test
+    void handleWebhook_rejectsChangedProviderReference() {
+        Object body = new Object();
+        pendingPayment.setPaymentReference("original-reference");
+        WebhookData changedReference = createWebhookData(
+                123456L, 1000000L, "VND", "00", "link_123", "changed-reference");
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(changedReference);
+        stubLockedPayment(pendingPayment);
+
+        assertThrows(AppException.class, () -> webhookServiceWrapper.handleWebhook(body));
+    }
+
+    @Test
+    void handleWebhook_matchingPaymentLinkAndReferenceSucceeds() {
+        Object body = new Object();
+        pendingPayment.setCheckoutUrl("https://payos.vn/link_123");
+        pendingPayment.setPaymentReference("payos_ref_123");
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(body);
+
+        assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+    }
+
+    @Test
+    void handleWebhook_missingPackageCannotApproveRegistration() {
+        Object body = new Object();
+        pendingRegistration.setExhibitionPackage(null);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(body);
+
+        assertEquals(ExhibitorRegistrationStatus.PENDING_PAYMENT, pendingRegistration.getStatus());
+        verify(fulfillmentService).updateReceiptFailed(eq(123456L), any(AppException.class));
+    }
+
+    @Test
+    void handleWebhook_alreadyApprovedRegistrationDoesNotRepublishApproval() {
+        Object body = new Object();
+        pendingRegistration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+        when(payOS.webhooks()).thenReturn(webhookService);
+        when(webhookService.verify(body)).thenReturn(successWebhookData);
+        stubLockedPayment(pendingPayment);
+
+        webhookServiceWrapper.handleWebhook(body);
+
+        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+    }
+
     private WebhookData createWebhookData(Long orderCode, Long amount, String currency, String code,
             String paymentLinkId, String reference) {
         return WebhookData.builder()

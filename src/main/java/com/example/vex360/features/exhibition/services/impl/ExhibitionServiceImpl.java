@@ -219,27 +219,23 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
             for (int i = 0; i < sponsorLogos.size(); i++) {
                 MultipartFile logo = sponsorLogos.get(i);
-                if (logo != null && !logo.isEmpty()) {
-                    String sponsorName = (request.getSponsors() != null && i < request.getSponsors().size())
-                            ? request.getSponsors().get(i).getName()
-                            : null;
-                    CloudinaryResponse uploadResLogo = cloudService.upload(logo);
-                    deleteCloudAssetOnRollback(uploadResLogo.getPublicId(), "image");
-                    ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
-                            .exhibition(exhibition)
-                            .name(sponsorName)
-                            .assetUrl(uploadResLogo.getUrl())
-                            .publicId(uploadResLogo.getPublicId())
-                            .type(ExhibitionAssetType.SPONSOR_LOGO)
-                            .build();
-                    exhibitionAssetRepository.save(sponsorLogoAsset);
-                    exhibition.getAssets().add(sponsorLogoAsset);
-                }
+                String sponsorName = request.getSponsors().get(i).getName();
+                CloudinaryResponse uploadResLogo = cloudService.upload(logo);
+                deleteCloudAssetOnRollback(uploadResLogo.getPublicId(), "image");
+                ExhibitionAsset sponsorLogoAsset = ExhibitionAsset.builder()
+                        .exhibition(exhibition)
+                        .name(sponsorName)
+                        .assetUrl(uploadResLogo.getUrl())
+                        .publicId(uploadResLogo.getPublicId())
+                        .type(ExhibitionAssetType.SPONSOR_LOGO)
+                        .build();
+                exhibitionAssetRepository.save(sponsorLogoAsset);
+                exhibition.getAssets().add(sponsorLogoAsset);
             }
         }
 
         reviewHistoryService.recordInitialSubmission(exhibition, organizer,
-                uploadRes != null ? uploadRes.getUrl() : null);
+                uploadRes.getUrl());
 
         return exhibitionMapper.toResponse(exhibition, savedPackages);
     }
@@ -838,11 +834,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private void uploadOrReplaceAsset(Exhibition exhibition, MultipartFile file, ExhibitionAssetType type,
             String resourceType) {
-        ExhibitionAsset existingAsset = (exhibition.getAssets() == null) ? null
-                : exhibition.getAssets().stream()
-                        .filter(a -> a.getType() == type)
-                        .findFirst()
-                        .orElse(null);
+        ExhibitionAsset existingAsset = exhibition.getAssets().stream()
+                .filter(a -> a.getType() == type)
+                .findFirst()
+                .orElse(null);
         CloudinaryResponse uploadRes = cloudService.upload(file);
         deleteCloudAssetOnRollback(uploadRes.getPublicId(), resourceType);
         if (existingAsset != null) {
@@ -884,10 +879,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         validateSponsorChangesAllowed(exhibition);
 
-        long currentSponsorCount = exhibition.getAssets() == null ? 0
-                : exhibition.getAssets().stream()
-                        .filter(a -> a.getType() == ExhibitionAssetType.SPONSOR_LOGO)
-                        .count();
+        long currentSponsorCount = exhibition.getAssets().stream()
+                .filter(a -> a.getType() == ExhibitionAssetType.SPONSOR_LOGO)
+                .count();
         if (currentSponsorCount >= MAX_SPONSORS) {
             log.error("Exhibition {} already reached maximum sponsor limit of {}", uuid, MAX_SPONSORS);
             throw new AppException(ErrorCode.VALIDATION_FAILED);

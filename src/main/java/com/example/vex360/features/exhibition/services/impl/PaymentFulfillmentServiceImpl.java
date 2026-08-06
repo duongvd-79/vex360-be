@@ -43,8 +43,8 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
     @Override
     @Transactional
     public PaymentReceipt recordReceipt(WebhookData webhookData) {
-        if (webhookData == null || webhookData.getOrderCode() == null) {
-            log.error("[PB-005] Cannot record receipt: null webhookData or orderCode");
+        if (webhookData == null) {
+            log.error("[PB-005] Cannot record receipt: null webhookData");
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
@@ -57,9 +57,9 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
         // Create new durable receipt
         String sanitizedPayload = String.format("{\"orderCode\":%d,\"code\":\"%s\",\"currency\":\"%s\",\"amount\":%d}",
                 orderCode,
-                webhookData.getCode() != null ? webhookData.getCode() : "",
-                webhookData.getCurrency() != null ? webhookData.getCurrency() : "",
-                webhookData.getAmount() != null ? webhookData.getAmount() : 0L);
+                webhookData.getCode(),
+                webhookData.getCurrency(),
+                webhookData.getAmount());
 
         PaymentReceipt receipt = PaymentReceipt.builder()
                 .orderCode(orderCode)

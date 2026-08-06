@@ -2,6 +2,7 @@ package com.example.vex360.features.exhibition;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -123,6 +124,11 @@ class PaymentFulfillmentServiceImplTest {
     }
 
     @Test
+    void recordReceipt_rejectsNullPayload() {
+        assertThrows(AppException.class, () -> fulfillmentService.recordReceipt(null));
+    }
+
+    @Test
     void updateReceiptSucceeded_setsSucceededStatusAndBoothId() {
         PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode).status(PaymentReceiptStatus.PENDING)
                 .build();
@@ -136,6 +142,19 @@ class PaymentFulfillmentServiceImplTest {
         assertEquals(5, receipt.getRegistrationId());
         assertEquals(boothId, receipt.getBoothId());
         verify(receiptRepository).save(receipt);
+    }
+
+    @Test
+    void updateReceiptSucceeded_ignoresNullAndCreatesMissingReceipt() {
+        fulfillmentService.updateReceiptSucceeded(null, 1, null);
+        verify(receiptRepository, never()).save(any());
+
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.empty());
+        when(receiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        fulfillmentService.updateReceiptSucceeded(orderCode, 1, null);
+
+        verify(receiptRepository).save(any(PaymentReceipt.class));
     }
 
     @Test
@@ -165,6 +184,45 @@ class PaymentFulfillmentServiceImplTest {
         assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, receipt.getStatus());
         assertEquals(1, receipt.getRetryCount());
         verify(receiptRepository).save(receipt);
+    }
+
+    @Test
+    void updateReceiptFailed_coversNullMissingReceiptAndRetryLimit() {
+        fulfillmentService.updateReceiptFailed(null, null);
+        verify(receiptRepository, never()).save(any());
+
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.empty());
+        when(receiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        fulfillmentService.updateReceiptFailed(orderCode, null);
+
+        PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode)
+                .status(PaymentReceiptStatus.RETRYABLE_FAILED).retryCount(4).build();
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+        fulfillmentService.updateReceiptFailed(orderCode, new RuntimeException("retry"));
+
+        assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, receipt.getStatus());
+        assertEquals(5, receipt.getRetryCount());
+    }
+
+    @Test
+    void updateReceiptFailed_coversAllNonRetryableCodes() {
+        for (ErrorCode errorCode : new ErrorCode[] {
+                ErrorCode.REGISTRATION_NOT_FOUND,
+                ErrorCode.REGISTRATION_CLOSED }) {
+            PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode)
+                    .status(PaymentReceiptStatus.PENDING).retryCount(0).build();
+            when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+
+            fulfillmentService.updateReceiptFailed(orderCode, new AppException(errorCode));
+
+            assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, receipt.getStatus());
+        }
+
+        PaymentReceipt retryable = PaymentReceipt.builder().orderCode(orderCode)
+                .status(PaymentReceiptStatus.PENDING).retryCount(0).build();
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(retryable));
+        fulfillmentService.updateReceiptFailed(orderCode, new AppException(ErrorCode.UNCATCHED_EXCEPTION));
+        assertEquals(PaymentReceiptStatus.RETRYABLE_FAILED, retryable.getStatus());
     }
 
     @Test
@@ -220,10 +278,103 @@ class PaymentFulfillmentServiceImplTest {
         verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
     }
 
+    @Test
+    void processFulfillmentForOrderCode_rejectsNullAndUnsupportedRoutes() {
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(null).isEmpty());
+
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(
+                Optional.empty(),
+                Optional.of(routeFor(PaymentType.STORAGE_PACKAGE, null)),
+                Optional.of(routeFor(PaymentType.EXHIBITION_REGISTRATION, null)));
+
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+    }
+
+    @Test
+    void processFulfillmentForOrderCode_handlesMissingRegistrationAndPayment() {
+        PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode)
+                .status(PaymentReceiptStatus.PENDING).retryCount(0).build();
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(5)));
+        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.empty());
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
+
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
+        assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, receipt.getStatus());
+
+        ExhibitorRegistration registration = ExhibitorRegistration.builder().id(5).build();
+        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findByOrderCodeForUpdate(orderCode))
+                .thenReturn(Optional.empty(), Optional.of(Payment.builder().status(PaymentStatus.PENDING).build()));
+
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+    }
+
+    @Test
+    void processFulfillmentForOrderCode_rejectsMissingPackageAndInvalidStatus() {
+        Exhibition exhibition = Exhibition.builder().build();
+        ExhibitorRegistration missingPackage = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT).build();
+        ExhibitorRegistration rejected = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.REJECTED)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
+                .build();
+        Payment payment = Payment.builder().status(PaymentStatus.PAID).build();
+        PaymentReceipt first = PaymentReceipt.builder().retryCount(0).build();
+        PaymentReceipt second = PaymentReceipt.builder().retryCount(0).build();
+
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(5)));
+        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(missingPackage), Optional.of(rejected));
+        when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode))
+                .thenReturn(Optional.of(first), Optional.of(second));
+        when(receiptRepository.findByOrderCode(orderCode))
+                .thenReturn(Optional.of(first), Optional.of(second));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+
+        fulfillmentService.processFulfillmentForOrderCode(orderCode);
+        fulfillmentService.processFulfillmentForOrderCode(orderCode);
+
+        assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, first.getStatus());
+        assertEquals(PaymentReceiptStatus.MANUAL_REVIEW, second.getStatus());
+    }
+
+    @Test
+    void processFulfillmentForOrderCode_recordsUnexpectedFulfillmentFailure() {
+        Exhibition exhibition = Exhibition.builder().build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
+                .build();
+        Payment payment = Payment.builder().status(PaymentStatus.PAID).build();
+        PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode)
+                .status(PaymentReceiptStatus.PENDING).retryCount(0).build();
+
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(5)));
+        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+        when(receiptRepository.save(any(PaymentReceipt.class)))
+                .thenThrow(new RuntimeException("write failed"))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
+        assertEquals(PaymentReceiptStatus.RETRYABLE_FAILED, receipt.getStatus());
+    }
+
     private PaymentRepository.PaymentRoute routeFor(Integer registrationId) {
+        return routeFor(PaymentType.EXHIBITION_REGISTRATION, registrationId);
+    }
+
+    private PaymentRepository.PaymentRoute routeFor(PaymentType paymentType, Integer registrationId) {
         return new PaymentRepository.PaymentRoute() {
             public PaymentType getPaymentType() {
-                return PaymentType.EXHIBITION_REGISTRATION;
+                return paymentType;
             }
 
             public Integer getRegistrationId() {
@@ -255,5 +406,17 @@ class PaymentFulfillmentServiceImplTest {
 
         assertTrue(res.isPresent());
         verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+    }
+
+    @Test
+    void replayFulfillment_leavesNonManualReceiptAndHandlesMissingReceipt() {
+        PaymentReceipt pending = PaymentReceipt.builder().status(PaymentReceiptStatus.PENDING).build();
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode))
+                .thenReturn(Optional.of(pending), Optional.empty());
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.empty());
+
+        assertTrue(fulfillmentService.replayFulfillment(orderCode, "admin").isEmpty());
+        assertTrue(fulfillmentService.replayFulfillment(orderCode, "admin").isEmpty());
+        verify(receiptRepository, never()).save(pending);
     }
 }
