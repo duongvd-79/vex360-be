@@ -257,8 +257,10 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         ExhibitionResponseDTO dto = exhibitionMapper.toPublicResponse(exhibition, null);
-        companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
-                .ifPresent(c -> dto.setCompanyName(c.getName()));
+        if (exhibition.getOrganizer() != null && exhibition.getOrganizer().getId() != null) {
+            companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
+                    .ifPresent(c -> dto.setCompanyName(c.getName()));
+        }
         return dto;
     }
 

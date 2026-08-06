@@ -36,7 +36,6 @@ import com.example.vex360.features.wallet.enums.WithdrawalStatus;
 import com.example.vex360.features.wallet.repositories.CompanyPayoutProfileRepository;
 import com.example.vex360.features.wallet.repositories.WithdrawalRequestRepository;
 import com.example.vex360.features.wallet.services.OrganizerWalletDomainService;
-import com.example.vex360.features.wallet.services.PayoutProfileEncryptionService;
 import com.example.vex360.features.wallet.services.WithdrawalRequestService;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -56,9 +55,6 @@ class WithdrawalRequestServiceTest {
 
     @Mock
     private OrganizerWalletDomainService walletDomainService;
-
-    @Mock
-    private PayoutProfileEncryptionService encryptionService;
 
     @InjectMocks
     private WithdrawalRequestService withdrawalRequestService;
@@ -383,25 +379,6 @@ class WithdrawalRequestServiceTest {
     }
 
     @Test
-    void decryptWithdrawalAccountCoversSuccessAndAuditNotFoundPaths() {
-        UUID uuid = UUID.randomUUID();
-        WithdrawalRequest request = request(uuid, company, WithdrawalStatus.PENDING);
-        when(withdrawalRequestRepository.findByUuid(uuid))
-                .thenReturn(Optional.of(request), Optional.of(request), Optional.empty(), Optional.empty());
-        when(encryptionService.decryptAccountNumber("cipher", "nonce", 1, company.getId()))
-                .thenReturn("1234567890");
-
-        assertEquals("1234567890",
-                withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid, adminUser));
-        assertEquals("1234567890",
-                withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid, null));
-        assertThrows(AppException.class,
-                () -> withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid, adminUser));
-        assertThrows(AppException.class,
-                () -> withdrawalRequestService.decryptWithdrawalAccountNumberForAdmin(uuid, null));
-    }
-
-    @Test
     void proofReferenceCheckDelegatesToRepository() {
         when(withdrawalRequestRepository.existsByProofUrlContaining("public-id")).thenReturn(true);
 
@@ -419,10 +396,7 @@ class WithdrawalRequestServiceTest {
                 .status(status)
                 .bankCodeSnapshot("VCB")
                 .bankNameSnapshot("Vietcombank")
-                .accountNumberCiphertextSnapshot("cipher")
-                .accountNumberNonceSnapshot("nonce")
-                .encryptionKeyVersionSnapshot(1)
-                .accountNumberLast4Snapshot("1234")
+                .accountNumberSnapshot("0000001234")
                 .accountHolderNameSnapshot("NGUYEN VAN A")
                 .build();
     }

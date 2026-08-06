@@ -57,7 +57,7 @@ public class CreateExhibitionRequest {
     @JsonIgnore
     @AssertTrue(message = "Ngày kết thúc phải sau ngày bắt đầu.")
     public boolean isEndDateValid() {
-        return startDate == null || endDate == null || !endDate.isBefore(startDate) || !endDate.isEqual(startDate);
+        return startDate == null || endDate == null || endDate.isAfter(startDate);
     }
 
     @JsonIgnore
