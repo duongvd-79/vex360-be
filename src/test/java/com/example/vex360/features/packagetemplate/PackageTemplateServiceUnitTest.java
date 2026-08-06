@@ -73,7 +73,6 @@ class PackageTemplateServiceUnitTest {
                 3,
                 3,
                 30,
-                2048L,
                 BoothListingPriority.PRIORITY);
 
         when(packageTemplateRepository.existsByNameIgnoreCase("Pro")).thenReturn(false);
@@ -96,7 +95,6 @@ class PackageTemplateServiceUnitTest {
         assertEquals(3, saved.getMaxEmbeddedVideosPerBooth());
         assertEquals(3, saved.getMaxPanoramasPerBooth());
         assertEquals(30, saved.getMaxHotspotsPerBooth());
-        assertEquals(2048L, saved.getStorageLimitMb());
         assertEquals(BoothListingPriority.PRIORITY, saved.getListingPriority());
         assertEquals("Pro", response.getName());
     }
@@ -207,7 +205,7 @@ class PackageTemplateServiceUnitTest {
     @Test
     void createPackageTemplate_CurrencyNull_SavesWithVnd() {
         CreatePackageTemplateRequest request = new CreatePackageTemplateRequest(
-                "Premium", "Desc", BigDecimal.TEN, null, 1, 1, 1, 1, 100L, BoothListingPriority.NORMAL);
+                "Premium", "Desc", BigDecimal.TEN, null, 1, 1, 1, 1, BoothListingPriority.NORMAL);
 
         when(packageTemplateRepository.existsByNameIgnoreCase("Premium")).thenReturn(false);
         when(packageTemplateRepository.save(any(PackageTemplate.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -335,7 +333,6 @@ class PackageTemplateServiceUnitTest {
                 1,
                 1,
                 10,
-                500L,
                 BoothListingPriority.NORMAL);
     }
 
@@ -349,7 +346,6 @@ class PackageTemplateServiceUnitTest {
                 5,
                 5,
                 50,
-                10240L,
                 BoothListingPriority.FEATURED);
     }
 
@@ -365,7 +361,6 @@ class PackageTemplateServiceUnitTest {
                 .maxEmbeddedVideosPerBooth(1)
                 .maxPanoramasPerBooth(1)
                 .maxHotspotsPerBooth(10)
-                .storageLimitMb(500L)
                 .listingPriority(BoothListingPriority.NORMAL)
                 .status(status)
                 .build();

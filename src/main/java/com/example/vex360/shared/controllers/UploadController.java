@@ -97,9 +97,9 @@ public class UploadController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody DeleteUploadRequest request) {
         Company company = companyService.getCompanyEntityForCurrentUser(userDetails.getUser());
-        cloudService.delete(request.getPublicId(), request.getResourceType());
-        if (request.getFileSize() > 0) {
-            companyStorageService.deductUsage(company, request.getFileSize());
+        long deletedBytes = cloudService.deleteAndGetSize(request.getPublicId(), request.getResourceType());
+        if (deletedBytes > 0) {
+            companyStorageService.deductUsage(company, deletedBytes);
         }
         return ok(null, "Đã xóa file.");
     }

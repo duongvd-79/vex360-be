@@ -56,13 +56,11 @@ import com.example.vex360.features.company.repositories.StoragePackageRepository
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
-import com.example.vex360.features.designrequest.entities.DesignRequestMessage;
 import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
-import com.example.vex360.features.designrequest.repositories.DesignRequestMessageRepository;
 import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
@@ -318,7 +316,6 @@ public class DataSeeder implements ApplicationRunner {
         private final DesignRequestRepository designRequestRepository;
         private final DesignDraftRepository designDraftRepository;
         private final DesignDraftPanoramaRepository designDraftPanoramaRepository;
-        private final DesignRequestMessageRepository designRequestMessageRepository;
         private final DesignRequestProductRepository designRequestProductRepository;
         private final DesignRequestMediaAssetRepository designRequestMediaAssetRepository;
         private final DesignRequestBaselineService designRequestBaselineService;
@@ -425,7 +422,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .price(new BigDecimal("5000000")).currency("VND")
                                 .maxProductsPerBooth(20).maxEmbeddedVideosPerBooth(2)
                                 .maxPanoramasPerBooth(3).maxHotspotsPerBooth(15)
-                                .storageLimitMb(500L).listingPriority(BoothListingPriority.NORMAL)
+                                .listingPriority(BoothListingPriority.NORMAL)
                                 .status(PackageTemplateStatus.ACTIVE).build());
 
                 PackageTemplate premiumTemplate = packageTemplateRepository.save(PackageTemplate.builder()
@@ -434,7 +431,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .price(new BigDecimal("15000000")).currency("VND")
                                 .maxProductsPerBooth(100).maxEmbeddedVideosPerBooth(10)
                                 .maxPanoramasPerBooth(10).maxHotspotsPerBooth(60)
-                                .storageLimitMb(5000L).listingPriority(BoothListingPriority.FEATURED)
+                                .listingPriority(BoothListingPriority.FEATURED)
                                 .status(PackageTemplateStatus.ACTIVE).build());
 
                 // Phủ BoothListingPriority.PRIORITY và PackageTemplateStatus.INACTIVE
@@ -444,7 +441,7 @@ public class DataSeeder implements ApplicationRunner {
                                 .price(new BigDecimal("9000000")).currency("VND")
                                 .maxProductsPerBooth(50).maxEmbeddedVideosPerBooth(5)
                                 .maxPanoramasPerBooth(6).maxHotspotsPerBooth(30)
-                                .storageLimitMb(2000L).listingPriority(BoothListingPriority.PRIORITY)
+                                .listingPriority(BoothListingPriority.PRIORITY)
                                 .status(PackageTemplateStatus.INACTIVE).build());
                 log.info("[SEED] Đã tạo 3 package template (phủ đủ BoothListingPriority + PackageTemplateStatus)");
 
@@ -560,6 +557,11 @@ public class DataSeeder implements ApplicationRunner {
                                                 null, "Dữ liệu kiểm thử tích hợp webhook PayOS.", null,
                                                 "PAYHK Webhook Integration Test",
                                                 "Gian hàng chuyên dùng cho kiểm thử webhook PayOS."));
+                ExhibitorRegistration reg3 = exhibitorRegistrationRepository.save(buildRegistration(
+                                regPackage, company2, basicTemplate, ExhibitorRegistrationStatus.PENDING,
+                                null, "TechVina muốn trưng bày giải pháp vật liệu thông minh.", null,
+                                "Gian hàng Vật liệu TechVina",
+                                "Trưng bày giải pháp vật liệu thông minh cho công trình hiện đại."));
                 ExhibitorRegistration reg4 = exhibitorRegistrationRepository.save(buildRegistration(
                                 regPackage, company1, basicTemplate, ExhibitorRegistrationStatus.REJECTED,
                                 organizer, "Mộc Việt đăng ký gian hàng nội thất gỗ.",
@@ -995,10 +997,6 @@ public class DataSeeder implements ApplicationRunner {
                 designRequestMediaAssetRepository.save(DesignRequestMediaAsset.builder()
                                 .designRequest(assignedDesignRequest).mediaAsset(poster)
                                 .requiredFromBaseline(false).build());
-                designRequestMessageRepository.save(DesignRequestMessage.builder()
-                                .designRequest(assignedDesignRequest).sender(exhibitor2)
-                                .message("Vui lòng ưu tiên sản phẩm cảm biến và poster giới thiệu trong thiết kế.")
-                                .build());
                 log.info("[SEED] Đã tạo 6 design request (phủ đủ DesignRequestStatus + DesignRequestMode)");
 
                 // ---------- 21. CHAT ROOM + MESSAGES ----------
@@ -1764,17 +1762,6 @@ public class DataSeeder implements ApplicationRunner {
                 seedExhdsgDraft(rejectRequest, 1, "Draft ready for EXHDSG_11 rejection.");
                 seedExhdsgDraft(finalRejectRequest, 1, "Draft ready for EXHDSG_13 final rejection.");
 
-                designRequestMessageRepository.save(DesignRequestMessage.builder()
-                                .designRequest(reviewRequest)
-                                .sender(designer)
-                                .message("Please review version 2; the main panorama has been finalized.")
-                                .build());
-                designRequestMessageRepository.save(DesignRequestMessage.builder()
-                                .designRequest(reviewRequest)
-                                .sender(tester)
-                                .message("Received. I will review the latest draft.")
-                                .build());
-
                 log.info("[SEED][EXHDSG] READY | exhibitorEmail={} | password={} | eligibleBoothUuid={} "
                                 + "| cancelRequestUuid={} | assignedRequestUuid={} | approveRequestUuid={} "
                                 + "| reviewRequestUuid={} | rejectRequestUuid={} | finalRejectRequestUuid={}",
@@ -1830,7 +1817,6 @@ public class DataSeeder implements ApplicationRunner {
                 registration.setMaxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth());
                 registration.setMaxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth());
                 registration.setMaxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth());
-                registration.setStorageLimitMbSnapshot(template.getStorageLimitMb());
                 registration.setListingPrioritySnapshot(template.getListingPriority());
                 registration = exhibitorRegistrationRepository.save(registration);
 
@@ -2474,8 +2460,6 @@ public class DataSeeder implements ApplicationRunner {
                                 .exhibitionPackage(pkg).company(company).status(status)
                                 .reviewedBy(reviewedBy).participationReason(reason)
                                 .rejectedReason(rejectedReason)
-                                .boothName("Gian hàng " + company.getName())
-                                .boothDescription(reason != null ? reason : "Gian hàng dữ liệu mẫu VEX360.")
                                 .boothName(boothName != null ? boothName : "Gian hàng " + company.getName())
                                 .boothDescription(boothDescription != null ? boothDescription
                                                 : "Mô tả gian hàng " + company.getName())
@@ -2487,7 +2471,6 @@ public class DataSeeder implements ApplicationRunner {
                                 .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
                                 .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
                                 .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
-                                .storageLimitMbSnapshot(template.getStorageLimitMb())
                                 .listingPrioritySnapshot(template.getListingPriority())
                                 .build();
         }

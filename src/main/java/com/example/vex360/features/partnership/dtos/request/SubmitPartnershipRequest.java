@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,11 +20,15 @@ import lombok.NoArgsConstructor;
 public class SubmitPartnershipRequest {
     @Schema(description = "Tên người đại diện gửi yêu cầu", example = "Nguyen Van An")
     @NotBlank(message = "Requester name must not be blank")
+    @Size(min = 2, max = 120, message = "Tên người gửi phải có từ 2 đến 120 ký tự.")
+    @Pattern(regexp = "^[\\p{L}\\p{M}]+(?:[ '\\-][\\p{L}\\p{M}]+)*$",
+            message = "Tên người gửi chỉ được chứa chữ cái, khoảng trắng, dấu nháy đơn hoặc dấu gạch nối.")
     private String requesterName;
 
     @Schema(description = "Email liên hệ của người/công ty gửi yêu cầu", example = "partner@example.com")
     @NotBlank(message = "Requester email must not be blank")
     @Email(message = "Requester email is invalid")
+    @Size(max = 255, message = "Email người gửi không được vượt quá 255 ký tự.")
     private String requesterEmail;
 
     @Schema(description = "Số điện thoại liên hệ, định dạng 10 số bắt đầu bằng 0", example = "0912345678")
@@ -33,6 +38,7 @@ public class SubmitPartnershipRequest {
 
     @Schema(description = "Tên công ty hoặc tổ chức muốn hợp tác", example = "Vex360 Partner")
     @NotBlank(message = "Organization name must not be blank")
+    @Size(max = 255, message = "Tên tổ chức không được vượt quá 255 ký tự.")
     private String organizationName;
 
     @Schema(
@@ -43,9 +49,11 @@ public class SubmitPartnershipRequest {
     private Role requestedRole;
 
     @Schema(description = "Nội dung hoặc ghi chú gửi cho admin", example = "We want to join Vex360 as an exhibitor.")
+    @Size(max = 2000, message = "Nội dung không được vượt quá 2000 ký tự.")
     private String message;
 
     @Schema(description = "Người gửi đã đồng ý chính sách hợp tác", example = "true")
+    @NotNull(message = "Vui lòng xác nhận chính sách hợp tác.")
     @AssertTrue(message = "Policy must be accepted")
     private Boolean acceptedPolicy;
 }
