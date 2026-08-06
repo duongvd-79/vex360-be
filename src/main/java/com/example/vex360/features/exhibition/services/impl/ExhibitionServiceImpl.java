@@ -1234,7 +1234,14 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
                 normalizedKeyword, visitorStatuses, normalizedCategory, startDate, endDate, pageable)
-                .map(e -> exhibitionMapper.toPublicResponse(e, null));
+                .map(e -> {
+                    ExhibitionResponseDTO dto = exhibitionMapper.toPublicResponse(e, null);
+                    if (e.getOrganizer() != null && e.getOrganizer().getId() != null) {
+                        companyService.findByOwnerUserId(e.getOrganizer().getId())
+                                .ifPresent(c -> dto.setCompanyName(c.getName()));
+                    }
+                    return dto;
+                });
 
         return PageResponse.from(exhibitions);
     }
