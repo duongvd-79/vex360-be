@@ -231,6 +231,12 @@ public enum ErrorCode {
     REGISTRATION_ALREADY_PAID("REGISTRATION-005",
             "Không thể hủy lượt đăng ký đã thanh toán. Vui lòng liên hệ ban tổ chức nếu cần hỗ trợ.",
             HttpStatus.BAD_REQUEST),
+    EXHIBITION_PACKAGE_FULL("REGISTRATION-006",
+            "Gói dịch vụ đã hết số lượng gian hàng cho phép.",
+            HttpStatus.BAD_REQUEST),
+    REGISTRATION_RESERVATION_EXPIRED("REGISTRATION-007",
+            "Thời gian giữ chỗ thanh toán cho đăng ký này đã hết hạn.",
+            HttpStatus.BAD_REQUEST),
 
     // PAYMENT ERRORS
     PAYMENT_LINK_UNAVAILABLE("PAYMENT-001", "Chưa thể tạo liên kết thanh toán. Vui lòng thử lại sau.",

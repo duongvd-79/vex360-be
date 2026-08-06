@@ -61,6 +61,9 @@ public class ExhibitorRegistration {
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     ExhibitorRegistrationStatus status;
 
+    @Column(name = "reserved_until")
+    Instant reservedUntil;
+
     @CreationTimestamp
     @Column(name = "submitted_at", updatable = false)
     Instant submittedAt;

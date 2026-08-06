@@ -52,6 +52,9 @@ public class ExhibitionPackage {
     @Column(name = "final_price", nullable = false, precision = 15, scale = 2)
     BigDecimal finalPrice;
 
+    @Column(name = "max_booths")
+    Integer maxBooths;
+
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Enumerated(EnumType.STRING)
     ExhibitionPackageStatus status;

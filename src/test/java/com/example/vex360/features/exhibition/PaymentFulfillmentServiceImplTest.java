@@ -29,6 +29,7 @@ import com.example.vex360.features.exhibition.repositories.PaymentReceiptReposit
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.impl.PaymentFulfillmentServiceImpl;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentReceiptStatus;
@@ -59,6 +60,9 @@ class PaymentFulfillmentServiceImplTest {
 
     @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
+
+    @Mock
+    private PayOSIntegrationService payOSIntegrationService;
 
     @InjectMocks
     private PaymentFulfillmentServiceImpl fulfillmentService;

@@ -5,5 +5,6 @@ public enum PaymentReceiptStatus {
     PROCESSING,
     SUCCEEDED,
     RETRYABLE_FAILED,
-    MANUAL_REVIEW
+    MANUAL_REVIEW,
+    REFUND_REQUIRED
 }

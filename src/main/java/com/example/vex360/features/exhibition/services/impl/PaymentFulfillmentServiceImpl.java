@@ -16,6 +16,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentReceiptRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
+import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository.PaymentRoute;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -39,6 +40,7 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final PayOSIntegrationService payOSIntegrationService;
 
     @Override
     @Transactional
@@ -117,7 +119,16 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
         receipt.setLastError(throwable != null ? throwable.getMessage() : "Fulfillment error");
 
         boolean nonRetryable = isNonRetryableException(throwable) || nextRetryCount >= 5;
-        if (nonRetryable) {
+        boolean isRefundRequired = throwable instanceof AppException appEx &&
+                (appEx.getErrorCode() == ErrorCode.EXHIBITION_PACKAGE_FULL
+                        || appEx.getErrorCode() == ErrorCode.REGISTRATION_RESERVATION_EXPIRED);
+
+        if (isRefundRequired) {
+            receipt.setStatus(PaymentReceiptStatus.REFUND_REQUIRED);
+            receipt.setNextRetryAt(null);
+            log.error("[PB-005/006] Receipt moved to REFUND_REQUIRED for orderCode: {}, error: {}",
+                    orderCode, receipt.getLastError());
+        } else if (nonRetryable) {
             receipt.setStatus(PaymentReceiptStatus.MANUAL_REVIEW);
             receipt.setNextRetryAt(null);
             log.error("[PB-005/006] Receipt moved to MANUAL_REVIEW for orderCode: {}, retries: {}, error: {}",
@@ -143,7 +154,9 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
         Optional<PaymentRoute> route = paymentRepository.findRouteByOrderCode(orderCode);
         if (route.isEmpty() || route.get().getPaymentType() != PaymentType.EXHIBITION_REGISTRATION
                 || route.get().getRegistrationId() == null) {
-            return Optional.empty();
+            log.error("[PB-006] Route or registration missing for orderCode {}", orderCode);
+            updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+            return receiptRepository.findByOrderCode(orderCode);
         }
 
         Integer regId = route.get().getRegistrationId();
@@ -156,7 +169,9 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
 
         Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
         if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
-            return Optional.empty();
+            log.warn("[PB-006] Payment missing or not PAID for orderCode {}", orderCode);
+            updateReceiptFailed(orderCode, new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE));
+            return receiptRepository.findByOrderCode(orderCode);
         }
 
         boolean registrationOpen = registration.getExhibitionPackage() != null
@@ -168,9 +183,35 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
             return receiptRepository.findByOrderCode(orderCode);
         }
 
+        if (registration.getReservedUntil() != null && registration.getReservedUntil().isBefore(Instant.now())) {
+            log.error("[PB-007] Registration reservation expired for orderCode {}", orderCode);
+            registration.setStatus(ExhibitorRegistrationStatus.EXPIRED);
+            registrationRepository.save(registration);
+            try {
+                payOSIntegrationService.cancelPaymentLink(orderCode, "Reservation expired");
+            } catch (Exception e) {
+                log.warn("[PB-007] Failed to cancel PayOS link for expired orderCode {}: {}", orderCode,
+                        e.getMessage());
+            }
+            updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_RESERVATION_EXPIRED));
+            return receiptRepository.findByOrderCode(orderCode);
+        }
+
         boolean newlyApproved = registration.getStatus() != ExhibitorRegistrationStatus.APPROVED;
         if (newlyApproved) {
+            com.example.vex360.features.exhibition.entities.ExhibitionPackage pkg = registration.getExhibitionPackage();
+            if (pkg != null && pkg.getMaxBooths() != null) {
+                long activeAndReserved = registrationRepository.countActiveAndReservedByPackageId(pkg.getId(),
+                        Instant.now());
+                if (activeAndReserved > pkg.getMaxBooths()) {
+                    log.error("[PB-008] Exhibition package full for orderCode {}", orderCode);
+                    updateReceiptFailed(orderCode, new AppException(ErrorCode.EXHIBITION_PACKAGE_FULL));
+                    return receiptRepository.findByOrderCode(orderCode);
+                }
+            }
+
             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+            registration.setReservedUntil(null);
             registrationRepository.save(registration);
         }
 

@@ -22,21 +22,34 @@ public class PayOSIntegrationServiceImpl implements PayOSIntegrationService {
 
     @Override
     public CreatePaymentLinkResponse createPaymentLink(Long orderCode, Long amount, String description, String returnUrl, String cancelUrl) {
-        try {
-            CreatePaymentLinkRequest request = CreatePaymentLinkRequest.builder()
-                    .orderCode(orderCode)
-                    .amount(amount)
-                    .description(description)
-                    .returnUrl(returnUrl)
-                    .cancelUrl(cancelUrl)
-                    .build();
+        CreatePaymentLinkRequest request = CreatePaymentLinkRequest.builder()
+                .orderCode(orderCode)
+                .amount(amount)
+                .description(description)
+                .returnUrl(returnUrl)
+                .cancelUrl(cancelUrl)
+                .build();
 
-            log.info("Creating PayOS payment link for orderCode: {}, amount: {}", orderCode, amount);
-            return payOS.paymentRequests().create(request);
-        } catch (Exception e) {
-            log.error("Failed to create PayOS payment link for orderCode: {}", orderCode, e);
-            throw new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE);
+        log.info("Creating PayOS payment link for orderCode: {}, amount: {}", orderCode, amount);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                return payOS.paymentRequests().create(request);
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Attempt {}/3 failed to create PayOS payment link for orderCode: {}: {}",
+                        attempt, orderCode, e.getMessage());
+                if (attempt < 3) {
+                    try {
+                        Thread.sleep(100L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
         }
+        log.error("All 3 attempts failed to create PayOS payment link for orderCode: {}", orderCode, lastException);
+        throw new AppException(ErrorCode.PAYMENT_LINK_UNAVAILABLE);
     }
 
     @Override

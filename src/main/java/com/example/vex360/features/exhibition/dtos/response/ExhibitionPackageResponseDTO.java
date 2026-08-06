@@ -20,5 +20,6 @@ public class ExhibitionPackageResponseDTO {
     private UUID templateId;
     private String templateName;
     private BigDecimal finalPrice;
+    private Integer maxBooths;
     private String status;
 }
