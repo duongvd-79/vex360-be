@@ -7,14 +7,20 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Schema(description = "Thông tin dùng để hoàn thiện hồ sơ công ty sau khi partnership request được duyệt")
 public class UpdateCompanyProfileRequest {
+    @Schema(description = "Tên công ty", example = "Công ty TNHH Vex360")
+    @Size(max = 255, message = "Tên công ty không được vượt quá 255 ký tự.")
+    private String name;
+
     @Schema(description = "Ngành nghề hoạt động của công ty", example = "Technology")
     @NotBlank(message = "Industry must not be blank")
     @Size(max = 255, message = "Ngành nghề không được vượt quá 255 ký tự.")

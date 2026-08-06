@@ -17,6 +17,7 @@ public interface CompanyMapper {
     CompanyResponseDTO toResponse(Company company);
 
     @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "name", source = "name")
     @Mapping(target = "industry", source = "industry")
     @Mapping(target = "description", source = "description")
     @Mapping(target = "logoUrl", source = "logoUrl")
