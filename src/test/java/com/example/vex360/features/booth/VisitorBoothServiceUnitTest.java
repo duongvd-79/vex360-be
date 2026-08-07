@@ -132,6 +132,27 @@ class VisitorBoothServiceUnitTest {
     }
 
     @Test
+    void getPublishedBooths_WhenExhibitionIsPublished_ReturnsBooths() {
+        exhibition.setStatus(ExhibitionStatus.PUBLISHED.name());
+        Booth booth = Booth.builder().id(UUID.randomUUID()).name("Published Booth").build();
+        Page<Booth> boothPage = new PageImpl<>(List.of(booth));
+        BoothResponseDTO responseDTO = new BoothResponseDTO();
+        responseDTO.setName("Published Booth");
+
+        when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
+        when(boothRepository.findPublishedBoothsByExhibitionUuid(
+                exhibitionUuid, BoothStatus.PUBLISHED, null, null, pageable))
+                .thenReturn(boothPage);
+        when(boothMapper.toBoothResponseDTO(booth)).thenReturn(responseDTO);
+
+        PageResponse<BoothResponseDTO> result = service.getPublishedBooths(
+                exhibitionUuid, null, null, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+    }
+
+    @Test
     void getPublishedBooths_WhenExhibitionNotActive_ThrowsException() {
         exhibition.setStatus(ExhibitionStatus.REGISTRATION.name());
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
@@ -140,6 +161,28 @@ class VisitorBoothServiceUnitTest {
                 () -> service.getPublishedBooths(exhibitionUuid, "test", null, pageable));
 
         assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+    }
+
+    @Test
+    void getPublishedBooths_WhenExhibitionIsCompleted_ThrowsException() {
+        exhibition.setStatus(ExhibitionStatus.COMPLETED.name());
+        when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> service.getPublishedBooths(exhibitionUuid, null, null, pageable));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, ex.getErrorCode());
+    }
+
+    @Test
+    void getPublishedBooths_WhenExhibitionIsPending_ThrowsException() {
+        exhibition.setStatus(ExhibitionStatus.PENDING.name());
+        when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
+
+        AppException ex = assertThrows(AppException.class,
+                () -> service.getPublishedBooths(exhibitionUuid, null, null, pageable));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, ex.getErrorCode());
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -240,5 +242,262 @@ class OrganizerWalletDomainServiceTest {
 
         assertThrows(AppException.class,
                 () -> domainService.reserveWithdrawal(company, req, new BigDecimal("400000.00"), null));
+    }
+
+    @Test
+    void getOrCreateWalletReturnsExistingOrCreatesZeroBalanceWallet() {
+        when(organizerWalletRepository.findByCompanyId(company.getId()))
+                .thenReturn(Optional.of(wallet), Optional.empty());
+        when(organizerWalletRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertSame(wallet, domainService.getOrCreateWallet(company));
+        OrganizerWallet created = domainService.getOrCreateWallet(company);
+
+        assertEquals(company, created.getCompany());
+        assertEquals("VND", created.getCurrency());
+        assertEquals(new BigDecimal("0.00"), created.getPendingBalance());
+        assertEquals(new BigDecimal("0.00"), created.getAvailableBalance());
+        assertEquals(new BigDecimal("0.00"), created.getReservedBalance());
+        assertEquals(new BigDecimal("0.00"), created.getWithdrawnTotal());
+    }
+
+    @Test
+    void getWalletWithLockCreatesThenReloadsWallet() {
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId()))
+                .thenReturn(Optional.empty(), Optional.of(wallet));
+        when(organizerWalletRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+
+        assertSame(wallet, domainService.getWalletWithLock(company));
+    }
+
+    @Test
+    void getWalletWithLockThrowsWhenReloadStillCannotFindWallet() {
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.empty());
+        when(organizerWalletRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> domainService.getWalletWithLock(company));
+
+        assertSame(ErrorCode.WALLET_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void creditPendingPaymentRejectsInvalidAmountsAndHandlesConstraintRace() {
+        assertNull(domainService.creditPendingPayment(company, null, null, null, null, null));
+        assertNull(domainService.creditPendingPayment(company, null, null, BigDecimal.ZERO, null, null));
+
+        Payment payment = Payment.builder().id(100).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByPaymentIdAndType(
+                100, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(false);
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertNull(domainService.creditPendingPayment(
+                company, null, payment, new BigDecimal("10.126"), null, null));
+        assertEquals(new BigDecimal("10.13"), wallet.getPendingBalance());
+    }
+
+    @Test
+    void creditPendingPaymentAllowsPaymentWithoutIdAndUsesDefaultReason() {
+        Payment payment = Payment.builder().build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrganizerWalletTransaction tx = domainService.creditPendingPayment(
+                company, null, payment, BigDecimal.ONE, null, null);
+
+        assertEquals("Payment revenue credited to pending", tx.getReason());
+    }
+
+    @Test
+    void releasePendingRevenueHandlesInvalidAndCappedAmounts() {
+        assertNull(domainService.releasePendingRevenue(company, null, null, null, null));
+        assertNull(domainService.releasePendingRevenue(company, null, BigDecimal.ZERO, null, null));
+
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        assertNull(domainService.releasePendingRevenue(company, null, BigDecimal.TEN, null, null));
+
+        wallet.setPendingBalance(new BigDecimal("5.00"));
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        OrganizerWalletTransaction tx =
+                domainService.releasePendingRevenue(company, null, BigDecimal.TEN, null, null);
+
+        assertEquals(new BigDecimal("5.00"), tx.getAmount());
+        assertEquals("Exhibition completed - pending balance released to available", tx.getReason());
+    }
+
+    @Test
+    void reserveWithdrawalSkipsDuplicateAndHandlesConstraintRace() {
+        wallet.setAvailableBalance(new BigDecimal("20.00"));
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder().id(7L).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByWithdrawalRequestIdAndType(
+                7L, WalletTransactionType.WITHDRAWAL_RESERVED)).thenReturn(true, false);
+
+        assertNull(domainService.reserveWithdrawal(company, withdrawal, BigDecimal.TEN, null));
+
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+        assertNull(domainService.reserveWithdrawal(company, withdrawal, BigDecimal.TEN, null));
+    }
+
+    @Test
+    void reserveWithdrawalAllowsRequestWithoutId() {
+        wallet.setAvailableBalance(BigDecimal.TEN);
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder().build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertNotNull(domainService.reserveWithdrawal(company, withdrawal, BigDecimal.ONE, null));
+    }
+
+    @Test
+    void releaseWithdrawalReserveSkipsDuplicateAndCapsToReservedBalance() {
+        wallet.setReservedBalance(new BigDecimal("5.00"));
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder()
+                .id(7L)
+                .amount(BigDecimal.TEN)
+                .build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByWithdrawalRequestIdAndType(
+                7L, WalletTransactionType.WITHDRAWAL_RELEASED)).thenReturn(true, false);
+
+        assertNull(domainService.releaseWithdrawalReserve(company, withdrawal, null, null));
+
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        OrganizerWalletTransaction tx =
+                domainService.releaseWithdrawalReserve(company, withdrawal, null, null);
+
+        assertEquals(new BigDecimal("5.00"), tx.getAmount());
+        assertEquals(new BigDecimal("5.00"), wallet.getAvailableBalance());
+        assertEquals("Withdrawal canceled or rejected - funds released to available", tx.getReason());
+    }
+
+    @Test
+    void releaseWithdrawalReserveHandlesConstraintRaceAndExplicitReason() {
+        wallet.setReservedBalance(BigDecimal.TEN);
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder().id(7L).amount(BigDecimal.ONE).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByWithdrawalRequestIdAndType(
+                7L, WalletTransactionType.WITHDRAWAL_RELEASED)).thenReturn(false);
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertNull(domainService.releaseWithdrawalReserve(company, withdrawal, "rejected", null));
+    }
+
+    @Test
+    void markWithdrawalPaidSkipsDuplicateAndCapsToReservedBalance() {
+        wallet.setReservedBalance(new BigDecimal("5.00"));
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder().id(7L).amount(BigDecimal.TEN).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByWithdrawalRequestIdAndType(
+                7L, WalletTransactionType.WITHDRAWAL_PAID)).thenReturn(true, false);
+
+        assertNull(domainService.markWithdrawalPaid(company, withdrawal, null));
+
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        OrganizerWalletTransaction tx = domainService.markWithdrawalPaid(company, withdrawal, null);
+
+        assertEquals(new BigDecimal("5.00"), tx.getAmount());
+        assertEquals(new BigDecimal("5.00"), wallet.getWithdrawnTotal());
+    }
+
+    @Test
+    void markWithdrawalPaidHandlesConstraintRaceAndRequestWithoutId() {
+        wallet.setReservedBalance(BigDecimal.TEN);
+        WithdrawalRequest withdrawal = WithdrawalRequest.builder().amount(BigDecimal.ONE).build();
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertNull(domainService.markWithdrawalPaid(company, withdrawal, null));
+    }
+
+    @Test
+    void reversePendingPaymentValidatesIdCreditAndIdempotency() {
+        assertThrows(IllegalArgumentException.class, () -> domainService.reversePendingPayment(null, null, null));
+
+        when(organizerWalletTransactionRepository.findByPaymentIdAndType(
+                100, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(Optional.empty());
+        AppException missing = assertThrows(AppException.class,
+                () -> domainService.reversePendingPayment(100, null, null));
+        assertSame(ErrorCode.PAYMENT_NOT_CREDITED, missing.getErrorCode());
+
+        OrganizerWalletTransaction credit = credit(null, BigDecimal.ONE);
+        when(organizerWalletTransactionRepository.findByPaymentIdAndType(
+                101, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(Optional.of(credit));
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.existsByPaymentIdAndType(
+                101, WalletTransactionType.PAYMENT_REVERSAL)).thenReturn(true);
+        assertNull(domainService.reversePendingPayment(101, null, null));
+    }
+
+    @Test
+    void reversePendingPaymentRejectsCompletedExhibitionAndInsufficientBalance() {
+        Exhibition completed = Exhibition.builder().status(ExhibitionStatus.COMPLETED).build();
+        OrganizerWalletTransaction completedCredit = credit(completed, BigDecimal.ONE);
+        when(organizerWalletTransactionRepository.findByPaymentIdAndType(
+                100, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(Optional.of(completedCredit));
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+
+        AppException released = assertThrows(AppException.class,
+                () -> domainService.reversePendingPayment(100, null, null));
+        assertSame(ErrorCode.PAYMENT_ALREADY_RELEASED, released.getErrorCode());
+
+        Exhibition active = Exhibition.builder().status(ExhibitionStatus.ACTIVE).build();
+        OrganizerWalletTransaction activeCredit = credit(active, BigDecimal.TEN);
+        when(organizerWalletTransactionRepository.findByPaymentIdAndType(
+                101, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(Optional.of(activeCredit));
+        AppException insufficient = assertThrows(AppException.class,
+                () -> domainService.reversePendingPayment(101, null, null));
+        assertSame(ErrorCode.INSUFFICIENT_WALLET_BALANCE, insufficient.getErrorCode());
+    }
+
+    @Test
+    void reversePendingPaymentUsesDefaultReasonAndHandlesConstraintRace() {
+        wallet.setPendingBalance(BigDecimal.TEN);
+        OrganizerWalletTransaction credit = credit(null, BigDecimal.ONE);
+        when(organizerWalletTransactionRepository.findByPaymentIdAndType(
+                100, WalletTransactionType.PAYMENT_CREDIT)).thenReturn(Optional.of(credit));
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertNull(domainService.reversePendingPayment(100, null, null));
+    }
+
+    @Test
+    void idempotencyGuardsHandleNullReferencesAndMissingWithdrawalId() {
+        when(organizerWalletRepository.findWithLockByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+        when(organizerWalletTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertNotNull(domainService.creditPendingPayment(
+                company, null, null, BigDecimal.ONE, null, null));
+
+        wallet.setAvailableBalance(BigDecimal.TEN);
+        assertNotNull(domainService.reserveWithdrawal(
+                company, null, BigDecimal.ONE, null));
+
+        assertThrows(NullPointerException.class,
+                () -> domainService.releaseWithdrawalReserve(company, null, null, null));
+
+        wallet.setReservedBalance(BigDecimal.TEN);
+        WithdrawalRequest withoutId = WithdrawalRequest.builder().amount(BigDecimal.ONE).build();
+        assertNotNull(domainService.releaseWithdrawalReserve(
+                company, withoutId, null, null));
+
+        assertThrows(NullPointerException.class,
+                () -> domainService.markWithdrawalPaid(company, null, null));
+    }
+
+    private OrganizerWalletTransaction credit(Exhibition exhibition, BigDecimal amount) {
+        return OrganizerWalletTransaction.builder()
+                .company(company)
+                .exhibition(exhibition)
+                .payment(Payment.builder().id(100).build())
+                .amount(amount)
+                .build();
     }
 }

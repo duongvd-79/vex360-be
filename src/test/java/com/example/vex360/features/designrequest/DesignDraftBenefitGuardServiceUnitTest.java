@@ -132,7 +132,6 @@ class DesignDraftBenefitGuardServiceUnitTest {
     @Test
     void storageSnapshotIsNotRequiredOrValidated() {
         ExhibitorRegistration registration = registration(3, 5, 2, 1);
-        registration.setStorageLimitMbSnapshot(null);
         booth.setExhibitorRegistration(registration);
         when(boothDesignService.findPanoramaDetailsByBoothId(booth.getId())).thenReturn(List.of());
 
@@ -188,7 +187,6 @@ class DesignDraftBenefitGuardServiceUnitTest {
                 .maxHotspotsPerBoothSnapshot(hotspots)
                 .maxProductsPerBoothSnapshot(products)
                 .maxEmbeddedVideosPerBoothSnapshot(videos)
-                .storageLimitMbSnapshot(0L)
                 .build();
     }
 

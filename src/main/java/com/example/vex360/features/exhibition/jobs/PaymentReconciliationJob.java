@@ -36,13 +36,24 @@ public class PaymentReconciliationJob {
 
     @Scheduled(fixedDelayString = "${app.payment.reconciliation-delay-ms:60000}")
     public void runReconciliation() {
-        log.info("[PB-006 Reconciliation Job] Starting auto-repair reconciliation run...");
-
         // 1. Process claimable receipts (PENDING or RETRYABLE_FAILED)
         List<PaymentReceipt> claimableReceipts = receiptRepository.findClaimableReceipts(
                 List.of(PaymentReceiptStatus.PENDING, PaymentReceiptStatus.RETRYABLE_FAILED),
                 Instant.now(),
                 PageRequest.of(0, 50));
+
+        // 2. Process orphan PAID payments missing a booth
+        List<Payment> unfulfilledPaid = paymentRepository.findUnfulfilledPaidPayments(PageRequest.of(0, 50));
+
+        // 3. Query PayOS for PENDING local payments that may have paid on provider side
+        List<Payment> pendingPayments = paymentRepository.findPendingExhibitionPayments(PageRequest.of(0, 50));
+
+        if (claimableReceipts.isEmpty() && unfulfilledPaid.isEmpty() && pendingPayments.isEmpty()) {
+            return;
+        }
+
+        log.info("[PB-006 Reconciliation Job] Starting auto-repair reconciliation run for {} receipts, {} unfulfilled, {} pending payments...",
+                claimableReceipts.size(), unfulfilledPaid.size(), pendingPayments.size());
 
         for (PaymentReceipt receipt : claimableReceipts) {
             try {
@@ -53,8 +64,6 @@ public class PaymentReconciliationJob {
             }
         }
 
-        // 2. Process orphan PAID payments missing a booth
-        List<Payment> unfulfilledPaid = paymentRepository.findUnfulfilledPaidPayments(PageRequest.of(0, 50));
         for (Payment payment : unfulfilledPaid) {
             try {
                 log.info("[PB-006] Processing unfulfilled PAID payment orderCode {}", payment.getOrderCode());
@@ -66,22 +75,28 @@ public class PaymentReconciliationJob {
             }
         }
 
-        // 3. Query PayOS for PENDING local payments that may have paid on provider side
-        List<Payment> pendingPayments = paymentRepository.findPendingExhibitionPayments(PageRequest.of(0, 50));
         for (Payment payment : pendingPayments) {
             if (payment.getOrderCode() == null) {
                 continue;
             }
             try {
                 PaymentLink linkInfo = payOSIntegrationService.getPaymentLinkInformation(payment.getOrderCode());
-                if (linkInfo != null && linkInfo.getStatus() == PaymentLinkStatus.PAID) {
-                    log.info("[PB-006] Provider confirmed PAID for local PENDING orderCode {}. Fulfilling...",
-                            payment.getOrderCode());
-                    payment.setStatus(PaymentStatus.PAID);
-                    payment.setPaidAt(Instant.now());
-                    paymentRepository.save(payment);
-                    fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
-                    eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
+                if (linkInfo != null) {
+                    if (linkInfo.getStatus() == PaymentLinkStatus.PAID) {
+                        log.info("[PB-006] Provider confirmed PAID for local PENDING orderCode {}. Fulfilling...",
+                                payment.getOrderCode());
+                        payment.setStatus(PaymentStatus.PAID);
+                        payment.setPaidAt(Instant.now());
+                        paymentRepository.save(payment);
+                        fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
+                        eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
+                    } else if (linkInfo.getStatus() == PaymentLinkStatus.CANCELLED
+                            || linkInfo.getStatus() == PaymentLinkStatus.EXPIRED) {
+                        log.info("[PB-006] Provider confirmed {} for local PENDING orderCode {}. Marking FAILED...",
+                                linkInfo.getStatus(), payment.getOrderCode());
+                        payment.setStatus(PaymentStatus.FAILED);
+                        paymentRepository.save(payment);
+                    }
                 }
             } catch (Exception e) {
                 log.debug("[PB-006] PayOS status check exception for orderCode {}: {}", payment.getOrderCode(),

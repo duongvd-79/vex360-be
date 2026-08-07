@@ -41,6 +41,13 @@ app:
     cloud-name: ${CLOUDINARY_CLOUD_NAME}
     api-key: ${CLOUDINARY_API_KEY}
     api-secret: ${CLOUDINARY_API_SECRET}
+    orphan-cleanup:
+      enabled: ${CLOUDINARY_ORPHAN_CLEANUP_ENABLED:false}
+      cron: ${CLOUDINARY_ORPHAN_CLEANUP_CRON:0 30 2 * * *}
+      grace-period: ${CLOUDINARY_ORPHAN_CLEANUP_GRACE_PERIOD:PT24H}
+      page-size: ${CLOUDINARY_ORPHAN_CLEANUP_PAGE_SIZE:100}
+      max-scanned-per-run: ${CLOUDINARY_ORPHAN_CLEANUP_MAX_SCANNED:1000}
+      max-deletions-per-run: ${CLOUDINARY_ORPHAN_CLEANUP_MAX_DELETIONS:100}
 
   wallet:
     encryption:
@@ -64,7 +71,7 @@ app:
       redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5175/auth/callback/google}
       user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
 
-    whitelist: /api/v1/auth/**,/api/v1/partnership-requests/guest,/api/v1/partnership-requests/verify,/api/v1/package-templates/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html,/api/v1/webhooks/payos/**,/api/v1/public/exhibitions/**, /ws/**
+    whitelist: /api/v1/auth/**,/api/v1/partnership-requests/guest,/api/v1/partnership-requests/verify,/api/v1/package-templates/**,/v3/api-docs/**,/swagger-ui/**,/swagger-ui.html,/api/v1/webhooks/payos/**,/api/v1/public/exhibitions/**, /ws/**,/actuator/**
     strict-mode: ${SECURITY_STRICT_MODE:true}
     token-encryption-key: ${TOKEN_ENCRYPTION_KEY}
 
@@ -124,6 +131,11 @@ spring:
     username: ${AIVEN_DB_USER}
     password: ${AIVEN_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:5}
+      minimum-idle: ${HIKARI_MIN_IDLE:2}
+      idle-timeout: 300000
+      max-lifetime: 900000
 app:
   mail:
     gmail:

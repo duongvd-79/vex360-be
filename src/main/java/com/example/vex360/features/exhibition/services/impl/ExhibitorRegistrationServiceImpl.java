@@ -2,6 +2,7 @@ package com.example.vex360.features.exhibition.services.impl;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.exhibition.services.CommissionCalculator.CommissionResult;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
+import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -34,6 +36,7 @@ import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
+import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
@@ -61,6 +64,7 @@ import com.example.vex360.features.mail.MailService;
 @RequiredArgsConstructor
 @Slf4j
 public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationService {
+    private static final long RESERVATION_TTL_HOURS = 24L;
 
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
@@ -69,6 +73,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final CompanyService companyService;
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
+    private final PaymentFulfillmentService paymentFulfillmentService;
     private final CommissionCalculator commissionCalculator;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
@@ -146,7 +151,6 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
                 .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
                 .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
-                .storageLimitMbSnapshot(template.getStorageLimitMb())
                 .listingPrioritySnapshot(template.getListingPriority())
                 .build();
         return registrationRepository.save(registration);
@@ -177,57 +181,59 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         validateRegistrationDependencies(registration);
 
+        Payment payment = ensureValidPaymentForRegistration(registration);
+        return mapToResponse(registration, payment);
+    }
+
+    private Payment ensureValidPaymentForRegistration(ExhibitorRegistration registration) {
+        if (registration == null) {
+            return null;
+        }
+
         Payment payment = paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(registration.getId())
                 .orElse(null);
 
         if (payment != null && payment.getStatus() == PaymentStatus.PENDING) {
-            if (payment.getCheckoutUrl() == null || payment.getCheckoutUrl().isBlank()) {
-                if (payment.getOrderCode() != null) {
-                    try {
-                        PaymentLink linkData = payOSIntegrationService
-                                .getPaymentLinkInformation(payment.getOrderCode());
-                        if (linkData != null) {
-                            if (linkData.getStatus() == PaymentLinkStatus.PAID) {
-                                payment.setStatus(PaymentStatus.PAID);
-                                payment.setPaidAt(Instant.now());
-                                if (timelinePolicy.isRegistrationOpen(
-                                        registration.getExhibitionPackage().getExhibition())) {
-                                    registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
-                                    registrationRepository.save(registration);
-                                    eventPublisher.publishEvent(
-                                            new ExhibitorRegistrationApprovedEvent(this, registration));
-                                }
-                                payment = paymentRepository.save(payment);
-                            } else {
-                                payment.setStatus(PaymentStatus.FAILED);
-                                payment = paymentRepository.save(payment);
-                            }
-                        } else {
-                            payment.setStatus(PaymentStatus.FAILED);
-                            payment = paymentRepository.save(payment);
-                        }
-                    } catch (Exception e) {
-                        payment.setStatus(PaymentStatus.FAILED);
-                        payment = paymentRepository.save(payment);
-                    }
-                } else {
+            if (payment.getOrderCode() != null) {
+                PaymentLink linkData = null;
+                try {
+                    linkData = payOSIntegrationService.getPaymentLinkInformation(payment.getOrderCode());
+                } catch (Exception e) {
+                    log.warn("Failed to check PayOS link info for orderCode {}, preserving PENDING payment: {}",
+                            payment.getOrderCode(), e.getMessage());
+                }
+
+                if (linkData != null && linkData.getStatus() == PaymentLinkStatus.PAID) {
+                    payment.setStatus(PaymentStatus.PAID);
+                    payment.setPaidAt(Instant.now());
+                    payment = paymentRepository.save(payment);
+                    paymentFulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
+                    eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
+                } else if (linkData != null
+                        && (linkData.getStatus() == PaymentLinkStatus.CANCELLED
+                                || linkData.getStatus() == PaymentLinkStatus.EXPIRED)) {
+                    log.info("PayOS link for orderCode {} has status {}, marking payment as FAILED",
+                            payment.getOrderCode(), linkData.getStatus());
                     payment.setStatus(PaymentStatus.FAILED);
                     payment = paymentRepository.save(payment);
                 }
+            } else {
+                payment.setStatus(PaymentStatus.FAILED);
+                payment = paymentRepository.save(payment);
             }
         }
 
-        // If the registration is approved and waiting for payment, generate PayOS
-        // checkout URL on the fly if needed
         if (registration.getStatus() == ExhibitorRegistrationStatus.PENDING_PAYMENT
                 && (payment == null || payment.getStatus() == PaymentStatus.FAILED)) {
             validateRegistrationDependencies(registration);
 
             if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
-                throw new AppException(ErrorCode.REGISTRATION_CLOSED);
+                log.warn(
+                        "Registration closed for exhibition, refusing to generate new payment link for registration {}",
+                        registration.getId());
+                return payment;
             }
 
-            // Generate a new payment link using finalPriceSnapshot if present
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                     ? registration.getFinalPriceSnapshot()
                     : registration.getExhibitionPackage().getFinalPrice();
@@ -253,37 +259,26 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 description = description.substring(0, 25);
             }
 
+            CreatePaymentLinkResponse response;
             try {
-                CreatePaymentLinkResponse response = payOSIntegrationService.createPaymentLink(
+                response = payOSIntegrationService.createPaymentLink(
                         orderCode,
                         finalPrice.longValue(),
                         description,
                         returnUrl,
                         cancelUrl);
-                newPayment.setCheckoutUrl(response.getCheckoutUrl());
-                payment = paymentRepository.save(newPayment);
-                log.info("Automatically generated PayOS link for registration {}: {}", registration.getId(),
-                        response.getCheckoutUrl());
             } catch (Exception e) {
-                try {
-                    PaymentLink linkData = payOSIntegrationService
-                            .getPaymentLinkInformation(orderCode);
-                    if (linkData != null) {
-                        newPayment.setStatus(PaymentStatus.PENDING);
-                        payment = paymentRepository.save(newPayment);
-                    } else {
-                        newPayment.setStatus(PaymentStatus.FAILED);
-                        payment = paymentRepository.save(newPayment);
-                    }
-                } catch (Exception ex) {
-                    newPayment.setStatus(PaymentStatus.FAILED);
-                    payment = paymentRepository.save(newPayment);
-                }
                 log.error("Failed to generate PayOS link for registration {}", registration.getId(), e);
+                return newPayment;
             }
+
+            newPayment.setCheckoutUrl(response.getCheckoutUrl());
+            payment = paymentRepository.save(newPayment);
+            log.info("Automatically generated PayOS link for registration {}: {}", registration.getId(),
+                    newPayment.getCheckoutUrl());
         }
 
-        return mapToResponse(registration, payment);
+        return payment;
     }
 
     @Override
@@ -318,7 +313,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
                 company.getId(), status, normalizedKeyword, pageable);
 
-        return mapToPageResponse(page);
+        List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
+
+        Map<Integer, Payment> paymentMap = new HashMap<>();
+        if (!registrationIds.isEmpty()) {
+            List<Payment> payments = paymentRepository.findLatestPaymentsByRegistrationIds(registrationIds);
+            for (Payment p : payments) {
+                paymentMap.put(p.getExhibitorRegistration().getId(), p);
+            }
+        }
+
+        return PageResponse.from(page.map(r -> mapToResponse(r, paymentMap.get(r.getId()))));
     }
 
     private PageResponse<ExhibitorRegistrationResponseDTO> mapToPageResponse(Page<ExhibitorRegistration> page) {
@@ -368,15 +373,26 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             throw new AppException(ErrorCode.REGISTRATION_CLOSED);
         }
 
+        ExhibitionPackage pkg = registration.getExhibitionPackage();
+        if (pkg != null && pkg.getMaxBooths() != null) {
+            long activeAndReservedCount = registrationRepository.countActiveAndReservedByPackageId(pkg.getId(),
+                    Instant.now());
+            if (activeAndReservedCount >= pkg.getMaxBooths()) {
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_FULL);
+            }
+        }
+
         BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                 ? registration.getFinalPriceSnapshot()
-                : registration.getExhibitionPackage().getFinalPrice();
+                : (pkg != null ? pkg.getFinalPrice() : BigDecimal.ZERO);
         if (finalPrice.compareTo(BigDecimal.ZERO) == 0) {
             // Free package: direct approve
             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+            registration.setReservedUntil(null);
         } else {
-            // Paid package: set to PENDING_PAYMENT
+            // Paid package: set to PENDING_PAYMENT with reservation TTL
             registration.setStatus(ExhibitorRegistrationStatus.PENDING_PAYMENT);
+            registration.setReservedUntil(Instant.now().plus(RESERVATION_TTL_HOURS, ChronoUnit.HOURS));
         }
         registration.setReviewedBy(organizer);
         registration.setRejectedReason(null);
@@ -489,7 +505,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             String recipientEmail = recipient.getEmail();
             String recipientFullName = recipient.getFullName();
             String exhibitionName = exhibition != null ? exhibition.getName() : "";
-            String companyName = company != null ? company.getName() : "";
+            String companyName = company.getName();
             String packageName = registration.getPackageNameSnapshot() != null
                     && !registration.getPackageNameSnapshot().isBlank()
                             ? registration.getPackageNameSnapshot()
@@ -533,6 +549,11 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     log.error("Registration not found for UUID: {}", registrationUuid);
                     return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
                 });
+
+        if (registration.getCompany() == null || registration.getCompany().getId() == null) {
+            log.error("Company missing for registration UUID {}", registrationUuid);
+            throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+        }
 
         if (!registration.getCompany().getId().equals(company.getId())) {
             log.error("Company {} is not authorized to cancel registration {}", company.getId(), registrationUuid);
@@ -584,6 +605,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .companyUserId(owner != null ? owner.getId() : null)
                 .status(registration.getStatus().name())
                 .submittedAt(registration.getSubmittedAt())
+                .reservedUntil(registration.getReservedUntil())
                 .checkoutUrl(payment != null ? payment.getCheckoutUrl() : null)
                 .paymentStatus(payment != null ? payment.getStatus().name() : null)
                 .orderCode(payment != null ? payment.getOrderCode() : null)

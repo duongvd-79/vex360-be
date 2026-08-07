@@ -31,6 +31,7 @@ public class WithdrawalRequestResponseDTO {
     String bankCodeSnapshot;
     String bankNameSnapshot;
     String accountNumberMaskedSnapshot;
+    String accountNumberSnapshot;
     String accountHolderNameSnapshot;
     Instant requestedAt;
     Instant approvedAt;

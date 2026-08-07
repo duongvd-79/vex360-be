@@ -30,6 +30,9 @@ public enum ErrorCode {
     PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD("AUTH-007",
             "Tài khoản đăng nhập qua dịch vụ bên ngoài không hỗ trợ đổi mật khẩu.",
             HttpStatus.BAD_REQUEST),
+    PROVIDER_NOT_SUPPORT_FORGOT_PASSWORD("AUTH-008",
+            "Tài khoản của bạn đã được đăng ký qua Google và không hỗ trợ quên mật khẩu. Vui lòng đăng nhập lại bằng Google.",
+            HttpStatus.BAD_REQUEST),
 
     // BUSINESS ERRORS
     USER_NOT_FOUND("USER-001", "Không tìm thấy thông tin người dùng.", HttpStatus.NOT_FOUND),
@@ -169,7 +172,6 @@ public enum ErrorCode {
     DESIGN_PRODUCT_LOCKED("DESIGN-010", "Sản phẩm đang được sử dụng ở một yêu cầu thiết kế khác.", HttpStatus.CONFLICT),
     DESIGN_CANCELLATION_PENDING("DESIGN-011", "Yêu cầu hủy thiết kế đang chờ quản trị viên phê duyệt.",
             HttpStatus.CONFLICT),
-    DESIGN_MESSAGE_NOT_ALLOWED("DESIGN-012", "Bạn không có quyền tham gia luồng trao đổi này.", HttpStatus.FORBIDDEN),
     DESIGN_MEDIA_ASSET_NOT_ALLOWED("DESIGN-013", "Tệp phương tiện này không nằm trong danh sách cho phép thiết kế.",
             HttpStatus.FORBIDDEN),
     DESIGN_MEDIA_ASSET_LOCKED("DESIGN-014", "Tệp phương tiện đang được sử dụng ở một yêu cầu thiết kế.",
@@ -228,6 +230,12 @@ public enum ErrorCode {
     REGISTRATION_CLOSED("REGISTRATION-004", "Triển lãm hiện không nhận thêm đăng ký.", HttpStatus.BAD_REQUEST),
     REGISTRATION_ALREADY_PAID("REGISTRATION-005",
             "Không thể hủy lượt đăng ký đã thanh toán. Vui lòng liên hệ ban tổ chức nếu cần hỗ trợ.",
+            HttpStatus.BAD_REQUEST),
+    EXHIBITION_PACKAGE_FULL("REGISTRATION-006",
+            "Gói dịch vụ đã hết số lượng gian hàng cho phép.",
+            HttpStatus.BAD_REQUEST),
+    REGISTRATION_RESERVATION_EXPIRED("REGISTRATION-007",
+            "Thời gian giữ chỗ thanh toán cho đăng ký này đã hết hạn.",
             HttpStatus.BAD_REQUEST),
 
     // PAYMENT ERRORS

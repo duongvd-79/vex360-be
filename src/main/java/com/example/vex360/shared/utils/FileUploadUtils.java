@@ -73,7 +73,11 @@ public class FileUploadUtils {
      * Validate panorama ratio
      */
     public static void validatePanoramaRatio(int width, int height) {
-        if (width != 2 * height) {
+        if (height <= 0) {
+            throw new AppException(ErrorCode.PANORAMA_ASPECT_RATIO_INVALID);
+        }
+        double ratio = (double) width / height;
+        if (ratio < 1.9 || ratio > 2.1) {
             throw new AppException(ErrorCode.PANORAMA_ASPECT_RATIO_INVALID);
         }
     }

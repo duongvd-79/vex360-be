@@ -10,6 +10,8 @@ import org.springframework.data.domain.Pageable;
 import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 
 public interface DesignDraftAssetRepository extends JpaRepository<DesignDraftAsset, UUID> {
+    boolean existsByPublicId(String publicId);
+
     Optional<DesignDraftAsset> findByIdAndDesignRequestId(UUID id, UUID designRequestId);
 
     Optional<DesignDraftAsset> findByDesignRequestIdAndPublicId(UUID designRequestId, String publicId);

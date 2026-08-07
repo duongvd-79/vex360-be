@@ -31,8 +31,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/visitor/exhibitions")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('VISITOR', 'EXHIBITOR', 'ORGANIZER')")
-@Tag(name = "Visitor Exhibition Participation", description = "Các endpoint dành cho người dùng (Visitor/Exhibitor/Organizer) tham gia sự kiện triển lãm đang diễn ra")
+@PreAuthorize("hasAnyAuthority('VISITOR', 'EXHIBITOR', 'ORGANIZER', 'ADMIN')")
+@Tag(name = "Visitor Exhibition Participation", description = "Các endpoint dành cho người dùng (Visitor/Exhibitor/Organizer/Admin) tham gia sự kiện triển lãm đang diễn ra")
 public class VisitorBoothController extends BaseController {
 
     private final VisitorBoothService visitorBoothService;

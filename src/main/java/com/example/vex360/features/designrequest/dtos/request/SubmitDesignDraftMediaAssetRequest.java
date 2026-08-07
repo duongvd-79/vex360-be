@@ -3,6 +3,7 @@ package com.example.vex360.features.designrequest.dtos.request;
 import java.util.UUID;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,5 +22,6 @@ public class SubmitDesignDraftMediaAssetRequest {
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
 
+    @PositiveOrZero(message = "Thứ tự media phải lớn hơn hoặc bằng 0.")
     private Integer sortOrder;
 }

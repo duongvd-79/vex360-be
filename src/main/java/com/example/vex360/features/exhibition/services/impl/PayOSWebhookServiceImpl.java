@@ -51,6 +51,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
         try {
             // Verify webhook payload signature using CHECKSUM_KEY via PayOS SDK
             WebhookData data = payOS.webhooks().verify(body);
+            validateWebhookData(data);
             log.info("Successfully verified PayOS Webhook for orderCode: {}, code: {}", data.getOrderCode(),
                     data.getCode());
 
@@ -112,7 +113,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                 if (payment.getPaymentType() == PaymentType.STORAGE_PACKAGE) {
                     storagePackageService.markPaidAndIncrementQuota(payment.getStoragePackageOrderId());
                     fulfillmentService.updateReceiptSucceeded(orderCode, null, null);
-                } else if (registration != null) {
+                } else {
                     boolean registrationOpen = registration.getExhibitionPackage() != null
                             && timelinePolicy.isRegistrationOpen(
                                     registration.getExhibitionPackage().getExhibition());
@@ -158,38 +159,46 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
         }
     }
 
+    private void validateWebhookData(WebhookData data) {
+        if (data == null || data.getOrderCode() == null || data.getAmount() == null
+                || data.getDescription() == null || data.getAccountNumber() == null
+                || data.getTransactionDateTime() == null || data.getCurrency() == null
+                || data.getPaymentLinkId() == null || data.getCode() == null
+                || data.getDesc() == null || data.getReference() == null) {
+            log.error("Verified PayOS webhook is missing required fields");
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
+    }
+
     private void reconcileWebhookInvariants(WebhookData data, Payment payment) {
-        if (data.getCurrency() == null || !data.getCurrency().equalsIgnoreCase(payment.getCurrency())) {
+        if (!data.getCurrency().equalsIgnoreCase(payment.getCurrency())) {
             log.error("Currency mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(),
                     payment.getCurrency(), data.getCurrency());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
-        if (data.getAmount() == null || BigDecimal.valueOf(data.getAmount()).compareTo(payment.getAmount()) != 0) {
+        if (BigDecimal.valueOf(data.getAmount()).compareTo(payment.getAmount()) != 0) {
             log.error("Amount mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(), payment.getAmount(),
                     data.getAmount());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
-        if (payment.getCheckoutUrl() != null && data.getPaymentLinkId() != null
-                && !payment.getCheckoutUrl().contains(data.getPaymentLinkId())) {
+        if (payment.getCheckoutUrl() != null && !payment.getCheckoutUrl().contains(data.getPaymentLinkId())) {
             log.error("Payment link mismatch for orderCode {}: checkoutUrl={}, linkId={}", data.getOrderCode(),
                     payment.getCheckoutUrl(), data.getPaymentLinkId());
             throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
 
-        if (data.getReference() != null) {
-            if (payment.getPaymentReference() != null && !payment.getPaymentReference().equals(data.getReference())) {
-                log.error("Payment reference mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(),
-                        payment.getPaymentReference(), data.getReference());
-                throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
-            }
+        if (payment.getPaymentReference() != null && !payment.getPaymentReference().equals(data.getReference())) {
+            log.error("Payment reference mismatch for orderCode {}: expected {}, got {}", data.getOrderCode(),
+                    payment.getPaymentReference(), data.getReference());
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
+        }
 
-            if (paymentRepository.existsByPaymentReferenceAndIdNot(data.getReference(), payment.getId())) {
-                log.error("Duplicate payment reference {} used for another payment. Rejecting orderCode {}",
-                        data.getReference(), data.getOrderCode());
-                throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
-            }
+        if (paymentRepository.existsByPaymentReferenceAndIdNot(data.getReference(), payment.getId())) {
+            log.error("Duplicate payment reference {} used for another payment. Rejecting orderCode {}",
+                    data.getReference(), data.getOrderCode());
+            throw new AppException(ErrorCode.UNCATCHED_EXCEPTION);
         }
     }
 

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
+import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateResponseDTO;
 import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
@@ -91,24 +93,62 @@ class ExhibitorBoothTemplateServiceUnitTest {
     }
 
     @Test
-    void getCompatibleTemplatesUsesPackageLimitsAndBatchCounts() {
+    void getPublishedTemplatesIgnoresPackageLimitsAndUsesBatchCounts() {
         Booth template = templateBooth();
         PageRequest pageable = PageRequest.of(0, 10);
-        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
-        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId())).thenReturn(Optional.of(booth));
-        when(boothRepository.searchCompatibleTemplates("modern", BoothStatus.PUBLISHED, 2, 3, pageable))
+        when(boothRepository.searchTemplates("modern", BoothStatus.PUBLISHED, pageable))
                 .thenReturn(new PageImpl<>(List.of(template), pageable, 1));
         when(panoramaRepository.countByBoothIds(List.of(template.getId())))
-                .thenReturn(List.of(count(template.getId(), 2)));
+                .thenReturn(List.of(count(template.getId(), 99)));
         when(hotspotRepository.countByBoothIds(List.of(template.getId())))
-                .thenReturn(List.of(count(template.getId(), 1)));
+                .thenReturn(List.of(count(template.getId(), 100)));
 
-        PageResponse<ExhibitorBoothTemplateSummaryResponseDTO> response = service.getCompatibleTemplates(
-                exhibitor, booth.getId(), " modern ", pageable);
+        PageResponse<ExhibitorBoothTemplateSummaryResponseDTO> response = service.getPublishedTemplates(
+                " modern ", pageable);
 
         assertEquals(1, response.getContent().size());
-        assertEquals(2L, response.getContent().get(0).getPanoramaCount());
-        assertEquals(1L, response.getContent().get(0).getHotspotCount());
+        assertEquals(99L, response.getContent().get(0).getPanoramaCount());
+        assertEquals(100L, response.getContent().get(0).getHotspotCount());
+        verifyNoInteractions(companyService);
+    }
+
+    @Test
+    void getPublishedTemplateIgnoresPackageLimits() {
+        Booth template = templateBooth();
+        List<Panorama> panoramas = templatePanoramas(template);
+        panoramas.add(Panorama.builder()
+                .id(UUID.randomUUID())
+                .booth(template)
+                .name("Extra")
+                .imageUrl("https://cdn/extra.jpg")
+                .imageKey("shared/extra")
+                .orderIndex(2)
+                .isDefault(false)
+                .build());
+        when(boothRepository.findTemplateById(template.getId())).thenReturn(Optional.of(template));
+        when(panoramaRepository.findDetailsByBoothId(template.getId())).thenReturn(panoramas);
+
+        ExhibitorBoothTemplateResponseDTO response = service.getPublishedTemplate(template.getId());
+
+        assertEquals(3L, response.getPanoramaCount());
+        verifyNoInteractions(companyService);
+    }
+
+    @Test
+    void getPublishedTemplateRejectsMissingAndNonPublishedTemplates() {
+        UUID missingId = UUID.randomUUID();
+        Booth archived = templateBooth();
+        archived.setStatus(BoothStatus.ARCHIVED);
+        when(boothRepository.findTemplateById(missingId)).thenReturn(Optional.empty());
+        when(boothRepository.findTemplateById(archived.getId())).thenReturn(Optional.of(archived));
+
+        AppException missing = assertThrows(AppException.class, () -> service.getPublishedTemplate(missingId));
+        AppException nonPublished = assertThrows(
+                AppException.class,
+                () -> service.getPublishedTemplate(archived.getId()));
+
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND, missing.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND, nonPublished.getErrorCode());
     }
 
     @Test
@@ -177,6 +217,37 @@ class ExhibitorBoothTemplateServiceUnitTest {
                 .orderIndex(2)
                 .isDefault(false)
                 .build());
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(panoramaRepository.countByBoothId(booth.getId())).thenReturn(0L);
+        when(boothRepository.findTemplateByIdForUpdate(template.getId())).thenReturn(Optional.of(template));
+        when(panoramaRepository.findDetailsByBoothId(template.getId())).thenReturn(templatePanoramas);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.applyTemplate(exhibitor, booth.getId(), template.getId()));
+
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE, exception.getErrorCode());
+        verify(panoramaRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void applyTemplateRejectsTemplateOverPackageHotspotLimit() {
+        Booth template = templateBooth();
+        List<Panorama> templatePanoramas = templatePanoramas(template);
+        Panorama source = templatePanoramas.get(0);
+        Panorama target = templatePanoramas.get(1);
+        for (int index = 0; index < 3; index++) {
+            source.getHotspots().add(Hotspot.builder()
+                    .type(HotspotType.NAV)
+                    .name("Extra " + index)
+                    .sourcePanorama(source)
+                    .targetPanorama(target)
+                    .xPosition(1.0)
+                    .yPosition(2.0)
+                    .zPosition(3.0)
+                    .build());
+        }
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
                 .thenReturn(Optional.of(booth));

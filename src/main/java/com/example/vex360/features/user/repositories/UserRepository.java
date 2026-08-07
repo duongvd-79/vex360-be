@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.enums.AuthProvider;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.enums.UserStatus;
 
@@ -23,7 +24,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByIdForUpdate(@Param("id") UUID id);
 
     Optional<User> findByEmail(String email);
+
+    long deleteByStatusAndProviderAndCreatedAtBefore(UserStatus status, AuthProvider provider, Instant cutoff);
+
     boolean existsByEmail(String email);
+
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.avatarUrl LIKE CONCAT('%/', :publicId, '.%') OR u.avatarUrl LIKE CONCAT('%/', :publicId)")
+    boolean existsByAvatarUrlContaining(@Param("publicId") String publicId);
 
     @Query("""
             SELECT u FROM User u

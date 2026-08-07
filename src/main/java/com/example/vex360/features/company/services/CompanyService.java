@@ -27,12 +27,23 @@ public class CompanyService {
 
     @Transactional(readOnly = true)
     public CompanyResponseDTO getCurrentUserCompany(User currentUser) {
-        return companyMapper.toResponse(getCompanyForCurrentUser(currentUser));
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        return companyRepository.findByOwnerUserId(currentUser.getId())
+                .map(companyMapper::toResponse)
+                .orElse(null);
     }
 
     @Transactional
     public CompanyResponseDTO updateCurrentUserCompany(User currentUser, UpdateCompanyProfileRequest request) {
-        Company company = getCompanyForCurrentUser(currentUser);
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Company company = companyRepository.findByOwnerUserId(currentUser.getId())
+                .orElseGet(() -> createDefaultCompanyForUser(currentUser, request));
 
         companyMapper.updateProfile(company, request);
 
@@ -41,6 +52,27 @@ public class CompanyService {
         }
 
         return companyMapper.toResponse(companyRepository.save(company));
+    }
+
+    private Company createDefaultCompanyForUser(User currentUser, UpdateCompanyProfileRequest request) {
+        String name = firstNonBlank(request.getName(), currentUser.getFullName(), currentUser.getEmail());
+        if (!hasText(name)) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        String email = currentUser.getEmail();
+        String phone = firstNonBlank(request.getPhone(), currentUser.getPhoneNumber());
+
+        companyRepository.insertCompanyIfAbsent(
+                UUID.randomUUID().toString(),
+                currentUser.getId().toString(),
+                name,
+                email,
+                phone,
+                CompanyStatus.INCOMPLETE_PROFILE.name());
+
+        return companyRepository.findByOwnerUserIdForUpdate(currentUser.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.UNCATCHED_EXCEPTION));
     }
 
     @Transactional(readOnly = true)
@@ -127,8 +159,14 @@ public class CompanyService {
                 .orElseThrow(() -> new AppException(ErrorCode.COMPANY_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
+    public boolean isLogoAssetReferenced(String publicId) {
+        return companyRepository.existsByLogoUrlContaining(publicId);
+    }
+
     private boolean hasCompleteProfile(Company company) {
-        return hasText(company.getIndustry())
+        return hasText(company.getName())
+                && hasText(company.getIndustry())
                 && hasText(company.getDescription())
                 && hasText(company.getLogoUrl())
                 && hasText(company.getWebsite())

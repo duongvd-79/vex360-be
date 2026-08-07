@@ -28,6 +28,9 @@ public interface WithdrawalRequestRepository extends JpaRepository<WithdrawalReq
 
     boolean existsByTransferReference(String transferReference);
 
+    @Query("SELECT COUNT(w) > 0 FROM WithdrawalRequest w WHERE w.proofUrl LIKE CONCAT('%/', :publicId, '.%') OR w.proofUrl LIKE CONCAT('%/', :publicId)")
+    boolean existsByProofUrlContaining(@Param("publicId") String publicId);
+
     Page<WithdrawalRequest> findByCompanyId(UUID companyId, Pageable pageable);
 
     @Query("SELECT w FROM WithdrawalRequest w WHERE (:status IS NULL OR w.status = :status) AND (:companyId IS NULL OR w.company.id = :companyId)")

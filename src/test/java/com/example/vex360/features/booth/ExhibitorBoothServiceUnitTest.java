@@ -34,6 +34,8 @@ import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.services.BoothReviewPolicyService;
 import com.example.vex360.features.booth.services.ExhibitorBoothService;
 import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
@@ -47,6 +49,12 @@ import com.example.vex360.shared.services.CloudService;
 class ExhibitorBoothServiceUnitTest {
     @Mock
     private BoothRepository boothRepository;
+
+    @Mock
+    private PanoramaRepository panoramaRepository;
+
+    @Mock
+    private HotspotRepository hotspotRepository;
 
     @Mock
     private CompanyService companyService;
@@ -68,6 +76,8 @@ class ExhibitorBoothServiceUnitTest {
     void setup() {
         exhibitorBoothService = new ExhibitorBoothService(
                 boothRepository,
+                panoramaRepository,
+                hotspotRepository,
                 companyService,
                 cloudService,
                 Mappers.getMapper(BoothMapper.class),
@@ -457,5 +467,54 @@ class ExhibitorBoothServiceUnitTest {
         assertNull(response.getBackgroundMusicFileSize());
         assertNull(booth.getBackgroundMusicPublicId());
         verify(assetCleanupService).scheduleCleanup("music_id", "video");
+    }
+
+    @Test
+    void getBoothBenefitUsage_ReturnsCorrectUsageAndLimits() {
+        UUID boothId = UUID.randomUUID();
+        com.example.vex360.features.exhibition.entities.ExhibitorRegistration registration =
+                com.example.vex360.features.exhibition.entities.ExhibitorRegistration.builder()
+                        .packageNameSnapshot("FREE")
+                        .maxPanoramasPerBoothSnapshot(2)
+                        .maxHotspotsPerBoothSnapshot(5)
+                        .maxProductsPerBoothSnapshot(10)
+                        .maxEmbeddedVideosPerBoothSnapshot(2)
+                        .build();
+
+        Booth booth = Booth.builder()
+                .id(boothId)
+                .name("Test Booth")
+                .company(company)
+                .exhibitorRegistration(registration)
+                .build();
+
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(boothId, company.getId())).thenReturn(Optional.of(booth));
+        when(panoramaRepository.countByBoothId(boothId)).thenReturn(1L);
+        when(hotspotRepository.countBySourcePanoramaBoothId(boothId)).thenReturn(3L);
+        when(hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(boothId, null))
+                .thenReturn(List.of(UUID.randomUUID(), UUID.randomUUID()));
+
+        com.example.vex360.features.booth.entities.MediaAsset videoAsset =
+                com.example.vex360.features.booth.entities.MediaAsset.builder()
+                        .id(UUID.randomUUID())
+                        .type(com.example.vex360.features.booth.enums.MediaAssetType.VIDEO)
+                        .build();
+        when(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, null))
+                .thenReturn(List.of(videoAsset));
+
+        com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO usageDTO =
+                exhibitorBoothService.getBoothBenefitUsage(exhibitorUser, boothId);
+
+        assertNotNull(usageDTO);
+        assertEquals("FREE", usageDTO.getPackageName());
+        assertEquals(1L, usageDTO.getPanoramas().getUsed());
+        assertEquals(2, usageDTO.getPanoramas().getMax());
+        assertEquals(3L, usageDTO.getHotspots().getUsed());
+        assertEquals(5, usageDTO.getHotspots().getMax());
+        assertEquals(2L, usageDTO.getProducts().getUsed());
+        assertEquals(10, usageDTO.getProducts().getMax());
+        assertEquals(1L, usageDTO.getMediaVideos().getUsed());
+        assertEquals(2, usageDTO.getMediaVideos().getMax());
     }
 }

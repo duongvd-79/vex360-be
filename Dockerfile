@@ -17,18 +17,19 @@ COPY src ./src
 RUN ./mvnw clean package -DskipTests
 
 # Run stage
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Copy the compiled JAR file from the build stage
-COPY --from=build /app/target/vex360-0.0.1-SNAPSHOT.jar app.jar
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Render automatically exposes and sets the PORT environment variable.
-# We set SERVER_PORT so Spring Boot binds to the correct port specified by Render.
+# Copy the compiled JAR file from the build stage
+COPY --from=build --chown=appuser:appgroup /app/target/vex360-0.0.1-SNAPSHOT.jar app.jar
+
+USER appuser
+
 ENV PORT=8080
-ENV SERVER_PORT=${PORT}
+ENV JAVA_TOOL_OPTIONS="-Xmx192m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=48m -Xss256k"
 
 EXPOSE 8080
 
-# Run the Spring Boot application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT} -jar app.jar"]

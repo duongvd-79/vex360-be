@@ -44,6 +44,7 @@ public class ExhibitorRegistration {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Integer id;
 
+
     @Column(name = "uuid", nullable = false, unique = true)
     @Builder.Default
     UUID uuid = UUID.randomUUID();
@@ -59,6 +60,9 @@ public class ExhibitorRegistration {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     ExhibitorRegistrationStatus status;
+
+    @Column(name = "reserved_until")
+    Instant reservedUntil;
 
     @CreationTimestamp
     @Column(name = "submitted_at", updatable = false)
@@ -104,9 +108,6 @@ public class ExhibitorRegistration {
 
     @Column(name = "max_hotspots_per_booth_snapshot")
     Integer maxHotspotsPerBoothSnapshot;
-
-    @Column(name = "storage_limit_mb_snapshot")
-    Long storageLimitMbSnapshot;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "listing_priority_snapshot", columnDefinition = "VARCHAR(50)")

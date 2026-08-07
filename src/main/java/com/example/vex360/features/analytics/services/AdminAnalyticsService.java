@@ -184,7 +184,7 @@ public class AdminAnalyticsService {
     }
 
     private Object[] firstRow(List<Object[]> rows) {
-        return rows == null || rows.isEmpty() ? new Object[0] : rows.getFirst();
+        return rows == null || rows.isEmpty() ? new Object[0] : rows.get(0);
     }
 
     private long longValue(Object value) {

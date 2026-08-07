@@ -79,9 +79,6 @@ public class PackageTemplate {
     @Column(name = "max_hotspots_per_booth", nullable = false)
     Integer maxHotspotsPerBooth;
 
-    @Column(name = "storage_limit_mb", nullable = false)
-    Long storageLimitMb;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "listing_priority", nullable = false, columnDefinition = "VARCHAR(50)")
     BoothListingPriority listingPriority;

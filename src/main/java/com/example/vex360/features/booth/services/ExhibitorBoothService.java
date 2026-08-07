@@ -1,5 +1,6 @@
 package com.example.vex360.features.booth.services;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -11,10 +12,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
+import com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -37,6 +44,8 @@ public class ExhibitorBoothService {
     private static final String CLOUDINARY_AUDIO_RESOURCE_TYPE = "video";
 
     private final BoothRepository boothRepository;
+    private final PanoramaRepository panoramaRepository;
+    private final HotspotRepository hotspotRepository;
     private final CompanyService companyService;
     private final CloudService cloudService;
     private final BoothMapper boothMapper;
@@ -55,6 +64,53 @@ public class ExhibitorBoothService {
     public BoothResponseDTO getBoothById(User currentUser, UUID boothId) {
         Company company = getCompanyForCurrentUser(currentUser);
         return boothMapper.toBoothResponseDTO(getBoothForCompany(boothId, company));
+    }
+
+    @Transactional(readOnly = true)
+    public BoothBenefitUsageResponseDTO getBoothBenefitUsage(User currentUser, UUID boothId) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        Booth booth = getBoothForCompany(boothId, company);
+
+        ExhibitorRegistration registration = booth.getExhibitorRegistration();
+        if (registration == null) {
+            throw new AppException(ErrorCode.INVALID_BOOTH);
+        }
+
+        long usedPanoramas = panoramaRepository.countByBoothId(boothId);
+        long usedHotspots = hotspotRepository.countBySourcePanoramaBoothId(boothId);
+
+        List<UUID> productIds = hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(boothId, null);
+        long usedProducts = productIds != null ? productIds.size() : 0L;
+
+        List<MediaAsset> mediaAssets = hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, null);
+        long usedMediaVideos = 0L;
+        if (mediaAssets != null) {
+            usedMediaVideos = mediaAssets.stream()
+                    .filter(m -> m != null && m.getType() == MediaAssetType.VIDEO && m.getId() != null)
+                    .map(MediaAsset::getId)
+                    .distinct()
+                    .count();
+        }
+
+        return BoothBenefitUsageResponseDTO.builder()
+                .packageName(registration.getPackageNameSnapshot())
+                .panoramas(BoothBenefitUsageResponseDTO.UsageQuota.builder()
+                        .used(usedPanoramas)
+                        .max(registration.getMaxPanoramasPerBoothSnapshot() != null ? registration.getMaxPanoramasPerBoothSnapshot() : 0)
+                        .build())
+                .hotspots(BoothBenefitUsageResponseDTO.UsageQuota.builder()
+                        .used(usedHotspots)
+                        .max(registration.getMaxHotspotsPerBoothSnapshot() != null ? registration.getMaxHotspotsPerBoothSnapshot() : 0)
+                        .build())
+                .products(BoothBenefitUsageResponseDTO.UsageQuota.builder()
+                        .used(usedProducts)
+                        .max(registration.getMaxProductsPerBoothSnapshot() != null ? registration.getMaxProductsPerBoothSnapshot() : 0)
+                        .build())
+                .mediaVideos(BoothBenefitUsageResponseDTO.UsageQuota.builder()
+                        .used(usedMediaVideos)
+                        .max(registration.getMaxEmbeddedVideosPerBoothSnapshot() != null ? registration.getMaxEmbeddedVideosPerBoothSnapshot() : 0)
+                        .build())
+                .build();
     }
 
     @Transactional

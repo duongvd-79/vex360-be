@@ -23,8 +23,6 @@ import com.example.vex360.features.designrequest.dtos.response.DesignRequestResp
 import com.example.vex360.features.designrequest.services.DesignRequestService;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
 import com.example.vex360.features.designrequest.dtos.request.DecideDesignCancellationRequest;
-import com.example.vex360.features.designrequest.dtos.response.DesignRequestMessageResponseDTO;
-import com.example.vex360.features.designrequest.services.DesignRequestCommunicationService;
 import com.example.vex360.features.designrequest.dtos.response.DesignAssignmentCandidateResponseDTO;
 import java.util.List;
 import com.example.vex360.shared.controllers.BaseController;
@@ -44,7 +42,6 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin - Design Requests", description = "Admin quản lý và phân công yêu cầu thiết kế booth")
 public class AdminDesignRequestController extends BaseController {
     private final DesignRequestService designRequestService;
-    private final DesignRequestCommunicationService communicationService;
 
     @GetMapping
     @Operation(summary = "Admin xem danh sách yêu cầu thiết kế booth", description = "Lấy danh sách các yêu cầu thiết kế booth của toàn hệ thống, hỗ trợ tìm kiếm, lọc theo trạng thái và phân trang.")
@@ -69,14 +66,6 @@ public class AdminDesignRequestController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody DecideDesignCancellationRequest request) {
         return ok(designRequestService.decideCancellation(id, request.getApprove(), request.getNote()));
-    }
-
-    @GetMapping("/{id}/messages")
-    @Operation(summary = "Xem tin nhắn trao đổi làm rõ", description = "Lấy danh sách các tin nhắn trao đổi làm rõ giữa Exhibitor và Designer cho yêu cầu thiết kế này.")
-    public ResponseEntity<ApiResponse<PageResponse<DesignRequestMessageResponseDTO>>> getMessages(
-            @PathVariable UUID id,
-            @ParameterObject @PageableDefault(page = 0, size = 20, sort = "createdAt") Pageable pageable) {
-        return ok(communicationService.getForAdmin(id, pageable));
     }
 
     @GetMapping("/assignment-analytics")

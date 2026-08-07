@@ -13,4 +13,6 @@ public interface CloudService {
     CloudinaryResponse uploadToFolder(MultipartFile file, String folder);
 
     void delete(String publicId, String resourceType);
+
+    long deleteAndGetSize(String publicId, String resourceType);
 }

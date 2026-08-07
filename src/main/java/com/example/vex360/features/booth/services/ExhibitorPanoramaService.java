@@ -194,7 +194,10 @@ public class ExhibitorPanoramaService {
     }
 
     private int nextOrderIndex(UUID boothId) {
-        return panoramaRepository.findByBoothIdOrderByOrderIndexAsc(boothId).size();
+        return panoramaRepository.findByBoothIdOrderByOrderIndexAsc(boothId).stream()
+                .mapToInt(p -> p.getOrderIndex() != null ? p.getOrderIndex() : 0)
+                .max()
+                .orElse(-1) + 1;
     }
 
     private Panorama getPanoramaForBooth(UUID panoramaId, Booth booth) {

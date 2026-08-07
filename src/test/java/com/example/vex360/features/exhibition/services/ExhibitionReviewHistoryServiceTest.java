@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionReviewHistoryResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
 import com.example.vex360.features.exhibition.entities.ExhibitionReviewRequest;
 import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
 import com.example.vex360.features.exhibition.mapper.ExhibitionReviewHistoryMapper;
@@ -34,6 +36,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionReviewReque
 import com.example.vex360.features.exhibition.services.impl.ExhibitionReviewHistoryServiceImpl;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
+import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -159,6 +162,18 @@ class ExhibitionReviewHistoryServiceTest {
     }
 
     @Test
+    void recordResubmissionOrUpdate_WithoutHistoryCreatesVersion1() {
+        when(reviewRequestRepository.findFirstByExhibitionIdOrderByVersionNumberDesc(1))
+                .thenReturn(Optional.empty());
+
+        reviewHistoryService.recordResubmissionOrUpdate(exhibition, organizer, null);
+
+        ArgumentCaptor<ExhibitionReviewRequest> captor = ArgumentCaptor.forClass(ExhibitionReviewRequest.class);
+        verify(reviewRequestRepository).save(captor.capture());
+        assertEquals(1, captor.getValue().getVersionNumber());
+    }
+
+    @Test
     void recordReviewResult_Approve_ShouldSetStatusApprovedAndReviewedBy() {
         ExhibitionReviewRequest pendingRound = ExhibitionReviewRequest.builder()
                 .id(UUID.randomUUID())
@@ -197,6 +212,24 @@ class ExhibitionReviewHistoryServiceTest {
         assertEquals(ExhibitionReviewStatus.REJECTED, pendingRound.getStatus());
         assertEquals(admin, pendingRound.getReviewedBy());
         assertEquals("Incomplete info", pendingRound.getRejectedReason());
+    }
+
+    @Test
+    void recordReviewResult_WithoutPendingCreatesNextTerminalRound() {
+        ExhibitionReviewRequest latest = ExhibitionReviewRequest.builder().versionNumber(2).build();
+        when(reviewRequestRepository.findFirstByExhibitionIdAndStatusForUpdate(1, ExhibitionReviewStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(reviewRequestRepository.findFirstByExhibitionIdOrderByVersionNumberDesc(1))
+                .thenReturn(Optional.of(latest), Optional.empty());
+
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.APPROVED, null);
+        reviewHistoryService.recordReviewResult(exhibition, admin, ExhibitionReviewStatus.REJECTED, "reason");
+
+        ArgumentCaptor<ExhibitionReviewRequest> captor = ArgumentCaptor.forClass(ExhibitionReviewRequest.class);
+        verify(reviewRequestRepository, times(2)).save(captor.capture());
+        assertEquals(3, captor.getAllValues().get(0).getVersionNumber());
+        assertEquals(1, captor.getAllValues().get(1).getVersionNumber());
+        assertEquals("reason", captor.getAllValues().get(1).getRejectedReason());
     }
 
     @Test
@@ -252,5 +285,52 @@ class ExhibitionReviewHistoryServiceTest {
                 () -> reviewHistoryService.getReviewHistoryForOrganizer(anotherOrganizer, exhUuid));
 
         assertEquals(ErrorCode.EXHIBITION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void reviewHistoryRejectsMissingExhibitionAndOrganizerIdentity() {
+        UUID uuid = UUID.randomUUID();
+        AppException adminError = assertThrows(AppException.class,
+                () -> reviewHistoryService.getReviewHistoryForAdmin(uuid));
+        assertEquals(ErrorCode.EXHIBITION_NOT_FOUND, adminError.getErrorCode());
+
+        assertEquals(ErrorCode.UNAUTHENTICATED,
+                assertThrows(AppException.class,
+                        () -> reviewHistoryService.getReviewHistoryForOrganizer(null, uuid))
+                        .getErrorCode());
+        User missingId = User.builder().role(Role.ORGANIZER).build();
+        assertEquals(ErrorCode.UNAUTHENTICATED,
+                assertThrows(AppException.class,
+                        () -> reviewHistoryService.getReviewHistoryForOrganizer(missingId, uuid))
+                        .getErrorCode());
+
+        when(exhibitionRepository.findByUuid(uuid)).thenReturn(Optional.empty());
+        assertEquals(ErrorCode.EXHIBITION_NOT_FOUND,
+                assertThrows(AppException.class,
+                        () -> reviewHistoryService.getReviewHistoryForOrganizer(organizer, uuid))
+                        .getErrorCode());
+    }
+
+    @Test
+    void initialSubmissionResolvesKeyVisualFromAssetsOrNull() {
+        ExhibitionAsset sponsor = ExhibitionAsset.builder()
+                .type(ExhibitionAssetType.SPONSOR_LOGO)
+                .assetUrl("sponsor")
+                .build();
+        ExhibitionAsset keyVisual = ExhibitionAsset.builder()
+                .type(ExhibitionAssetType.KEY_VISUAL)
+                .assetUrl("asset-key-visual")
+                .build();
+        exhibition.setAssets(List.of(sponsor, keyVisual));
+
+        reviewHistoryService.recordInitialSubmission(exhibition, organizer, null);
+        exhibition.setAssets(List.of(sponsor));
+        reviewHistoryService.recordInitialSubmission(exhibition, organizer, null);
+        exhibition.setAssets(null);
+        reviewHistoryService.recordInitialSubmission(exhibition, organizer, " ");
+
+        ArgumentCaptor<ExhibitionReviewRequest> captor = ArgumentCaptor.forClass(ExhibitionReviewRequest.class);
+        verify(reviewRequestRepository, times(3)).save(captor.capture());
+        assertTrue(captor.getAllValues().get(0).getContentSnapshotJson().contains("asset-key-visual"));
     }
 }

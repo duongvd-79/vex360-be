@@ -3,12 +3,15 @@ package com.example.vex360.features.chat.controllers;
 import com.example.vex360.features.chat.dtos.ChatMessagePayload;
 import com.example.vex360.features.chat.dtos.ChatRoomResponse;
 import com.example.vex360.features.chat.dtos.GetOrCreateRoomRequest;
+import com.example.vex360.features.chat.dtos.MarkChatReadRequest;
+import com.example.vex360.features.chat.dtos.SendChatMessageRequest;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.chat.services.ChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -60,23 +63,23 @@ public class ChatController {
 
         // ── WebSocket: Gửi tin nhắn ──────────────────────────────────
         @MessageMapping("/chat.send")
-        public void sendMessage(ChatMessagePayload payload, Principal principal) {
+        public void sendMessage(@Valid @Payload SendChatMessageRequest payload, Principal principal) {
 
                 UUID senderId = UUID.fromString(principal.getName());
 
                 ChatMessagePayload saved = chatService.saveMessage(
-                                payload.getRoomId(), senderId, payload.getContent());
+                                payload.roomId(), senderId, payload.content());
 
                 // Broadcast tin nhắn đến tất cả người đang subscribe phòng này
                 messagingTemplate.convertAndSend(
-                                "/topic/chat/" + payload.getRoomId(), saved);
+                                "/topic/chat/" + payload.roomId(), saved);
         }
 
         // ── WebSocket: Đánh dấu đã đọc ──────────────────────────────
         @MessageMapping("/chat.read")
-        public void markAsRead(ChatMessagePayload payload, Principal principal) {
+        public void markAsRead(@Valid @Payload MarkChatReadRequest payload, Principal principal) {
 
-                UUID roomId = payload.getRoomId();
+                UUID roomId = payload.roomId();
                 UUID userId = UUID.fromString(principal.getName());
                 chatService.markAsRead(roomId, userId);
 
