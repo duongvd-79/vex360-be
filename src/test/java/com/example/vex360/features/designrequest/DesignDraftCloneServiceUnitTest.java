@@ -120,7 +120,7 @@ class DesignDraftCloneServiceUnitTest {
                 AppException.class,
                 () -> service.cloneLatestSubmittedToWorking(request));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_ALREADY_EXISTS, exception.getErrorCode());
     }
 
     private DesignRequest request() {

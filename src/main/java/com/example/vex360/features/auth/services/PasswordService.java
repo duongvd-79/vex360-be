@@ -146,7 +146,7 @@ public class PasswordService {
             throw new AppException(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD);
         }
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.OLDPASSWORD_FAILED);
         }
 
         userService.updatePassword(user, request.getNewPassword());

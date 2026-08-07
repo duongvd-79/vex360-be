@@ -85,13 +85,13 @@ public class DesignerDraftEditorService {
             UpdateDesignDraftSettingsRequest update) {
         EditableDraft context = getEditableDraft(designer, requestId);
         if (update == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
         }
         DesignDraft draft = context.draft();
         draft.setNote(trimToNull(update.getNote()));
-        draft.setBoothName(requireText(update.getName()));
+        draft.setBoothName(requireText(update.getName(), ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID));
         draft.setBoothDescription(trimToNull(update.getDescription()));
-        draft.setDisplayTemplateKey(requireText(update.getDisplayTemplateKey()));
+        draft.setDisplayTemplateKey(requireText(update.getDisplayTemplateKey(), ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID));
         applyThumbnailSettings(context.request(), draft, update);
         applyMusicSettings(context.request(), draft, update);
         graphValidator.validateWorkingGraph(context.request(), draft);
@@ -106,7 +106,7 @@ public class DesignerDraftEditorService {
             CreateDesignDraftPanoramaRequest create) {
         EditableDraft context = getEditableDraft(designer, requestId);
         if (create == null || create.getPanoramaAssetId() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
         }
         DesignDraft draft = context.draft();
         DesignDraftBenefitGuardService.Usage beforeUsage = benefitGuardService.calculateUsage(draft);
@@ -123,7 +123,7 @@ public class DesignerDraftEditorService {
         DesignDraftPanorama panorama = DesignDraftPanorama.builder()
                 .draft(draft)
                 .clientKey(UUID.randomUUID().toString())
-                .name(requireText(create.getName()))
+                .name(requireText(create.getName(), ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID))
                 .imageUrl(asset.getUrl())
                 .imageKey(asset.getPublicId())
                 .orderIndex(insertionIndex)
@@ -148,13 +148,13 @@ public class DesignerDraftEditorService {
             UpdateDesignDraftPanoramaRequest update) {
         EditableDraft context = getEditableDraft(designer, requestId);
         if (update == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
         }
         DesignDraft draft = context.draft();
         DesignDraftPanorama panorama = getPanorama(draft, panoramaId);
         DesignDraftBenefitGuardService.Usage beforeUsage = benefitGuardService.calculateUsage(draft);
         if (update.getName() != null) {
-            panorama.setName(requireText(update.getName()));
+            panorama.setName(requireText(update.getName(), ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID));
         }
         if (update.getPanoramaAssetId() != null) {
             DesignDraftAsset asset = assetService.requireDraftAsset(
@@ -184,7 +184,7 @@ public class DesignerDraftEditorService {
             ReorderDesignDraftPanoramasRequest reorder) {
         EditableDraft context = getEditableDraft(designer, requestId);
         if (reorder == null || reorder.getPanoramaIds() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
         }
         DesignDraft draft = context.draft();
         List<UUID> requestedIds = reorder.getPanoramaIds();
@@ -193,7 +193,7 @@ public class DesignerDraftEditorService {
                 .map(DesignDraftPanorama::getId)
                 .collect(java.util.stream.Collectors.toSet());
         if (uniqueIds.size() != requestedIds.size() || !uniqueIds.equals(currentIds)) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
         }
         for (int index = 0; index < requestedIds.size(); index++) {
             getPanorama(draft, requestedIds.get(index)).setOrderIndex(index);
@@ -304,7 +304,7 @@ public class DesignerDraftEditorService {
         }
         lifecyclePolicy.assertCanContinue(request);
         DesignDraft draft = draftRepository.findByDesignRequestIdAndVersionNumber(requestId, WORKING_VERSION)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         return new EditableDraft(request, draft);
     }
 
@@ -364,7 +364,7 @@ public class DesignerDraftEditorService {
             UUID assetId,
             DesignDraftAssetType type) {
         if (assetId == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND);
         }
         return assetService.requireDraftAsset(request, assetId, type);
     }
@@ -378,7 +378,7 @@ public class DesignerDraftEditorService {
                 || update.getXPosition() == null
                 || update.getYPosition() == null
                 || update.getZPosition() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         clearHotspotContent(hotspot);
         hotspot.setType(update.getType());
@@ -394,7 +394,7 @@ public class DesignerDraftEditorService {
             case PRODUCT -> applyProductHotspot(request, hotspot, update);
             case INFO -> applyInfoHotspot(request, draft, hotspot, update);
             case MEDIA -> applyMediaHotspot(request, draft, hotspot, update);
-            default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            default -> throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
     }
 
@@ -403,7 +403,7 @@ public class DesignerDraftEditorService {
             DesignDraftHotspot hotspot,
             UpsertDesignDraftHotspotRequest update) {
         if (update.getTargetPanoramaId() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_REFERENCE_INVALID);
         }
         DesignDraftPanorama target = getPanorama(draft, update.getTargetPanoramaId());
         hotspot.setTargetDraftPanoramaKey(target.getClientKey());
@@ -415,12 +415,12 @@ public class DesignerDraftEditorService {
             DesignDraftHotspot hotspot,
             UpsertDesignDraftHotspotRequest update) {
         if (update.getProductId() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
         requestProductService.assertProductAllowed(request, update.getProductId());
         Product product = productService.getProductForCompany(update.getProductId(), request.getCompany());
         if (product.getStatus() != ProductStatus.ACTIVE) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
         hotspot.setProduct(product);
         hotspot.setName(resolveName(update.getName(), product.getName()));
@@ -441,14 +441,14 @@ public class DesignerDraftEditorService {
             case TEXT -> {
                 String text = trimToNull(update.getInfoText());
                 if (text == null) {
-                    throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                    throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
                 hotspot.setInfoText(text);
             }
             case PRODUCT -> applyProductHotspot(request, hotspot, update);
             case IMAGE -> applyMediaReference(request, draft, hotspot, update, MediaAssetType.IMAGE);
             case VIDEO -> applyMediaReference(request, draft, hotspot, update, MediaAssetType.VIDEO);
-            default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            default -> throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
     }
 
@@ -484,7 +484,7 @@ public class DesignerDraftEditorService {
         boolean officialProvided = update.getMediaAssetId() != null;
         boolean draftProvided = update.getDesignDraftMediaAssetId() != null;
         if (officialProvided == draftProvided) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         if (officialProvided) {
             hotspot.setMediaAsset(getMediaAsset(request, update.getMediaAssetId(), expectedType));
@@ -493,11 +493,11 @@ public class DesignerDraftEditorService {
         DesignDraftMediaAsset draftMedia = draft.getMediaAssets().stream()
                 .filter(media -> update.getDesignDraftMediaAssetId().equals(media.getId()))
                 .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID));
         if (draftMedia.getAsset() == null
                 || draftMedia.getAsset().getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT
                 || expectedType != null && mediaType(draftMedia) != expectedType) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         hotspot.setDesignDraftMediaAsset(draftMedia);
     }
@@ -510,7 +510,7 @@ public class DesignerDraftEditorService {
         if ("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType)) {
             return MediaAssetType.IMAGE;
         }
-        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
     }
 
     private String mediaName(DesignDraftHotspot hotspot) {
@@ -519,7 +519,7 @@ public class DesignerDraftEditorService {
         }
         DesignDraftMediaAsset media = hotspot.getDesignDraftMediaAsset();
         if (media == null || media.getAsset() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         String title = trimToNull(media.getTitle());
         return title == null ? media.getAsset().getFileName() : title;
@@ -569,7 +569,7 @@ public class DesignerDraftEditorService {
         }
         if (!isCorner(corners.getTl()) || !isCorner(corners.getTr())
                 || !isCorner(corners.getBl()) || !isCorner(corners.getBr())) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         hotspot.setCornerTlX(corners.getTl().get(0));
         hotspot.setCornerTlY(corners.getTl().get(1));
@@ -623,7 +623,7 @@ public class DesignerDraftEditorService {
             return size;
         }
         if (requested < 0 || requested > size) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
         }
         return requested;
     }
@@ -654,9 +654,13 @@ public class DesignerDraftEditorService {
     }
 
     private String requireText(String value) {
+        return requireText(value, ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
+    }
+
+    private String requireText(String value, ErrorCode errorCode) {
         String normalized = trimToNull(value);
         if (normalized == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(errorCode);
         }
         return normalized;
     }
@@ -672,23 +676,23 @@ public class DesignerDraftEditorService {
             SubmitDesignDraftMediaAssetRequest request) {
         EditableDraft context = getEditableDraft(designer, requestId);
         if (request == null || request.getAssetId() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         DesignDraft draft = context.draft();
         boolean duplicate = draft.getMediaAssets().stream()
                 .anyMatch(ma -> ma.getAsset() != null && request.getAssetId().equals(ma.getAsset().getId()));
         if (duplicate) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_DUPLICATED);
         }
         DesignDraftAsset asset = draftAssetRepository
                 .findByIdAndDesignRequestId(request.getAssetId(), context.request().getId())
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         if (asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
         }
         String title = trimToNull(request.getTitle());
         if (title != null && title.length() > 255) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID);
         }
 
         DesignDraftMediaAsset mediaAsset = DesignDraftMediaAsset.builder()
@@ -699,60 +703,55 @@ public class DesignerDraftEditorService {
                 .build();
         draft.getMediaAssets().add(mediaAsset);
         draftMediaAssetRepository.saveAndFlush(mediaAsset);
-
         return designRequestMapper.toMediaAssetResponse(mediaAsset);
-    }
-
-    @Transactional
-    public void removeMediaAsset(User designer, UUID requestId, UUID mediaAssetId) {
-        EditableDraft context = getEditableDraft(designer, requestId);
-        DesignDraft draft = context.draft();
-        boolean referenced = draft.getPanoramas().stream()
-                .flatMap(panorama -> panorama.getHotspots().stream())
-                .map(DesignDraftHotspot::getDesignDraftMediaAsset)
-                .anyMatch(media -> media != null && mediaAssetId.equals(media.getId()));
-        if (referenced) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
-        boolean removed = draft.getMediaAssets().removeIf(ma -> ma.getId() != null && ma.getId().equals(mediaAssetId));
-        if (!removed) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
-        draftRepository.saveAndFlush(draft);
     }
 
     @Transactional
     public List<DesignDraftMediaAssetResponseDTO> reorderMediaAssets(
             User designer,
             UUID requestId,
-            List<UUID> orderedMediaAssetIds) {
+            List<UUID> mediaAssetIds) {
         EditableDraft context = getEditableDraft(designer, requestId);
-        if (orderedMediaAssetIds == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
-        }
         DesignDraft draft = context.draft();
-        Set<UUID> existingIds = draft.getMediaAssets().stream()
-                .map(DesignDraftMediaAsset::getId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (orderedMediaAssetIds.size() != existingIds.size()
-                || new HashSet<>(orderedMediaAssetIds).size() != orderedMediaAssetIds.size()
-                || !existingIds.containsAll(orderedMediaAssetIds)) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        if (mediaAssetIds == null || mediaAssetIds.size() != draft.getMediaAssets().size()) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID);
         }
-        for (int i = 0; i < orderedMediaAssetIds.size(); i++) {
-            UUID id = orderedMediaAssetIds.get(i);
-            int index = i;
+        Set<UUID> ids = new HashSet<>(mediaAssetIds);
+        if (ids.size() != mediaAssetIds.size()) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID);
+        }
+        for (int index = 0; index < mediaAssetIds.size(); index++) {
+            UUID targetId = mediaAssetIds.get(index);
             draft.getMediaAssets().stream()
-                    .filter(ma -> id.equals(ma.getId()))
+                    .filter(ma -> Objects.equals(ma.getId(), targetId))
                     .findFirst()
-                    .ifPresent(ma -> ma.setSortOrder(index));
+                    .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID))
+                    .setSortOrder(index);
         }
         draftRepository.saveAndFlush(draft);
         return draft.getMediaAssets().stream()
                 .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
                 .map(designRequestMapper::toMediaAssetResponse)
                 .toList();
+    }
+
+    @Transactional
+    public void removeMediaAsset(User designer, UUID requestId, UUID mediaAssetId) {
+        EditableDraft context = getEditableDraft(designer, requestId);
+        DesignDraft draft = context.draft();
+        DesignDraftMediaAsset media = draft.getMediaAssets().stream()
+                .filter(ma -> Objects.equals(ma.getId(), mediaAssetId))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID));
+        boolean usedInHotspot = draft.getPanoramas().stream()
+                .flatMap(p -> p.getHotspots().stream())
+                .anyMatch(h -> h.getDesignDraftMediaAsset() != null
+                        && Objects.equals(h.getDesignDraftMediaAsset().getId(), mediaAssetId));
+        if (usedInHotspot) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE);
+        }
+        draft.getMediaAssets().remove(media);
+        draftRepository.saveAndFlush(draft);
     }
 
     private int nextMediaSortOrder(DesignDraft draft) {

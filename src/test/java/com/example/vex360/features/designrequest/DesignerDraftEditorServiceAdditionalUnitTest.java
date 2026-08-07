@@ -166,7 +166,7 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.updatePanorama(designer, request.getId(), UUID.randomUUID(), null));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -199,7 +199,7 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
                         request.getId(),
                         new ReorderDesignDraftPanoramasRequest(List.of(first.getId(), first.getId()))));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID, exception.getErrorCode());
     }
 
     private DesignDraftPanorama panorama(String name, int order, boolean isDefault) {

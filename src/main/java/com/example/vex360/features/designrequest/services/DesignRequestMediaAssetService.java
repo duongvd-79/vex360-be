@@ -44,7 +44,7 @@ public class DesignRequestMediaAssetService {
             List<MediaAsset> baselineAssets = exhibitorMediaAssetService.findMediaAssetsByIds(baselineMediaAssetIds);
             for (MediaAsset mediaAsset : baselineAssets) {
                 if (!request.getCompany().getId().equals(mediaAsset.getCompany().getId())) {
-                    throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+                    throw new AppException(ErrorCode.DESIGN_BASELINE_MEDIA_INVALID);
                 }
                 mediaAssets.put(mediaAsset.getId(), mediaAsset);
                 requiredIds.add(mediaAsset.getId());
@@ -71,7 +71,7 @@ public class DesignRequestMediaAssetService {
         }
         List<MediaAsset> mediaAssets = exhibitorMediaAssetService.findMediaAssetsByIds(ids);
         if (mediaAssets.size() != ids.size() || mediaAssets.stream().anyMatch(m -> !m.getCompany().getId().equals(request.getCompany().getId()))) {
-            throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         return mediaAssets;
     }
@@ -83,7 +83,7 @@ public class DesignRequestMediaAssetService {
         Set<UUID> distinct = new LinkedHashSet<>();
         for (UUID id : ids) {
             if (id == null) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
             }
             distinct.add(id);
         }

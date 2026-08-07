@@ -73,7 +73,7 @@ public class ExhibitorBoothService {
 
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         if (registration == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
 
         long usedPanoramas = panoramaRepository.countByBoothId(boothId);
@@ -187,7 +187,7 @@ public class ExhibitorBoothService {
         }
         if (request.getName() != null) {
             if (request.getName().isBlank()) {
-                throw new AppException(ErrorCode.INVALID_BOOTH);
+                throw new AppException(ErrorCode.BOOTH_NAME_REQUIRED);
             }
             booth.setName(request.getName().trim());
         }
@@ -233,7 +233,7 @@ public class ExhibitorBoothService {
     private void validateThumbnail(MultipartFile thumbnail) {
         if (thumbnail == null || thumbnail.isEmpty()
                 || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.BOOTH_THUMBNAIL_INVALID);
         }
     }
 

@@ -204,7 +204,7 @@ class PasswordServiceUnitTest {
         ChangePasswordRequest request = new ChangePasswordRequest("wrong_old_pass", "new_pass");
 
         AppException ex = assertThrows(AppException.class, () -> passwordService.changePassword(user.getId(), request, "acc_token"));
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        assertEquals(ErrorCode.OLDPASSWORD_FAILED, ex.getErrorCode());
     }
 
     @Test

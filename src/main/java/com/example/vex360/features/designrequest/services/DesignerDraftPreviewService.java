@@ -307,7 +307,7 @@ public class DesignerDraftPreviewService {
 
     private DesignDraft requireDraft(DesignDraft draft) {
         if (draft == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND);
         }
         return draft;
     }

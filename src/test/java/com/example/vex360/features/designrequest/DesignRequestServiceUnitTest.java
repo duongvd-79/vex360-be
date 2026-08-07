@@ -352,7 +352,7 @@ class DesignRequestServiceUnitTest {
                 AppException.class,
                 () -> service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design")));
 
-        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_CONTACT_PHONE_INVALID, exception.getErrorCode());
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         verify(designRequestRepository, never()).save(any());
     }
@@ -591,7 +591,7 @@ class DesignRequestServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.rejectDraft(exhibitor, requestId, new RejectDesignDraftRequest(" ")));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_REVIEW_NOTE_REQUIRED, exception.getErrorCode());
     }
 
     @Test

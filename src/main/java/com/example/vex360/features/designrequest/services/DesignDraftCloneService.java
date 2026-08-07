@@ -22,15 +22,17 @@ public class DesignDraftCloneService {
 
     @Transactional
     public DesignDraft cloneLatestSubmittedToWorking(DesignRequest request) {
-        if (request == null || request.getDrafts().stream()
-                .anyMatch(draft -> draft.getVersionNumber() == 0)) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        if (request == null) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_REQUEST_INVALID);
+        }
+        if (request.getDrafts().stream().anyMatch(draft -> draft.getVersionNumber() == 0)) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ALREADY_EXISTS);
         }
 
         DesignDraft source = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() > 0)
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         DesignDraft working = cloneDraft(request, source);
         request.getDrafts().add(working);
         return working;

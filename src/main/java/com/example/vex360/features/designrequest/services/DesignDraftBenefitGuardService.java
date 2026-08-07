@@ -70,39 +70,47 @@ public class DesignDraftBenefitGuardService {
 
     public void assertMutationAllowed(DesignRequest request, Usage beforeUsage, DesignDraft projectedDraft) {
         if (beforeUsage == null || projectedDraft == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_REQUEST_INVALID);
         }
         Limits limits = requireLimits(request);
         Usage projected = calculateUsage(projectedDraft);
         boolean allowNoIncrease = request.getMode() == DesignRequestMode.REDESIGN;
 
-        assertMutationMetric(projected.panoramas(), beforeUsage.panoramas(), limits.panoramas(), allowNoIncrease);
-        assertMutationMetric(projected.hotspots(), beforeUsage.hotspots(), limits.hotspots(), allowNoIncrease);
-        assertMutationMetric(projected.products(), beforeUsage.products(), limits.products(), allowNoIncrease);
+        assertMutationMetric(projected.panoramas(), beforeUsage.panoramas(), limits.panoramas(), allowNoIncrease,
+                ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED);
+        assertMutationMetric(projected.hotspots(), beforeUsage.hotspots(), limits.hotspots(), allowNoIncrease,
+                ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED);
+        assertMutationMetric(projected.products(), beforeUsage.products(), limits.products(), allowNoIncrease,
+                ErrorCode.BOOTH_PRODUCT_LIMIT_EXCEEDED);
         assertMutationMetric(
                 projected.embeddedVideos(),
                 beforeUsage.embeddedVideos(),
                 limits.embeddedVideos(),
-                allowNoIncrease);
+                allowNoIncrease,
+                ErrorCode.BOOTH_EMBEDDED_VIDEO_LIMIT_EXCEEDED);
     }
 
     public void assertWithinSubmissionLimits(DesignRequest request, DesignDraft draft) {
         if (draft == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND);
         }
         Limits limits = requireLimits(request);
         Usage baseline = calculateBaselineUsage(request);
         Usage working = calculateUsage(draft);
         boolean useBaselineGrace = request.getMode() == DesignRequestMode.REDESIGN;
 
-        assertSubmissionMetric(working.panoramas(), limits.panoramas(), baseline.panoramas(), useBaselineGrace);
-        assertSubmissionMetric(working.hotspots(), limits.hotspots(), baseline.hotspots(), useBaselineGrace);
-        assertSubmissionMetric(working.products(), limits.products(), baseline.products(), useBaselineGrace);
+        assertSubmissionMetric(working.panoramas(), limits.panoramas(), baseline.panoramas(), useBaselineGrace,
+                ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED);
+        assertSubmissionMetric(working.hotspots(), limits.hotspots(), baseline.hotspots(), useBaselineGrace,
+                ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED);
+        assertSubmissionMetric(working.products(), limits.products(), baseline.products(), useBaselineGrace,
+                ErrorCode.BOOTH_PRODUCT_LIMIT_EXCEEDED);
         assertSubmissionMetric(
                 working.embeddedVideos(),
                 limits.embeddedVideos(),
                 baseline.embeddedVideos(),
-                useBaselineGrace);
+                useBaselineGrace,
+                ErrorCode.BOOTH_EMBEDDED_VIDEO_LIMIT_EXCEEDED);
     }
 
     public DesignDraftBenefitUsageResponseDTO getUsageResponse(DesignRequest request, DesignDraft draft) {
@@ -159,7 +167,7 @@ public class DesignDraftBenefitGuardService {
     private Limits requireLimits(DesignRequest request) {
         ExhibitorRegistration registration = requireBooth(request).getExhibitorRegistration();
         if (registration == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
         return new Limits(
                 requireLimit(registration.getMaxPanoramasPerBoothSnapshot()),
@@ -170,29 +178,39 @@ public class DesignDraftBenefitGuardService {
 
     private Booth requireBooth(DesignRequest request) {
         if (request == null || request.getBooth() == null || request.getBooth().getId() == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND);
         }
         return request.getBooth();
     }
 
     private int requireLimit(Integer limit) {
         if (limit == null || limit < 0) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID);
         }
         return limit;
     }
 
-    private void assertMutationMetric(int projected, int before, int limit, boolean allowNoIncrease) {
+    private void assertMutationMetric(
+            int projected,
+            int before,
+            int limit,
+            boolean allowNoIncrease,
+            ErrorCode errorCode) {
         if (projected <= limit || allowNoIncrease && projected <= before) {
             return;
         }
-        throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
+        throw new AppException(errorCode);
     }
 
-    private void assertSubmissionMetric(int working, int limit, int baseline, boolean useBaselineGrace) {
+    private void assertSubmissionMetric(
+            int working,
+            int limit,
+            int baseline,
+            boolean useBaselineGrace,
+            ErrorCode errorCode) {
         int allowed = useBaselineGrace ? Math.max(limit, baseline) : limit;
         if (working > allowed) {
-            throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
+            throw new AppException(errorCode);
         }
     }
 

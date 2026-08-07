@@ -180,7 +180,7 @@ class BoothTemplateServiceUnitTest {
                     request,
                     Map.of("file_1", image("file_1"))));
 
-            assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+            assertSame(ErrorCode.BOOTH_TEMPLATE_STATUS_INVALID, exception.getErrorCode());
         }
 
         verify(cloudService, never()).uploadToFolder(any(MultipartFile.class), eq(FileUploadUtils.PANORAMA_FOLDER));
@@ -201,7 +201,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAVIGATION_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -225,7 +225,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_HOTSPOT_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -243,7 +243,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_DEFAULT_PANORAMA_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -295,7 +295,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, null, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -307,7 +307,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -318,7 +318,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of()));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -331,7 +331,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of()));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -345,7 +345,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_KEY_DUPLICATED, exception.getErrorCode());
     }
 
     @Test
@@ -359,7 +359,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_KEY_DUPLICATED, exception.getErrorCode());
     }
 
     @Test
@@ -377,7 +377,7 @@ class BoothTemplateServiceUnitTest {
                 admin, request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"), "file_3", image("file_3"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_UNREACHABLE, exception.getErrorCode());
     }
 
     @Test

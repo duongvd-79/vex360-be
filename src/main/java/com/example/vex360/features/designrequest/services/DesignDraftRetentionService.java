@@ -25,11 +25,14 @@ public class DesignDraftRetentionService {
 
     @Transactional
     public void retainApprovedDraft(DesignRequest request, DesignDraft approvedDraft) {
-        if (!belongsToRequest(request, approvedDraft)
-                || approvedDraft.getVersionNumber() == null
-                || approvedDraft.getVersionNumber() <= 0
-                || request.getDrafts().stream().noneMatch(draft -> sameDraft(draft, approvedDraft))) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        if (!belongsToRequest(request, approvedDraft)) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_GRAPH_INVALID);
+        }
+        if (approvedDraft.getVersionNumber() == null || approvedDraft.getVersionNumber() <= 0) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_VERSION_INVALID);
+        }
+        if (request.getDrafts().stream().noneMatch(draft -> sameDraft(draft, approvedDraft))) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND);
         }
 
         request.getDrafts().removeIf(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() <= 0);

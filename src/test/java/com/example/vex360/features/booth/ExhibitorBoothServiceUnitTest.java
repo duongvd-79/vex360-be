@@ -238,7 +238,7 @@ class ExhibitorBoothServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null, null));
-        assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
+        assertSame(ErrorCode.BOOTH_NAME_REQUIRED, ex.getErrorCode());
     }
 
     @Test
@@ -252,7 +252,7 @@ class ExhibitorBoothServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, textFile, null));
-        assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
+        assertSame(ErrorCode.BOOTH_THUMBNAIL_INVALID, ex.getErrorCode());
     }
 
     @Test

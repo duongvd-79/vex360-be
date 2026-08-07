@@ -187,7 +187,7 @@ public class DesignerWorkspaceService {
         try {
             return MediaAssetType.valueOf(filterType.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_FILTER_INVALID);
         }
     }
 
@@ -295,7 +295,7 @@ public class DesignerWorkspaceService {
         DesignDraft latest = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() > WORKING_VERSION)
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         List<ProductResponseDTO> required = request.getProducts().stream()
                 .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline()))
                 .map(item -> productMapper.toResponse(item.getProduct()))
@@ -390,7 +390,7 @@ public class DesignerWorkspaceService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
         if (versionNumber == null || versionNumber <= 0) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_VERSION_INVALID);
         }
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
@@ -399,7 +399,7 @@ public class DesignerWorkspaceService {
                 .filter(d -> d.getVersionNumber() != null && d.getVersionNumber() > 0)
                 .filter(d -> Objects.equals(d.getVersionNumber(), versionNumber))
                 .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         return toDraftResponse(draft);
     }
 

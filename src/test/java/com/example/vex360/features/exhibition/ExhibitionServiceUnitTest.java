@@ -601,7 +601,7 @@ class ExhibitionServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_DURATION_EXCEEDED, ex.getErrorCode());
     }
 
     @Test
@@ -1000,7 +1000,7 @@ class ExhibitionServiceUnitTest {
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID, ex.getErrorCode());
     }
 
     @Test

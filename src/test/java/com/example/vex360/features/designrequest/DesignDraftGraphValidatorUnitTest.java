@@ -54,7 +54,7 @@ class DesignDraftGraphValidatorUnitTest {
         DesignDraft emptyDraft = DesignDraft.builder().designRequest(request).versionNumber(0).build();
 
         assertDoesNotThrow(() -> validator.validateWorkingGraph(request, emptyDraft));
-        assertInvalid(() -> validator.validateForSubmission(request, emptyDraft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID, () -> validator.validateForSubmission(request, emptyDraft));
     }
 
     @Test
@@ -76,11 +76,11 @@ class DesignDraftGraphValidatorUnitTest {
     void submissionRequiresExactlyOneDefaultAndContiguousUniqueOrder() {
         DesignDraft noDefault = validDraft();
         noDefault.getPanoramas().get(0).setIsDefault(false);
-        assertInvalid(() -> validator.validateForSubmission(request, noDefault));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_DEFAULT_PANORAMA_INVALID, () -> validator.validateForSubmission(request, noDefault));
 
         DesignDraft badOrder = validDraft();
         badOrder.getPanoramas().add(panorama(badOrder, "p1", 2, false));
-        assertInvalid(() -> validator.validateForSubmission(request, badOrder));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID, () -> validator.validateForSubmission(request, badOrder));
     }
 
     @Test
@@ -89,7 +89,7 @@ class DesignDraftGraphValidatorUnitTest {
         DesignDraftPanorama panorama = draft.getPanoramas().get(0);
         panorama.getHotspots().add(nav(panorama, "missing"));
 
-        assertInvalid(() -> validator.validateForSubmission(request, draft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_HOTSPOT_REFERENCE_INVALID, () -> validator.validateForSubmission(request, draft));
     }
 
     @Test
@@ -102,12 +102,12 @@ class DesignDraftGraphValidatorUnitTest {
                 .status(ProductStatus.ACTIVE)
                 .build();
         panorama.getHotspots().add(productHotspot(panorama, notAllowed));
-        assertInvalid(() -> validator.validateForSubmission(request, draft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID, () -> validator.validateForSubmission(request, draft));
 
         panorama.getHotspots().clear();
         allowedProduct.setStatus(ProductStatus.INACTIVE);
         panorama.getHotspots().add(productHotspot(panorama, allowedProduct));
-        assertInvalid(() -> validator.validateForSubmission(request, draft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID, () -> validator.validateForSubmission(request, draft));
     }
 
     @Test
@@ -116,7 +116,7 @@ class DesignDraftGraphValidatorUnitTest {
         DesignDraftPanorama wrongTypePanorama = wrongTypeDraft.getPanoramas().get(0);
         wrongTypePanorama.getHotspots().add(
                 infoMedia(wrongTypePanorama, HotspotInfoContentType.IMAGE, media(MediaAssetType.VIDEO)));
-        assertInvalid(() -> validator.validateForSubmission(request, wrongTypeDraft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, () -> validator.validateForSubmission(request, wrongTypeDraft));
 
         DesignDraft wrongCompanyDraft = validDraft();
         DesignDraftPanorama wrongCompanyPanorama = wrongCompanyDraft.getPanoramas().get(0);
@@ -124,7 +124,7 @@ class DesignDraftGraphValidatorUnitTest {
         foreignMedia.setCompany(Company.builder().id(UUID.randomUUID()).build());
         wrongCompanyPanorama.getHotspots().add(
                 infoMedia(wrongCompanyPanorama, HotspotInfoContentType.IMAGE, foreignMedia));
-        assertInvalid(() -> validator.validateForSubmission(request, wrongCompanyDraft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, () -> validator.validateForSubmission(request, wrongCompanyDraft));
     }
 
     @Test
@@ -138,10 +138,7 @@ class DesignDraftGraphValidatorUnitTest {
                 .build();
         panorama.getHotspots().add(infoMedia(panorama, HotspotInfoContentType.IMAGE, notAllowed));
 
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> validator.validateForSubmission(request, draft));
-        assertSame(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED, exception.getErrorCode());
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, () -> validator.validateForSubmission(request, draft));
     }
 
     @Test
@@ -149,14 +146,14 @@ class DesignDraftGraphValidatorUnitTest {
         DesignDraft missingTextDraft = validDraft();
         DesignDraftPanorama missingTextPanorama = missingTextDraft.getPanoramas().get(0);
         missingTextPanorama.getHotspots().add(infoText(missingTextPanorama, " "));
-        assertInvalid(() -> validator.validateForSubmission(request, missingTextDraft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID, () -> validator.validateForSubmission(request, missingTextDraft));
 
         DesignDraft staleFieldDraft = validDraft();
         DesignDraftPanorama staleFieldPanorama = staleFieldDraft.getPanoramas().get(0);
         DesignDraftHotspot text = infoText(staleFieldPanorama, "Welcome");
         text.setProduct(allowedProduct);
         staleFieldPanorama.getHotspots().add(text);
-        assertInvalid(() -> validator.validateForSubmission(request, staleFieldDraft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID, () -> validator.validateForSubmission(request, staleFieldDraft));
     }
 
     @Test
@@ -167,7 +164,7 @@ class DesignDraftGraphValidatorUnitTest {
         media.setCornerTlX(1.0);
         panorama.getHotspots().add(media);
 
-        assertInvalid(() -> validator.validateForSubmission(request, draft));
+        assertErrorCode(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID, () -> validator.validateForSubmission(request, draft));
     }
 
     private DesignDraft validDraft() {
@@ -253,6 +250,11 @@ class DesignDraftGraphValidatorUnitTest {
                 .mediaAsset(mediaAsset)
                 .build());
         return mediaAsset;
+    }
+
+    private void assertErrorCode(ErrorCode expectedCode, Runnable operation) {
+        AppException exception = assertThrows(AppException.class, operation::run);
+        assertSame(expectedCode, exception.getErrorCode());
     }
 
     private void assertInvalid(Runnable operation) {

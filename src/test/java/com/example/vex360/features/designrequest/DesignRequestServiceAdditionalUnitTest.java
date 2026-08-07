@@ -310,7 +310,7 @@ class DesignRequestServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.requestCancellation(exhibitor, requestId, "  "));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_CANCELLATION_REASON_REQUIRED, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
     }
 
@@ -396,7 +396,7 @@ class DesignRequestServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.submitWorkingDraft(designer, requestId));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
@@ -485,7 +485,7 @@ class DesignRequestServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.approveDraft(exhibitor, requestId));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
@@ -502,7 +502,7 @@ class DesignRequestServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.approveDraft(exhibitor, requestId));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_VERSION_INVALID, exception.getErrorCode());
     }
 
     @Test

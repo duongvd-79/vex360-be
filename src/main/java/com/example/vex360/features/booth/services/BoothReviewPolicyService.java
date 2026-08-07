@@ -134,7 +134,7 @@ public class BoothReviewPolicyService {
         }
         if (booth.getName() == null || booth.getName().isBlank()
                 || panoramaRepository.countByBoothId(booth.getId()) == 0) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE);
         }
     }
 
@@ -150,11 +150,14 @@ public class BoothReviewPolicyService {
     private Exhibition getExhibition(Booth booth) {
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         if (registration == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
         ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
-        if (exhibitionPackage == null || exhibitionPackage.getExhibition() == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+        if (exhibitionPackage == null) {
+            throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
+        }
+        if (exhibitionPackage.getExhibition() == null) {
+            throw new AppException(ErrorCode.REGISTRATION_EXHIBITION_MISSING);
         }
         return exhibitionPackage.getExhibition();
     }

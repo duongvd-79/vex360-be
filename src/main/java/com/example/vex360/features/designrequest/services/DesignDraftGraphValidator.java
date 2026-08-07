@@ -35,12 +35,12 @@ public class DesignDraftGraphValidator {
     public void validateGraph(DesignRequest request, DesignDraft draft, boolean requireSubmittable) {
         if (request == null || draft == null || draft.getDesignRequest() == null
                 || !sameEntity(request.getId(), draft.getDesignRequest().getId(), request, draft.getDesignRequest())) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_GRAPH_INVALID);
         }
 
         List<DesignDraftPanorama> panoramas = draft.getPanoramas();
         if (panoramas == null || requireSubmittable && panoramas.isEmpty()) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
         }
         if (panoramas.isEmpty()) {
             return;
@@ -55,22 +55,24 @@ public class DesignDraftGraphValidator {
                     || !panoramaKeys.add(panorama.getClientKey().trim())
                     || !isText(panorama.getName())
                     || !isText(panorama.getImageUrl())
-                    || !isText(panorama.getImageKey())
-                    || panorama.getOrderIndex() == null
+                    || !isText(panorama.getImageKey())) {
+                invalidDraft(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
+            }
+            if (panorama.getOrderIndex() == null
                     || panorama.getOrderIndex() < 0
                     || !orderIndexes.add(panorama.getOrderIndex())) {
-                invalidDraft();
+                invalidDraft(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
             }
             if (Boolean.TRUE.equals(panorama.getIsDefault())) {
                 defaultCount++;
             }
         }
         if (defaultCount != 1) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_DEFAULT_PANORAMA_INVALID);
         }
         for (int orderIndex = 0; orderIndex < panoramas.size(); orderIndex++) {
             if (!orderIndexes.contains(orderIndex)) {
-                invalidDraft();
+                invalidDraft(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
             }
         }
 
@@ -112,7 +114,7 @@ public class DesignDraftGraphValidator {
                 || !isFinite(hotspot.getYPosition())
                 || !isFinite(hotspot.getZPosition())
                 || hotspot.getScale() != null && !Double.isFinite(hotspot.getScale())) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
 
         validateCorners(hotspot);
@@ -121,7 +123,7 @@ public class DesignDraftGraphValidator {
             case PRODUCT -> validateProductHotspot(request, hotspot, allowedProductIds);
             case INFO -> validateInfoHotspot(request, hotspot, allowedProductIds, allowedMediaAssetIds);
             case MEDIA -> validateMediaHotspot(request, hotspot, allowedMediaAssetIds);
-            default -> invalidDraft();
+            default -> invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
     }
 
@@ -136,7 +138,7 @@ public class DesignDraftGraphValidator {
                 || hotspot.getInfoContentType() != null
                 || hotspot.getMediaClickAction() != null
                 || hasAnyCorner(hotspot)) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_REFERENCE_INVALID);
         }
     }
 
@@ -150,7 +152,7 @@ public class DesignDraftGraphValidator {
                 || isText(hotspot.getInfoText())
                 || hotspot.getInfoContentType() != null
                 || hotspot.getMediaClickAction() != null) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         validateProduct(request, hotspot.getProduct(), allowedProductIds);
     }
@@ -164,7 +166,7 @@ public class DesignDraftGraphValidator {
                 || hotspot.getMediaClickAction() != null
                 || hasAnyCorner(hotspot)
                 || hotspot.getInfoContentType() == null) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
 
         HotspotInfoContentType contentType = hotspot.getInfoContentType();
@@ -172,35 +174,35 @@ public class DesignDraftGraphValidator {
             case NONE -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null
                         || hotspot.getMediaAsset() != null || hotspot.getDesignDraftMediaAsset() != null) {
-                    invalidDraft();
+                    invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
             }
             case TEXT -> {
                 if (!isText(hotspot.getInfoText()) || hotspot.getProduct() != null
                         || hotspot.getMediaAsset() != null || hotspot.getDesignDraftMediaAsset() != null) {
-                    invalidDraft();
+                    invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
             }
             case IMAGE -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
-                    invalidDraft();
+                    invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
                 validateMediaReference(request, hotspot, MediaAssetType.IMAGE, allowedMediaAssetIds);
             }
             case VIDEO -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getProduct() != null) {
-                    invalidDraft();
+                    invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
                 validateMediaReference(request, hotspot, MediaAssetType.VIDEO, allowedMediaAssetIds);
             }
             case PRODUCT -> {
                 if (isText(hotspot.getInfoText()) || hotspot.getMediaAsset() != null
                         || hotspot.getDesignDraftMediaAsset() != null) {
-                    invalidDraft();
+                    invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
                 }
                 validateProduct(request, hotspot.getProduct(), allowedProductIds);
             }
-            default -> invalidDraft();
+            default -> invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
     }
 
@@ -213,7 +215,7 @@ public class DesignDraftGraphValidator {
                 || isText(hotspot.getInfoText())
                 || hotspot.getInfoContentType() != null
                 || hotspot.getMediaClickAction() == null) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         validateMediaReference(request, hotspot, null, allowedMediaAssetIds);
     }
@@ -224,7 +226,7 @@ public class DesignDraftGraphValidator {
                 || !allowedProductIds.contains(product.getId())
                 || product.getStatus() != ProductStatus.ACTIVE
                 || !sameCompany(request.getCompany(), product.getCompany())) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
     }
 
@@ -234,15 +236,15 @@ public class DesignDraftGraphValidator {
             MediaAssetType expectedType,
             Set<UUID> allowedMediaAssetIds) {
         if (mediaAsset == null || mediaAsset.getId() == null) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         if (!allowedMediaAssetIds.contains(mediaAsset.getId())) {
-            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED);
+            invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         if (mediaAsset.getType() == null
                 || !sameCompany(request.getCompany(), mediaAsset.getCompany())
                 || expectedType != null && mediaAsset.getType() != expectedType) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
     }
 
@@ -254,7 +256,7 @@ public class DesignDraftGraphValidator {
         boolean official = hotspot.getMediaAsset() != null;
         boolean staging = hotspot.getDesignDraftMediaAsset() != null;
         if (official == staging) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         if (official) {
             validateMedia(request, hotspot.getMediaAsset(), expectedType, allowedMediaAssetIds);
@@ -274,7 +276,7 @@ public class DesignDraftGraphValidator {
                 || media.getAsset().getAssetType()
                         != com.example.vex360.features.designrequest.enums.DesignDraftAssetType.MEDIA_ATTACHMENT
                 || expectedType != null && stagingMediaType(media) != expectedType) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
     }
 
@@ -286,7 +288,7 @@ public class DesignDraftGraphValidator {
         if ("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType)) {
             return MediaAssetType.IMAGE;
         }
-        invalidDraft();
+        invalidDraft(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         return null;
     }
 
@@ -322,12 +324,12 @@ public class DesignDraftGraphValidator {
             return;
         }
         if (hotspot.getType() != HotspotType.MEDIA && hotspot.getType() != HotspotType.PRODUCT) {
-            invalidDraft();
+            invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         Double[] values = cornerValues(hotspot);
         for (Double value : values) {
             if (!isFinite(value)) {
-                invalidDraft();
+                invalidDraft(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
             }
         }
     }
@@ -373,7 +375,7 @@ public class DesignDraftGraphValidator {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private void invalidDraft() {
-        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+    private void invalidDraft(ErrorCode errorCode) {
+        throw new AppException(errorCode);
     }
 }

@@ -173,7 +173,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -194,7 +194,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_OWNER_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -210,7 +210,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_PACKAGE_MISSING, ex.getErrorCode());
     }
 
     private ExhibitorRegistration registration(ExhibitorRegistrationStatus status) {

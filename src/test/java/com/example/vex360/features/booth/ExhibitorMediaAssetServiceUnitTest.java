@@ -158,7 +158,7 @@ class ExhibitorMediaAssetServiceUnitTest {
                 AppException.class,
                 () -> mediaAssetService.getMediaAssets(currentUser, "audio", pageable));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_FILTER_INVALID, exception.getErrorCode());
         verify(mediaAssetRepository, never()).findByCompanyId(any(), any());
         verify(mediaAssetRepository, never()).findByCompanyIdAndType(any(), any(), any());
     }
@@ -171,7 +171,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, null, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_NAME_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -183,7 +183,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_NAME_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -196,7 +196,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_NAME_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -208,7 +208,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, null);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_FILE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -221,7 +221,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_FILE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -234,7 +234,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_FILE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -313,7 +313,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.deleteMediaAsset(currentUser, assetId);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_IN_USE, exception.getErrorCode());
         verify(mediaAssetRepository, never()).delete(any());
     }
 
@@ -358,6 +358,6 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.createMediaAsset(currentUser, request, file);
         });
-        assertEquals(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertEquals(ErrorCode.MEDIA_ASSET_FILE_INVALID, exception.getErrorCode());
     }
 }

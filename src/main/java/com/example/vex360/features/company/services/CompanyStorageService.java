@@ -61,7 +61,7 @@ public class CompanyStorageService {
         validateBytes(actualBytes);
         Company locked = lock(company);
         if (reserved(locked) < previousBytes) {
-            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
         }
         long remainingReserved = reserved(locked) - previousBytes;
         if (used(locked) + remainingReserved + actualBytes > quota(locked)) {
@@ -76,7 +76,7 @@ public class CompanyStorageService {
         validateBytes(fileSizeBytes);
         Company locked = lock(company);
         if (reserved(locked) < fileSizeBytes) {
-            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
         }
         locked.setStorageReservedBytes(reserved(locked) - fileSizeBytes);
         locked.setStorageUsedBytes(used(locked) + fileSizeBytes);
@@ -88,7 +88,7 @@ public class CompanyStorageService {
         validateBytes(fileSizeBytes);
         Company locked = lock(company);
         if (reserved(locked) < fileSizeBytes) {
-            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
         }
         locked.setStorageReservedBytes(reserved(locked) - fileSizeBytes);
         companyRepository.save(locked);
@@ -105,7 +105,7 @@ public class CompanyStorageService {
         validateBytes(promotedReservedBytes);
         Company locked = lock(company);
         if (reserved(locked) < promotedReservedBytes) {
-            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
         }
         long newReserved = reserved(locked) - promotedReservedBytes;
         long newUsed = Math.max(0, used(locked) - releasedUsedBytes)
@@ -150,7 +150,7 @@ public class CompanyStorageService {
 
     private void validateBytes(long bytes) {
         if (bytes < 0) {
-            throw new AppException(ErrorCode.INVALID_STORAGE_USAGE);
+            throw new AppException(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID);
         }
     }
 

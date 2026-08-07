@@ -77,11 +77,11 @@ public class DesignRequestEligibilityService {
         Booth booth = request.getBooth();
         if (booth.getStatus() != BoothStatus.DESIGN_REQUEST_PENDING
                 || inferMode(booth) != request.getMode()) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+            throw new AppException(ErrorCode.DESIGN_REQUEST_BOOTH_STATE_INVALID);
         }
         if (request.getMode() == DesignRequestMode.REDESIGN
                 && boothDesignService.existsInactiveHotspotProductInBooth(booth.getId())) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+            throw new AppException(ErrorCode.DESIGN_BASELINE_PRODUCT_INVALID);
         }
     }
 

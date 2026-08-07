@@ -301,7 +301,7 @@ class ProductServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.createProduct(user, request));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        assertSame(ErrorCode.PRODUCT_MEDIA_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -430,7 +430,7 @@ class ProductServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.updateProduct(user, product.getId(), request));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        assertSame(ErrorCode.PRODUCT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
