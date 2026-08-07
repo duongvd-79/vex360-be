@@ -917,6 +917,10 @@ class ExhibitorRegistrationServiceTest {
                 .priceSnapshot(BigDecimal.valueOf(1000000))
                 .finalPriceSnapshot(BigDecimal.valueOf(1500000))
                 .currencySnapshot("VND")
+                .maxProductsPerBoothSnapshot(12)
+                .maxEmbeddedVideosPerBoothSnapshot(3)
+                .maxPanoramasPerBoothSnapshot(4)
+                .maxHotspotsPerBoothSnapshot(25)
                 .build();
 
         when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
@@ -930,6 +934,10 @@ class ExhibitorRegistrationServiceTest {
         assertEquals(BigDecimal.valueOf(1000000), dto.getPriceSnapshot());
         assertEquals(BigDecimal.valueOf(1500000), dto.getFinalPriceSnapshot());
         assertEquals("VND", dto.getCurrencySnapshot());
+        assertEquals(12, dto.getMaxProductsPerBoothSnapshot());
+        assertEquals(3, dto.getMaxEmbeddedVideosPerBoothSnapshot());
+        assertEquals(4, dto.getMaxPanoramasPerBoothSnapshot());
+        assertEquals(25, dto.getMaxHotspotsPerBoothSnapshot());
     }
 
     @Test
@@ -1649,7 +1657,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void getRegistrationDetails_reconcilesNonPaidNullFailedAndMissingOrderLinks() {
+    void getRegistrationDetails_keepsIndeterminateLinksPendingAndFailsMissingOrder() {
         UUID uuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .id(1)
@@ -1680,9 +1688,9 @@ class ExhibitorRegistrationServiceTest {
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
 
-        assertEquals(PaymentStatus.FAILED, nonPaid.getStatus());
-        assertEquals(PaymentStatus.FAILED, missingLink.getStatus());
-        assertEquals(PaymentStatus.FAILED, lookupFailure.getStatus());
+        assertEquals(PaymentStatus.PENDING, nonPaid.getStatus());
+        assertEquals(PaymentStatus.PENDING, missingLink.getStatus());
+        assertEquals(PaymentStatus.PENDING, lookupFailure.getStatus());
         assertEquals(PaymentStatus.FAILED, missingOrder.getStatus());
     }
 
@@ -1752,7 +1760,6 @@ class ExhibitorRegistrationServiceTest {
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
                 .finalPriceSnapshot(BigDecimal.valueOf(123))
                 .build();
-        PaymentLink existingLink = mock(PaymentLink.class);
         when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
         when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
@@ -1761,11 +1768,6 @@ class ExhibitorRegistrationServiceTest {
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("create failed"));
-        when(payOSIntegrationService.getPaymentLinkInformation(any()))
-                .thenReturn(existingLink)
-                .thenReturn(null)
-                .thenThrow(new RuntimeException("lookup failed"));
-
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
