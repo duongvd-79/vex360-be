@@ -232,6 +232,6 @@ class DesignerWorkspaceServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.getReviewWorkspace(exhibitor, submitted.getId()));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_NOT_FOUND, exception.getErrorCode());
     }
 }

@@ -64,12 +64,12 @@ public class BoothDesignService {
     @Transactional(readOnly = true)
     public MediaAsset getMediaAssetForCompany(UUID mediaAssetId, UUID companyId, MediaAssetType expectedType) {
         if (mediaAssetId == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(mediaAssetId, companyId)
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         if (expectedType != null && mediaAsset.getType() != expectedType) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         return mediaAsset;
     }

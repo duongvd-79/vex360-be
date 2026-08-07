@@ -65,7 +65,7 @@ public class ExhibitorMediaAssetService {
         try {
             return MediaAssetType.valueOf(filterType.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.MEDIA_ASSET_FILTER_INVALID);
         }
     }
 
@@ -76,7 +76,7 @@ public class ExhibitorMediaAssetService {
             MultipartFile file) {
         Company company = getCompanyForCurrentUser(currentUser);
         if (request == null || request.getName() == null || request.getName().isBlank()) {
-            throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
+            throw new AppException(ErrorCode.MEDIA_ASSET_NAME_INVALID);
         }
         validateMediaFile(file);
 
@@ -107,7 +107,7 @@ public class ExhibitorMediaAssetService {
         MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         if (hotspotRepository.existsByMediaAssetId(assetId)) {
-            throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
+            throw new AppException(ErrorCode.MEDIA_ASSET_IN_USE);
         }
 
         MediaAssetResponseDTO response = boothMapper.toMediaAssetResponseDTO(mediaAsset);
@@ -118,7 +118,7 @@ public class ExhibitorMediaAssetService {
 
     private void validateMediaFile(MultipartFile file) {
         if (file == null || file.isEmpty() || !ALLOWED_MEDIA_TYPES.contains(normalizeMimeType(file))) {
-            throw new AppException(ErrorCode.INVALID_MEDIA_ASSET);
+            throw new AppException(ErrorCode.MEDIA_ASSET_FILE_INVALID);
         }
     }
 

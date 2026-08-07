@@ -50,7 +50,7 @@ class ModularMonolithArchitectureTest {
     }
 
     @Test
-    //@Disabled("Legacy feature packages still contain dependency cycles; enable after modularization")
+    // Never disable this test
     void featuresShouldBeFreeOfCycles() {
         assertFalse(featureNames(IMPORTED_CLASSES, false).isEmpty(),
                 "No feature packages were imported from " + FEATURES_PACKAGE);

@@ -293,7 +293,7 @@ class DesignerDraftEditorServiceUnitTest {
                 AppException.class,
                 () -> service.createHotspot(designer, request.getId(), panorama.getId(), create));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
         assertTrue(panorama.getHotspots().isEmpty());
     }
 
@@ -328,7 +328,7 @@ class DesignerDraftEditorServiceUnitTest {
         wrongType.setDesignDraftMediaAssetId(stagedVideo.getId());
 
         assertSame(
-                ErrorCode.INVALID_DESIGN_DRAFT,
+                ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID,
                 assertThrows(
                         AppException.class,
                         () -> service.createHotspot(
@@ -342,7 +342,7 @@ class DesignerDraftEditorServiceUnitTest {
         foreignMedia.setInfoContentType(HotspotInfoContentType.IMAGE);
         foreignMedia.setDesignDraftMediaAssetId(UUID.randomUUID());
         assertSame(
-                ErrorCode.INVALID_DESIGN_DRAFT,
+                ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID,
                 assertThrows(
                         AppException.class,
                         () -> service.createHotspot(
@@ -478,7 +478,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> service.addMediaAsset(designer, request.getId(), req));
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_DUPLICATED, ex.getErrorCode());
     }
 
     @Test
@@ -496,7 +496,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> service.addMediaAsset(designer, request.getId(), req));
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -508,7 +508,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> service.reorderMediaAssets(designer, request.getId(), invalidList));
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -522,7 +522,7 @@ class DesignerDraftEditorServiceUnitTest {
                 AppException.class,
                 () -> service.reorderMediaAssets(designer, request.getId(), List.of(firstId, firstId)));
 
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -591,14 +591,14 @@ class DesignerDraftEditorServiceUnitTest {
                         request.getId(),
                         new SubmitDesignDraftMediaAssetRequest(null, assetId, "a".repeat(256), null)));
 
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID, ex.getErrorCode());
     }
 
     @Test
     void removeMediaAsset_NonExistentId_ThrowsAppException() {
         AppException ex = assertThrows(AppException.class,
                 () -> service.removeMediaAsset(designer, request.getId(), UUID.randomUUID()));
-        assertEquals(ErrorCode.INVALID_DESIGN_DRAFT, ex.getErrorCode());
+        assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -654,7 +654,7 @@ class DesignerDraftEditorServiceUnitTest {
                 AppException.class,
                 () -> service.removeMediaAsset(designer, request.getId(), mediaId));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         assertEquals(List.of(media), draft.getMediaAssets());
         verify(draftRepository, never()).saveAndFlush(draft);
         verify(assetService, never()).cleanupUnreferencedAssets(request);

@@ -30,7 +30,7 @@ public class DesignRequestLifecyclePolicy {
         Exhibition exhibition = getExhibition(booth);
         ExhibitionStatus status = exhibition.getStatus();
         if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+            throw new AppException(ErrorCode.DESIGN_REQUEST_EXHIBITION_NOT_ELIGIBLE);
         }
 
         LocalDate today = exhibitionTimelinePolicy.today();
@@ -51,7 +51,7 @@ public class DesignRequestLifecyclePolicy {
         Exhibition exhibition = getExhibition(booth);
         ExhibitionStatus status = exhibition.getStatus();
         if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+            throw new AppException(ErrorCode.DESIGN_REQUEST_EXHIBITION_NOT_ELIGIBLE);
         }
 
         LocalDate today = exhibitionTimelinePolicy.today();
@@ -78,11 +78,14 @@ public class DesignRequestLifecyclePolicy {
     private Exhibition getExhibition(Booth booth) {
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         if (registration == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
         ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
-        if (exhibitionPackage == null || exhibitionPackage.getExhibition() == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+        if (exhibitionPackage == null) {
+            throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
+        }
+        if (exhibitionPackage.getExhibition() == null) {
+            throw new AppException(ErrorCode.REGISTRATION_EXHIBITION_MISSING);
         }
         return exhibitionPackage.getExhibition();
     }

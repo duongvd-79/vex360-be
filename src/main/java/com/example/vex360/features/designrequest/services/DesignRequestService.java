@@ -310,7 +310,7 @@ public class DesignRequestService {
         }
         String cancellationReason = trimToNull(reason);
         if (cancellationReason == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_CANCELLATION_REASON_REQUIRED);
         }
         request.setCancellationStatus(DesignRequestCancellationStatus.REQUESTED);
         request.setCancellationReason(cancellationReason);
@@ -453,7 +453,7 @@ public class DesignRequestService {
         DesignDraft workingDraft = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() == 0)
                 .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
 
         draftGraphValidator.validateForSubmission(request, workingDraft);
         draftBenefitGuardService.assertWithinSubmissionLimits(request, workingDraft);
@@ -497,7 +497,7 @@ public class DesignRequestService {
         request.setReviewCount(request.getReviewCount() + 1);
         String reviewNote = rejectRequest == null ? null : trimToNull(rejectRequest.getReviewNote());
         if (reviewNote == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_REVIEW_NOTE_REQUIRED);
         }
         DesignDraft latestSubmitted = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
@@ -529,11 +529,11 @@ public class DesignRequestService {
         boolean hasSubmittedDraft = request.getDrafts().stream()
                 .anyMatch(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0);
         if (!hasSubmittedDraft) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND);
         }
         String rejectionReason = trimToNull(reason);
         if (rejectionReason == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_REVIEW_NOTE_REQUIRED);
         }
 
         DesignRequestStatus previousStatus = request.getStatus();
@@ -577,9 +577,9 @@ public class DesignRequestService {
         }
 
         DesignDraft draft = designDraftRepository.findFirstByDesignRequestIdOrderByVersionNumberDesc(request.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         if (draft.getVersionNumber() == null || draft.getVersionNumber() <= 0) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_VERSION_INVALID);
         }
         draftGraphValidator.validateForSubmission(request, draft);
         draftBenefitGuardService.assertWithinSubmissionLimits(request, draft);
@@ -653,7 +653,7 @@ public class DesignRequestService {
                 || asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT
                 || asset.getQuotaState() == DesignDraftAssetQuotaState.NONE
                         && asset.getAssetSource() != DesignDraftAssetSource.UPLOADED) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         resolveApprovedMediaType(asset.getMimeType());
     }
@@ -667,7 +667,7 @@ public class DesignRequestService {
                 .forEach(hotspot -> {
                     MediaAsset media = promotedMedia.get(hotspot.getDesignDraftMediaAsset().getId());
                     if (media == null) {
-                        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                        throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
                     }
                     hotspot.setMediaAsset(media);
                     hotspot.setDesignDraftMediaAsset(null);
@@ -725,7 +725,7 @@ public class DesignRequestService {
         if (normalized.equals("image/jpeg") || normalized.equals("image/png")) {
             return MediaAssetType.IMAGE;
         }
-        throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
     }
 
     /**
@@ -814,7 +814,7 @@ public class DesignRequestService {
             SubmitDesignDraftRequest draftRequest,
             int versionNumber) {
         if (draftRequest == null || draftRequest.getPanoramas() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_REQUEST_INVALID);
         }
 
         DesignDraft draft = DesignDraft.builder()
@@ -833,22 +833,22 @@ public class DesignRequestService {
                 .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
                 .count();
         if (defaultCount > 1) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_DEFAULT_PANORAMA_INVALID);
         }
 
         List<DesignDraftPanorama> panoramas = new ArrayList<>();
         for (SubmitDesignDraftPanoramaRequest panoramaRequest : draftRequest.getPanoramas()) {
             String key = trimToNull(panoramaRequest.getClientKey());
             if (key == null || !keys.add(key)) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
             }
-            String imageUrl = requireText(panoramaRequest.getImageUrl());
-            String imageKey = requireText(panoramaRequest.getImageKey());
+            String imageUrl = requireText(panoramaRequest.getImageUrl(), ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
+            String imageKey = requireText(panoramaRequest.getImageKey(), ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
             designDraftAssetService.requireDraftAsset(request, imageKey, imageUrl);
             DesignDraftPanorama panorama = DesignDraftPanorama.builder()
                     .draft(draft)
                     .clientKey(key)
-                    .name(requireText(panoramaRequest.getName()))
+                    .name(requireText(panoramaRequest.getName(), ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID))
                     .imageUrl(imageUrl)
                     .imageKey(imageKey)
                     .orderIndex(panoramaRequest.getOrderIndex())
@@ -896,7 +896,7 @@ public class DesignRequestService {
             SubmitDesignDraftMediaAssetRequest mediaRequest = mediaRequests.get(index);
             if (mediaRequest == null || mediaRequest.getAssetId() == null
                     || !assetIds.add(mediaRequest.getAssetId())) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
             }
             DesignDraftAsset asset = designDraftAssetService.requireDraftAsset(
                     request,
@@ -904,7 +904,7 @@ public class DesignRequestService {
                     DesignDraftAssetType.MEDIA_ATTACHMENT);
             String title = trimToNull(mediaRequest.getTitle());
             if (title != null && title.length() > 255) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID);
             }
             DesignDraftMediaAsset media = DesignDraftMediaAsset.builder()
                     .draft(draft)
@@ -984,7 +984,7 @@ public class DesignRequestService {
                 || request.getXPosition() == null
                 || request.getYPosition() == null
                 || request.getZPosition() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
 
         DesignDraftHotspot hotspot = DesignDraftHotspot.builder()
@@ -1006,7 +1006,7 @@ public class DesignRequestService {
                     hotspot, designRequest, draftMediaByRequestId, request);
             case MEDIA -> applyDraftMediaHotspot(
                     hotspot, designRequest, draftMediaByRequestId, request);
-            default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            default -> throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         return hotspot;
     }
@@ -1017,11 +1017,11 @@ public class DesignRequestService {
             SubmitDesignDraftHotspotRequest request) {
         String targetKey = trimToNull(request.getTargetDraftPanoramaKey());
         if (targetKey == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_REFERENCE_INVALID);
         }
         DesignDraftPanorama target = panoramasByKey.get(targetKey);
         if (target == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_REFERENCE_INVALID);
         }
         hotspot.setTargetDraftPanoramaKey(targetKey);
         hotspot.setName(resolveName(request.getName(), target.getName()));
@@ -1032,12 +1032,12 @@ public class DesignRequestService {
             DesignRequest designRequest,
             SubmitDesignDraftHotspotRequest request) {
         if (request.getProductId() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
         requestProductService.assertProductAllowed(designRequest, request.getProductId());
         Product product = productService.getProductForCompany(request.getProductId(), designRequest.getCompany());
         if (product.getStatus() != ProductStatus.ACTIVE) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
         hotspot.setProduct(product);
         hotspot.setName(resolveName(request.getName(), product.getName()));
@@ -1053,7 +1053,8 @@ public class DesignRequestService {
         hotspot.setName(resolveName(request.getName(), "Info"));
         switch (contentType) {
             case NONE -> hotspot.setInfoText(null);
-            case TEXT -> hotspot.setInfoText(requireText(request.getInfoText()));
+            case TEXT ->
+                hotspot.setInfoText(requireText(request.getInfoText(), ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID));
             case PRODUCT -> applyDraftProductHotspot(hotspot, designRequest, request);
             case IMAGE -> applyDraftMediaReference(
                     hotspot,
@@ -1067,7 +1068,7 @@ public class DesignRequestService {
                     draftMediaByRequestId,
                     request,
                     MediaAssetType.VIDEO);
-            default -> throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            default -> throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
     }
 
@@ -1154,7 +1155,7 @@ public class DesignRequestService {
             DesignRequest designRequest,
             MediaAssetType expectedType) {
         if (mediaAssetId == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         requestMediaAssetService.assertMediaAssetAllowed(designRequest, mediaAssetId);
         return boothDesignService.getMediaAssetForCompany(
@@ -1172,7 +1173,7 @@ public class DesignRequestService {
         boolean officialProvided = request.getMediaAssetId() != null;
         boolean draftProvided = request.getDesignDraftMediaAssetId() != null;
         if (officialProvided == draftProvided) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         if (officialProvided) {
             hotspot.setMediaAsset(getMediaAsset(request.getMediaAssetId(), designRequest, expectedType));
@@ -1181,14 +1182,14 @@ public class DesignRequestService {
         DesignDraftMediaAsset media = draftMediaByRequestId.get(request.getDesignDraftMediaAssetId());
         if (media == null || media.getAsset() == null
                 || expectedType != null && resolveApprovedMediaType(media.getAsset().getMimeType()) != expectedType) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         hotspot.setDesignDraftMediaAsset(media);
     }
 
     private String stagingMediaName(DesignDraftMediaAsset media) {
         if (media == null || media.getAsset() == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         String title = trimToNull(media.getTitle());
         return title == null ? media.getAsset().getFileName() : title;
@@ -1219,7 +1220,7 @@ public class DesignRequestService {
         }
         if (!isCorner(corners.getTl()) || !isCorner(corners.getTr())
                 || !isCorner(corners.getBl()) || !isCorner(corners.getBr())) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_HOTSPOT_INVALID);
         }
         hotspot.setCornerTlX(corners.getTl().get(0));
         hotspot.setCornerTlY(corners.getTl().get(1));
@@ -1293,9 +1294,13 @@ public class DesignRequestService {
     }
 
     private String requireText(String value) {
+        return requireText(value, ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
+    }
+
+    private String requireText(String value, ErrorCode errorCode) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(errorCode);
         }
         return trimmed;
     }
@@ -1315,7 +1320,7 @@ public class DesignRequestService {
     private String resolveContactEmail(String provided, String fallback) {
         String email = provided == null ? trimToNull(fallback) : trimToNull(provided);
         if (email == null || email.length() > 320 || !CONTACT_EMAIL_PATTERN.matcher(email).matches()) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.DESIGN_CONTACT_EMAIL_INVALID);
         }
         return email;
     }
@@ -1323,7 +1328,7 @@ public class DesignRequestService {
     private String resolveContactPhone(String provided, String fallback) {
         String phone = provided == null ? trimToNull(fallback) : trimToNull(provided);
         if (phone == null || !CONTACT_PHONE_PATTERN.matcher(phone).matches()) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.DESIGN_CONTACT_PHONE_INVALID);
         }
         return phone;
     }

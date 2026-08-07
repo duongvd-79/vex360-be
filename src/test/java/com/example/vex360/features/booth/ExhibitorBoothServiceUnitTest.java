@@ -238,7 +238,7 @@ class ExhibitorBoothServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, request, null, null));
-        assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
+        assertSame(ErrorCode.BOOTH_NAME_REQUIRED, ex.getErrorCode());
     }
 
     @Test
@@ -252,7 +252,7 @@ class ExhibitorBoothServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitorBoothService.updateBooth(exhibitorUser, boothId, null, textFile, null));
-        assertSame(ErrorCode.INVALID_BOOTH, ex.getErrorCode());
+        assertSame(ErrorCode.BOOTH_THUMBNAIL_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -472,14 +472,14 @@ class ExhibitorBoothServiceUnitTest {
     @Test
     void getBoothBenefitUsage_ReturnsCorrectUsageAndLimits() {
         UUID boothId = UUID.randomUUID();
-        com.example.vex360.features.exhibition.entities.ExhibitorRegistration registration =
-                com.example.vex360.features.exhibition.entities.ExhibitorRegistration.builder()
-                        .packageNameSnapshot("FREE")
-                        .maxPanoramasPerBoothSnapshot(2)
-                        .maxHotspotsPerBoothSnapshot(5)
-                        .maxProductsPerBoothSnapshot(10)
-                        .maxEmbeddedVideosPerBoothSnapshot(2)
-                        .build();
+        com.example.vex360.features.exhibition.entities.ExhibitorRegistration registration = com.example.vex360.features.exhibition.entities.ExhibitorRegistration
+                .builder()
+                .packageNameSnapshot("FREE")
+                .maxPanoramasPerBoothSnapshot(2)
+                .maxHotspotsPerBoothSnapshot(5)
+                .maxProductsPerBoothSnapshot(10)
+                .maxEmbeddedVideosPerBoothSnapshot(2)
+                .build();
 
         Booth booth = Booth.builder()
                 .id(boothId)
@@ -495,16 +495,16 @@ class ExhibitorBoothServiceUnitTest {
         when(hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(boothId, null))
                 .thenReturn(List.of(UUID.randomUUID(), UUID.randomUUID()));
 
-        com.example.vex360.features.booth.entities.MediaAsset videoAsset =
-                com.example.vex360.features.booth.entities.MediaAsset.builder()
-                        .id(UUID.randomUUID())
-                        .type(com.example.vex360.features.booth.enums.MediaAssetType.VIDEO)
-                        .build();
+        com.example.vex360.features.booth.entities.MediaAsset videoAsset = com.example.vex360.features.booth.entities.MediaAsset
+                .builder()
+                .id(UUID.randomUUID())
+                .type(com.example.vex360.features.booth.enums.MediaAssetType.VIDEO)
+                .build();
         when(hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, null))
                 .thenReturn(List.of(videoAsset));
 
-        com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO usageDTO =
-                exhibitorBoothService.getBoothBenefitUsage(exhibitorUser, boothId);
+        com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO usageDTO = exhibitorBoothService
+                .getBoothBenefitUsage(exhibitorUser, boothId);
 
         assertNotNull(usageDTO);
         assertEquals("FREE", usageDTO.getPackageName());

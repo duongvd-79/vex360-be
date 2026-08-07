@@ -114,7 +114,7 @@ class CompanyStorageServiceUnitTest {
                 AppException.class,
                 () -> companyStorageService.releaseReservedUsage(company, 51L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT, exception.getErrorCode());
     }
 
     @Test
@@ -179,7 +179,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.checkQuota(company, -1L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
     // ================= addUsage =================
@@ -201,7 +201,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.deductUsage(company, -1L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
     // ================= promoteReservedUsage =================
@@ -213,7 +213,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.promoteReservedUsage(company, 51L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT, exception.getErrorCode());
     }
 
     @Test
@@ -221,7 +221,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.promoteReservedUsage(company, -1L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
     // ================= releaseReservedUsage =================
@@ -243,7 +243,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.releaseReservedUsage(company, -1L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
     // ================= adjustReservation =================
@@ -268,7 +268,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.adjustReservation(company, 51L, 10L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT, exception.getErrorCode());
     }
 
     @Test
@@ -288,7 +288,7 @@ class CompanyStorageServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> companyStorageService.adjustReservation(company, -1L, 10L));
 
-        assertEquals(ErrorCode.INVALID_STORAGE_USAGE, exception.getErrorCode());
+        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
     // ================= getUsage =================

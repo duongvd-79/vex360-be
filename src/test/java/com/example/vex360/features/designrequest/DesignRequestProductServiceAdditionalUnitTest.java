@@ -79,7 +79,7 @@ class DesignRequestProductServiceAdditionalUnitTest {
                 () -> service.initializeAllowlist(
                         request(DesignRequestMode.INITIAL_DESIGN), Collections.singletonList(null)));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -93,7 +93,7 @@ class DesignRequestProductServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.initializeAllowlist(request, List.of(productId)));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -107,7 +107,7 @@ class DesignRequestProductServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.initializeAllowlist(request, List.of(inactive.getId())));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -139,7 +139,7 @@ class DesignRequestProductServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.initializeAllowlist(request, List.of()));
 
-        assertSame(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_BASELINE_PRODUCT_INVALID, exception.getErrorCode());
     }
 
     private DesignRequest request(DesignRequestMode mode) {

@@ -167,7 +167,7 @@ class DesignerWorkspaceServiceUnitTest {
                 AppException.class,
                 () -> service.getHistoricalDraftPreview(exhibitor, request.getId(), 0));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_VERSION_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -223,6 +223,6 @@ class DesignerWorkspaceServiceUnitTest {
                 AppException.class,
                 () -> service.getMediaAssets(designer, request.getId(), "audio", Pageable.unpaged()));
 
-        assertSame(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_MEDIA_ASSET_FILTER_INVALID, exception.getErrorCode());
     }
 }

@@ -102,7 +102,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         if (expPackage.getStatus() != ExhibitionPackageStatus.ACTIVE) {
             log.error("Exhibition package {} is not active (status: {})", exhibitionPackageId, expPackage.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_INACTIVE);
         }
 
         Exhibition packageExhibition = expPackage.getExhibition();
@@ -171,7 +171,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getCompany() == null || registration.getCompany().getId() == null) {
             log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
                     registrationUuid);
-            throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+            throw new AppException(ErrorCode.REGISTRATION_COMPANY_MISSING);
         }
 
         if (!registration.getCompany().getId().equals(company.getId())) {
@@ -366,7 +366,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING) {
             log.error("Cannot approve registration {} with status {}", registrationUuid, registration.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_INVALID_STATUS);
         }
 
         if (!timelinePolicy.isRegistrationOpen(exp)) {
@@ -450,13 +450,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
             log.error("Cannot reject registration {} with status {}", registrationUuid, registration.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_INVALID_STATUS);
         }
 
         String normalizedReason = rejectedReason == null ? null : rejectedReason.trim();
         if (normalizedReason == null || normalizedReason.isEmpty()) {
             log.error("Rejection reason is required for rejecting registration {}", registrationUuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_REJECTION_REASON_REQUIRED);
         }
 
         registration.setStatus(ExhibitorRegistrationStatus.REJECTED);
@@ -634,20 +634,27 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             if (registration.getCompany() == null || registration.getCompany().getId() == null) {
                 log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_MISSING);
             }
             if (registration.getCompany().getOwnerUser() == null
                     || registration.getCompany().getOwnerUser().getId() == null) {
                 log.error(
                         "[PB-001/002] Pre-payment dependency check failed: company owner user missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_OWNER_MISSING);
             }
             if (registration.getExhibitionPackage() == null || registration.getExhibitionPackage().getId() == null) {
                 log.error(
                         "[PB-001/002] Pre-payment dependency check failed: exhibition package missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
+            }
+            if (registration.getExhibitionPackage().getExhibition() == null
+                    || registration.getExhibitionPackage().getExhibition().getId() == null) {
+                log.error(
+                        "[PB-001/002] Pre-payment dependency check failed: exhibition missing for registration UUID {}",
+                        registration.getUuid());
+                throw new AppException(ErrorCode.REGISTRATION_EXHIBITION_MISSING);
             }
         } catch (EntityNotFoundException | ObjectNotFoundException e) {
             log.error("[PB-001/002] Pre-payment dependency check threw exception for registration UUID {}",

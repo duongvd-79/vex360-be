@@ -96,7 +96,7 @@ class DesignDraftAssetServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.requireDraftAsset(request, asset.getPublicId(), "https://cdn/other.jpg"));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -121,7 +121,7 @@ class DesignDraftAssetServiceAdditionalUnitTest {
                 AppException.class,
                 () -> service.requireDraftAsset(request, asset.getId(), DesignDraftAssetType.THUMBNAIL));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID, exception.getErrorCode());
     }
 
     @Test

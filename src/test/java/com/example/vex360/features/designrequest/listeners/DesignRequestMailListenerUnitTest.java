@@ -1,7 +1,6 @@
 package com.example.vex360.features.designrequest.listeners;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -108,7 +107,8 @@ class DesignRequestMailListenerUnitTest {
                 .thenReturn(Optional.of(draft));
 
         DesignRequestStatusChangedEvent event = new DesignRequestStatusChangedEvent(
-                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.DRAFT_SUBMITTED, DesignRequestStatus.APPROVED);
+                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.DRAFT_SUBMITTED,
+                DesignRequestStatus.APPROVED);
 
         listener.handleDesignRequestStatusChanged(event);
 
@@ -131,7 +131,8 @@ class DesignRequestMailListenerUnitTest {
                 .thenReturn(Optional.of(draft));
 
         DesignRequestStatusChangedEvent event = new DesignRequestStatusChangedEvent(
-                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.DRAFT_SUBMITTED, DesignRequestStatus.REVISION_REQUESTED);
+                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.DRAFT_SUBMITTED,
+                DesignRequestStatus.REVISION_REQUESTED);
 
         listener.handleDesignRequestStatusChanged(event);
 
@@ -148,11 +149,13 @@ class DesignRequestMailListenerUnitTest {
     @Test
     void handleDesignRequestStatusChanged_OtherStatus_IgnoresEvent() {
         DesignRequestStatusChangedEvent event = new DesignRequestStatusChangedEvent(
-                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.PENDING, DesignRequestStatus.ASSIGNED);
+                requestId, company.getId(), designer.getId(), null, DesignRequestStatus.PENDING,
+                DesignRequestStatus.ASSIGNED);
 
         listener.handleDesignRequestStatusChanged(event);
 
-        verify(mailService, never()).sendDesignDraftReviewResultEmail(anyString(), anyString(), anyString(), anyString(), anyInt(), any(), anyString());
+        verify(mailService, never()).sendDesignDraftReviewResultEmail(anyString(), anyString(), anyString(),
+                anyString(), anyInt(), any(), anyString());
     }
 
     @Test
@@ -222,6 +225,7 @@ class DesignRequestMailListenerUnitTest {
                 isNull());
 
         // Designer email not sent
-        verify(mailService, never()).sendDesignCancellationDecisionEmail(anyString(), anyString(), eq(true), anyString(), anyString(), any(), anyString(), anyString(), any());
+        verify(mailService, never()).sendDesignCancellationDecisionEmail(anyString(), anyString(), eq(true),
+                anyString(), anyString(), any(), anyString(), anyString(), any());
     }
 }

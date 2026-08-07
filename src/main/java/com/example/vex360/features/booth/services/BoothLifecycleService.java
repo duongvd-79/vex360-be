@@ -2,8 +2,6 @@ package com.example.vex360.features.booth.services;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

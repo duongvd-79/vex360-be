@@ -2,7 +2,6 @@ package com.example.vex360.features.designrequest.services;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,7 +60,8 @@ class DesignAssetReferenceServiceAdditionalUnitTest {
         UUID assetId = UUID.randomUUID();
         User user = User.builder().id(UUID.randomUUID()).build();
         when(requestMediaAssetRepository.existsByMediaAssetIdAndRequestStatusIn(
-                assetId, com.example.vex360.features.designrequest.repositories.DesignRequestRepository.NON_TERMINAL_STATUSES))
+                assetId,
+                com.example.vex360.features.designrequest.repositories.DesignRequestRepository.NON_TERMINAL_STATUSES))
                 .thenReturn(true);
 
         AppException exception = assertThrows(

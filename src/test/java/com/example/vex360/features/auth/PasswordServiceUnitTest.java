@@ -1,7 +1,6 @@
 package com.example.vex360.features.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -70,8 +69,7 @@ class PasswordServiceUnitTest {
                 mailService,
                 authSessionService,
                 clock,
-                "http://localhost:8080"
-        );
+                "http://localhost:8080");
 
         user = User.builder()
                 .id(UUID.randomUUID())
@@ -192,7 +190,8 @@ class PasswordServiceUnitTest {
 
         ChangePasswordRequest request = new ChangePasswordRequest("old_pass", "new_pass");
 
-        AppException ex = assertThrows(AppException.class, () -> passwordService.changePassword(user.getId(), request, "acc_token"));
+        AppException ex = assertThrows(AppException.class,
+                () -> passwordService.changePassword(user.getId(), request, "acc_token"));
         assertEquals(ErrorCode.PROVIDER_NOT_SUPPORT_CHANGE_PASSWORD, ex.getErrorCode());
     }
 
@@ -203,8 +202,9 @@ class PasswordServiceUnitTest {
 
         ChangePasswordRequest request = new ChangePasswordRequest("wrong_old_pass", "new_pass");
 
-        AppException ex = assertThrows(AppException.class, () -> passwordService.changePassword(user.getId(), request, "acc_token"));
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        AppException ex = assertThrows(AppException.class,
+                () -> passwordService.changePassword(user.getId(), request, "acc_token"));
+        assertEquals(ErrorCode.OLDPASSWORD_FAILED, ex.getErrorCode());
     }
 
     @Test

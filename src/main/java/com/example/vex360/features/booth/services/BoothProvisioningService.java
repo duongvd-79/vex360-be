@@ -62,7 +62,7 @@ public class BoothProvisioningService {
         }
 
         if (registration.getExhibitionPackage() == null) {
-            throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+            throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
         }
         if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
             return Optional.empty();
@@ -74,12 +74,12 @@ public class BoothProvisioningService {
             if (company == null) {
                 log.error("[PB-001/002] Company missing for registration ID: {}, UUID: {}", registration.getId(),
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_MISSING);
             }
             if (company.getOwnerUser() == null) {
                 log.error("[PB-001/002] Company owner user missing for company ID: {}, registration ID: {}, UUID: {}",
                         company.getId(), registration.getId(), registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_OWNER_MISSING);
             }
         } catch (EntityNotFoundException | ObjectNotFoundException e) {
             log.error("[PB-001/002] Exception during relation resolution for registration ID: {}, UUID: {}",

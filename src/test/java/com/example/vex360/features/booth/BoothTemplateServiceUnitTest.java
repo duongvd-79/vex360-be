@@ -180,7 +180,7 @@ class BoothTemplateServiceUnitTest {
                     request,
                     Map.of("file_1", image("file_1"))));
 
-            assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+            assertSame(ErrorCode.BOOTH_TEMPLATE_STATUS_INVALID, exception.getErrorCode());
         }
 
         verify(cloudService, never()).uploadToFolder(any(MultipartFile.class), eq(FileUploadUtils.PANORAMA_FOLDER));
@@ -201,7 +201,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAVIGATION_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -225,7 +225,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_HOTSPOT_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -243,7 +243,7 @@ class BoothTemplateServiceUnitTest {
                 request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_DEFAULT_PANORAMA_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -295,7 +295,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, null, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -307,7 +307,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -318,7 +318,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of()));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_REQUIRED, exception.getErrorCode());
     }
 
     @Test
@@ -331,7 +331,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of()));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -345,7 +345,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"), "file_2", image("file_2"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_KEY_DUPLICATED, exception.getErrorCode());
     }
 
     @Test
@@ -359,7 +359,7 @@ class BoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> boothTemplateService.createBoothTemplate(
                 admin, request, Map.of("file_1", image("file_1"))));
 
-        assertSame(ErrorCode.INVALID_BOOTH_TEMPLATE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_KEY_DUPLICATED, exception.getErrorCode());
     }
 
     @Test
@@ -377,7 +377,7 @@ class BoothTemplateServiceUnitTest {
                 admin, request,
                 Map.of("file_1", image("file_1"), "file_2", image("file_2"), "file_3", image("file_3"))));
 
-        assertSame(ErrorCode.INVALID_PANORAMA_HOTSPOT, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_TEMPLATE_PANORAMA_UNREACHABLE, exception.getErrorCode());
     }
 
     @Test
@@ -504,7 +504,8 @@ class BoothTemplateServiceUnitTest {
             UUID id = UUID.randomUUID();
             when(boothRepository.findTemplateByIdForUpdate(id)).thenReturn(Optional.of(templateBooth(status)));
 
-            AppException exception = assertThrows(AppException.class, () -> boothTemplateService.deleteBoothTemplate(id));
+            AppException exception = assertThrows(AppException.class,
+                    () -> boothTemplateService.deleteBoothTemplate(id));
 
             assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
         }
@@ -567,7 +568,8 @@ class BoothTemplateServiceUnitTest {
     @Test
     void createTemplateWithThumbnailSucceeds() {
         mockSaveFlow();
-        MockMultipartFile thumbnail = new MockMultipartFile("thumbnail", "thumb.jpg", "image/jpeg", "thumbnail-data".getBytes());
+        MockMultipartFile thumbnail = new MockMultipartFile("thumbnail", "thumb.jpg", "image/jpeg",
+                "thumbnail-data".getBytes());
         CloudinaryResponse cloudResponse = CloudinaryResponse.builder()
                 .url("https://res.cloudinary.com/thumb.jpg")
                 .publicId("template/thumb")
@@ -600,11 +602,12 @@ class BoothTemplateServiceUnitTest {
         UUID id = UUID.randomUUID();
         Booth booth = templateBooth(BoothStatus.DRAFT);
         booth.setThumbnailPublicId("template/old_thumb");
-        
+
         when(boothRepository.findTemplateByIdForUpdate(id)).thenReturn(Optional.of(booth));
         when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg", "new-thumbnail-data".getBytes());
+        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg",
+                "new-thumbnail-data".getBytes());
         CloudinaryResponse uploadResponse = CloudinaryResponse.builder()
                 .url("https://res.cloudinary.com/new_thumb.jpg")
                 .publicId("template/new_thumb")
@@ -614,9 +617,11 @@ class BoothTemplateServiceUnitTest {
                 .build();
         when(cloudService.upload(newThumbnail)).thenReturn(uploadResponse);
 
-        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("Updated Name", "Updated Desc", BoothStatus.PUBLISHED);
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("Updated Name", "Updated Desc",
+                BoothStatus.PUBLISHED);
 
-        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest, newThumbnail);
+        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest,
+                newThumbnail);
 
         assertNotNull(response);
         assertEquals("Updated Name", response.getName());
@@ -651,9 +656,8 @@ class BoothTemplateServiceUnitTest {
 
         UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("New Name", null, null);
 
-        assertThrows(AppException.class, () -> 
-            boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null)
-        );
+        assertThrows(AppException.class,
+                () -> boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null));
     }
 
     @Test
@@ -665,7 +669,8 @@ class BoothTemplateServiceUnitTest {
         when(boothRepository.findTemplateByIdForUpdate(id)).thenReturn(Optional.of(booth));
         when(boothRepository.save(any(Booth.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg", "new-thumbnail-data".getBytes());
+        MockMultipartFile newThumbnail = new MockMultipartFile("thumbnail", "new_thumb.jpg", "image/jpeg",
+                "new-thumbnail-data".getBytes());
         CloudinaryResponse uploadResponse = CloudinaryResponse.builder()
                 .url("https://res.cloudinary.com/new_thumb.jpg")
                 .publicId("template/new_thumb")
@@ -675,9 +680,11 @@ class BoothTemplateServiceUnitTest {
                 .build();
         when(cloudService.upload(newThumbnail)).thenReturn(uploadResponse);
 
-        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("New Name", "New Desc", BoothStatus.PUBLISHED);
+        UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest("New Name", "New Desc",
+                BoothStatus.PUBLISHED);
 
-        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest, newThumbnail);
+        BoothTemplateResponseDTO response = boothTemplateService.updateBoothTemplate(admin, id, updateRequest,
+                newThumbnail);
 
         assertNotNull(response);
         assertEquals("New Name", response.getName());
@@ -696,9 +703,8 @@ class BoothTemplateServiceUnitTest {
 
         UpdateBoothTemplateRequest updateRequest = new UpdateBoothTemplateRequest(null, null, BoothStatus.DRAFT);
 
-        assertThrows(AppException.class, () ->
-            boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null)
-        );
+        assertThrows(AppException.class,
+                () -> boothTemplateService.updateBoothTemplate(admin, id, updateRequest, null));
     }
 
     private Booth templateBooth(BoothStatus status) {

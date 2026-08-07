@@ -187,7 +187,7 @@ public class DesignerWorkspaceService {
         try {
             return MediaAssetType.valueOf(filterType.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.DESIGN_MEDIA_ASSET_FILTER_INVALID);
         }
     }
 
@@ -243,9 +243,9 @@ public class DesignerWorkspaceService {
                 .toList();
         List<SubmitDesignDraftMediaAssetRequest> mediaAssets = draft.getMediaAssets() == null ? List.of()
                 : draft.getMediaAssets().stream()
-                .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
-                .map(this::toMediaAssetRequest)
-                .toList();
+                        .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
+                        .map(this::toMediaAssetRequest)
+                        .toList();
         return new DesignDraftWorkspaceResponseDTO(
                 draft.getId(),
                 draft.getVersionNumber(),
@@ -265,7 +265,7 @@ public class DesignerWorkspaceService {
         return working != null
                 && working.getVersionNumber() == WORKING_VERSION
                 && (request.getStatus() == DesignRequestStatus.ASSIGNED
-                || request.getStatus() == DesignRequestStatus.REVISION_REQUESTED)
+                        || request.getStatus() == DesignRequestStatus.REVISION_REQUESTED)
                 && request.getCancellationStatus() != DesignRequestCancellationStatus.REQUESTED;
     }
 
@@ -295,7 +295,7 @@ public class DesignerWorkspaceService {
         DesignDraft latest = request.getDrafts().stream()
                 .filter(draft -> draft.getVersionNumber() > WORKING_VERSION)
                 .max(Comparator.comparing(DesignDraft::getVersionNumber))
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         List<ProductResponseDTO> required = request.getProducts().stream()
                 .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline()))
                 .map(item -> productMapper.toResponse(item.getProduct()))
@@ -382,7 +382,7 @@ public class DesignerWorkspaceService {
 
     @Transactional(readOnly = true)
     public DesignDraftWorkspaceResponseDTO getHistoricalDraftPreview(User exhibitor, UUID requestId,
-                                                                     Integer versionNumber) {
+            Integer versionNumber) {
         Company company = companyService.getCompanyEntityForCurrentUser(exhibitor);
         DesignRequest request = designRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_REQUEST_NOT_FOUND));
@@ -390,7 +390,7 @@ public class DesignerWorkspaceService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
         if (versionNumber == null || versionNumber <= 0) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_VERSION_INVALID);
         }
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
@@ -399,7 +399,7 @@ public class DesignerWorkspaceService {
                 .filter(d -> d.getVersionNumber() != null && d.getVersionNumber() > 0)
                 .filter(d -> Objects.equals(d.getVersionNumber(), versionNumber))
                 .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
         return toDraftResponse(draft);
     }
 

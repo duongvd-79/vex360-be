@@ -291,7 +291,7 @@ public class PartnershipRequestService {
 
     private void validateSubmission(SubmitPartnershipRequest request) {
         if (request == null || !Boolean.TRUE.equals(request.getAcceptedPolicy())) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.PARTNERSHIP_POLICY_ACCEPTANCE_REQUIRED);
         }
         validateRequestedRole(request.getRequestedRole());
     }

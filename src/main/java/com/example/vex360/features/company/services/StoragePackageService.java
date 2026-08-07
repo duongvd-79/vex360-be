@@ -237,7 +237,7 @@ public class StoragePackageService {
         return switch (status.trim().toLowerCase(Locale.ROOT)) {
             case "active", "true" -> true;
             case "inactive", "false" -> false;
-            default -> throw new AppException(ErrorCode.VALIDATION_FAILED);
+            default -> throw new AppException(ErrorCode.STORAGE_PACKAGE_STATUS_FILTER_INVALID);
         };
     }
 

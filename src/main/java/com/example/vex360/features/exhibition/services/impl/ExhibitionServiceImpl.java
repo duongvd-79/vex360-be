@@ -122,13 +122,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (sponsorLogoCount > MAX_SPONSORS || sponsorRequestCount > MAX_SPONSORS) {
             log.error("Exhibition sponsors size exceeds limit of {}", MAX_SPONSORS);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_LIMIT_EXCEEDED);
         }
 
         if (sponsorLogoCount != sponsorRequestCount) {
             log.error("Sponsor logos count {} does not match sponsor names count {}", sponsorLogoCount,
                     sponsorRequestCount);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_INPUT_MISMATCH);
         }
 
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
@@ -144,18 +144,18 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         if (request.getEndDate().isBefore(request.getStartDate())) {
             log.error("Exhibition end date {} cannot be before start date {}", request.getEndDate(),
                     request.getStartDate());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_DATE_RANGE_INVALID);
         }
 
         if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > MAX_EXHIBITION_DURATION_DAYS) {
             log.error("Exhibition duration from {} to {} exceeds maximum allowed limit of {} days",
                     request.getStartDate(), request.getEndDate(), MAX_EXHIBITION_DURATION_DAYS);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_DURATION_EXCEEDED);
         }
 
         if (!timelinePolicy.hasMinimumLeadTime(request.getStartDate())) {
             log.error("Exhibition start date {} does not meet minimum lead time requirement", request.getStartDate());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_START_LEAD_TIME_NOT_MET);
         }
 
         long pendingCount = exhibitionRepository.countByOrganizerIdAndStatus(organizer.getId(),
@@ -350,13 +350,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
         }
 
         if (exhibitionPackageRepository.findByExhibitionIdAndTemplateId(exhibition.getId(), template.getId())
                 .isPresent()) {
             log.error("Package template {} already configured for exhibition {}", template.getId(), uuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_ALREADY_CONFIGURED);
         }
 
         ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
@@ -776,24 +776,24 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private List<ValidatedPackage> validateAndResolvePackages(List<ConfigureExhibitionPackageRequest> requests) {
         if (requests == null || requests.isEmpty() || requests.size() > 3) {
             log.error("Exhibition packages count must be between 1 and 3");
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID);
         }
         List<ValidatedPackage> validatedList = new ArrayList<>(requests.size());
         Set<BoothListingPriority> priorities = new HashSet<>();
         for (ConfigureExhibitionPackageRequest pkgReq : requests) {
             if (pkgReq == null || pkgReq.getTemplateId() == null || pkgReq.getFinalPrice() == null) {
                 log.error("Exhibition package request element or required fields are null");
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CONFIGURATION_INVALID);
             }
             PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(pkgReq.getTemplateId());
             if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
                 log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
                         template.getPrice());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
             }
             if (!priorities.add(template.getListingPriority())) {
                 log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
             }
             validatedList.add(new ValidatedPackage(pkgReq, template));
         }
@@ -803,29 +803,29 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     private void validatePackagesForApproval(List<ExhibitionPackage> packages) {
         if (packages == null || packages.isEmpty() || packages.size() > 3) {
             log.error("Exhibition packages count must be between 1 and 3 for approval");
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID);
         }
         Set<BoothListingPriority> priorities = new HashSet<>();
         for (ExhibitionPackage pkg : packages) {
             if (pkg.getStatus() != ExhibitionPackageStatus.ACTIVE) {
                 log.error("Exhibition package {} is not ACTIVE", pkg.getId());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_INACTIVE);
             }
             PackageTemplate template = pkg.getTemplate();
             if (template == null || template.getStatus() != PackageTemplateStatus.ACTIVE) {
                 log.error("Exhibition package template is missing or not ACTIVE for package {}", pkg.getId());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_TEMPLATE_INACTIVE);
             }
             if (pkg.getFinalPrice() == null || pkg.getFinalPrice().compareTo(BigDecimal.ZERO) < 0
                     || pkg.getFinalPrice().compareTo(template.getPrice()) < 0) {
                 log.error("Package final price {} is invalid or below floor price {}", pkg.getFinalPrice(),
                         template.getPrice());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
             }
             if (!priorities.add(template.getListingPriority())) {
                 log.error("Duplicate package priority type {} is not allowed in approval",
                         template.getListingPriority());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
             }
         }
     }
@@ -889,7 +889,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 .count();
         if (currentSponsorCount >= MAX_SPONSORS) {
             log.error("Exhibition {} already reached maximum sponsor limit of {}", uuid, MAX_SPONSORS);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_LIMIT_EXCEEDED);
         }
 
         validateImageFile(file, true);
@@ -935,13 +935,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> {
                     log.error("Sponsor logo asset not found for ID: {}", assetId);
-                    return new AppException(ErrorCode.VALIDATION_FAILED);
+                    return new AppException(ErrorCode.EXHIBITION_SPONSOR_ASSET_NOT_FOUND);
                 });
 
         if (!asset.getExhibition().getId().equals(exhibition.getId())
                 || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
             log.error("Asset {} does not belong to exhibition {}", assetId, uuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_ASSET_INVALID);
         }
 
         if (name != null && !name.isBlank()) {
@@ -989,13 +989,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         ExhibitionAsset asset = exhibitionAssetRepository.findById(assetId)
                 .orElseThrow(() -> {
                     log.error("Sponsor logo asset not found for ID: {}", assetId);
-                    return new AppException(ErrorCode.VALIDATION_FAILED);
+                    return new AppException(ErrorCode.EXHIBITION_SPONSOR_ASSET_NOT_FOUND);
                 });
 
         if (!asset.getExhibition().getId().equals(exhibition.getId())
                 || asset.getType() != ExhibitionAssetType.SPONSOR_LOGO) {
             log.error("Asset {} does not belong to exhibition {}", assetId, uuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_SPONSOR_ASSET_INVALID);
         }
 
         String publicId = asset.getPublicId();
@@ -1076,21 +1076,21 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
         if (currentPackages.size() >= 3) {
             log.error("Exhibition packages size exceeds limit of 3");
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID);
         }
 
         PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
         }
 
         boolean duplicatePriority = currentPackages.stream()
                 .anyMatch(pkg -> pkg.getTemplate().getListingPriority() == template.getListingPriority());
         if (duplicatePriority) {
             log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
         }
 
         ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
@@ -1142,7 +1142,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
             log.error("Package {} does not belong to exhibition {}", packageId, uuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_OWNERSHIP_INVALID);
         }
 
         PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
@@ -1154,14 +1154,14 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                     .anyMatch(pkg -> pkg.getTemplate().getListingPriority() == template.getListingPriority());
             if (duplicatePriority) {
                 log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
+                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
             }
             exhibitionPackage.setTemplate(template);
         }
 
         if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
             log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
         }
 
         exhibitionPackage.setFinalPrice(request.getFinalPrice());
@@ -1206,7 +1206,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
         if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
             log.error("Package {} does not belong to exhibition {}", packageId, uuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_OWNERSHIP_INVALID);
         }
 
         exhibitionPackageRepository.delete(exhibitionPackage);

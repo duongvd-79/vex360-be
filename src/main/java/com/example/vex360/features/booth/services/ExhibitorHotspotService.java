@@ -102,7 +102,7 @@ public class ExhibitorHotspotService {
                 || request.getXPosition() == null
                 || request.getYPosition() == null
                 || request.getZPosition() == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_REQUEST_INVALID);
         }
 
         hotspot.setType(request.getType());
@@ -125,13 +125,13 @@ public class ExhibitorHotspotService {
             case PRODUCT -> applyProductHotspot(hotspot, request, company);
             case INFO -> applyInfoHotspot(hotspot, request, company);
             case MEDIA -> applyMediaHotspot(hotspot, request, company);
-            default -> throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            default -> throw new AppException(ErrorCode.HOTSPOT_REQUEST_INVALID);
         }
     }
 
     private void applyNavigationHotspot(Hotspot hotspot, UpsertHotspotRequest request, Booth booth) {
         if (request.getTargetPanoramaId() == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_NAV_TARGET_REQUIRED);
         }
         Panorama target = panoramaRepository.findByIdAndBoothId(request.getTargetPanoramaId(), booth.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));
@@ -141,7 +141,7 @@ public class ExhibitorHotspotService {
 
     private void applyProductHotspot(Hotspot hotspot, UpsertHotspotRequest request, Company company) {
         if (request.getProductId() == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_PRODUCT_REQUIRED);
         }
         Product product = productService.getProductForCompany(request.getProductId(), company);
         if (product.getStatus() != ProductStatus.ACTIVE) {
@@ -165,7 +165,7 @@ public class ExhibitorHotspotService {
             case TEXT -> {
                 String infoText = trimToNull(request.getInfoText());
                 if (infoText == null) {
-                    throw new AppException(ErrorCode.INVALID_HOTSPOT);
+                    throw new AppException(ErrorCode.HOTSPOT_INFO_CONTENT_INVALID);
                 }
                 hotspot.setInfoText(infoText);
             }
@@ -174,13 +174,13 @@ public class ExhibitorHotspotService {
             case VIDEO -> hotspot.setMediaAsset(getMediaAssetForType(request.getMediaAssetId(), company,
                     MediaAssetType.VIDEO));
             case PRODUCT -> applyProductHotspot(hotspot, request, company);
-            default -> throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            default -> throw new AppException(ErrorCode.HOTSPOT_INFO_CONTENT_INVALID);
         }
     }
 
     private void applyMediaHotspot(Hotspot hotspot, UpsertHotspotRequest request, Company company) {
         if (request.getMediaAssetId() == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_MEDIA_REQUIRED);
         }
         MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(request.getMediaAssetId(), company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
@@ -209,12 +209,12 @@ public class ExhibitorHotspotService {
 
     private MediaAsset getMediaAssetForType(UUID mediaAssetId, Company company, MediaAssetType expectedType) {
         if (mediaAssetId == null) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_MEDIA_REQUIRED);
         }
         MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(mediaAssetId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         if (mediaAsset.getType() != expectedType) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_MEDIA_TYPE_INVALID);
         }
         return mediaAsset;
     }
@@ -229,7 +229,7 @@ public class ExhibitorHotspotService {
         }
         if (!isCorner(corners.getTl()) || !isCorner(corners.getTr())
                 || !isCorner(corners.getBl()) || !isCorner(corners.getBr())) {
-            throw new AppException(ErrorCode.INVALID_HOTSPOT);
+            throw new AppException(ErrorCode.HOTSPOT_CORNERS_INVALID);
         }
         hotspot.setCornerTlX(corners.getTl().get(0));
         hotspot.setCornerTlY(corners.getTl().get(1));
@@ -285,7 +285,7 @@ public class ExhibitorHotspotService {
         if (fallbackName != null && !fallbackName.isBlank()) {
             return fallbackName.trim();
         }
-        throw new AppException(ErrorCode.INVALID_HOTSPOT);
+        throw new AppException(ErrorCode.HOTSPOT_NAME_REQUIRED);
     }
 
     private String trimToNull(String value) {
