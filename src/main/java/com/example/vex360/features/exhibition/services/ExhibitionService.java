@@ -13,6 +13,8 @@ import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionReque
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
@@ -120,6 +122,11 @@ public interface ExhibitionService {
 			ConfigureExhibitionPackageRequest request);
 
 	ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId);
+
+	ExhibitionPackageEditContextResponseDTO getExhibitionPackageEditContext(User organizer, UUID uuid);
+
+	ExhibitionPackageEditContextResponseDTO reconcileExhibitionPackages(User organizer, UUID uuid,
+			ReconcileExhibitionPackagesRequest request);
 
 	Exhibition findExhibitionForUpdate(Integer id);
 

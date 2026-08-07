@@ -191,8 +191,8 @@ public class BoothReviewContentAssembler {
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         ExhibitionPackage exhibitionPackage = registration == null ? null : registration.getExhibitionPackage();
         String packageName = registration == null ? null : registration.getPackageNameSnapshot();
-        if (packageName == null && exhibitionPackage != null && exhibitionPackage.getTemplate() != null) {
-            packageName = exhibitionPackage.getTemplate().getName();
+        if (packageName == null && exhibitionPackage != null) {
+            packageName = exhibitionPackage.getPackageNameSnapshot();
         }
         return OrganizerBoothSummaryDTO.builder()
                 .id(booth.getId()).companyId(company == null ? null : company.getId())

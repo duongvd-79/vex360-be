@@ -136,7 +136,7 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
                    booth.name AS boothName,
                    booth.thumbnailUrl AS boothThumbnailUrl,
                    registration.listingPrioritySnapshot AS listingPrioritySnapshot,
-                   template.listingPriority AS templateListingPriority,
+                   exhibitionPackage.listingPrioritySnapshot AS packageListingPriority,
                    panorama.id AS panoramaId,
                    panorama.name AS panoramaName,
                    hotspot.id AS hotspotId
@@ -146,7 +146,6 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             JOIN panorama.booth booth
             JOIN booth.exhibitorRegistration registration
             JOIN registration.exhibitionPackage exhibitionPackage
-            JOIN exhibitionPackage.template template
             JOIN exhibitionPackage.exhibition exhibition
             WHERE exhibition.uuid = :exhibitionUuid
               AND product.id IN :productIds
@@ -156,9 +155,9 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
             ORDER BY product.id ASC,
               CASE
                 WHEN registration.listingPrioritySnapshot = 'FEATURED'
-                  OR (registration.listingPrioritySnapshot IS NULL AND template.listingPriority = 'FEATURED') THEN 1
+                  OR (registration.listingPrioritySnapshot IS NULL AND exhibitionPackage.listingPrioritySnapshot = 'FEATURED') THEN 1
                 WHEN registration.listingPrioritySnapshot = 'PRIORITY'
-                  OR (registration.listingPrioritySnapshot IS NULL AND template.listingPriority = 'PRIORITY') THEN 2
+                  OR (registration.listingPrioritySnapshot IS NULL AND exhibitionPackage.listingPrioritySnapshot = 'PRIORITY') THEN 2
                 ELSE 3
               END ASC,
               booth.name ASC,

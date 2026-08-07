@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -48,14 +50,19 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
+import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.PackageSelection;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.SelectionType;
 import com.example.vex360.features.exhibition.dtos.request.SponsorRequestDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
@@ -880,12 +887,15 @@ class ExhibitionServiceUnitTest {
                 .listingPriority(BoothListingPriority.NORMAL)
                 .price(BigDecimal.TEN)
                 .build();
-        when(exhibitionPackageRepository.findByExhibition(any())).thenReturn(List.of(
-                ExhibitionPackage.builder()
-                        .template(template)
-                        .finalPrice(BigDecimal.TEN)
-                        .status(ExhibitionPackageStatus.ACTIVE)
-                        .build()));
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .finalPrice(BigDecimal.TEN)
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        exhibitionPackage.snapshotTemplateTerms(template);
+        template.setStatus(PackageTemplateStatus.INACTIVE);
+        template.setPrice(BigDecimal.valueOf(100));
+        template.setListingPriority(BoothListingPriority.FEATURED);
+        when(exhibitionPackageRepository.findByExhibition(any())).thenReturn(List.of(exhibitionPackage));
 
         when(exhibitionMapper.toResponse(any(), any())).thenReturn(ExhibitionResponseDTO.builder().build());
 
@@ -1104,6 +1114,46 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void addExhibitionPackage_snapshotsTemplateTerms() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        UUID templateId = UUID.randomUUID();
+        PackageTemplate template = PackageTemplate.builder()
+                .id(templateId)
+                .name("Premium")
+                .description("Premium benefits")
+                .price(new BigDecimal("100.00"))
+                .currency("VND")
+                .maxProductsPerBooth(20)
+                .maxEmbeddedVideosPerBooth(4)
+                .maxPanoramasPerBooth(3)
+                .maxHotspotsPerBooth(12)
+                .listingPriority(BoothListingPriority.FEATURED)
+                .build();
+        ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
+                .templateId(templateId)
+                .finalPrice(new BigDecimal("120.00"))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
+        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
+        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, req);
+
+        verify(exhibitionPackageRepository).save(argThat(pkg -> "Premium".equals(pkg.getPackageNameSnapshot())
+                && "Premium benefits".equals(pkg.getPackageDescriptionSnapshot())
+                && new BigDecimal("100.00").equals(pkg.getPriceSnapshot())
+                && "VND".equals(pkg.getCurrencySnapshot())
+                && Integer.valueOf(20).equals(pkg.getMaxProductsPerBoothSnapshot())
+                && Integer.valueOf(4).equals(pkg.getMaxEmbeddedVideosPerBoothSnapshot())
+                && Integer.valueOf(3).equals(pkg.getMaxPanoramasPerBoothSnapshot())
+                && Integer.valueOf(12).equals(pkg.getMaxHotspotsPerBoothSnapshot())
+                && pkg.getListingPrioritySnapshot() == BoothListingPriority.FEATURED));
+    }
+
+    @Test
     void updateExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         UUID templateId = UUID.randomUUID();
@@ -1318,10 +1368,24 @@ class ExhibitionServiceUnitTest {
         PackageTemplate inactive = PackageTemplate.builder().price(BigDecimal.TEN)
                 .status(PackageTemplateStatus.INACTIVE).listingPriority(BoothListingPriority.PRIORITY).build();
         ExhibitionPackage valid = ExhibitionPackage.builder().id(1).status(ExhibitionPackageStatus.ACTIVE)
-                .template(active).finalPrice(BigDecimal.TEN).build();
+                .finalPrice(BigDecimal.TEN).build();
+        valid.snapshotTemplateTerms(active);
+        ExhibitionPackage missingFinalPrice = ExhibitionPackage.builder()
+                .status(ExhibitionPackageStatus.ACTIVE).build();
+        missingFinalPrice.snapshotTemplateTerms(active);
+        ExhibitionPackage negativePrice = ExhibitionPackage.builder()
+                .status(ExhibitionPackageStatus.ACTIVE).finalPrice(BigDecimal.valueOf(-1)).build();
+        negativePrice.snapshotTemplateTerms(active);
+        ExhibitionPackage belowFloor = ExhibitionPackage.builder()
+                .status(ExhibitionPackageStatus.ACTIVE).finalPrice(BigDecimal.ONE).build();
+        belowFloor.snapshotTemplateTerms(active);
+        ExhibitionPackage inactiveTemplateSnapshot = ExhibitionPackage.builder()
+                .status(ExhibitionPackageStatus.ACTIVE).finalPrice(BigDecimal.TEN).build();
+        inactiveTemplateSnapshot.snapshotTemplateTerms(inactive);
 
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval", (Object) null));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval",
+                        (Object) null));
         assertThrows(AppException.class,
                 () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval", List.of()));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
@@ -1333,21 +1397,15 @@ class ExhibitionServiceUnitTest {
                 "validatePackagesForApproval", List.of(ExhibitionPackage.builder()
                         .status(ExhibitionPackageStatus.ACTIVE).build())));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validatePackagesForApproval", List.of(ExhibitionPackage.builder()
-                        .status(ExhibitionPackageStatus.ACTIVE).template(inactive).build())));
+                "validatePackagesForApproval", List.of(missingFinalPrice)));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validatePackagesForApproval", List.of(ExhibitionPackage.builder()
-                        .status(ExhibitionPackageStatus.ACTIVE).template(active).build())));
+                "validatePackagesForApproval", List.of(negativePrice)));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validatePackagesForApproval", List.of(ExhibitionPackage.builder()
-                        .status(ExhibitionPackageStatus.ACTIVE).template(active)
-                        .finalPrice(BigDecimal.valueOf(-1)).build())));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validatePackagesForApproval", List.of(ExhibitionPackage.builder()
-                        .status(ExhibitionPackageStatus.ACTIVE).template(active)
-                        .finalPrice(BigDecimal.ONE).build())));
+                "validatePackagesForApproval", List.of(belowFloor)));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
                 "validatePackagesForApproval", List.of(valid, valid)));
+        ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval",
+                List.of(inactiveTemplateSnapshot));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval", List.of(valid));
     }
 
@@ -1588,6 +1646,8 @@ class ExhibitionServiceUnitTest {
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL).build()).build();
         ExhibitionPackage priorityPackage = ExhibitionPackage.builder()
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.PRIORITY).build()).build();
+        normalPackage.snapshotTemplateTerms(normalPackage.getTemplate());
+        priorityPackage.snapshotTemplateTerms(priorityPackage.getTemplate());
         List<ExhibitionPackage> threePackages = List.of(normalPackage, priorityPackage,
                 ExhibitionPackage.builder().build());
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
@@ -1634,6 +1694,7 @@ class ExhibitionServiceUnitTest {
         PackageTemplate sameTemplate = PackageTemplate.builder().id(sameId).price(BigDecimal.TEN).build();
         ExhibitionPackage otherNormal = ExhibitionPackage.builder().id(11)
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL).build()).build();
+        otherNormal.snapshotTemplateTerms(otherNormal.getTemplate());
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionPackageRepository.findById(10)).thenReturn(
                 Optional.empty(), Optional.of(wrongOwner), Optional.of(changedDuplicate),
@@ -1833,7 +1894,8 @@ class ExhibitionServiceUnitTest {
         PackageTemplate template = PackageTemplate.builder().price(BigDecimal.ONE)
                 .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL).build();
         ExhibitionPackage pkg = ExhibitionPackage.builder().status(ExhibitionPackageStatus.ACTIVE)
-                .template(template).finalPrice(BigDecimal.TEN).build();
+                .finalPrice(BigDecimal.TEN).build();
+        pkg.snapshotTemplateTerms(template);
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of(pkg));
@@ -2004,7 +2066,7 @@ class ExhibitionServiceUnitTest {
         ReflectionTestUtils.invokeMethod(exhibitionService, "deleteCloudAssetAfterCommit", "no-tx", "image");
         TransactionSynchronizationManager.clearSynchronization();
 
-        org.mockito.Mockito.doThrow(new RuntimeException("cloud"))
+        doThrow(new RuntimeException("cloud"))
                 .when(cloudService).delete("failure", "image");
         ReflectionTestUtils.invokeMethod(exhibitionService, "deleteCloudAsset", "failure", "image");
     }
@@ -2018,5 +2080,136 @@ class ExhibitionServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> exhibitionService.publishExhibition(organizer, exhibitionUuid));
         assertEquals(ErrorCode.EXHIBITION_ALREADY_STARTED, exception.getErrorCode());
+    }
+
+    @Test
+    void getExhibitionPackageEditContext_returnsSnapshotsAndActiveTemplates() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        ExhibitionPackage current = snapshotPackage(10, BoothListingPriority.NORMAL, "Snapshot");
+        ExhibitionPackageResponseDTO currentResponse = ExhibitionPackageResponseDTO.builder().id(10).build();
+        PackageTemplateResponseDTO templateResponse = new PackageTemplateResponseDTO();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of(current));
+        when(exhibitionMapper.toPackageResponse(current)).thenReturn(currentResponse);
+        when(packageTemplateService.getActivePackageTemplates()).thenReturn(List.of(templateResponse));
+
+        ExhibitionPackageEditContextResponseDTO result = exhibitionService
+                .getExhibitionPackageEditContext(organizer, exhibitionUuid);
+
+        assertEquals(List.of(currentResponse), result.getCurrentPackages());
+        assertEquals(List.of(templateResponse), result.getActiveTemplates());
+    }
+
+    @Test
+    void reconcileExhibitionPackages_keepsReplacesAndDeletesAtomically() {
+        registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
+        ExhibitionPackage normal = snapshotPackage(10, BoothListingPriority.NORMAL, "Old normal");
+        ExhibitionPackage priority = snapshotPackage(11, BoothListingPriority.PRIORITY, "Old priority");
+        ExhibitionPackage featured = snapshotPackage(12, BoothListingPriority.FEATURED, "Old featured");
+        PackageTemplate replacement = packageTemplate(BoothListingPriority.PRIORITY, "New priority");
+
+        ReconcileExhibitionPackagesRequest request = ReconcileExhibitionPackagesRequest.builder()
+                .packages(List.of(
+                        PackageSelection.builder().type(SelectionType.EXISTING)
+                                .exhibitionPackageId(10).finalPrice(BigDecimal.valueOf(15)).build(),
+                        PackageSelection.builder().type(SelectionType.TEMPLATE)
+                                .templateId(replacement.getId()).replacesExhibitionPackageId(11)
+                                .finalPrice(BigDecimal.valueOf(25)).build()))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition))
+                .thenReturn(List.of(normal, priority, featured));
+        when(packageTemplateService.getActivePackageTemplateEntity(replacement.getId())).thenReturn(replacement);
+        when(exhibitionPackageRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionMapper.toPackageResponse(any(ExhibitionPackage.class)))
+                .thenAnswer(invocation -> ExhibitionPackageResponseDTO.builder()
+                        .id(invocation.<ExhibitionPackage>getArgument(0).getId()).build());
+        when(packageTemplateService.getActivePackageTemplates()).thenReturn(List.of());
+
+        ExhibitionPackageEditContextResponseDTO result = exhibitionService
+                .reconcileExhibitionPackages(organizer, exhibitionUuid, request);
+
+        assertEquals(2, result.getCurrentPackages().size());
+        assertEquals(BigDecimal.valueOf(15), normal.getFinalPrice());
+        assertEquals("Old normal", normal.getPackageNameSnapshot());
+        assertEquals("New priority", priority.getPackageNameSnapshot());
+        assertEquals(replacement.getId(), priority.getTemplate().getId());
+        verify(exhibitionPackageRepository).deleteAll(List.of(featured));
+        verify(exhibitionPackageRepository).saveAll(List.of(normal, priority));
+    }
+
+    @Test
+    void reconcileExhibitionPackages_mixedDuplicateTier_rejectsBeforePersistence() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        ExhibitionPackage normal = snapshotPackage(10, BoothListingPriority.NORMAL, "Existing");
+        PackageTemplate anotherNormal = packageTemplate(BoothListingPriority.NORMAL, "Template");
+        ReconcileExhibitionPackagesRequest request = ReconcileExhibitionPackagesRequest.builder()
+                .packages(List.of(
+                        PackageSelection.builder().type(SelectionType.EXISTING)
+                                .exhibitionPackageId(10).finalPrice(BigDecimal.TEN).build(),
+                        PackageSelection.builder().type(SelectionType.TEMPLATE)
+                                .templateId(anotherNormal.getId()).finalPrice(BigDecimal.valueOf(20)).build()))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of(normal));
+        when(packageTemplateService.getActivePackageTemplateEntity(anotherNormal.getId()))
+                .thenReturn(anotherNormal);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitionService.reconcileExhibitionPackages(organizer, exhibitionUuid, request));
+
+        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        verify(exhibitionPackageRepository, never()).saveAll(anyList());
+        verify(exhibitionPackageRepository, never()).deleteAll(anyList());
+    }
+
+    @Test
+    void reconcileExhibitionPackages_existingRegistration_rejectsBeforeReadingPackages() {
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        ReconcileExhibitionPackagesRequest request = ReconcileExhibitionPackagesRequest.builder()
+                .packages(List.of(PackageSelection.builder().type(SelectionType.EXISTING)
+                        .exhibitionPackageId(10).finalPrice(BigDecimal.TEN).build()))
+                .build();
+
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
+                .thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitionService.reconcileExhibitionPackages(organizer, exhibitionUuid, request));
+
+        assertEquals(ErrorCode.EXHIBITION_HAS_REGISTRATIONS, exception.getErrorCode());
+        verify(exhibitionPackageRepository, never()).findByExhibition(any());
+    }
+
+    private ExhibitionPackage snapshotPackage(Integer id, BoothListingPriority priority, String name) {
+        PackageTemplate template = packageTemplate(priority, name);
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .id(id)
+                .exhibition(registrationExhibition)
+                .finalPrice(BigDecimal.TEN)
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        exhibitionPackage.snapshotTemplateTerms(template);
+        return exhibitionPackage;
+    }
+
+    private PackageTemplate packageTemplate(BoothListingPriority priority, String name) {
+        return PackageTemplate.builder()
+                .id(UUID.randomUUID())
+                .name(name)
+                .description(name + " description")
+                .price(BigDecimal.TEN)
+                .currency("VND")
+                .maxProductsPerBooth(1)
+                .maxEmbeddedVideosPerBooth(1)
+                .maxPanoramasPerBooth(1)
+                .maxHotspotsPerBooth(1)
+                .listingPriority(priority)
+                .status(PackageTemplateStatus.ACTIVE)
+                .build();
     }
 }

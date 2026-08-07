@@ -38,7 +38,6 @@ import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -133,9 +132,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
-        PackageTemplate template = expPackage.getTemplate();
-
-        // Create registration record in PENDING status with template snapshot values
+        // Create registration record in PENDING status with the exhibition package
+        // terms.
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .company(company)
                 .exhibitionPackage(expPackage)
@@ -143,15 +141,15 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .participationReason(participationReason.trim())
                 .boothName(boothName.trim())
                 .boothDescription(boothDescription.trim())
-                .packageNameSnapshot(template.getName())
-                .priceSnapshot(template.getPrice())
+                .packageNameSnapshot(expPackage.getPackageNameSnapshot())
+                .priceSnapshot(expPackage.getPriceSnapshot())
                 .finalPriceSnapshot(expPackage.getFinalPrice())
-                .currencySnapshot(template.getCurrency())
-                .maxProductsPerBoothSnapshot(template.getMaxProductsPerBooth())
-                .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
-                .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
-                .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
-                .listingPrioritySnapshot(template.getListingPriority())
+                .currencySnapshot(expPackage.getCurrencySnapshot())
+                .maxProductsPerBoothSnapshot(expPackage.getMaxProductsPerBoothSnapshot())
+                .maxEmbeddedVideosPerBoothSnapshot(expPackage.getMaxEmbeddedVideosPerBoothSnapshot())
+                .maxPanoramasPerBoothSnapshot(expPackage.getMaxPanoramasPerBoothSnapshot())
+                .maxHotspotsPerBoothSnapshot(expPackage.getMaxHotspotsPerBoothSnapshot())
+                .listingPrioritySnapshot(expPackage.getListingPrioritySnapshot())
                 .build();
         return registrationRepository.save(registration);
     }
@@ -509,7 +507,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             String packageName = registration.getPackageNameSnapshot() != null
                     && !registration.getPackageNameSnapshot().isBlank()
                             ? registration.getPackageNameSnapshot()
-                            : ((pkg != null && pkg.getTemplate() != null) ? pkg.getTemplate().getName() : "");
+                            : (pkg != null ? pkg.getPackageNameSnapshot() : "");
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                     ? registration.getFinalPriceSnapshot()
                     : (pkg != null ? pkg.getFinalPrice() : null);
@@ -612,7 +610,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .companyName(registration.getCompany().getName())
                 .companyEmail(owner != null ? owner.getEmail() : null)
                 .packageName(registration.getPackageNameSnapshot() != null ? registration.getPackageNameSnapshot()
-                        : registration.getExhibitionPackage().getTemplate().getName())
+                        : registration.getExhibitionPackage().getPackageNameSnapshot())
                 .priceSnapshot(registration.getPriceSnapshot())
                 .finalPriceSnapshot(registration.getFinalPriceSnapshot())
                 .currencySnapshot(registration.getCurrencySnapshot())

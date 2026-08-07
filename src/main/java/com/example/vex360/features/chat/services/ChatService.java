@@ -9,7 +9,6 @@ import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
-import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.Role;
 import com.example.vex360.shared.exceptions.AppException;

@@ -231,8 +231,8 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
         if (row.getListingPrioritySnapshot() != null) {
             return row.getListingPrioritySnapshot();
         }
-        if (row.getTemplateListingPriority() != null) {
-            return row.getTemplateListingPriority();
+        if (row.getPackageListingPriority() != null) {
+            return row.getPackageListingPriority();
         }
         return BoothListingPriority.NORMAL;
     }
