@@ -222,7 +222,7 @@ class VisitorBoothServiceUnitTest {
                 pageable)).thenReturn(productPage);
         mockPlacement(firstPlacement, productId, firstHotspotId, BoothListingPriority.FEATURED);
         mockPlacement(secondPlacement, productId, secondHotspotId, null);
-        when(secondPlacement.getTemplateListingPriority()).thenReturn(BoothListingPriority.PRIORITY);
+        when(secondPlacement.getPackageListingPriority()).thenReturn(BoothListingPriority.PRIORITY);
         when(hotspotRepository.findProductPlacements(
                 exhibitionUuid,
                 List.of(productId),

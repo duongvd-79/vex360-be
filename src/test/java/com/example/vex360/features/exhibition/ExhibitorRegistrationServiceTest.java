@@ -73,6 +73,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
@@ -214,6 +215,29 @@ class ExhibitorRegistrationServiceTest {
         verify(packageRepository).findById(10);
         verify(exhibitionRepository).findByIdForUpdate(1);
         verify(registrationRepository).save(any(ExhibitorRegistration.class));
+    }
+
+    @Test
+    void initializeRegistration_usesExhibitionPackageSnapshotWhenTemplateChanged() {
+        paidPackage.getTemplate().setListingPriority(BoothListingPriority.FEATURED);
+        paidPackage.snapshotTemplateTerms(paidPackage.getTemplate());
+        paidPackage.getTemplate().setName("Changed Package");
+        paidPackage.getTemplate().setPrice(BigDecimal.TEN);
+        paidPackage.getTemplate().setListingPriority(BoothListingPriority.NORMAL);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "Join expo", "Test Booth", "Test Booth Description");
+
+        assertEquals("Standard Package", registration.getPackageNameSnapshot());
+        assertEquals(BigDecimal.valueOf(1000000), registration.getPriceSnapshot());
+        assertEquals(paidPackage.getListingPrioritySnapshot(), registration.getListingPrioritySnapshot());
     }
 
     @Test

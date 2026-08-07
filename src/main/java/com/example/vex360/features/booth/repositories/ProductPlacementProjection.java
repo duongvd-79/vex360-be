@@ -15,7 +15,7 @@ public interface ProductPlacementProjection {
 
     BoothListingPriority getListingPrioritySnapshot();
 
-    BoothListingPriority getTemplateListingPriority();
+    BoothListingPriority getPackageListingPriority();
 
     UUID getPanoramaId();
 

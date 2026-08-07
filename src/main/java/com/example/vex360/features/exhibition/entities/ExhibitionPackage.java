@@ -7,6 +7,7 @@ import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 
 import jakarta.persistence.Column;
@@ -45,6 +46,34 @@ public class ExhibitionPackage {
     @JoinColumn(name = "template_id", nullable = false)
     PackageTemplate template;
 
+    @Column(name = "package_name_snapshot", nullable = false)
+    String packageNameSnapshot;
+
+    @Column(name = "package_description_snapshot", nullable = false, columnDefinition = "TEXT")
+    String packageDescriptionSnapshot;
+
+    @Column(name = "price_snapshot", nullable = false, precision = 15, scale = 2)
+    BigDecimal priceSnapshot;
+
+    @Column(name = "currency_snapshot", nullable = false, length = 10)
+    String currencySnapshot;
+
+    @Column(name = "max_products_per_booth_snapshot", nullable = false)
+    Integer maxProductsPerBoothSnapshot;
+
+    @Column(name = "max_embedded_videos_per_booth_snapshot", nullable = false)
+    Integer maxEmbeddedVideosPerBoothSnapshot;
+
+    @Column(name = "max_panoramas_per_booth_snapshot", nullable = false)
+    Integer maxPanoramasPerBoothSnapshot;
+
+    @Column(name = "max_hotspots_per_booth_snapshot", nullable = false)
+    Integer maxHotspotsPerBoothSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "listing_priority_snapshot", nullable = false, columnDefinition = "VARCHAR(50)")
+    BoothListingPriority listingPrioritySnapshot;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "exhibition_id", nullable = false)
     Exhibition exhibition;
@@ -62,4 +91,17 @@ public class ExhibitionPackage {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     Instant createdAt;
+
+    public void snapshotTemplateTerms(PackageTemplate template) {
+        this.template = template;
+        this.packageNameSnapshot = template.getName();
+        this.packageDescriptionSnapshot = template.getDescription();
+        this.priceSnapshot = template.getPrice();
+        this.currencySnapshot = template.getCurrency();
+        this.maxProductsPerBoothSnapshot = template.getMaxProductsPerBooth();
+        this.maxEmbeddedVideosPerBoothSnapshot = template.getMaxEmbeddedVideosPerBooth();
+        this.maxPanoramasPerBoothSnapshot = template.getMaxPanoramasPerBooth();
+        this.maxHotspotsPerBoothSnapshot = template.getMaxHotspotsPerBooth();
+        this.listingPrioritySnapshot = template.getListingPriority();
+    }
 }
