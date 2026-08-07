@@ -18,4 +18,19 @@ class GlobalExceptionHandlerTest {
         assertEquals(400, response.getStatusCode().value());
         assertEquals("FILE-001", response.getBody().getCode());
     }
+
+    @Test
+    void incompatibleBoothTemplateReturnsBadRequestContract() {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST",
+                "/api/v1/exhibitor/booths/booth-id/templates/template-id/apply");
+
+        ResponseEntity<ErrorResponse> response = new GlobalExceptionHandler()
+                .handleAppException(new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE), request);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals(400, response.getBody().getStatus());
+        assertEquals("BOOTH-014", response.getBody().getCode());
+        assertEquals(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE.getMessage(), response.getBody().getMessage());
+    }
 }

@@ -30,6 +30,8 @@ import com.example.vex360.features.wallet.services.PaymentRevenueRecognitionServ
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
 import com.example.vex360.shared.enums.PaymentType;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentRevenueRecognitionServiceTest {
@@ -110,5 +112,52 @@ class PaymentRevenueRecognitionServiceTest {
 
         assertNull(result);
         verify(organizerWalletDomainService, never()).creditPendingPayment(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recognizeRevenueSkipsNullAndUnpaidPayments() {
+        assertNull(recognitionService.recognizeRevenueForPayment(null));
+
+        payment.setStatus(PaymentStatus.PENDING);
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+    }
+
+    @Test
+    void recognizeRevenueSkipsEveryInvalidRegistrationRoute() {
+        payment.setExhibitorRegistration(null);
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+
+        payment.setExhibitorRegistration(ExhibitorRegistration.builder().build());
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+
+        payment.setExhibitorRegistration(ExhibitorRegistration.builder()
+                .exhibitionPackage(ExhibitionPackage.builder().build())
+                .build());
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+    }
+
+    @Test
+    void recognizeRevenueSkipsMissingOrganizerOrCompany() {
+        exhibition.setOrganizer(null);
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+
+        exhibition.setOrganizer(organizerUser);
+        when(companyService.getCompanyEntityForCurrentUser(organizerUser))
+                .thenThrow(new AppException(ErrorCode.COMPANY_NOT_FOUND));
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+    }
+
+    @Test
+    void recognizeRevenueSkipsNullAndNonPositivePayouts() {
+        when(companyService.getCompanyEntityForCurrentUser(organizerUser)).thenReturn(company);
+
+        payment.setOrganizerPayout(null);
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+
+        payment.setOrganizerPayout(BigDecimal.ZERO);
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
+
+        payment.setOrganizerPayout(BigDecimal.ONE.negate());
+        assertNull(recognitionService.recognizeRevenueForPayment(payment));
     }
 }

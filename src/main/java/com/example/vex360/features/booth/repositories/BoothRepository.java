@@ -49,23 +49,6 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
 
   @Query("""
       SELECT b FROM Booth b
-      WHERE b.isTemplate = true
-        AND b.status = :status
-        AND (:keyword IS NULL
-          OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-          OR LOWER(b.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        AND (SELECT COUNT(p) FROM Panorama p WHERE p.booth = b) <= :maxPanoramas
-        AND (SELECT COUNT(h) FROM Hotspot h WHERE h.sourcePanorama.booth = b) <= :maxHotspots
-      """)
-  Page<Booth> searchCompatibleTemplates(
-      @Param("keyword") String keyword,
-      @Param("status") BoothStatus status,
-      @Param("maxPanoramas") long maxPanoramas,
-      @Param("maxHotspots") long maxHotspots,
-      Pageable pageable);
-
-  @Query("""
-      SELECT b FROM Booth b
       WHERE b.isTemplate = false
         AND b.company.id = :companyId
       """)

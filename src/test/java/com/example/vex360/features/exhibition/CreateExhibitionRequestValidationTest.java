@@ -27,7 +27,7 @@ class CreateExhibitionRequestValidationTest {
 
         assertTrue(validator.validate(request).stream()
                 .anyMatch(error -> error.getMessage().equals(
-                        "Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.")));
+                        "Ngày kết thúc phải sau ngày bắt đầu.")));
     }
 
     @Test

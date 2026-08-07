@@ -33,8 +33,6 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             LEFT JOIN e.organizer o
             WHERE (:keyword IS NULL
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR EXISTS (
                     SELECT c.id FROM Company c
                     WHERE c.ownerUser = o
@@ -49,8 +47,6 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             LEFT JOIN e.organizer o
             WHERE (:keyword IS NULL
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR EXISTS (
                     SELECT c.id FROM Company c
                     WHERE c.ownerUser = o
@@ -76,8 +72,6 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             LEFT JOIN Company c ON c.ownerUser = o
             WHERE (:keyword IS NULL
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (e.status IN :statuses)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
@@ -89,8 +83,6 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
             LEFT JOIN Company c ON c.ownerUser = o
             WHERE (:keyword IS NULL
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(o.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (e.status IN :statuses)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))

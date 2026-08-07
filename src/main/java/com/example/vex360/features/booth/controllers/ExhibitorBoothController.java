@@ -29,10 +29,9 @@ import com.example.vex360.features.booth.dtos.request.CreateExhibitorPanoramaReq
 import com.example.vex360.features.booth.dtos.request.UpdateBoothRequest;
 import com.example.vex360.features.booth.dtos.request.UpdateExhibitorPanoramaRequest;
 import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
+import com.example.vex360.features.booth.dtos.response.BoothBenefitUsageResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewRequestSummaryDTO;
-import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateResponseDTO;
-import com.example.vex360.features.booth.dtos.response.ExhibitorBoothTemplateSummaryResponseDTO;
 import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
 import com.example.vex360.features.booth.dtos.response.PanoramaResponseDTO;
 import com.example.vex360.features.booth.enums.BoothReviewStatus;
@@ -47,6 +46,7 @@ import com.example.vex360.shared.dtos.ApiResponse;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.Role;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -86,27 +86,13 @@ public class ExhibitorBoothController extends BaseController {
         return ok(booth);
     }
 
-    @GetMapping("/{boothId}/templates")
-    public ResponseEntity<ApiResponse<PageResponse<ExhibitorBoothTemplateSummaryResponseDTO>>> getCompatibleTemplates(
+    @GetMapping("/{boothId}/benefit-usage")
+    @Operation(summary = "Xem hạn mức và số lượng đã sử dụng của gian hàng", description = "Trả về tên gói đã đăng ký, hạn mức tối đa (max) và số lượng đang sử dụng trong CSDL (used) của Khu 360, Hotspot, Sản phẩm và Video.")
+    public ResponseEntity<ApiResponse<BoothBenefitUsageResponseDTO>> getBoothBenefitUsage(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID boothId,
-            @RequestParam(required = false) String keyword,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "name",
-                    direction = Sort.Direction.ASC) Pageable pageable) {
-        return ok(exhibitorBoothTemplateService.getCompatibleTemplates(
-                userDetails.getUser(), boothId, keyword, pageable));
-    }
-
-    @GetMapping("/{boothId}/templates/{templateId}")
-    public ResponseEntity<ApiResponse<ExhibitorBoothTemplateResponseDTO>> getCompatibleTemplate(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID boothId,
-            @PathVariable UUID templateId) {
-        return ok(exhibitorBoothTemplateService.getCompatibleTemplate(
-                userDetails.getUser(), boothId, templateId));
+            @PathVariable UUID boothId) {
+        BoothBenefitUsageResponseDTO response = exhibitorBoothService.getBoothBenefitUsage(userDetails.getUser(), boothId);
+        return ok(response);
     }
 
     @PostMapping("/{boothId}/templates/{templateId}/apply")

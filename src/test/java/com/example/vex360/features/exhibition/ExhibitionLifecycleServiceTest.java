@@ -154,4 +154,29 @@ class ExhibitionLifecycleServiceTest {
         assertEquals(1, updated);
         assertEquals(ExhibitionStatus.ACTIVE, ex2.getStatus());
     }
+
+    @Test
+    void skipsMissingAndUnchangedExhibitions() {
+        Exhibition noTarget = Exhibition.builder()
+                .id(2)
+                .status(ExhibitionStatus.PUBLISHED)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 11))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 15))
+                .build();
+        Exhibition unchanged = Exhibition.builder()
+                .id(3)
+                .status(ExhibitionStatus.ACTIVE)
+                .startDate(LocalDate.of(2026, Month.JANUARY, 10))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 15))
+                .build();
+
+        LocalDate today = LocalDate.of(2026, Month.JANUARY, 10);
+        when(exhibitionRepository.findDueForLifecycleTransition(eq(today), any())).thenReturn(List.of(1, 2, 3));
+        when(exhibitionRepository.findByIdForUpdate(1)).thenReturn(Optional.empty());
+        when(exhibitionRepository.findByIdForUpdate(2)).thenReturn(Optional.of(noTarget));
+        when(exhibitionRepository.findByIdForUpdate(3)).thenReturn(Optional.of(unchanged));
+
+        assertEquals(0, lifecycleService.processLifecycleTransitions());
+        verify(exhibitionRepository, never()).save(any());
+    }
 }

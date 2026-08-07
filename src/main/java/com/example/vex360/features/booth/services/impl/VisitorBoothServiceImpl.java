@@ -192,7 +192,8 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
     private ExhibitionResponseDTO getActiveExhibition(UUID exhibitionUuid) {
         ExhibitionResponseDTO exhibition = exhibitionService.getExhibitionByUuid(exhibitionUuid);
 
-        if (!ExhibitionStatus.ACTIVE.name().equals(exhibition.getStatus())) {
+        if (!ExhibitionStatus.ACTIVE.name().equals(exhibition.getStatus())
+                && !ExhibitionStatus.PUBLISHED.name().equals(exhibition.getStatus())) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
         return exhibition;
@@ -242,6 +243,7 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
         if (exhibitionUuid == null || boothId == null) {
             return Optional.empty();
         }
-        return boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(exhibitionUuid, boothId, BoothStatus.PUBLISHED);
+        return boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(exhibitionUuid, boothId,
+                BoothStatus.PUBLISHED);
     }
 }
