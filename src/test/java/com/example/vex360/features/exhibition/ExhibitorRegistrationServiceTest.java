@@ -1397,4 +1397,479 @@ class ExhibitorRegistrationServiceTest {
         assertEquals("APPROVED", dto.getStatus());
         verify(paymentRepository).save(argThat(p -> p.getAmount().compareTo(BigDecimal.ZERO) == 0));
     }
+
+    @Test
+    void initializeRegistration_rejectsMissingPackageExhibitionAndLockedExhibition() {
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+
+        ExhibitionPackage detached = ExhibitionPackage.builder()
+                .id(10)
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        when(packageRepository.findById(10)).thenReturn(Optional.of(detached));
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND,
+                assertThrows(AppException.class,
+                        () -> registrationService.initializeRegistration(
+                                companyUser.getId(), 10, null, null, null))
+                        .getErrorCode());
+
+        detached.setExhibition(Exhibition.builder().id(99).build());
+        when(exhibitionRepository.findByIdForUpdate(99)).thenReturn(Optional.empty());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND,
+                assertThrows(AppException.class,
+                        () -> registrationService.initializeRegistration(
+                                companyUser.getId(), 10, null, null, null))
+                        .getErrorCode());
+    }
+
+    @Test
+    void getRegistrationDetails_rejectsCompanyWithoutId() {
+        UUID uuid = UUID.randomUUID();
+        Company missingId = Company.builder().ownerUser(companyUser).build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .uuid(uuid)
+                .company(missingId)
+                .build();
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+
+        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID,
+                assertThrows(AppException.class,
+                        () -> registrationService.getRegistrationDetails(uuid, companyUser.getId()))
+                        .getErrorCode());
+    }
+
+    @Test
+    void registrationSearchesCoverNullAndBlankKeywords() {
+        Pageable pageable = PageRequest.of(0, 10);
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        when(registrationRepository.searchForOrganizer(
+                organizer.getId(), null, null, null, pageable)).thenReturn(Page.empty(pageable));
+
+        registrationService.getRegistrationsForOrganizer(organizer, null, null, null, pageable);
+
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.searchForExhibitor(
+                company.getId(), null, null, pageable)).thenReturn(Page.empty(pageable));
+        registrationService.getRegistrationsForExhibitor(companyUser, null, null, pageable);
+        registrationService.getRegistrationsForExhibitor(companyUser, null, " ", pageable);
+    }
+
+    @Test
+    void findRegistrationWithRelationsHandlesNullAndDelegates() {
+        Assertions.assertTrue(registrationService.findRegistrationWithRelationsById(null).isEmpty());
+        ExhibitorRegistration registration = ExhibitorRegistration.builder().id(1).build();
+        when(registrationRepository.findByIdWithRelations(1)).thenReturn(Optional.of(registration));
+        assertEquals(Optional.of(registration), registrationService.findRegistrationWithRelationsById(1));
+    }
+
+    @Test
+    void approveRegistration_rejectsMissingOwnershipGraphAndClosedRegistration() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID uuid = UUID.randomUUID();
+
+        ExhibitorRegistration missingPackage = ExhibitorRegistration.builder()
+                .uuid(uuid).status(ExhibitorRegistrationStatus.PENDING).build();
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(missingPackage));
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(AppException.class,
+                        () -> registrationService.approveRegistration(organizer, uuid))
+                        .getErrorCode());
+
+        ExhibitorRegistration missingExhibition = ExhibitorRegistration.builder()
+                .uuid(uuid)
+                .exhibitionPackage(ExhibitionPackage.builder().build())
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .build();
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(missingExhibition));
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(AppException.class,
+                        () -> registrationService.approveRegistration(organizer, uuid))
+                        .getErrorCode());
+
+        Exhibition exhibition = Exhibition.builder().build();
+        ExhibitorRegistration missingOrganizer = ExhibitorRegistration.builder()
+                .uuid(uuid)
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .build();
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(missingOrganizer));
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(AppException.class,
+                        () -> registrationService.approveRegistration(organizer, uuid))
+                        .getErrorCode());
+
+        exhibition.setOrganizer(User.builder().build());
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(AppException.class,
+                        () -> registrationService.approveRegistration(organizer, uuid))
+                        .getErrorCode());
+
+        exhibition.setOrganizer(organizer);
+        exhibition.setStatus(ExhibitionStatus.REGISTRATION);
+        exhibition.setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        assertEquals(ErrorCode.REGISTRATION_CLOSED,
+                assertThrows(AppException.class,
+                        () -> registrationService.approveRegistration(organizer, uuid))
+                        .getErrorCode());
+    }
+
+    @Test
+    void rejectRegistration_rejectsNullReasonAndCancelsAllPendingLinks() {
+        User organizer = User.builder().id(UUID.randomUUID()).build();
+        UUID uuid = UUID.randomUUID();
+        Exhibition exhibition = Exhibition.builder().organizer(organizer).name("Expo").build();
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .id(10)
+                .exhibition(exhibition)
+                .template(PackageTemplate.builder().name("Package").build())
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(exhibitionPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+
+        assertEquals(ErrorCode.VALIDATION_FAILED,
+                assertThrows(AppException.class,
+                        () -> registrationService.rejectRegistration(organizer, uuid, null))
+                        .getErrorCode());
+
+        Payment canceled = Payment.builder().orderCode(1L).status(PaymentStatus.PENDING).build();
+        Payment withoutOrderCode = Payment.builder().status(PaymentStatus.PENDING).build();
+        Payment cancelFailure = Payment.builder().orderCode(2L).status(PaymentStatus.PENDING).build();
+        Payment alreadyFailed = Payment.builder().status(PaymentStatus.FAILED).build();
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentRepository.findByExhibitorRegistrationIdForUpdate(1))
+                .thenReturn(List.of(canceled, withoutOrderCode, cancelFailure, alreadyFailed));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Mockito.lenient().doThrow(new RuntimeException("cancel failed"))
+                .when(payOSIntegrationService).cancelPaymentLink(2L, "Organizer rejected registration");
+
+        registrationService.rejectRegistration(organizer, uuid, "reason");
+
+        assertEquals(PaymentStatus.FAILED, canceled.getStatus());
+        assertEquals(PaymentStatus.FAILED, withoutOrderCode.getStatus());
+        assertEquals(PaymentStatus.FAILED, cancelFailure.getStatus());
+        verify(payOSIntegrationService).cancelPaymentLink(1L, "Organizer rejected registration");
+    }
+
+    @Test
+    void cancelRegistration_handlesNullUserMissingRegistrationAndNoPayments() {
+        UUID uuid = UUID.randomUUID();
+        assertEquals(ErrorCode.UNAUTHENTICATED,
+                assertThrows(AppException.class,
+                        () -> registrationService.cancelRegistration(null, uuid))
+                        .getErrorCode());
+
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.empty());
+        assertEquals(ErrorCode.REGISTRATION_NOT_FOUND,
+                assertThrows(AppException.class,
+                        () -> registrationService.cancelRegistration(companyUser, uuid))
+                        .getErrorCode());
+
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .build();
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentRepository.findByExhibitorRegistrationIdForUpdate(1)).thenReturn(List.of());
+
+        ExhibitorRegistrationResponseDTO response = registrationService.cancelRegistration(companyUser, uuid);
+
+        assertEquals("CANCELED", response.getStatus());
+        Assertions.assertNull(response.getPaymentStatus());
+    }
+
+    @Test
+    void cancelRegistration_handlesNullOrderCodeCancelFailureAndNonPendingPayment() {
+        UUID uuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        Payment withoutOrderCode = Payment.builder().status(PaymentStatus.PENDING).build();
+        Payment cancelFailure = Payment.builder().orderCode(2L).status(PaymentStatus.PENDING).build();
+        Payment alreadyFailed = Payment.builder().status(PaymentStatus.FAILED).build();
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentRepository.findByExhibitorRegistrationIdForUpdate(1))
+                .thenReturn(List.of(withoutOrderCode, cancelFailure, alreadyFailed));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Mockito.lenient().doThrow(new RuntimeException("cancel failed"))
+                .when(payOSIntegrationService).cancelPaymentLink(2L, "Exhibitor canceled registration");
+
+        registrationService.cancelRegistration(companyUser, uuid);
+
+        assertEquals(PaymentStatus.FAILED, withoutOrderCode.getStatus());
+        assertEquals(PaymentStatus.FAILED, cancelFailure.getStatus());
+        verify(paymentRepository, never()).save(alreadyFailed);
+    }
+
+    @Test
+    void getRegistrationDetails_reconcilesNonPaidNullFailedAndMissingOrderLinks() {
+        UUID uuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.APPROVED)
+                .build();
+        Payment nonPaid = Payment.builder().orderCode(1L).status(PaymentStatus.PENDING).build();
+        Payment missingLink = Payment.builder().orderCode(2L).status(PaymentStatus.PENDING).checkoutUrl("").build();
+        Payment lookupFailure = Payment.builder().orderCode(3L).status(PaymentStatus.PENDING).build();
+        Payment missingOrder = Payment.builder().status(PaymentStatus.PENDING).build();
+        PaymentLink link = mock(PaymentLink.class);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(nonPaid), Optional.of(missingLink),
+                        Optional.of(lookupFailure), Optional.of(missingOrder));
+        when(payOSIntegrationService.getPaymentLinkInformation(1L)).thenReturn(link);
+        when(payOSIntegrationService.getPaymentLinkInformation(2L)).thenReturn(null);
+        when(payOSIntegrationService.getPaymentLinkInformation(3L))
+                .thenThrow(new RuntimeException("lookup failed"));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+
+        assertEquals(PaymentStatus.FAILED, nonPaid.getStatus());
+        assertEquals(PaymentStatus.FAILED, missingLink.getStatus());
+        assertEquals(PaymentStatus.FAILED, lookupFailure.getStatus());
+        assertEquals(PaymentStatus.FAILED, missingOrder.getStatus());
+    }
+
+    @Test
+    void getRegistrationDetails_paidLinkAfterDeadlineDoesNotApprove() {
+        UUID uuid = UUID.randomUUID();
+        paidPackage.getExhibition().setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        Payment payment = Payment.builder()
+                .orderCode(5L)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("")
+                .build();
+        PaymentLink link = mock(PaymentLink.class);
+        when(link.getStatus()).thenReturn(PaymentLinkStatus.PAID);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(payment));
+        when(payOSIntegrationService.getPaymentLinkInformation(5L)).thenReturn(link);
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+
+        assertEquals(PaymentStatus.PAID, payment.getStatus());
+        assertEquals(ExhibitorRegistrationStatus.PENDING_PAYMENT, registration.getStatus());
+    }
+
+    @Test
+    void getRegistrationDetails_rejectsLinkGenerationAfterDeadline() {
+        UUID uuid = UUID.randomUUID();
+        paidPackage.getExhibition().setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .build();
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.empty());
+
+        assertEquals(ErrorCode.REGISTRATION_CLOSED,
+                assertThrows(AppException.class,
+                        () -> registrationService.getRegistrationDetails(uuid, companyUser.getId()))
+                        .getErrorCode());
+    }
+
+    @Test
+    void getRegistrationDetails_recoversAllPaymentLinkCreationFailureOutcomes() {
+        UUID uuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .finalPriceSnapshot(BigDecimal.valueOf(123))
+                .build();
+        PaymentLink existingLink = mock(PaymentLink.class);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("create failed"));
+        when(payOSIntegrationService.getPaymentLinkInformation(any()))
+                .thenReturn(existingLink)
+                .thenReturn(null)
+                .thenThrow(new RuntimeException("lookup failed"));
+
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+
+        verify(commissionCalculator, Mockito.times(3))
+                .calculateCommission(eq(BigDecimal.valueOf(123)), any());
+    }
+
+    @Test
+    void reviewMailHandlesMissingRecipientFallbackFieldsAndExecutorFailure() {
+        ExhibitorRegistration missingCompany = ExhibitorRegistration.builder().id(1).build();
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                missingCompany, ExhibitorRegistrationStatus.REJECTED, null);
+
+        Company missingOwner = Company.builder().id(UUID.randomUUID()).build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1).company(missingOwner).build();
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.REJECTED, null);
+
+        User missingEmail = User.builder().id(UUID.randomUUID()).build();
+        missingOwner.setOwnerUser(missingEmail);
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.REJECTED, null);
+
+        missingEmail.setEmail(" ");
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.REJECTED, null);
+
+        missingEmail.setEmail("owner@example.com");
+        missingEmail.setFullName("Owner");
+        registration.setCurrencySnapshot("");
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.REJECTED, null);
+
+        ExhibitionPackage packageWithoutTemplate = ExhibitionPackage.builder()
+                .finalPrice(BigDecimal.TEN)
+                .build();
+        registration.setExhibitionPackage(packageWithoutTemplate);
+        registration.setPackageNameSnapshot("");
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.PENDING_PAYMENT, null);
+
+        Mockito.doThrow(new RuntimeException("executor failed"))
+                .when(afterCommitExecutor).execute(any());
+        ReflectionTestUtils.invokeMethod(registrationService,
+                "sendExhibitorRegistrationReviewMailSafely",
+                registration, ExhibitorRegistrationStatus.PENDING_PAYMENT, null);
+    }
+
+    @Test
+    void dependencyValidationCoversAllMissingRelationsAndLazyFailure() {
+        assertEquals(ErrorCode.REGISTRATION_NOT_FOUND,
+                assertThrows(AppException.class,
+                        () -> ReflectionTestUtils.invokeMethod(
+                                registrationService, "validateRegistrationDependencies", (Object) null))
+                        .getErrorCode());
+
+        User owner = User.builder().id(UUID.randomUUID()).build();
+        Company validCompany = Company.builder().id(UUID.randomUUID()).ownerUser(owner).build();
+        ExhibitionPackage validPackage = ExhibitionPackage.builder().id(1).build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .uuid(UUID.randomUUID())
+                .company(validCompany)
+                .exhibitionPackage(validPackage)
+                .build();
+
+        registration.setCompany(null);
+        assertDependencyInvalid(registration);
+        registration.setCompany(Company.builder().ownerUser(owner).build());
+        assertDependencyInvalid(registration);
+        registration.setCompany(Company.builder().id(UUID.randomUUID()).build());
+        assertDependencyInvalid(registration);
+        registration.setCompany(Company.builder().id(UUID.randomUUID())
+                .ownerUser(User.builder().build()).build());
+        assertDependencyInvalid(registration);
+        registration.setCompany(validCompany);
+        registration.setExhibitionPackage(null);
+        assertDependencyInvalid(registration);
+        registration.setExhibitionPackage(ExhibitionPackage.builder().build());
+        assertDependencyInvalid(registration);
+
+        ExhibitorRegistration lazyFailure = mock(ExhibitorRegistration.class);
+        when(lazyFailure.getCompany()).thenThrow(new jakarta.persistence.EntityNotFoundException());
+        assertDependencyInvalid(lazyFailure);
+    }
+
+    private void assertDependencyInvalid(ExhibitorRegistration registration) {
+        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID,
+                assertThrows(AppException.class,
+                        () -> ReflectionTestUtils.invokeMethod(
+                                registrationService, "validateRegistrationDependencies", registration))
+                        .getErrorCode());
+    }
+
+    @Test
+    void mapToResponseHandlesCompanyWithoutOwner() {
+        Company companyWithoutOwner = Company.builder()
+                .id(UUID.randomUUID())
+                .name("Company")
+                .build();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(UUID.randomUUID())
+                .company(companyWithoutOwner)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING)
+                .build();
+
+        ExhibitorRegistrationResponseDTO response = ReflectionTestUtils.invokeMethod(
+                registrationService, "mapToResponse", registration, null);
+
+        Assertions.assertNull(response.getCompanyUserId());
+        Assertions.assertNull(response.getCompanyEmail());
+    }
+
+    @Test
+    void cancelRegistrationRejectsUserWithoutId() {
+        User missingId = User.builder().build();
+        assertEquals(ErrorCode.UNAUTHENTICATED,
+                assertThrows(AppException.class,
+                        () -> registrationService.cancelRegistration(missingId, UUID.randomUUID()))
+                        .getErrorCode());
+    }
 }

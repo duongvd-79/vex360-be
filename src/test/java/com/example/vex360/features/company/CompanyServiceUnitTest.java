@@ -77,13 +77,15 @@ class CompanyServiceUnitTest {
 
     @Test
     void updateCurrentUserCompanyActivatesWhenProfileIsComplete() {
-        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
-                "Technology",
-                "Company description",
-                "https://cdn.example.com/logo.png",
-                "https://example.com",
-                "0912345678",
-                "123 Main St");
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .name("Company A")
+                .industry("Technology")
+                .description("Company description")
+                .logoUrl("https://cdn.example.com/logo.png")
+                .website("https://example.com")
+                .phone("0912345678")
+                .address("123 Main St")
+                .build();
 
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -96,24 +98,24 @@ class CompanyServiceUnitTest {
     }
 
     @Test
-    void getCurrentUserCompanyThrowsWhenMissing() {
+    void getCurrentUserCompanyReturnsNullWhenMissing() {
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
 
-        AppException exception = assertThrows(AppException.class,
-                () -> companyService.getCurrentUserCompany(owner));
+        CompanyResponseDTO response = companyService.getCurrentUserCompany(owner);
 
-        assertSame(ErrorCode.COMPANY_NOT_FOUND, exception.getErrorCode());
+        org.junit.jupiter.api.Assertions.assertNull(response);
     }
 
     @Test
     void updateCurrentUserCompany_IncompleteProfile_StatusUnchanged() {
-        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
-                "Technology",
-                "Company description",
-                "https://cdn.example.com/logo.png",
-                "https://example.com",
-                "0912345678",
-                null); // missing address → incomplete
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .industry("Technology")
+                .description("Company description")
+                .logoUrl("https://cdn.example.com/logo.png")
+                .website("https://example.com")
+                .phone("0912345678")
+                .address(null) // missing address → incomplete
+                .build();
 
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -128,13 +130,15 @@ class CompanyServiceUnitTest {
     void updateCurrentUserCompany_ArchivedCompany_StatusStaysArchived() {
         company.setStatus(CompanyStatus.ARCHIVED);
 
-        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
-                "Technology",
-                "Company description",
-                "https://cdn.example.com/logo.png",
-                "https://example.com",
-                "0912345678",
-                "123 Main St");
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .name("Company A")
+                .industry("Technology")
+                .description("Company description")
+                .logoUrl("https://cdn.example.com/logo.png")
+                .website("https://example.com")
+                .phone("0912345678")
+                .address("123 Main St")
+                .build();
 
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -146,16 +150,35 @@ class CompanyServiceUnitTest {
     }
 
     @Test
-    void updateCurrentUserCompany_CompanyNotFound_ThrowsCompanyNotFound() {
+    void updateCurrentUserCompany_CompanyNotFound_CreatesDefaultCompany() {
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.empty());
 
-        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
-                "Technology", "Desc", "logo.png", "https://example.com", "0912345678", "123 Main St");
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .name("New Company")
+                .industry("Technology")
+                .description("Desc")
+                .logoUrl("https://cdn.example.com/logo.png")
+                .website("https://example.com")
+                .phone("0912345678")
+                .address("123 Main St")
+                .build();
 
-        AppException exception = assertThrows(AppException.class,
-                () -> companyService.updateCurrentUserCompany(owner, request));
+        Company created = Company.builder()
+                .id(UUID.randomUUID())
+                .ownerUser(owner)
+                .name("New Company")
+                .email("owner@example.com")
+                .status(CompanyStatus.INCOMPLETE_PROFILE)
+                .build();
 
-        assertSame(ErrorCode.COMPANY_NOT_FOUND, exception.getErrorCode());
+        when(companyRepository.findByOwnerUserIdForUpdate(owner.getId())).thenReturn(Optional.of(created));
+        when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyResponseDTO response = companyService.updateCurrentUserCompany(owner, request);
+
+        assertEquals("New Company", response.getName());
+        assertEquals("ACTIVE", response.getStatus());
+        verify(companyRepository).insertCompanyIfAbsent(anyString(), eq(owner.getId().toString()), eq("New Company"), eq(owner.getEmail()), eq("0912345678"), eq("INCOMPLETE_PROFILE"));
     }
 
     @Test
@@ -281,13 +304,9 @@ class CompanyServiceUnitTest {
         company.setIndustry("Old Industry");
         company.setDescription("Old Description");
 
-        UpdateCompanyProfileRequest request = new UpdateCompanyProfileRequest(
-                "New Industry",
-                null,
-                null,
-                null,
-                null,
-                null);
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .industry("New Industry")
+                .build();
 
         when(companyRepository.findByOwnerUserId(owner.getId())).thenReturn(Optional.of(company));
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));

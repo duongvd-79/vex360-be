@@ -55,9 +55,9 @@ public class CreateExhibitionRequest {
     private List<@Valid SponsorRequestDTO> sponsors;
 
     @JsonIgnore
-    @AssertTrue(message = "Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.")
+    @AssertTrue(message = "Ngày kết thúc phải sau ngày bắt đầu.")
     public boolean isEndDateValid() {
-        return startDate == null || endDate == null || !endDate.isBefore(startDate);
+        return startDate == null || endDate == null || endDate.isAfter(startDate);
     }
 
     @JsonIgnore
