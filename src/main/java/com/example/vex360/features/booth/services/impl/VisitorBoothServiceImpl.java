@@ -168,25 +168,33 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
 
         Map<UUID, ProductResponseDTO> productsById = productService.findActiveProductResponsesByIds(productIds);
 
-        panoramas.stream()
-                .flatMap(panorama -> panorama.getHotspots().stream())
-                .forEach(hotspot -> enrichDisplayedProductDetail(hotspot, productsById));
+        panoramas.forEach(panorama -> {
+            List<HotspotResponseDTO> visibleHotspots = panorama.getHotspots().stream()
+                    .filter(hotspot -> enrichDisplayedProductDetail(hotspot, productsById))
+                    .toList();
+            panorama.setHotspots(visibleHotspots);
+        });
     }
 
-    private void enrichDisplayedProductDetail(
+    /**
+     * Enriches a product hotspot with active product details.
+     * Returns false when the hotspot's product is no longer active, signaling
+     * the caller to drop the hotspot from the visitor-facing booth response.
+     */
+    private boolean enrichDisplayedProductDetail(
             HotspotResponseDTO hotspot,
             Map<UUID, ProductResponseDTO> productsById) {
         HotspotProductSummaryDTO product = hotspot.getProduct();
         if (product == null) {
-            return;
+            return true;
         }
         ProductResponseDTO detail = productsById.get(product.getId());
         if (detail == null) {
-            hotspot.setProduct(null);
-            return;
+            return false;
         }
         product.setDescription(detail.getDescription());
         product.setContents(detail.getContents());
+        return true;
     }
 
     private ExhibitionResponseDTO getActiveExhibition(UUID exhibitionUuid) {
