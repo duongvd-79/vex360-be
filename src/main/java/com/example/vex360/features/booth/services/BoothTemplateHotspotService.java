@@ -91,7 +91,7 @@ public class BoothTemplateHotspotService {
         if (request != null) {
             if (request.getName() != null) {
                 if (request.getName().isBlank()) {
-                    throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
+                    throw new AppException(ErrorCode.HOTSPOT_NAME_REQUIRED);
                 }
                 hotspot.setName(request.getName().trim());
             }

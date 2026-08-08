@@ -87,7 +87,8 @@ class ProductServiceUnitTest {
                 .status(ProductStatus.ACTIVE).contents(new ArrayList<>(List.of(content))).build();
         content.setProduct(product);
         // lenient() vì một số test (createProduct_*) không đi qua stub này —
-        // Mockito strict mode sẽ báo UnnecessaryStubbingException nếu dùng when() thường.
+        // Mockito strict mode sẽ báo UnnecessaryStubbingException nếu dùng when()
+        // thường.
         lenient().when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         lenient().when(productRepository.findByIdAndCompanyId(product.getId(),
                 company.getId())).thenReturn(Optional.of(product));
@@ -301,7 +302,7 @@ class ProductServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.createProduct(user, request));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        assertSame(ErrorCode.PRODUCT_MEDIA_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -340,7 +341,8 @@ class ProductServiceUnitTest {
         request.setExistingContentIds(List.of(product.getContents().get(0).getId()));
         request.setNewContents(List.of());
 
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
         when(categoryRepository.findByIdAndCompanyId(category.getId(), company.getId()))
                 .thenReturn(Optional.of(category));
@@ -369,7 +371,8 @@ class ProductServiceUnitTest {
     @Test
     void updateProduct_UsedByPendingBooth_ThrowsProductUsedByPendingBooth() {
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(1L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(1L);
 
         AppException exception = assertThrows(AppException.class,
                 () -> service.updateProduct(user, product.getId(), new UpdateProductRequest()));
@@ -381,7 +384,8 @@ class ProductServiceUnitTest {
     @Test
     void updateProduct_DuplicateSku_ThrowsProductSkuDuplicated() {
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("DUP-SKU");
         when(productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), "DUP-SKU", product.getId()))
@@ -396,7 +400,8 @@ class ProductServiceUnitTest {
     @Test
     void updateProduct_CategoryNotFound_ThrowsProductCategoryNotFound() {
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         UUID categoryId = UUID.randomUUID();
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("SKU-1");
@@ -417,7 +422,8 @@ class ProductServiceUnitTest {
                 .status(ProductCategoryStatus.ACTIVE).build();
         product.setCategory(category);
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setSku("SKU-1");
         request.setCategoryId(category.getId());
@@ -430,7 +436,7 @@ class ProductServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.updateProduct(user, product.getId(), request));
 
-        assertSame(ErrorCode.INVALID_PRODUCT_MEDIA, exception.getErrorCode());
+        assertSame(ErrorCode.PRODUCT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -439,7 +445,8 @@ class ProductServiceUnitTest {
                 .status(ProductCategoryStatus.INACTIVE).build();
         product.setCategory(inactiveCategory);
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setName("Name");
         request.setSku("SKU-1");
@@ -467,7 +474,8 @@ class ProductServiceUnitTest {
         product.setCategory(category);
         product.setThumbnailFileSize(500L);
         when(productRepository.existsLockedByDesignRequest(product.getId())).thenReturn(0L);
-        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED"))).thenReturn(0L);
+        when(productRepository.existsInBoothWithStatus(product.getId(), List.of("PENDING", "PUBLISHED")))
+                .thenReturn(0L);
         UpdateProductRequest request = new UpdateProductRequest();
         request.setName("Name");
         request.setSku("SKU-1");

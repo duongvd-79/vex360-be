@@ -242,7 +242,7 @@ public class ProductService {
         for (UUID contentId : existingContentIds) {
             ProductContent content = currentContentsById.get(contentId);
             if (content == null)
-                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                throw new AppException(ErrorCode.PRODUCT_MEDIA_REFERENCE_INVALID);
             nextContents.add(content);
         }
 
@@ -295,7 +295,7 @@ public class ProductService {
 
     private void validateContentTypeCounts(long imageCount, long videoCount) {
         if (imageCount > MAX_IMAGE_CONTENT_COUNT || videoCount > MAX_VIDEO_CONTENT_COUNT) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+            throw new AppException(ErrorCode.PRODUCT_MEDIA_LIMIT_EXCEEDED);
         }
     }
 
@@ -305,7 +305,7 @@ public class ProductService {
                 .collect(Collectors.toCollection(HashSet::new));
         for (UUID contentId : existingContentIds) {
             if (!currentContentIds.contains(contentId)) {
-                throw new AppException(ErrorCode.INVALID_PRODUCT_MEDIA);
+                throw new AppException(ErrorCode.PRODUCT_MEDIA_REFERENCE_INVALID);
             }
         }
     }

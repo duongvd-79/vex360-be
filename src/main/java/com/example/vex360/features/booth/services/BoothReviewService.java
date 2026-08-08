@@ -165,7 +165,7 @@ public class BoothReviewService {
         assertPending(request);
         if (rejectRequest == null || rejectRequest.getRejectedReason() == null
                 || rejectRequest.getRejectedReason().isBlank()) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.BOOTH_REVIEW_REJECTION_REASON_REQUIRED);
         }
         request.setStatus(BoothReviewStatus.REJECTED);
         request.setReviewedBy(organizer);
@@ -347,9 +347,15 @@ public class BoothReviewService {
 
     private Exhibition getExhibition(Booth booth) {
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
-        ExhibitionPackage exhibitionPackage = registration == null ? null : registration.getExhibitionPackage();
-        if (exhibitionPackage == null || exhibitionPackage.getExhibition() == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+        if (registration == null) {
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
+        }
+        ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
+        if (exhibitionPackage == null) {
+            throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
+        }
+        if (exhibitionPackage.getExhibition() == null) {
+            throw new AppException(ErrorCode.REGISTRATION_EXHIBITION_MISSING);
         }
         return exhibitionPackage.getExhibition();
     }

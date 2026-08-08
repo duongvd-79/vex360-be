@@ -339,7 +339,7 @@ class PartnershipRequestServiceUnitTest {
 
     @Test
     void submitGuestRequest_RequestNull_ThrowsException() {
-        assertEquals(ErrorCode.VALIDATION_FAILED,
+        assertEquals(ErrorCode.PARTNERSHIP_POLICY_ACCEPTANCE_REQUIRED,
                 assertThrows(AppException.class, () -> partnershipRequestService.submitGuestRequest(null))
                         .getErrorCode());
     }
@@ -348,7 +348,7 @@ class PartnershipRequestServiceUnitTest {
     void submitGuestRequest_AcceptedPolicyNull_ThrowsException() {
         SubmitPartnershipRequest request = validRequest("guest@example.com", Role.EXHIBITOR);
         request.setAcceptedPolicy(null);
-        assertEquals(ErrorCode.VALIDATION_FAILED,
+        assertEquals(ErrorCode.PARTNERSHIP_POLICY_ACCEPTANCE_REQUIRED,
                 assertThrows(AppException.class, () -> partnershipRequestService.submitGuestRequest(request))
                         .getErrorCode());
     }
@@ -357,7 +357,7 @@ class PartnershipRequestServiceUnitTest {
     void submitGuestRequest_AcceptedPolicyFalse_ThrowsException() {
         SubmitPartnershipRequest request = validRequest("guest@example.com", Role.EXHIBITOR);
         request.setAcceptedPolicy(false);
-        assertEquals(ErrorCode.VALIDATION_FAILED,
+        assertEquals(ErrorCode.PARTNERSHIP_POLICY_ACCEPTANCE_REQUIRED,
                 assertThrows(AppException.class, () -> partnershipRequestService.submitGuestRequest(request))
                         .getErrorCode());
     }

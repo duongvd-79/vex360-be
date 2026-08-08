@@ -29,7 +29,9 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.shared.config.security.RequireActiveCompany;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitorRegistrationRequest;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
@@ -177,6 +179,23 @@ public class OrganizerExhibitionController extends BaseController {
     }
 
     // Exhibition Package CRU
+    @GetMapping(path = "/{uuid}/packages/edit-context")
+    @Operation(summary = "Lấy dữ liệu chỉnh sửa gói triển lãm", description = "Trả về snapshot các gói hiện tại và toàn bộ mẫu gói đang hoạt động.")
+    public ResponseEntity<ApiResponse<ExhibitionPackageEditContextResponseDTO>> getExhibitionPackageEditContext(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID uuid) {
+        return ok(exhibitionService.getExhibitionPackageEditContext(userDetails.getUser(), uuid));
+    }
+
+    @PutMapping(path = "/{uuid}/packages")
+    @Operation(summary = "Cập nhật đồng bộ các gói triển lãm", description = "Giữ snapshot đã chọn hoặc tạo snapshot từ mẫu gói đang hoạt động; tối đa ba gói và mỗi tier một gói.")
+    public ResponseEntity<ApiResponse<ExhibitionPackageEditContextResponseDTO>> reconcileExhibitionPackages(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID uuid,
+            @Valid @RequestBody ReconcileExhibitionPackagesRequest request) {
+        return ok(exhibitionService.reconcileExhibitionPackages(userDetails.getUser(), uuid, request));
+    }
+
     @PostMapping(path = "/{uuid}/packages")
     @Operation(summary = "Thêm gói dịch vụ mới", description = "Thêm cấu hình gói dịch vụ mới cho triển lãm.")
     public ResponseEntity<ApiResponse<ExhibitionPackageResponseDTO>> addExhibitionPackage(

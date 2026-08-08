@@ -71,7 +71,7 @@ class BoothBenefitGuardServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> boothBenefitGuardService.assertCanAddPanorama(booth));
 
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -97,7 +97,7 @@ class BoothBenefitGuardServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> boothBenefitGuardService.assertCanCreateHotspot(booth, candidate));
 
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -112,7 +112,7 @@ class BoothBenefitGuardServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> boothBenefitGuardService.assertCanCreateHotspot(booth, candidate));
 
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_PRODUCT_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -144,7 +144,7 @@ class BoothBenefitGuardServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> boothBenefitGuardService.assertCanCreateHotspot(booth, candidate));
 
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_EMBEDDED_VIDEO_LIMIT_EXCEEDED, exception.getErrorCode());
     }
 
     @Test
@@ -170,7 +170,7 @@ class BoothBenefitGuardServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> boothBenefitGuardService.assertCanAddPanorama(booth));
 
-        assertSame(ErrorCode.INVALID_BOOTH, exception.getErrorCode());
+        assertSame(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID, exception.getErrorCode());
     }
 
     private ExhibitorRegistration registration() {

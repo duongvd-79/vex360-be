@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -48,14 +50,19 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
+import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
+import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.PackageSelection;
+import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.SelectionType;
 import com.example.vex360.features.exhibition.dtos.request.SponsorRequestDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
@@ -267,7 +274,8 @@ class ExhibitionServiceUnitTest {
     void testPublishExhibition_Success() {
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(exhibitionPackageRepository.findByExhibition(any(Exhibition.class))).thenReturn(Collections.emptyList());
+        when(exhibitionPackageRepository.findByExhibition(any(Exhibition.class)))
+                .thenReturn(Collections.emptyList());
 
         ExhibitionResponseDTO responseDTO = ExhibitionResponseDTO.builder()
                 .uuid(exhibitionUuid)
@@ -489,7 +497,8 @@ class ExhibitionServiceUnitTest {
 
     @Test
     void testGetExhibitionByUuid_Visitor_ForbiddenStatus_ThrowsNotFound() {
-        registrationExhibition.setStatus(ExhibitionStatus.REGISTRATION); // REGISTRATION is forbidden for visitors
+        registrationExhibition.setStatus(ExhibitionStatus.REGISTRATION); // REGISTRATION is forbidden for
+                                                                         // visitors
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
         AppException ex = assertThrows(AppException.class, () -> {
@@ -526,7 +535,8 @@ class ExhibitionServiceUnitTest {
     @Test
     void testGetExhibitionDetailForExhibitor_Success() {
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionPackageRepository.findByExhibition(any(Exhibition.class))).thenReturn(Collections.emptyList());
+        when(exhibitionPackageRepository.findByExhibition(any(Exhibition.class)))
+                .thenReturn(Collections.emptyList());
 
         ExhibitionResponseDTO responseDTO = ExhibitionResponseDTO.builder()
                 .uuid(exhibitionUuid)
@@ -588,7 +598,8 @@ class ExhibitionServiceUnitTest {
 
         try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
             assertTrue(factory.getValidator().validate(request).stream()
-                    .anyMatch(violation -> violation.getPropertyPath().toString().equals("startDate")));
+                    .anyMatch(violation -> violation.getPropertyPath().toString()
+                            .equals("startDate")));
         }
     }
 
@@ -605,7 +616,7 @@ class ExhibitionServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.createExhibition(organizer, request, keyVisual, null));
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_DURATION_EXCEEDED, ex.getErrorCode());
     }
 
     @Test
@@ -664,7 +675,8 @@ class ExhibitionServiceUnitTest {
                 .packages(List.of(pkgReq))
                 .build();
         when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
-        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("new-key-visual"));
         beginTransactionSynchronization();
 
@@ -757,7 +769,8 @@ class ExhibitionServiceUnitTest {
     }
 
     private void completeTransaction(int status) {
-        List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager
+                .getSynchronizations();
         if (status == TransactionSynchronization.STATUS_COMMITTED) {
             synchronizations.forEach(TransactionSynchronization::afterCommit);
         }
@@ -776,7 +789,8 @@ class ExhibitionServiceUnitTest {
                 .build();
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
+                        null));
         assertEquals(ErrorCode.EXHIBITION_DETAILS_CHANGES_NOT_ALLOWED, ex.getErrorCode());
         assertEquals("Chỉ có thể chỉnh sửa hồ sơ khi đang chờ duyệt hoặc đã bị từ chối.",
                 ex.getErrorCode().getMessage());
@@ -795,7 +809,8 @@ class ExhibitionServiceUnitTest {
                 .build();
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
+                        null));
         assertEquals(ErrorCode.EXHIBITION_RESUBMISSION_LIMIT_REACHED, ex.getErrorCode());
     }
 
@@ -812,7 +827,8 @@ class ExhibitionServiceUnitTest {
                 .build();
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
+                        null));
         assertEquals(ErrorCode.EXHIBITION_ALREADY_STARTED, ex.getErrorCode());
     }
 
@@ -821,7 +837,8 @@ class ExhibitionServiceUnitTest {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         registrationExhibition.setStartDate(LocalDate.now().plusDays(20));
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
+        when(exhibitorRegistrationRepository
+                .existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
                 .thenReturn(true);
 
         CreateExhibitionRequest req = CreateExhibitionRequest.builder()
@@ -831,7 +848,8 @@ class ExhibitionServiceUnitTest {
                 .build();
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
+                        null));
         assertEquals(ErrorCode.EXHIBITION_HAS_REGISTRATIONS, ex.getErrorCode());
     }
 
@@ -841,7 +859,8 @@ class ExhibitionServiceUnitTest {
         registrationExhibition.setStartDate(LocalDate.of(2026, 1, 11));
         when(timelinePolicy.today()).thenReturn(LocalDate.of(2026, 1, 10));
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
+        when(exhibitorRegistrationRepository
+                .existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
                 .thenReturn(true);
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
                 .name("New Name")
@@ -862,7 +881,8 @@ class ExhibitionServiceUnitTest {
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, null, null, null));
+                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, null, null,
+                        null));
         assertEquals(ErrorCode.EXHIBITION_ASSET_CHANGES_NOT_ALLOWED, ex.getErrorCode());
     }
 
@@ -900,8 +920,10 @@ class ExhibitionServiceUnitTest {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         registrationExhibition.setRejectionCount(2);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(Collections.emptyList());
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition))
+                .thenReturn(Collections.emptyList());
 
         exhibitionService.rejectExhibition(admin, exhibitionUuid,
                 RejectExhibitionRequest.builder().rejectedReason("Missing documents").build());
@@ -979,7 +1001,8 @@ class ExhibitionServiceUnitTest {
         when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
-        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
         when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
                 .thenReturn(ExhibitionResponseDTO.builder().build());
 
@@ -1004,7 +1027,7 @@ class ExhibitionServiceUnitTest {
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID, ex.getErrorCode());
     }
 
     @Test
@@ -1056,7 +1079,8 @@ class ExhibitionServiceUnitTest {
                 .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
 
         AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
+                        null));
 
         assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
         verify(exhibitionRepository, never()).save(any());
@@ -1232,17 +1256,22 @@ class ExhibitionServiceUnitTest {
         when(valid.getContentType()).thenReturn("IMAGE/JPEG");
 
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", null, true));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", null,
+                        true));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", null, false);
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", empty, true));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", empty,
+                        true));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", empty, false);
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", missingType, false));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile",
+                        missingType, false));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", wrongType, false));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile",
+                        wrongType, false));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", tooLarge, false));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", tooLarge,
+                        false));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateImageFile", valid, false);
     }
 
@@ -1262,11 +1291,14 @@ class ExhibitionServiceUnitTest {
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", (MultipartFile) null);
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", empty);
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", missingType));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile",
+                        missingType));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", wrongType));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile",
+                        wrongType));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", tooLarge));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile",
+                        tooLarge));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", valid);
     }
 
@@ -1292,9 +1324,11 @@ class ExhibitionServiceUnitTest {
         when(packageTemplateService.getActivePackageTemplateEntity(secondId)).thenReturn(duplicate);
 
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages", (Object) null));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages",
+                        (Object) null));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages", List.of()));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages",
+                        List.of()));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
                 "validateAndResolvePackages", List.of(valid, valid, valid, valid)));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
@@ -1314,16 +1348,20 @@ class ExhibitionServiceUnitTest {
     @Test
     void approvalPackageValidationCoversEveryInvalidShapeAndSuccess() {
         PackageTemplate active = PackageTemplate.builder().price(BigDecimal.TEN)
-                .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL).build();
+                .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL)
+                .build();
         PackageTemplate inactive = PackageTemplate.builder().price(BigDecimal.TEN)
-                .status(PackageTemplateStatus.INACTIVE).listingPriority(BoothListingPriority.PRIORITY).build();
+                .status(PackageTemplateStatus.INACTIVE).listingPriority(BoothListingPriority.PRIORITY)
+                .build();
         ExhibitionPackage valid = ExhibitionPackage.builder().id(1).status(ExhibitionPackageStatus.ACTIVE)
                 .template(active).finalPrice(BigDecimal.TEN).build();
 
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval", (Object) null));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval",
+                        (Object) null));
         assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval", List.of()));
+                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval",
+                        List.of()));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
                 "validatePackagesForApproval", List.of(valid, valid, valid, valid)));
         assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
@@ -1362,7 +1400,8 @@ class ExhibitionServiceUnitTest {
         assertThrows(AppException.class,
                 () -> exhibitionService.configureExhibitionPackage(missingId, exhibitionUuid, null));
         assertThrows(AppException.class,
-                () -> exhibitionService.searchExhibitionsForOrganizer(null, null, null, null, null, null, null));
+                () -> exhibitionService.searchExhibitionsForOrganizer(null, null, null, null, null,
+                        null, null));
         assertThrows(AppException.class, () -> exhibitionService.searchExhibitionsForOrganizer(
                 missingId, null, null, null, null, null, null));
         assertThrows(AppException.class,
@@ -1372,15 +1411,18 @@ class ExhibitionServiceUnitTest {
         assertThrows(AppException.class,
                 () -> exhibitionService.updateExhibitionForOrganizer(null, exhibitionUuid, null, null));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(missingId, exhibitionUuid, null, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(missingId, exhibitionUuid, null,
+                        null));
         assertThrows(AppException.class,
                 () -> exhibitionService.updateExhibitionMedia(null, exhibitionUuid, null, null, null));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionMedia(missingId, exhibitionUuid, null, null, null));
+                () -> exhibitionService.updateExhibitionMedia(missingId, exhibitionUuid, null, null,
+                        null));
         assertThrows(AppException.class, () -> exhibitionService.approveExhibition(null, exhibitionUuid));
         assertThrows(AppException.class, () -> exhibitionService.approveExhibition(missingId, exhibitionUuid));
         assertThrows(AppException.class, () -> exhibitionService.rejectExhibition(null, exhibitionUuid, null));
-        assertThrows(AppException.class, () -> exhibitionService.rejectExhibition(missingId, exhibitionUuid, null));
+        assertThrows(AppException.class,
+                () -> exhibitionService.rejectExhibition(missingId, exhibitionUuid, null));
         assertThrows(AppException.class,
                 () -> exhibitionService.uploadSponsorLogo(null, exhibitionUuid, null, null));
         assertThrows(AppException.class,
@@ -1421,12 +1463,15 @@ class ExhibitionServiceUnitTest {
         assertThrows(AppException.class,
                 () -> exhibitionService.getExhibitionDetailForOrganizer(organizer, exhibitionUuid));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, null, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, null,
+                        null));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, null, null, null));
+                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, null, null,
+                        null));
         assertThrows(AppException.class, () -> exhibitionService.approveExhibition(admin, exhibitionUuid));
         assertThrows(AppException.class,
-                () -> exhibitionService.rejectExhibition(admin, exhibitionUuid, mock(RejectExhibitionRequest.class)));
+                () -> exhibitionService.rejectExhibition(admin, exhibitionUuid,
+                        mock(RejectExhibitionRequest.class)));
         assertThrows(AppException.class,
                 () -> exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, null, null));
         assertThrows(AppException.class,
@@ -1439,7 +1484,8 @@ class ExhibitionServiceUnitTest {
                 () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 1, null));
         assertThrows(AppException.class,
                 () -> exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 1));
-        assertThrows(AppException.class, () -> exhibitionService.getExhibitionDetailForExhibitor(exhibitionUuid));
+        assertThrows(AppException.class,
+                () -> exhibitionService.getExhibitionDetailForExhibitor(exhibitionUuid));
         assertThrows(AppException.class, () -> exhibitionService.publishExhibition(organizer, exhibitionUuid));
     }
 
@@ -1503,8 +1549,10 @@ class ExhibitionServiceUnitTest {
                 ExhibitionStatus.REGISTRATION, ExhibitionStatus.PUBLISHED, ExhibitionStatus.ACTIVE);
         Page<Exhibition> page = new PageImpl<>(List.of(registrationExhibition), pageable, 1);
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
-        when(exhibitionRepository.searchExhibitions(null, statuses, null, null, null, pageable)).thenReturn(page);
-        when(exhibitionRepository.searchExhibitions("Expo", statuses, "Tech", null, null, pageable)).thenReturn(page);
+        when(exhibitionRepository.searchExhibitions(null, statuses, null, null, null, pageable))
+                .thenReturn(page);
+        when(exhibitionRepository.searchExhibitions("Expo", statuses, "Tech", null, null, pageable))
+                .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition)).thenReturn(dto);
 
         exhibitionService.searchExhibitionsForExhibitor(null, null, null, null, pageable);
@@ -1517,7 +1565,8 @@ class ExhibitionServiceUnitTest {
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest request = ConfigureExhibitionPackageRequest.builder()
                 .templateId(templateId).finalPrice(BigDecimal.TEN).build();
-        PackageTemplate expensive = PackageTemplate.builder().id(templateId).price(BigDecimal.valueOf(11)).build();
+        PackageTemplate expensive = PackageTemplate.builder().id(templateId).price(BigDecimal.valueOf(11))
+                .build();
         PackageTemplate template = PackageTemplate.builder().id(templateId).price(BigDecimal.TEN).build();
         ExhibitionPackage duplicate = ExhibitionPackage.builder().build();
         ExhibitionResponseDTO ignored = ExhibitionResponseDTO.builder().build();
@@ -1556,10 +1605,12 @@ class ExhibitionServiceUnitTest {
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionMedia(another, exhibitionUuid, video, null, null));
+                () -> exhibitionService.updateExhibitionMedia(another, exhibitionUuid, video, null,
+                        null));
         registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, video, null, null));
+                () -> exhibitionService.updateExhibitionMedia(organizer, exhibitionUuid, video, null,
+                        null));
 
         registrationExhibition.setStatus(ExhibitionStatus.ACTIVE);
         when(cloudService.upload(video)).thenReturn(cloudResponse("new-video"));
@@ -1585,9 +1636,13 @@ class ExhibitionServiceUnitTest {
         PackageTemplate normal = PackageTemplate.builder().id(templateId).price(BigDecimal.TEN)
                 .listingPriority(BoothListingPriority.NORMAL).build();
         ExhibitionPackage normalPackage = ExhibitionPackage.builder()
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL).build()).build();
+                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
+                        .build())
+                .build();
         ExhibitionPackage priorityPackage = ExhibitionPackage.builder()
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.PRIORITY).build()).build();
+                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.PRIORITY)
+                        .build())
+                .build();
         List<ExhibitionPackage> threePackages = List.of(normalPackage, priorityPackage,
                 ExhibitionPackage.builder().build());
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
@@ -1619,13 +1674,17 @@ class ExhibitionServiceUnitTest {
         Exhibition otherExhibition = Exhibition.builder().id(99).build();
         ExhibitionPackage wrongOwner = ExhibitionPackage.builder().exhibition(otherExhibition).build();
         ExhibitionPackage changedDuplicate = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition).template(PackageTemplate.builder().id(oldId).build()).build();
+                .exhibition(registrationExhibition)
+                .template(PackageTemplate.builder().id(oldId).build()).build();
         ExhibitionPackage changedOk = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition).template(PackageTemplate.builder().id(oldId).build()).build();
+                .exhibition(registrationExhibition)
+                .template(PackageTemplate.builder().id(oldId).build()).build();
         ExhibitionPackage below = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition).template(PackageTemplate.builder().id(belowId).build()).build();
+                .exhibition(registrationExhibition)
+                .template(PackageTemplate.builder().id(belowId).build()).build();
         ExhibitionPackage same = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition).template(PackageTemplate.builder().id(sameId).build()).build();
+                .exhibition(registrationExhibition)
+                .template(PackageTemplate.builder().id(sameId).build()).build();
         PackageTemplate normal = PackageTemplate.builder().id(normalId).price(BigDecimal.TEN)
                 .listingPriority(BoothListingPriority.NORMAL).build();
         PackageTemplate priority = PackageTemplate.builder().id(priorityId).price(BigDecimal.TEN)
@@ -1633,7 +1692,9 @@ class ExhibitionServiceUnitTest {
         PackageTemplate expensive = PackageTemplate.builder().id(belowId).price(BigDecimal.valueOf(11)).build();
         PackageTemplate sameTemplate = PackageTemplate.builder().id(sameId).price(BigDecimal.TEN).build();
         ExhibitionPackage otherNormal = ExhibitionPackage.builder().id(11)
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL).build()).build();
+                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
+                        .build())
+                .build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionPackageRepository.findById(10)).thenReturn(
                 Optional.empty(), Optional.of(wrongOwner), Optional.of(changedDuplicate),
@@ -1733,7 +1794,8 @@ class ExhibitionServiceUnitTest {
         PackageTemplate template = PackageTemplate.builder().id(templateId).price(BigDecimal.ONE)
                 .listingPriority(BoothListingPriority.NORMAL).build();
         when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
-        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("key"));
@@ -1758,20 +1820,25 @@ class ExhibitionServiceUnitTest {
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(another, exhibitionUuid, request, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(another, exhibitionUuid, request,
+                        null));
         request.setEndDate(request.getStartDate().minusDays(1));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request,
+                        null));
         request.setEndDate(request.getStartDate().plusDays(91));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request,
+                        null));
         request.setEndDate(request.getStartDate().plusDays(5));
         when(timelinePolicy.hasMinimumLeadTime(request.getStartDate())).thenReturn(false, true);
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request,
+                        null));
         when(exhibitionRepository.existsByNameIgnoreCase("Other")).thenReturn(true);
         assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request, null));
+                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, request,
+                        null));
     }
 
     @Test
@@ -1789,7 +1856,8 @@ class ExhibitionServiceUnitTest {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
-        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("updated-key"));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
@@ -1831,7 +1899,8 @@ class ExhibitionServiceUnitTest {
         User nonAdmin = User.builder().id(UUID.randomUUID()).role(Role.ORGANIZER).build();
         User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
         PackageTemplate template = PackageTemplate.builder().price(BigDecimal.ONE)
-                .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL).build();
+                .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL)
+                .build();
         ExhibitionPackage pkg = ExhibitionPackage.builder().status(ExhibitionPackageStatus.ACTIVE)
                 .template(template).finalPrice(BigDecimal.TEN).build();
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
@@ -1929,16 +1998,20 @@ class ExhibitionServiceUnitTest {
         assertNotNull(exhibitionService.uploadSponsorLogo(organizer, exhibitionUuid, null, file));
 
         assertThrows(AppException.class,
-                () -> exhibitionService.updateSponsorLogo(another, exhibitionUuid, assetId, null, null));
+                () -> exhibitionService.updateSponsorLogo(another, exhibitionUuid, assetId, null,
+                        null));
         when(exhibitionAssetRepository.findById(assetId)).thenReturn(
                 Optional.empty(), Optional.of(wrongExhibition), Optional.of(wrongType),
                 Optional.of(valid), Optional.of(valid));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null, null));
+                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null,
+                        null));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null, null));
+                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null,
+                        null));
         assertThrows(AppException.class,
-                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null, null));
+                () -> exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null,
+                        null));
         assertNotNull(exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, null, null));
         assertNotNull(exhibitionService.updateSponsorLogo(organizer, exhibitionUuid, assetId, " ", empty));
 

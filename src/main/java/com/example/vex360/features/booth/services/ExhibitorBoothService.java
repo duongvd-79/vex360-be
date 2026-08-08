@@ -73,7 +73,7 @@ public class ExhibitorBoothService {
 
         ExhibitorRegistration registration = booth.getExhibitorRegistration();
         if (registration == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
 
         long usedPanoramas = panoramaRepository.countByBoothId(boothId);
@@ -82,7 +82,8 @@ public class ExhibitorBoothService {
         List<UUID> productIds = hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(boothId, null);
         long usedProducts = productIds != null ? productIds.size() : 0L;
 
-        List<MediaAsset> mediaAssets = hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, null);
+        List<MediaAsset> mediaAssets = hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId,
+                null);
         long usedMediaVideos = 0L;
         if (mediaAssets != null) {
             usedMediaVideos = mediaAssets.stream()
@@ -96,19 +97,27 @@ public class ExhibitorBoothService {
                 .packageName(registration.getPackageNameSnapshot())
                 .panoramas(BoothBenefitUsageResponseDTO.UsageQuota.builder()
                         .used(usedPanoramas)
-                        .max(registration.getMaxPanoramasPerBoothSnapshot() != null ? registration.getMaxPanoramasPerBoothSnapshot() : 0)
+                        .max(registration.getMaxPanoramasPerBoothSnapshot() != null
+                                ? registration.getMaxPanoramasPerBoothSnapshot()
+                                : 0)
                         .build())
                 .hotspots(BoothBenefitUsageResponseDTO.UsageQuota.builder()
                         .used(usedHotspots)
-                        .max(registration.getMaxHotspotsPerBoothSnapshot() != null ? registration.getMaxHotspotsPerBoothSnapshot() : 0)
+                        .max(registration.getMaxHotspotsPerBoothSnapshot() != null
+                                ? registration.getMaxHotspotsPerBoothSnapshot()
+                                : 0)
                         .build())
                 .products(BoothBenefitUsageResponseDTO.UsageQuota.builder()
                         .used(usedProducts)
-                        .max(registration.getMaxProductsPerBoothSnapshot() != null ? registration.getMaxProductsPerBoothSnapshot() : 0)
+                        .max(registration.getMaxProductsPerBoothSnapshot() != null
+                                ? registration.getMaxProductsPerBoothSnapshot()
+                                : 0)
                         .build())
                 .mediaVideos(BoothBenefitUsageResponseDTO.UsageQuota.builder()
                         .used(usedMediaVideos)
-                        .max(registration.getMaxEmbeddedVideosPerBoothSnapshot() != null ? registration.getMaxEmbeddedVideosPerBoothSnapshot() : 0)
+                        .max(registration.getMaxEmbeddedVideosPerBoothSnapshot() != null
+                                ? registration.getMaxEmbeddedVideosPerBoothSnapshot()
+                                : 0)
                         .build())
                 .build();
     }
@@ -187,7 +196,7 @@ public class ExhibitorBoothService {
         }
         if (request.getName() != null) {
             if (request.getName().isBlank()) {
-                throw new AppException(ErrorCode.INVALID_BOOTH);
+                throw new AppException(ErrorCode.BOOTH_NAME_REQUIRED);
             }
             booth.setName(request.getName().trim());
         }
@@ -233,7 +242,7 @@ public class ExhibitorBoothService {
     private void validateThumbnail(MultipartFile thumbnail) {
         if (thumbnail == null || thumbnail.isEmpty()
                 || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.BOOTH_THUMBNAIL_INVALID);
         }
     }
 

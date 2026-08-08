@@ -57,7 +57,7 @@ public class CompanyService {
     private Company createDefaultCompanyForUser(User currentUser, UpdateCompanyProfileRequest request) {
         String name = firstNonBlank(request.getName(), currentUser.getFullName(), currentUser.getEmail());
         if (!hasText(name)) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.COMPANY_NAME_REQUIRED);
         }
 
         String email = currentUser.getEmail();
@@ -130,7 +130,7 @@ public class CompanyService {
 
         String name = firstNonBlank(preferredName, ownerUser.getFullName(), ownerUser.getEmail());
         if (name == null) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.COMPANY_NAME_REQUIRED);
         }
 
         String email = firstNonBlank(preferredEmail, ownerUser.getEmail());

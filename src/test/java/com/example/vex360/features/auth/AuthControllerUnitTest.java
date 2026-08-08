@@ -4,9 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,7 +83,8 @@ class AuthControllerUnitTest {
     @Test
     void login_Success_ReturnsTokenWithCookie() {
         LoginRequest request = new LoginRequest("user@example.com", "pass", true);
-        TokenResponse tokens = TokenResponse.builder().accessToken("access").refreshToken("refresh").rememberMe(true).build();
+        TokenResponse tokens = TokenResponse.builder().accessToken("access").refreshToken("refresh").rememberMe(true)
+                .build();
 
         when(authService.login(request)).thenReturn(tokens);
 
@@ -101,7 +99,8 @@ class AuthControllerUnitTest {
     @Test
     void googleCallback_Success() {
         GoogleCallbackRequest request = new GoogleCallbackRequest("code123");
-        TokenResponse tokens = TokenResponse.builder().accessToken("access").refreshToken("refresh").rememberMe(false).build();
+        TokenResponse tokens = TokenResponse.builder().accessToken("access").refreshToken("refresh").rememberMe(false)
+                .build();
 
         when(authService.loginWithGoogle("code123")).thenReturn(tokens);
 
@@ -114,7 +113,8 @@ class AuthControllerUnitTest {
 
     @Test
     void refreshToken_Success() {
-        TokenResponse tokens = TokenResponse.builder().accessToken("new_access").refreshToken("new_refresh").rememberMe(false).build();
+        TokenResponse tokens = TokenResponse.builder().accessToken("new_access").refreshToken("new_refresh")
+                .rememberMe(false).build();
         when(authService.refreshToken("cookie_refresh_token")).thenReturn(tokens);
 
         ResponseEntity<ApiResponse<TokenResponse>> response = authController.refreshToken("cookie_refresh_token");
@@ -126,7 +126,8 @@ class AuthControllerUnitTest {
 
     @Test
     void logout_Success_ClearsCookie() {
-        ResponseEntity<ApiResponse<Void>> response = authController.logout("cookie_refresh_token", "Bearer access_token");
+        ResponseEntity<ApiResponse<Void>> response = authController.logout("cookie_refresh_token",
+                "Bearer access_token");
 
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -151,7 +152,8 @@ class AuthControllerUnitTest {
 
         assertNotNull(response);
         assertEquals(HttpStatus.FOUND, response.getStatusCode());
-        assertTrue(response.getHeaders().getLocation().toString().contains("http://frontend/reset-password?token=valid_reset_token"));
+        assertTrue(response.getHeaders().getLocation().toString()
+                .contains("http://frontend/reset-password?token=valid_reset_token"));
         verify(passwordService).validateResetToken("valid_reset_token");
     }
 
@@ -171,7 +173,8 @@ class AuthControllerUnitTest {
         CustomUserDetails userDetails = new CustomUserDetails(user);
         ChangePasswordRequest request = new ChangePasswordRequest("oldPass", "newPass");
 
-        ResponseEntity<ApiResponse<Void>> response = authController.changePassword(userDetails, request, "Bearer access_token");
+        ResponseEntity<ApiResponse<Void>> response = authController.changePassword(userDetails, request,
+                "Bearer access_token");
 
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());

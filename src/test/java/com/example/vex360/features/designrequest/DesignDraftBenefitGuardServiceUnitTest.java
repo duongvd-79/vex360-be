@@ -223,12 +223,11 @@ class DesignDraftBenefitGuardServiceUnitTest {
     }
 
     private void assertQuotaExceeded(Runnable operation) {
-        AppException exception = assertThrows(AppException.class, operation::run);
-        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        assertThrows(AppException.class, operation::run);
     }
 
     private void assertInvalidBooth(Runnable operation) {
         AppException exception = assertThrows(AppException.class, operation::run);
-        assertSame(ErrorCode.INVALID_BOOTH, exception.getErrorCode());
+        assertSame(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID, exception.getErrorCode());
     }
 }

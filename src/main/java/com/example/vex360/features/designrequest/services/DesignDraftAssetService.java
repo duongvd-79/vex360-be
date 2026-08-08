@@ -160,10 +160,10 @@ public class DesignDraftAssetService {
         DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
         requireEditableRequest(request);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         pruneUnreferencedDraftMedia(request, asset.getId());
         if (isReferencedByDraft(request, asset.getPublicId()) || isUsedByBooth(request, asset.getPublicId())) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE);
         }
         deleteAsset(asset);
         return toResponse(asset);
@@ -198,12 +198,12 @@ public class DesignDraftAssetService {
         requireEditableRequest(request);
         String normalized = newName == null ? null : newName.trim();
         if (normalized == null || normalized.isEmpty() || normalized.length() > 255) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID);
         }
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         if (asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
         }
         asset.setFileName(normalized);
         request.getDrafts().stream()
@@ -213,7 +213,6 @@ public class DesignDraftAssetService {
                 .forEach(media -> media.setTitle(normalized));
         return toResponse(assetRepository.save(asset));
     }
-
 
     /**
      * Removes assets from this request that are not referenced by any saved
@@ -260,9 +259,12 @@ public class DesignDraftAssetService {
     @Transactional(readOnly = true)
     public DesignDraftAsset requireDraftAsset(DesignRequest request, String publicId, String url) {
         DesignDraftAsset asset = assetRepository.findByDesignRequestIdAndPublicId(request.getId(), publicId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
-        if (!asset.getUrl().equals(url) || asset.getAssetType() != DesignDraftAssetType.PANORAMA) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
+        if (asset.getAssetType() != DesignDraftAssetType.PANORAMA) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
+        }
+        if (!asset.getUrl().equals(url)) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         return asset;
     }
@@ -285,9 +287,9 @@ public class DesignDraftAssetService {
             UUID assetId,
             DesignDraftAssetType assetType) {
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, request.getId())
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_DESIGN_DRAFT));
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         if (asset.getAssetType() != assetType) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID);
         }
         return asset;
     }
@@ -383,7 +385,6 @@ public class DesignDraftAssetService {
         draftMediaAssetRepository.deleteAll(unreferenced);
         draftMediaAssetRepository.flush();
     }
-
 
     private Set<String> boothImageKeys(DesignRequest request) {
         Set<String> keys = new HashSet<>(boothDesignService.getPanoramaImageKeys(request.getBooth().getId()));

@@ -55,11 +55,13 @@ public class DesignRequestProductService {
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
         Set<UUID> requiredIds = new HashSet<>();
         if (request.getMode() == DesignRequestMode.REDESIGN) {
-            List<UUID> baselineProductIds = boothDesignService.findDistinctProductIdsByBoothId(request.getBooth().getId(), null);
-            List<Product> baselineProducts = productService.findProductsByIdsAndCompanyId(baselineProductIds, request.getCompany().getId());
+            List<UUID> baselineProductIds = boothDesignService
+                    .findDistinctProductIdsByBoothId(request.getBooth().getId(), null);
+            List<Product> baselineProducts = productService.findProductsByIdsAndCompanyId(baselineProductIds,
+                    request.getCompany().getId());
             for (Product product : baselineProducts) {
                 if (product.getStatus() != ProductStatus.ACTIVE) {
-                    throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+                    throw new AppException(ErrorCode.DESIGN_BASELINE_PRODUCT_INVALID);
                 }
                 products.put(product.getId(), product);
                 requiredIds.add(product.getId());
@@ -92,7 +94,7 @@ public class DesignRequestProductService {
         }
         List<Product> products = productService.findProductsByIdsAndCompanyId(ids, request.getCompany().getId());
         if (products.size() != ids.size() || products.stream().anyMatch(p -> p.getStatus() != ProductStatus.ACTIVE)) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_STATUS);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
         }
         return products;
     }
@@ -104,7 +106,7 @@ public class DesignRequestProductService {
         Set<UUID> distinct = new LinkedHashSet<>();
         for (UUID id : ids) {
             if (id == null) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_PRODUCT_REFERENCE_INVALID);
             }
             distinct.add(id);
         }

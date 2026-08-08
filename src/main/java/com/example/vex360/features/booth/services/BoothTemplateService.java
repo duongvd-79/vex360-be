@@ -227,11 +227,11 @@ public class BoothTemplateService {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         if (request == null || isBlank(request.getName())) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED);
         }
         validateCreateStatus(request.getStatus());
         if (request.getPanoramas() == null || request.getPanoramas().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_REQUIRED);
         }
 
         validatePanoramas(request.getPanoramas(), files);
@@ -243,7 +243,7 @@ public class BoothTemplateService {
         if (status == null || status == BoothStatus.DRAFT || status == BoothStatus.PUBLISHED) {
             return;
         }
-        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+        throw new AppException(ErrorCode.BOOTH_TEMPLATE_STATUS_INVALID);
     }
 
     private void validatePanoramas(List<CreatePanoramaRequest> panoramas, Map<String, MultipartFile> files) {
@@ -256,11 +256,11 @@ public class BoothTemplateService {
                     || isBlank(panorama.getClientKey())
                     || isBlank(panorama.getFileKey())
                     || isBlank(panorama.getName())) {
-                throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_INVALID);
             }
 
             if (!clientKeys.add(panorama.getClientKey()) || !fileKeys.add(panorama.getFileKey())) {
-                throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_KEY_DUPLICATED);
             }
             if (Boolean.TRUE.equals(panorama.getIsDefault())) {
                 defaultCount++;
@@ -268,7 +268,7 @@ public class BoothTemplateService {
         }
 
         if (defaultCount > 1) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_DEFAULT_PANORAMA_INVALID);
         }
         if (!files.keySet().containsAll(fileKeys)) {
             throw new AppException(ErrorCode.PANORAMA_FILE_REQUIRED);
@@ -294,13 +294,13 @@ public class BoothTemplateService {
                         || hotspot.getYPosition() == null
                         || hotspot.getZPosition() == null
                         || !panoramaKeys.contains(hotspot.getTargetPanoramaKey())) {
-                    throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
+                    throw new AppException(ErrorCode.BOOTH_TEMPLATE_HOTSPOT_INVALID);
                 }
             }
         }
 
         if (panoramas.size() > 1 && hotspotCount == 0) {
-            throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_NAVIGATION_REQUIRED);
         }
     }
 
@@ -341,7 +341,7 @@ public class BoothTemplateService {
         }
 
         if (visited.size() != panoramas.size()) {
-            throw new AppException(ErrorCode.INVALID_PANORAMA_HOTSPOT);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_UNREACHABLE);
         }
     }
 
@@ -419,7 +419,7 @@ public class BoothTemplateService {
             if (request != null) {
                 if (request.getName() != null) {
                     if (request.getName().isBlank()) {
-                        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                        throw new AppException(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED);
                     }
                     booth.setName(request.getName().trim());
                 }
@@ -428,7 +428,7 @@ public class BoothTemplateService {
                 }
                 if (request.getStatus() != null) {
                     if (request.getStatus() != BoothStatus.PUBLISHED && request.getStatus() != BoothStatus.ARCHIVED) {
-                        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                        throw new AppException(ErrorCode.BOOTH_TEMPLATE_STATUS_INVALID);
                     }
                     booth.setStatus(request.getStatus());
                 }
@@ -443,7 +443,7 @@ public class BoothTemplateService {
             if (request != null) {
                 if (request.getName() != null) {
                     if (request.getName().isBlank()) {
-                        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                        throw new AppException(ErrorCode.BOOTH_TEMPLATE_NAME_REQUIRED);
                     }
                     booth.setName(request.getName().trim());
                 }
@@ -452,7 +452,7 @@ public class BoothTemplateService {
                 }
                 if (request.getStatus() != null) {
                     if (request.getStatus() != BoothStatus.PUBLISHED && request.getStatus() != BoothStatus.DRAFT) {
-                        throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                        throw new AppException(ErrorCode.BOOTH_TEMPLATE_STATUS_INVALID);
                     }
                     booth.setStatus(request.getStatus());
                 }
@@ -478,7 +478,7 @@ public class BoothTemplateService {
     private void validateThumbnail(MultipartFile thumbnail) {
         if (thumbnail == null || thumbnail.isEmpty()
                 || !ALLOWED_THUMBNAIL_TYPES.contains(normalizeMimeType(thumbnail))) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_THUMBNAIL_INVALID);
         }
     }
 

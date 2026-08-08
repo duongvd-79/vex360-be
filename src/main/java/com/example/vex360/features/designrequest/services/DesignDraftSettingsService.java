@@ -60,7 +60,7 @@ public class DesignDraftSettingsService {
         draft.setBackgroundMusicAction(musicAction);
         if (thumbnailAction == DesignDraftFileAction.REPLACE) {
             if (settings.getThumbnailAssetId() == null) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
             }
             draft.setThumbnailAsset(assetService.requireDraftAsset(
                     request, settings.getThumbnailAssetId(), DesignDraftAssetType.THUMBNAIL));
@@ -72,7 +72,7 @@ public class DesignDraftSettingsService {
         }
         if (musicAction == DesignDraftFileAction.REPLACE) {
             if (settings.getBackgroundMusicAssetId() == null) {
-                throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+                throw new AppException(ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
             }
             draft.setBackgroundMusicAsset(assetService.requireDraftAsset(
                     request, settings.getBackgroundMusicAssetId(), DesignDraftAssetType.BACKGROUND_MUSIC));
@@ -138,7 +138,7 @@ public class DesignDraftSettingsService {
 
     private void requireAsset(DesignDraftAsset asset) {
         if (asset == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND);
         }
     }
 
@@ -167,7 +167,7 @@ public class DesignDraftSettingsService {
     private String requireText(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+            throw new AppException(ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
         }
         return trimmed;
     }

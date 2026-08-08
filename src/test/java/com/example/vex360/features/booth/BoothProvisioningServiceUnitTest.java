@@ -2,7 +2,6 @@ package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -173,7 +172,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -194,7 +193,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_OWNER_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -210,7 +209,7 @@ class BoothProvisioningServiceUnitTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> boothProvisioningService.ensureBoothForApprovedRegistration(1));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_PACKAGE_MISSING, ex.getErrorCode());
     }
 
     private ExhibitorRegistration registration(ExhibitorRegistrationStatus status) {

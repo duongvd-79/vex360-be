@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -56,9 +55,8 @@ import lombok.RequiredArgsConstructor;
 @PreAuthorize("hasAuthority('EXHIBITOR')")
 @RequireActiveCompany(roles = Role.EXHIBITOR)
 public class ExhibitorBoothController extends BaseController {
-    private static final String AUTO_APPROVED_NO_CHANGES_MESSAGE =
-            "Gian hàng không có thay đổi so với phiên bản đã duyệt gần nhất. "
-                    + "Hệ thống đã giữ nguyên trạng thái đã duyệt và không tạo yêu cầu xét duyệt mới.";
+    private static final String AUTO_APPROVED_NO_CHANGES_MESSAGE = "Gian hàng không có thay đổi so với phiên bản đã duyệt gần nhất. "
+            + "Hệ thống đã giữ nguyên trạng thái đã duyệt và không tạo yêu cầu xét duyệt mới.";
 
     private final ExhibitorBoothService exhibitorBoothService;
     private final ExhibitorBoothTemplateService exhibitorBoothTemplateService;
@@ -69,11 +67,7 @@ public class ExhibitorBoothController extends BaseController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<BoothResponseDTO>>> getBooths(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "createdAt",
-                    direction = Sort.Direction.DESC) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<BoothResponseDTO> booths = exhibitorBoothService.getBooths(userDetails.getUser(), pageable);
         return ok(booths);
     }
@@ -91,7 +85,8 @@ public class ExhibitorBoothController extends BaseController {
     public ResponseEntity<ApiResponse<BoothBenefitUsageResponseDTO>> getBoothBenefitUsage(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId) {
-        BoothBenefitUsageResponseDTO response = exhibitorBoothService.getBoothBenefitUsage(userDetails.getUser(), boothId);
+        BoothBenefitUsageResponseDTO response = exhibitorBoothService.getBoothBenefitUsage(userDetails.getUser(),
+                boothId);
         return ok(response);
     }
 
@@ -149,11 +144,7 @@ public class ExhibitorBoothController extends BaseController {
     public ResponseEntity<ApiResponse<PageResponse<BoothReviewRequestSummaryDTO>>> getReviewRequests(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID boothId,
-            @ParameterObject @PageableDefault(
-                    page = 0,
-                    size = 10,
-                    sort = "submittedAt",
-                    direction = Sort.Direction.DESC) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ok(boothReviewService.getReviewHistory(userDetails.getUser(), boothId, pageable));
     }
 

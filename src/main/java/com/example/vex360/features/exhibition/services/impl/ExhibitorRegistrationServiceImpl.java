@@ -38,7 +38,6 @@ import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -102,7 +101,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         if (expPackage.getStatus() != ExhibitionPackageStatus.ACTIVE) {
             log.error("Exhibition package {} is not active (status: {})", exhibitionPackageId, expPackage.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_INACTIVE);
         }
 
         Exhibition packageExhibition = expPackage.getExhibition();
@@ -133,9 +132,8 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                     exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
-        PackageTemplate template = expPackage.getTemplate();
-
-        // Create registration record in PENDING status with template snapshot values
+        // Create registration record in PENDING status with the exhibition package
+        // terms.
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
                 .company(company)
                 .exhibitionPackage(expPackage)
@@ -143,15 +141,15 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .participationReason(participationReason.trim())
                 .boothName(boothName.trim())
                 .boothDescription(boothDescription.trim())
-                .packageNameSnapshot(template.getName())
-                .priceSnapshot(template.getPrice())
+                .packageNameSnapshot(expPackage.getPackageNameSnapshot())
+                .priceSnapshot(expPackage.getPriceSnapshot())
                 .finalPriceSnapshot(expPackage.getFinalPrice())
-                .currencySnapshot(template.getCurrency())
-                .maxProductsPerBoothSnapshot(template.getMaxProductsPerBooth())
-                .maxEmbeddedVideosPerBoothSnapshot(template.getMaxEmbeddedVideosPerBooth())
-                .maxPanoramasPerBoothSnapshot(template.getMaxPanoramasPerBooth())
-                .maxHotspotsPerBoothSnapshot(template.getMaxHotspotsPerBooth())
-                .listingPrioritySnapshot(template.getListingPriority())
+                .currencySnapshot(expPackage.getCurrencySnapshot())
+                .maxProductsPerBoothSnapshot(expPackage.getMaxProductsPerBoothSnapshot())
+                .maxEmbeddedVideosPerBoothSnapshot(expPackage.getMaxEmbeddedVideosPerBoothSnapshot())
+                .maxPanoramasPerBoothSnapshot(expPackage.getMaxPanoramasPerBoothSnapshot())
+                .maxHotspotsPerBoothSnapshot(expPackage.getMaxHotspotsPerBoothSnapshot())
+                .listingPrioritySnapshot(expPackage.getListingPrioritySnapshot())
                 .build();
         return registrationRepository.save(registration);
     }
@@ -171,7 +169,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getCompany() == null || registration.getCompany().getId() == null) {
             log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
                     registrationUuid);
-            throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+            throw new AppException(ErrorCode.REGISTRATION_COMPANY_MISSING);
         }
 
         if (!registration.getCompany().getId().equals(company.getId())) {
@@ -366,7 +364,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING) {
             log.error("Cannot approve registration {} with status {}", registrationUuid, registration.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_INVALID_STATUS);
         }
 
         if (!timelinePolicy.isRegistrationOpen(exp)) {
@@ -450,13 +448,13 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
             log.error("Cannot reject registration {} with status {}", registrationUuid, registration.getStatus());
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_INVALID_STATUS);
         }
 
         String normalizedReason = rejectedReason == null ? null : rejectedReason.trim();
         if (normalizedReason == null || normalizedReason.isEmpty()) {
             log.error("Rejection reason is required for rejecting registration {}", registrationUuid);
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
+            throw new AppException(ErrorCode.REGISTRATION_REJECTION_REASON_REQUIRED);
         }
 
         registration.setStatus(ExhibitorRegistrationStatus.REJECTED);
@@ -509,7 +507,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             String packageName = registration.getPackageNameSnapshot() != null
                     && !registration.getPackageNameSnapshot().isBlank()
                             ? registration.getPackageNameSnapshot()
-                            : ((pkg != null && pkg.getTemplate() != null) ? pkg.getTemplate().getName() : "");
+                            : (pkg != null ? pkg.getPackageNameSnapshot() : "");
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                     ? registration.getFinalPriceSnapshot()
                     : (pkg != null ? pkg.getFinalPrice() : null);
@@ -612,7 +610,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .companyName(registration.getCompany().getName())
                 .companyEmail(owner != null ? owner.getEmail() : null)
                 .packageName(registration.getPackageNameSnapshot() != null ? registration.getPackageNameSnapshot()
-                        : registration.getExhibitionPackage().getTemplate().getName())
+                        : registration.getExhibitionPackage().getPackageNameSnapshot())
                 .priceSnapshot(registration.getPriceSnapshot())
                 .finalPriceSnapshot(registration.getFinalPriceSnapshot())
                 .currencySnapshot(registration.getCurrencySnapshot())
@@ -634,20 +632,27 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
             if (registration.getCompany() == null || registration.getCompany().getId() == null) {
                 log.error("[PB-001/002] Pre-payment dependency check failed: company missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_MISSING);
             }
             if (registration.getCompany().getOwnerUser() == null
                     || registration.getCompany().getOwnerUser().getId() == null) {
                 log.error(
                         "[PB-001/002] Pre-payment dependency check failed: company owner user missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_COMPANY_OWNER_MISSING);
             }
             if (registration.getExhibitionPackage() == null || registration.getExhibitionPackage().getId() == null) {
                 log.error(
                         "[PB-001/002] Pre-payment dependency check failed: exhibition package missing for registration UUID {}",
                         registration.getUuid());
-                throw new AppException(ErrorCode.REGISTRATION_DEPENDENCY_INVALID);
+                throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
+            }
+            if (registration.getExhibitionPackage().getExhibition() == null
+                    || registration.getExhibitionPackage().getExhibition().getId() == null) {
+                log.error(
+                        "[PB-001/002] Pre-payment dependency check failed: exhibition missing for registration UUID {}",
+                        registration.getUuid());
+                throw new AppException(ErrorCode.REGISTRATION_EXHIBITION_MISSING);
             }
         } catch (EntityNotFoundException | ObjectNotFoundException e) {
             log.error("[PB-001/002] Pre-payment dependency check threw exception for registration UUID {}",

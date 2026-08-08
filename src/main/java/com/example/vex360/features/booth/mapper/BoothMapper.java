@@ -120,10 +120,8 @@ public interface BoothMapper {
             return registration.getListingPrioritySnapshot();
         }
         ExhibitionPackage exhibitionPackage = registration.getExhibitionPackage();
-        if (exhibitionPackage != null
-                && exhibitionPackage.getTemplate() != null
-                && exhibitionPackage.getTemplate().getListingPriority() != null) {
-            return exhibitionPackage.getTemplate().getListingPriority();
+        if (exhibitionPackage != null && exhibitionPackage.getListingPrioritySnapshot() != null) {
+            return exhibitionPackage.getListingPrioritySnapshot();
         }
         return BoothListingPriority.NORMAL;
     }

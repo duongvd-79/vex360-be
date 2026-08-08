@@ -227,7 +227,7 @@ class ExhibitorBoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.applyTemplate(exhibitor, booth.getId(), template.getId()));
 
-        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED, exception.getErrorCode());
         verify(panoramaRepository, never()).saveAll(anyList());
     }
 
@@ -258,7 +258,7 @@ class ExhibitorBoothTemplateServiceUnitTest {
         AppException exception = assertThrows(AppException.class,
                 () -> service.applyTemplate(exhibitor, booth.getId(), template.getId()));
 
-        assertSame(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE, exception.getErrorCode());
+        assertSame(ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED, exception.getErrorCode());
         verify(panoramaRepository, never()).saveAll(anyList());
     }
 

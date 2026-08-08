@@ -16,7 +16,9 @@ import com.example.vex360.shared.exceptions.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
-/** Applies the approved-request policy that retains only the active snapshot. */
+/**
+ * Applies the approved-request policy that retains only the active snapshot.
+ */
 @Service
 @RequiredArgsConstructor
 public class DesignDraftRetentionService {
@@ -25,11 +27,14 @@ public class DesignDraftRetentionService {
 
     @Transactional
     public void retainApprovedDraft(DesignRequest request, DesignDraft approvedDraft) {
-        if (!belongsToRequest(request, approvedDraft)
-                || approvedDraft.getVersionNumber() == null
-                || approvedDraft.getVersionNumber() <= 0
-                || request.getDrafts().stream().noneMatch(draft -> sameDraft(draft, approvedDraft))) {
-            throw new AppException(ErrorCode.INVALID_DESIGN_DRAFT);
+        if (!belongsToRequest(request, approvedDraft)) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_GRAPH_INVALID);
+        }
+        if (approvedDraft.getVersionNumber() == null || approvedDraft.getVersionNumber() <= 0) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_VERSION_INVALID);
+        }
+        if (request.getDrafts().stream().noneMatch(draft -> sameDraft(draft, approvedDraft))) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND);
         }
 
         request.getDrafts().removeIf(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() <= 0);
@@ -50,12 +55,12 @@ public class DesignDraftRetentionService {
         }
         return draft.getDesignRequest() == request
                 || request.getId() != null
-                && Objects.equals(draft.getDesignRequest().getId(), request.getId());
+                        && Objects.equals(draft.getDesignRequest().getId(), request.getId());
     }
 
     private boolean sameDraft(DesignDraft left, DesignDraft right) {
         return left == right
                 || left != null && right != null && left.getId() != null
-                && left.getId().equals(right.getId());
+                        && left.getId().equals(right.getId());
     }
 }

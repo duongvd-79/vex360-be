@@ -189,7 +189,7 @@ public class ExhibitorBoothTemplateService {
                 || registration.getMaxHotspotsPerBoothSnapshot() == null
                 || registration.getMaxPanoramasPerBoothSnapshot() < 0
                 || registration.getMaxHotspotsPerBoothSnapshot() < 0) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID);
         }
         return new TemplateLimits(
                 registration.getMaxPanoramasPerBoothSnapshot(),
@@ -198,31 +198,34 @@ public class ExhibitorBoothTemplateService {
 
     private void validateTemplate(Booth template, List<Panorama> panoramas) {
         if (panoramas == null || panoramas.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_REQUIRED);
         }
         long defaultCount = panoramas.stream().filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count();
         if (defaultCount != 1) {
-            throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+            throw new AppException(ErrorCode.BOOTH_TEMPLATE_DEFAULT_PANORAMA_INVALID);
         }
         for (Panorama panorama : panoramas) {
             if (panorama.getImageUrl() == null || panorama.getImageUrl().isBlank()
                     || panorama.getImageKey() == null || panorama.getImageKey().isBlank()) {
-                throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_INVALID);
             }
             for (Hotspot hotspot : panorama.getHotspots()) {
                 if (hotspot.getType() != HotspotType.NAV
                         || hotspot.getTargetPanorama() == null
                         || hotspot.getTargetPanorama().getBooth() == null
                         || !template.getId().equals(hotspot.getTargetPanorama().getBooth().getId())) {
-                    throw new AppException(ErrorCode.INVALID_BOOTH_TEMPLATE);
+                    throw new AppException(ErrorCode.BOOTH_TEMPLATE_HOTSPOT_INVALID);
                 }
             }
         }
     }
 
     private void assertCompatible(TemplateLimits limits, List<Panorama> panoramas) {
-        if (panoramas.size() > limits.maxPanoramas() || countHotspots(panoramas) > limits.maxHotspots()) {
-            throw new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_COMPATIBLE);
+        if (panoramas.size() > limits.maxPanoramas()) {
+            throw new AppException(ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED);
+        }
+        if (countHotspots(panoramas) > limits.maxHotspots()) {
+            throw new AppException(ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED);
         }
     }
 

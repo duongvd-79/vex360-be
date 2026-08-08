@@ -108,7 +108,7 @@ class DesignRequestMediaAssetServiceUnitTest {
                 AppException.class,
                 () -> service.initializeAllowlist(request, List.of(mediaAssetId)));
 
-        assertSame(ErrorCode.INVALID_MEDIA_ASSET, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test
@@ -117,7 +117,7 @@ class DesignRequestMediaAssetServiceUnitTest {
                 AppException.class,
                 () -> service.initializeAllowlist(request, java.util.Arrays.asList((UUID) null)));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
     }
 
     @Test

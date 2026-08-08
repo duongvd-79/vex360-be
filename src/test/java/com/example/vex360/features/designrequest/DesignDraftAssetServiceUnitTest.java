@@ -282,7 +282,7 @@ class DesignDraftAssetServiceUnitTest {
                 AppException.class,
                 () -> service.releaseAsset(designer, request.getId(), asset.getId()));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         verify(cloudService, never()).delete(any(), any());
     }
 
@@ -356,7 +356,7 @@ class DesignDraftAssetServiceUnitTest {
                 AppException.class,
                 () -> service.releaseAsset(designer, request.getId(), asset.getId()));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         assertEquals(List.of(media), draft.getMediaAssets());
         verify(assetRepository, never()).delete(asset);
         verifyNoInteractions(assetReferenceService);
@@ -428,8 +428,8 @@ class DesignDraftAssetServiceUnitTest {
                 .thenReturn(Optional.of(asset));
         when(assetRepository.save(asset)).thenReturn(asset);
 
-        DesignDraftAssetResponseDTO response =
-                service.renameAsset(designer, request.getId(), asset.getId(), "  Welcome video  ");
+        DesignDraftAssetResponseDTO response = service.renameAsset(designer, request.getId(), asset.getId(),
+                "  Welcome video  ");
 
         assertEquals("Welcome video", response.getFileName());
         assertEquals("Welcome video", draft.getMediaAssets().get(0).getTitle());
@@ -443,20 +443,20 @@ class DesignDraftAssetServiceUnitTest {
         when(workspaceService.getAssignedRequestForUpdate(designer, request.getId())).thenReturn(request);
 
         assertSame(
-                ErrorCode.INVALID_DESIGN_DRAFT,
+                ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID,
                 assertThrows(
-                                AppException.class,
-                                () -> service.renameAsset(designer, request.getId(), UUID.randomUUID(), "  "))
+                        AppException.class,
+                        () -> service.renameAsset(designer, request.getId(), UUID.randomUUID(), "  "))
                         .getErrorCode());
         assertSame(
-                ErrorCode.INVALID_DESIGN_DRAFT,
+                ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID,
                 assertThrows(
-                                AppException.class,
-                                () -> service.renameAsset(
-                                        designer,
-                                        request.getId(),
-                                        UUID.randomUUID(),
-                                        "x".repeat(256)))
+                        AppException.class,
+                        () -> service.renameAsset(
+                                designer,
+                                request.getId(),
+                                UUID.randomUUID(),
+                                "x".repeat(256)))
                         .getErrorCode());
         verify(assetRepository, never()).save(any());
     }
@@ -473,7 +473,7 @@ class DesignDraftAssetServiceUnitTest {
                 AppException.class,
                 () -> service.renameAsset(designer, request.getId(), asset.getId(), "New name"));
 
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
+        assertSame(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID, exception.getErrorCode());
         verify(assetRepository, never()).save(any());
     }
 

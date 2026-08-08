@@ -1,35 +1,40 @@
-# Build stage
+# syntax=docker/dockerfile:1
+
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /app
 
-# Copy maven wrapper and pom.xml first to leverage Docker layer caching for dependencies
-COPY .mvn/ .mvn
+COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
+RUN chmod +x mvnw
 
-# Fix line endings for mvnw in case the build runs on/from Windows
-RUN tr -d '\r' < mvnw > mvnw.lf && mv mvnw.lf mvnw && chmod +x mvnw
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -ntp dependency:go-offline
 
-# Resolve dependencies (cached unless pom.xml changes)
-RUN ./mvnw dependency:go-offline -B
+COPY src/ src/
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -ntp -Dmaven.test.skip=true package
 
-# Copy the source code and build the package (excluding tests for faster builds)
-COPY src ./src
-RUN ./mvnw clean package -DskipTests
-
-# Run stage
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy the compiled JAR file from the build stage
-COPY --from=build --chown=appuser:appgroup /app/target/vex360-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build --chown=appuser:appgroup \
+    /app/target/*.jar app.jar
 
 USER appuser
 
-ENV PORT=8080
-ENV JAVA_TOOL_OPTIONS="-Xmx192m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=48m -Xss256k"
+ENV JAVA_OPTS="-XX:+UseSerialGC \
+  -XX:TieredStopAtLevel=1 \
+  -Xss512k \
+  -Xms64m -Xmx160m \
+  -XX:MaxMetaspaceSize=128m \
+  -XX:ReservedCodeCacheSize=32m \
+  -XX:MaxDirectMemorySize=48m \
+  -XX:+ExitOnOutOfMemoryError \
+  -Dserver.tomcat.threads.max=20 \
+  -Dserver.tomcat.threads.min-spare=2"
 
-EXPOSE 8080
+EXPOSE 10000
 
-ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -Dserver.port=${PORT:-10000} -jar app.jar"]

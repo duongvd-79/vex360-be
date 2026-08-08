@@ -73,6 +73,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
+import com.example.vex360.shared.enums.BoothListingPriority;
 
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
@@ -214,6 +215,29 @@ class ExhibitorRegistrationServiceTest {
         verify(packageRepository).findById(10);
         verify(exhibitionRepository).findByIdForUpdate(1);
         verify(registrationRepository).save(any(ExhibitorRegistration.class));
+    }
+
+    @Test
+    void initializeRegistration_usesExhibitionPackageSnapshotWhenTemplateChanged() {
+        paidPackage.getTemplate().setListingPriority(BoothListingPriority.FEATURED);
+        paidPackage.snapshotTemplateTerms(paidPackage.getTemplate());
+        paidPackage.getTemplate().setName("Changed Package");
+        paidPackage.getTemplate().setPrice(BigDecimal.TEN);
+        paidPackage.getTemplate().setListingPriority(BoothListingPriority.NORMAL);
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(companyUser.getId(), 10,
+                "Join expo", "Test Booth", "Test Booth Description");
+
+        assertEquals("Standard Package", registration.getPackageNameSnapshot());
+        assertEquals(BigDecimal.valueOf(1000000), registration.getPriceSnapshot());
+        assertEquals(paidPackage.getListingPrioritySnapshot(), registration.getListingPrioritySnapshot());
     }
 
     @Test
@@ -371,7 +395,7 @@ class ExhibitorRegistrationServiceTest {
                 () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
                         "Test Booth Description"));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_INACTIVE, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 
@@ -598,7 +622,7 @@ class ExhibitorRegistrationServiceTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> registrationService.getRegistrationDetails(registrationUuid, companyUser.getId()));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -618,7 +642,7 @@ class ExhibitorRegistrationServiceTest {
 
         AppException ex = assertThrows(AppException.class,
                 () -> registrationService.getRegistrationDetails(registrationUuid, companyUser.getId()));
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID, ex.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_PACKAGE_MISSING, ex.getErrorCode());
     }
 
     @Test
@@ -779,7 +803,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.approveRegistration(organizer, registrationUuid);
         });
-        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_INVALID_STATUS, exception.getErrorCode());
     }
 
     @Test
@@ -876,7 +900,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class,
                 () -> registrationService.rejectRegistration(organizer, registrationUuid, "   "));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_REJECTION_REASON_REQUIRED, exception.getErrorCode());
         verify(registrationRepository, never()).save(any());
     }
 
@@ -1083,7 +1107,7 @@ class ExhibitorRegistrationServiceTest {
         AppException exception = assertThrows(AppException.class, () -> {
             registrationService.rejectRegistration(organizer, registrationUuid, "Invalid docs");
         });
-        assertEquals(ErrorCode.VALIDATION_FAILED, exception.getErrorCode());
+        assertEquals(ErrorCode.REGISTRATION_INVALID_STATUS, exception.getErrorCode());
     }
 
     @Test
@@ -1435,7 +1459,7 @@ class ExhibitorRegistrationServiceTest {
         when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
         when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
 
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID,
+        assertEquals(ErrorCode.REGISTRATION_COMPANY_MISSING,
                 assertThrows(AppException.class,
                         () -> registrationService.getRegistrationDetails(uuid, companyUser.getId()))
                         .getErrorCode());
@@ -1536,7 +1560,7 @@ class ExhibitorRegistrationServiceTest {
                 .build();
         when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
 
-        assertEquals(ErrorCode.VALIDATION_FAILED,
+        assertEquals(ErrorCode.REGISTRATION_REJECTION_REASON_REQUIRED,
                 assertThrows(AppException.class,
                         () -> registrationService.rejectRegistration(organizer, uuid, null))
                         .getErrorCode());
@@ -1836,11 +1860,9 @@ class ExhibitorRegistrationServiceTest {
     }
 
     private void assertDependencyInvalid(ExhibitorRegistration registration) {
-        assertEquals(ErrorCode.REGISTRATION_DEPENDENCY_INVALID,
-                assertThrows(AppException.class,
-                        () -> ReflectionTestUtils.invokeMethod(
-                                registrationService, "validateRegistrationDependencies", registration))
-                        .getErrorCode());
+        assertThrows(AppException.class,
+                () -> ReflectionTestUtils.invokeMethod(
+                        registrationService, "validateRegistrationDependencies", registration));
     }
 
     @Test

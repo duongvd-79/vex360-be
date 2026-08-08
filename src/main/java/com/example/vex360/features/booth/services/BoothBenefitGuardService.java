@@ -30,14 +30,14 @@ public class BoothBenefitGuardService {
         ExhibitorRegistration registration = requireRegistration(booth);
         Integer limit = requireLimit(registration.getMaxPanoramasPerBoothSnapshot());
         long currentCount = panoramaRepository.countByBoothId(booth.getId());
-        assertWithinLimit(currentCount + 1, limit);
+        assertWithinLimit(currentCount + 1, limit, ErrorCode.BOOTH_PANORAMA_LIMIT_EXCEEDED);
     }
 
     public void assertCanCreateHotspot(Booth booth, Hotspot candidate) {
         ExhibitorRegistration registration = requireRegistration(booth);
         Integer hotspotLimit = requireLimit(registration.getMaxHotspotsPerBoothSnapshot());
         long currentCount = hotspotRepository.countBySourcePanoramaBoothId(booth.getId());
-        assertWithinLimit(currentCount + 1, hotspotLimit);
+        assertWithinLimit(currentCount + 1, hotspotLimit, ErrorCode.BOOTH_HOTSPOT_LIMIT_EXCEEDED);
         assertProjectedHotspotResourcesWithinLimits(booth, candidate, null, registration, false);
     }
 
@@ -73,7 +73,7 @@ public class BoothBenefitGuardService {
                 () -> hotspotRepository.findDistinctProductIdsByBoothIdExcludingHotspot(booth.getId(), null).size())) {
             return;
         }
-        throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
+        throw new AppException(ErrorCode.BOOTH_PRODUCT_LIMIT_EXCEEDED);
     }
 
     private void assertProjectedVideoCountWithinLimit(
@@ -100,7 +100,7 @@ public class BoothBenefitGuardService {
                         booth.getId(), null)))) {
             return;
         }
-        throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
+        throw new AppException(ErrorCode.BOOTH_EMBEDDED_VIDEO_LIMIT_EXCEEDED);
     }
 
     private int countVideos(List<MediaAsset> mediaAssets) {
@@ -125,21 +125,21 @@ public class BoothBenefitGuardService {
 
     private ExhibitorRegistration requireRegistration(Booth booth) {
         if (booth == null || booth.getId() == null || booth.getExhibitorRegistration() == null) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID);
         }
         return booth.getExhibitorRegistration();
     }
 
     private Integer requireLimit(Integer limit) {
         if (limit == null || limit < 0) {
-            throw new AppException(ErrorCode.INVALID_BOOTH);
+            throw new AppException(ErrorCode.REGISTRATION_BENEFIT_LIMITS_INVALID);
         }
         return limit;
     }
 
-    private void assertWithinLimit(long projected, long limit) {
+    private void assertWithinLimit(long projected, long limit, ErrorCode errorCode) {
         if (projected > limit) {
-            throw new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED);
+            throw new AppException(errorCode);
         }
     }
 
