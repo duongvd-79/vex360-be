@@ -267,9 +267,4 @@ class DesignDraftGraphValidatorUnitTest {
         AppException exception = assertThrows(AppException.class, operation::run);
         assertSame(expectedCode, exception.getErrorCode());
     }
-
-    private void assertInvalid(Runnable operation) {
-        AppException exception = assertThrows(AppException.class, operation::run);
-        assertSame(ErrorCode.INVALID_DESIGN_DRAFT, exception.getErrorCode());
-    }
 }
