@@ -21,7 +21,6 @@ public record CreateBoothLeadRequest(
         @Size(max = 30, message = "Số điện thoại không được vượt quá 30 ký tự.")
         String phoneNumber,
 
-        @NotBlank(message = "Vui lòng nhập tên công ty hoặc tổ chức.")
         @Size(max = 180, message = "Tên công ty không được vượt quá 180 ký tự.")
         String companyName,
 

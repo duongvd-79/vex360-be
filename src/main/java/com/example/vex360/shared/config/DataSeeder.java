@@ -350,6 +350,7 @@ public class DataSeeder implements ApplicationRunner {
             ensureStoragePackageApiFixtures();
             ensureExhibitorLeadApiFixtures();
             ensureExhibitorReportApiFixtures();
+            ensurePublishedBoothsHavePanorama();
             log.info("[SEED] Dữ liệu demo đã tồn tại; fixture EXHREG đã được kiểm tra/cập nhật.");
             User existingOrganizer = userRepository.findByEmail(MARKER_EMAIL).orElseThrow();
             User existingAdmin = userRepository.findByEmail("admin@vex360.local").orElseThrow();
@@ -732,7 +733,11 @@ public class DataSeeder implements ApplicationRunner {
         Panorama pano1 = savePanorama(booth1, "Sảnh chính", 0, 0, true);
         Panorama pano2 = savePanorama(booth1, "Khu trưng bày", 1, 1, false);
         Panorama pano3 = savePanorama(booth2, "Sảnh TechVina", 2, 0, true);
-        log.info("[SEED] Đã tạo 3 panorama");
+        // completedBooth1/completedBooth2 là booth PUBLISHED nên visitor xem được;
+        // cần ít nhất 1 panorama để tránh rỗng panoramas khi tour booth.
+        savePanorama(completedBooth1, "Bộ sưu tập Mùa Thu", 3, 0, true);
+        savePanorama(completedBooth2, "Sảnh Nhà thông minh", 4, 0, true);
+        log.info("[SEED] Đã tạo 5 panorama");
 
         // ---------- 11. PRODUCT CATEGORIES ----------
         ProductCategory catSofa = saveCategory(company1, "Sofa & Ghế", "Các dòng sofa, ghế gỗ tự nhiên.");
@@ -2459,6 +2464,33 @@ public class DataSeeder implements ApplicationRunner {
                 .maxHotspotsPerBoothSnapshot(pkg.getMaxHotspotsPerBoothSnapshot())
                 .listingPrioritySnapshot(pkg.getListingPrioritySnapshot())
                 .build();
+    }
+
+    /**
+     * Vá dữ liệu demo cũ: một số phiên seed trước đây tạo booth PUBLISHED mà
+     * không gắn panorama nào, khiến trang tour hiển thị rỗng cho visitor. Hàm
+     * này chạy lại an toàn ở mọi lần khởi động (kể cả khi dữ liệu demo đã tồn
+     * tại và nhánh seed đầy đủ bị bỏ qua), chỉ backfill 1 panorama cho booth
+     * PUBLISHED nào đang chưa có panorama.
+     */
+    private void ensurePublishedBoothsHavePanorama() {
+        List<Booth> boothsWithoutPanorama = entityManager.createQuery(
+                "SELECT b FROM Booth b WHERE b.status = :status "
+                        + "AND NOT EXISTS (SELECT 1 FROM Panorama p WHERE p.booth = b)",
+                Booth.class)
+                .setParameter("status", BoothStatus.PUBLISHED)
+                .getResultList();
+
+        if (boothsWithoutPanorama.isEmpty()) {
+            return;
+        }
+
+        int imageIndex = 0;
+        for (Booth booth : boothsWithoutPanorama) {
+            savePanorama(booth, "Sảnh chính", imageIndex, 0, true);
+            imageIndex++;
+        }
+        log.info("[SEED] Đã vá {} booth PUBLISHED thiếu panorama.", boothsWithoutPanorama.size());
     }
 
     private Panorama savePanorama(Booth booth, String name, int imageIndex, int orderIndex, boolean isDefault) {
