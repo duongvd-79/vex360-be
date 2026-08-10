@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,8 @@ import com.example.vex360.features.wallet.entities.WithdrawalRequest;
 import com.example.vex360.features.wallet.repositories.WithdrawalRequestRepository;
 import com.example.vex360.features.wallet.services.WithdrawalRequestService;
 import com.example.vex360.shared.dtos.ApiResponse;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class WithdrawalAccountAccessTest {
@@ -65,5 +69,15 @@ class WithdrawalAccountAccessTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("no-store", response.getHeaders().getFirst(HttpHeaders.CACHE_CONTROL));
         assertEquals("999988887777", response.getBody().data().get("accountNumber"));
+    }
+
+    @Test
+    void getFullWithdrawalAccountThrowsWhenRequestNotFound() {
+        when(withdrawalRequestRepository.findByUuid(withdrawalUuid)).thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(AppException.class,
+                () -> withdrawalRequestService.getFullWithdrawalAccountNumberForAdmin(withdrawalUuid));
+
+        assertSame(ErrorCode.WITHDRAWAL_REQUEST_NOT_FOUND, exception.getErrorCode());
     }
 }

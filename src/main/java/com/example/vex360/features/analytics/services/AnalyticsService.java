@@ -49,7 +49,6 @@ import com.example.vex360.features.lead.services.BoothLeadService;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -68,7 +67,6 @@ public class AnalyticsService {
         private final AnalyticsEventRepository analyticsEventRepository;
         private final ChatService chatService;
         private final CompanyService companyService;
-        private final UserService userService;
         private final BoothLeadService boothLeadService;
         private final ProductService productService;
 
@@ -118,8 +116,11 @@ public class AnalyticsService {
         @Transactional(readOnly = true)
         public ExhibitionResponseDTO getPublicExhibitionDetail(UUID uuid) {
                 ExhibitionResponseDTO dto = exhibitionService.getExhibitionByUuid(uuid);
+                // DTO public cố ý ẩn id nội bộ (ExhibitionMapper.toPublicResponse bỏ qua
+                // "id"), nên phải lấy id từ entity; nếu đếm theo dto.getId() sẽ luôn ra 0.
+                Exhibition exhibition = exhibitionService.findExhibitionEntityByUuid(uuid);
                 long visitorCount = analyticsEventRepository.countByExhibitionIdAndEventType(
-                                dto.getId(), AnalyticsEventType.ENTER_EXHIBITION);
+                                exhibition.getId(), AnalyticsEventType.ENTER_EXHIBITION);
                 return dto.toBuilder()
                                 .visitorCount(visitorCount)
                                 .build();
@@ -127,8 +128,6 @@ public class AnalyticsService {
 
         @Transactional
         public void recordEvent(User currentUser, RecordAnalyticsEventRequest request) {
-                User user = userService.getUserEntityById(currentUser.getId());
-
                 // 1. Tra cứu các entity liên quan nếu client có gửi ID
                 Exhibition exhibition = null;
                 if (request.getExhibitionUuid() != null) {
@@ -154,7 +153,7 @@ public class AnalyticsService {
 
                 // 3. Lưu event
                 AnalyticsEvent event = AnalyticsEvent.builder()
-                                .user(user)
+                                .user(currentUser)
                                 .exhibition(exhibition)
                                 .booth(booth)
                                 .product(product)

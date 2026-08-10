@@ -338,8 +338,6 @@ class ChatServiceUnitTest {
     @Test
     void getRoomsForUser_UTCID03_NoRooms_ReturnsEmptyList() {
         UUID exhibitorId = UUID.randomUUID();
-        User exhibitorUser = User.builder().id(exhibitorId).role(Role.EXHIBITOR).build();
-
         when(chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(exhibitorId))
                 .thenReturn(List.of());
 
