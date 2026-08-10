@@ -145,6 +145,17 @@ public class DataSeeder implements ApplicationRunner {
 
     /** Nếu user này đã tồn tại thì coi như đã seed rồi -> bỏ qua. */
     private static final String MARKER_EMAIL = "organizer@vex360.local";
+    private static final String OTHER_ORGANIZER_EMAIL = "organizer2@vex360.local";
+    private static final UUID OTHER_ORGANIZER_EXHIBITION_UUID = UUID
+            .fromString("4fa85f64-5717-4562-b3fc-2c963f66afa6");
+    private static final UUID OTHER_ORGANIZER_REGISTRATION_1_UUID = UUID
+            .fromString("4fa85f64-5717-4562-b3fc-2c963f66afc1");
+    private static final UUID OTHER_ORGANIZER_REGISTRATION_2_UUID = UUID
+            .fromString("4fa85f64-5717-4562-b3fc-2c963f66afc2");
+    private static final UUID OTHER_ORGANIZER_BOOTH_1_UUID = UUID
+            .fromString("4fa85f64-5717-4562-b3fc-2c963f66afd1");
+    private static final UUID OTHER_ORGANIZER_BOOTH_2_UUID = UUID
+            .fromString("4fa85f64-5717-4562-b3fc-2c963f66afd2");
     private static final String LEGACY_GUEST_LEAD_EMAIL = "khachle@example.com";
     private static final String DEFAULT_PASSWORD = "123456";
     private static final String EXHREG_TEST_EMAIL = "exhreg.tester@vex360.local";
@@ -350,7 +361,8 @@ public class DataSeeder implements ApplicationRunner {
             ensureStoragePackageApiFixtures();
             ensureExhibitorLeadApiFixtures();
             ensureExhibitorReportApiFixtures();
-            ensurePublishedBoothsHavePanorama();
+            ensureOtherOrganizerActiveExhibitionFixtures();
+            ensurePublishedBoothsHaveDisplayableProductHotspot();
             log.info("[SEED] Dữ liệu demo đã tồn tại; fixture EXHREG đã được kiểm tra/cập nhật.");
             User existingOrganizer = userRepository.findByEmail(MARKER_EMAIL).orElseThrow();
             User existingAdmin = userRepository.findByEmail("admin@vex360.local").orElseThrow();
@@ -702,6 +714,8 @@ public class DataSeeder implements ApplicationRunner {
                 .thumbnailUrl(boothThumb5.url()).thumbnailPublicId(boothThumb5.publicId())
                 .displayTemplateKey("classic").build());
         log.info("[SEED] Đã tạo 5 booth (phủ đủ 5 BoothStatus)");
+
+        ensureOtherOrganizerActiveExhibitionFixtures();
 
         // ---------- 9.1. BOOTH LEADS ----------
         Instant leadSeedTime = Instant.now().minus(3, ChronoUnit.DAYS);
@@ -1144,10 +1158,246 @@ public class DataSeeder implements ApplicationRunner {
         log.info("[SEED] Đã tạo {} analytics event (rải qua {} ngày, phủ đủ AnalyticsEventType)",
                 totalAnalyticsEvents, daysAgo.length);
 
+        ensurePublishedBoothsHaveDisplayableProductHotspot();
+
         log.info("[SEED] HOÀN TẤT. Đăng nhập bằng bất kỳ email @vex360.local với mật khẩu: {}",
                 DEFAULT_PASSWORD);
 
         log.info("[SEED] HOÀN TẤT (đã tắt phần seed analytics event giả lập).");
+    }
+
+    private void ensureOtherOrganizerActiveExhibitionFixtures() {
+        User admin = userRepository.findByEmail("admin@vex360.local").orElse(null);
+        User exhibitor1 = userRepository.findByEmail("exhibitor@vex360.local").orElse(null);
+        User exhibitor2 = userRepository.findByEmail("exhibitor2@vex360.local").orElse(null);
+        if (admin == null || exhibitor1 == null || exhibitor2 == null) {
+            log.warn("[SEED][OTHER-ORGANIZER] Thiếu admin hoặc exhibitor nền; không thể tạo fixture.");
+            return;
+        }
+
+        Company exhibitorCompany1 = companyRepository.findByOwnerUserId(exhibitor1.getId()).orElse(null);
+        Company exhibitorCompany2 = companyRepository.findByOwnerUserId(exhibitor2.getId()).orElse(null);
+        if (exhibitorCompany1 == null || exhibitorCompany2 == null) {
+            log.warn("[SEED][OTHER-ORGANIZER] Thiếu company exhibitor nền; không thể tạo fixture.");
+            return;
+        }
+
+        PackageTemplate template = packageTemplateRepository
+                .findByStatus(PackageTemplateStatus.ACTIVE, Sort.by("createdAt").ascending())
+                .stream()
+                .filter(candidate -> "Gói Cơ Bản".equals(candidate.getName()))
+                .findFirst()
+                .orElse(null);
+        if (template == null) {
+            log.warn("[SEED][OTHER-ORGANIZER] Không có Gói Cơ Bản ACTIVE; không thể tạo fixture.");
+            return;
+        }
+
+        User organizer = userRepository.findByEmail(OTHER_ORGANIZER_EMAIL)
+                .orElseGet(() -> createUser(
+                        OTHER_ORGANIZER_EMAIL,
+                        "Trần Minh Khôi",
+                        Role.ORGANIZER,
+                        "0908888888",
+                        28));
+        organizer.setFullName("Trần Minh Khôi");
+        organizer.setPhoneNumber("0908888888");
+        organizer.setRole(Role.ORGANIZER);
+        organizer.setProvider(AuthProvider.LOCAL);
+        organizer.setStatus(UserStatus.ACTIVE);
+        organizer.setPassword(passwordEncoder.encode(DEFAULT_PASSWORD));
+        userRepository.save(organizer);
+
+        Company organizerCompany = companyRepository.findByOwnerUserId(organizer.getId())
+                .orElseGet(() -> createCompany(
+                        organizer,
+                        "Công ty Tổ chức Triển lãm Sao Việt",
+                        "Sự kiện & Triển lãm",
+                        "Đơn vị tổ chức triển lãm trải nghiệm và phong cách sống.",
+                        "logo-sao-viet"));
+        organizerCompany.setOwnerUser(organizer);
+        organizerCompany.setName("Công ty Tổ chức Triển lãm Sao Việt");
+        organizerCompany.setIndustry("Sự kiện & Triển lãm");
+        organizerCompany.setDescription("Đơn vị tổ chức triển lãm trải nghiệm và phong cách sống.");
+        organizerCompany.setWebsite("https://sao-viet.example.com");
+        organizerCompany.setEmail(OTHER_ORGANIZER_EMAIL);
+        organizerCompany.setPhone("0908888888");
+        organizerCompany.setAddress("Số 10 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh");
+        organizerCompany.setStatus(CompanyStatus.ACTIVE);
+        companyRepository.save(organizerCompany);
+
+        LocalDate today = LocalDate.now();
+        Exhibition exhibition = exhibitionRepository.findByUuid(OTHER_ORGANIZER_EXHIBITION_UUID)
+                .orElseGet(() -> saveExhibition(
+                        OTHER_ORGANIZER_EXHIBITION_UUID,
+                        organizer,
+                        "Triển lãm Phong cách Sống Sao Việt 2026",
+                        "Phong cách sống",
+                        "Triển lãm đang diễn ra của Organizer thứ hai, dùng để kiểm thử luồng tham quan chéo.",
+                        today.minusDays(5),
+                        today.plusDays(15),
+                        20,
+                        ExhibitionStatus.ACTIVE,
+                        admin,
+                        null));
+        exhibition.setOrganizer(organizer);
+        exhibition.setName("Triển lãm Phong cách Sống Sao Việt 2026");
+        exhibition.setCategory("Phong cách sống");
+        exhibition.setDescription(
+                "Triển lãm đang diễn ra của Organizer thứ hai, dùng để kiểm thử luồng tham quan chéo.");
+        exhibition.setStartDate(today.minusDays(5));
+        exhibition.setEndDate(today.plusDays(15));
+        exhibition.setEstimatedBooths(20);
+        exhibition.setStatus(ExhibitionStatus.ACTIVE);
+        exhibition.setReviewedBy(admin);
+        exhibition.setReviewedAt(Instant.now().minus(2, ChronoUnit.DAYS));
+        exhibition.setRejectedReason(null);
+        exhibition.setRejectionCount(0);
+        exhibition = exhibitionRepository.save(exhibition);
+
+        ExhibitionPackage exhibitionPackage = ensureExhregPackage(template, exhibition, "5000000");
+        ExhibitorRegistration registration1 = ensureApprovedRegistration(
+                OTHER_ORGANIZER_REGISTRATION_1_UUID,
+                exhibitionPackage,
+                exhibitorCompany1,
+                organizer,
+                "Gian hàng Mộc Việt tại Sao Việt",
+                "Không gian nội thất gỗ tự nhiên trong triển lãm Sao Việt.");
+        ExhibitorRegistration registration2 = ensureApprovedRegistration(
+                OTHER_ORGANIZER_REGISTRATION_2_UUID,
+                exhibitionPackage,
+                exhibitorCompany2,
+                organizer,
+                "Gian hàng TechVina tại Sao Việt",
+                "Không gian giải pháp nhà thông minh trong triển lãm Sao Việt.");
+
+        Booth booth1 = ensurePublishedBooth(
+                OTHER_ORGANIZER_BOOTH_1_UUID,
+                exhibitor1,
+                exhibitorCompany1,
+                registration1,
+                "Mộc Việt Living",
+                "Bộ sưu tập nội thất gỗ dành cho không gian sống hiện đại.",
+                "classic");
+        Booth booth2 = ensurePublishedBooth(
+                OTHER_ORGANIZER_BOOTH_2_UUID,
+                exhibitor2,
+                exhibitorCompany2,
+                registration2,
+                "TechVina Smart Living",
+                "Giải pháp thiết bị thông minh và tự động hóa cho gia đình.",
+                "modern");
+
+        ensureBoothTourContent(
+                booth1,
+                "Không gian Mộc Việt Living",
+                "Mộc Việt Living giới thiệu nội thất gỗ tự nhiên cho không gian sống hiện đại.",
+                0);
+        ensureBoothTourContent(
+                booth2,
+                "Không gian TechVina Smart Living",
+                "TechVina Smart Living giới thiệu giải pháp nhà thông minh và tự động hóa.",
+                1);
+
+        log.info("[SEED][OTHER-ORGANIZER] READY | email={} | password={} | exhibitionUuid={} "
+                + "| boothUuids=[{}, {}]",
+                OTHER_ORGANIZER_EMAIL,
+                DEFAULT_PASSWORD,
+                OTHER_ORGANIZER_EXHIBITION_UUID,
+                OTHER_ORGANIZER_BOOTH_1_UUID,
+                OTHER_ORGANIZER_BOOTH_2_UUID);
+    }
+
+    private ExhibitorRegistration ensureApprovedRegistration(
+            UUID registrationUuid,
+            ExhibitionPackage exhibitionPackage,
+            Company company,
+            User reviewedBy,
+            String boothName,
+            String boothDescription) {
+        ExhibitorRegistration registration = exhibitorRegistrationRepository
+                .findByUuid(registrationUuid)
+                .orElseGet(() -> {
+                    ExhibitorRegistration created = buildRegistration(
+                            exhibitionPackage,
+                            company,
+                            ExhibitorRegistrationStatus.APPROVED,
+                            reviewedBy,
+                            "Tham gia triển lãm đang diễn ra của Organizer thứ hai.",
+                            null,
+                            boothName,
+                            boothDescription);
+                    created.setUuid(registrationUuid);
+                    return created;
+                });
+        registration.setExhibitionPackage(exhibitionPackage);
+        registration.setCompany(company);
+        registration.setStatus(ExhibitorRegistrationStatus.APPROVED);
+        registration.setReviewedBy(reviewedBy);
+        registration.setRejectedReason(null);
+        registration.setParticipationReason("Tham gia triển lãm đang diễn ra của Organizer thứ hai.");
+        registration.setBoothName(boothName);
+        registration.setBoothDescription(boothDescription);
+        registration.setPackageNameSnapshot(exhibitionPackage.getPackageNameSnapshot());
+        registration.setPriceSnapshot(exhibitionPackage.getPriceSnapshot());
+        registration.setFinalPriceSnapshot(exhibitionPackage.getFinalPrice());
+        registration.setCurrencySnapshot(exhibitionPackage.getCurrencySnapshot());
+        registration.setMaxProductsPerBoothSnapshot(exhibitionPackage.getMaxProductsPerBoothSnapshot());
+        registration.setMaxEmbeddedVideosPerBoothSnapshot(
+                exhibitionPackage.getMaxEmbeddedVideosPerBoothSnapshot());
+        registration.setMaxPanoramasPerBoothSnapshot(exhibitionPackage.getMaxPanoramasPerBoothSnapshot());
+        registration.setMaxHotspotsPerBoothSnapshot(exhibitionPackage.getMaxHotspotsPerBoothSnapshot());
+        registration.setListingPrioritySnapshot(exhibitionPackage.getListingPrioritySnapshot());
+        return exhibitorRegistrationRepository.save(registration);
+    }
+
+    private Booth ensurePublishedBooth(
+            UUID boothUuid,
+            User createdBy,
+            Company company,
+            ExhibitorRegistration registration,
+            String name,
+            String description,
+            String displayTemplateKey) {
+        Booth booth = boothRepository.findById(boothUuid).orElse(null);
+        if (booth == null) {
+            booth = insertBoothFixtureShell(boothUuid, createdBy);
+        }
+        booth.setName(name);
+        booth.setDescription(description);
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.setIsTemplate(false);
+        booth.setCreatedBy(createdBy);
+        booth.setCompany(company);
+        booth.setExhibitorRegistration(registration);
+        booth.setDisplayTemplateKey(displayTemplateKey);
+        return boothRepository.save(booth);
+    }
+
+    private void ensureBoothTourContent(
+            Booth booth,
+            String panoramaName,
+            String hotspotInfo,
+            int imageIndex) {
+        Panorama panorama = panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId())
+                .stream()
+                .findFirst()
+                .orElseGet(() -> savePanorama(booth, panoramaName, imageIndex, 0, true));
+        if (hotspotRepository.countBySourcePanoramaBoothId(booth.getId()) == 0) {
+            hotspotRepository.save(Hotspot.builder()
+                    .type(HotspotType.INFO)
+                    .name("Giới thiệu gian hàng")
+                    .sourcePanorama(panorama)
+                    .infoText(hotspotInfo)
+                    .infoContentType(HotspotInfoContentType.TEXT)
+                    .xPosition(0.0)
+                    .yPosition(20.0)
+                    .zPosition(-350.0)
+                    .iconStyle("classic")
+                    .scale(1.0)
+                    .zIndex(1)
+                    .build());
+        }
     }
 
     private void seedOrganizerFinance(User organizer, User admin, Company company) {
@@ -2467,30 +2717,79 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     /**
-     * Vá dữ liệu demo cũ: một số phiên seed trước đây tạo booth PUBLISHED mà
-     * không gắn panorama nào, khiến trang tour hiển thị rỗng cho visitor. Hàm
-     * này chạy lại an toàn ở mọi lần khởi động (kể cả khi dữ liệu demo đã tồn
-     * tại và nhánh seed đầy đủ bị bỏ qua), chỉ backfill 1 panorama cho booth
-     * PUBLISHED nào đang chưa có panorama.
+     * Backfill idempotent nội dung tối thiểu để mọi booth demo đang PUBLISHED
+     * đều có panorama và ít nhất một hotspot PRODUCT trỏ tới sản phẩm ACTIVE
+     * của chính company sở hữu booth.
      */
-    private void ensurePublishedBoothsHavePanorama() {
-        List<Booth> boothsWithoutPanorama = entityManager.createQuery(
+    private void ensurePublishedBoothsHaveDisplayableProductHotspot() {
+        List<Booth> publishedBooths = entityManager.createQuery(
                 "SELECT b FROM Booth b WHERE b.status = :status "
-                        + "AND NOT EXISTS (SELECT 1 FROM Panorama p WHERE p.booth = b)",
+                        + "AND b.isTemplate = false AND b.company IS NOT NULL",
                 Booth.class)
                 .setParameter("status", BoothStatus.PUBLISHED)
                 .getResultList();
 
-        if (boothsWithoutPanorama.isEmpty()) {
-            return;
+        int createdPanoramas = 0;
+        int createdProductHotspots = 0;
+        int imageIndex = 0;
+        for (Booth booth : publishedBooths) {
+            Panorama panorama = panoramaRepository.findByBoothIdOrderByOrderIndexAsc(booth.getId())
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+            if (panorama == null) {
+                panorama = savePanorama(booth, "Sảnh chính", imageIndex++, 0, true);
+                createdPanoramas++;
+            }
+
+            Long activeProductHotspotCount = entityManager.createQuery(
+                    "SELECT COUNT(h) FROM Hotspot h "
+                            + "WHERE h.sourcePanorama.booth = :booth "
+                            + "AND h.type = :type AND h.product.status = :productStatus "
+                            + "AND h.product.company = :company",
+                    Long.class)
+                    .setParameter("booth", booth)
+                    .setParameter("type", HotspotType.PRODUCT)
+                    .setParameter("productStatus", ProductStatus.ACTIVE)
+                    .setParameter("company", booth.getCompany())
+                    .getSingleResult();
+            if (activeProductHotspotCount > 0) {
+                continue;
+            }
+
+            List<Product> products = entityManager.createQuery(
+                    "SELECT p FROM Product p WHERE p.company = :company "
+                            + "AND p.status = :status ORDER BY p.createdAt ASC",
+                    Product.class)
+                    .setParameter("company", booth.getCompany())
+                    .setParameter("status", ProductStatus.ACTIVE)
+                    .setMaxResults(1)
+                    .getResultList();
+            if (products.isEmpty()) {
+                log.warn("[SEED] Booth {} chưa có sản phẩm ACTIVE nên chưa thể tạo hotspot PRODUCT.",
+                        booth.getId());
+                continue;
+            }
+
+            Product product = products.getFirst();
+            hotspotRepository.save(Hotspot.builder()
+                    .type(HotspotType.PRODUCT)
+                    .name(product.getName())
+                    .sourcePanorama(panorama)
+                    .product(product)
+                    .xPosition(180.0)
+                    .yPosition(-25.0)
+                    .zPosition(-320.0)
+                    .iconStyle("tag")
+                    .scale(1.0)
+                    .zIndex(10)
+                    .build());
+            createdProductHotspots++;
         }
 
-        int imageIndex = 0;
-        for (Booth booth : boothsWithoutPanorama) {
-            savePanorama(booth, "Sảnh chính", imageIndex, 0, true);
-            imageIndex++;
-        }
-        log.info("[SEED] Đã vá {} booth PUBLISHED thiếu panorama.", boothsWithoutPanorama.size());
+        log.info("[SEED] Đã bảo đảm {} booth PUBLISHED có nội dung hiển thị "
+                        + "(thêm {} panorama, {} hotspot PRODUCT).",
+                publishedBooths.size(), createdPanoramas, createdProductHotspots);
     }
 
     private Panorama savePanorama(Booth booth, String name, int imageIndex, int orderIndex, boolean isDefault) {
