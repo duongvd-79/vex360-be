@@ -28,9 +28,6 @@ public class CompanyPayoutProfileResponseDTO {
     String accountNumber;
     String accountHolderName;
     PayoutProfileStatus status;
-    Instant verifiedAt;
-    Instant rejectedAt;
-    String rejectedReason;
     Instant createdAt;
     Instant updatedAt;
 }
