@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.user.entities.User;
@@ -25,7 +26,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmail(String email);
 
-    long deleteByStatusAndProviderAndCreatedAtBefore(UserStatus status, AuthProvider provider, Instant cutoff);
+    @Modifying
+    @Query("DELETE FROM User u WHERE u.status = :status AND u.provider = :provider AND u.createdAt < :cutoff AND NOT EXISTS (SELECT 1 FROM Company c WHERE c.ownerUser.id = u.id)")
+    long deleteByStatusAndProviderAndCreatedAtBefore(@Param("status") UserStatus status, @Param("provider") AuthProvider provider, @Param("cutoff") Instant cutoff);
+
 
     boolean existsByEmail(String email);
 

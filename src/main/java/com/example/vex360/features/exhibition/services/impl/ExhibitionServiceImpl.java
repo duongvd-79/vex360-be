@@ -1388,9 +1388,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 ExhibitionStatus.PUBLISHED,
                 ExhibitionStatus.ACTIVE);
 
-        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchExhibitions(
+        Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
                 normalizedKeyword, exhibitorStatuses, normalizedCategory, startDate, endDate, pageable)
-                .map(exhibitionMapper::toResponse);
+                .map(row -> exhibitionMapper.toResponse(row.getExhibition()).toBuilder()
+                        .companyName(row.getCompanyName())
+                        .build());
 
         return PageResponse.from(exhibitions);
     }
@@ -1412,7 +1414,12 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        if (exhibition.getOrganizer() != null && exhibition.getOrganizer().getId() != null) {
+            companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
+                    .ifPresent(c -> response.setCompanyName(c.getName()));
+        }
+        return response;
     }
 
     @Override

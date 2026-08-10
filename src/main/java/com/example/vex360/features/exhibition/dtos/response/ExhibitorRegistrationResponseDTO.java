@@ -35,6 +35,10 @@ public class ExhibitorRegistrationResponseDTO {
     private BigDecimal priceSnapshot;
     private BigDecimal finalPriceSnapshot;
     private String currencySnapshot;
+    private Integer maxProductsPerBoothSnapshot;
+    private Integer maxEmbeddedVideosPerBoothSnapshot;
+    private Integer maxPanoramasPerBoothSnapshot;
+    private Integer maxHotspotsPerBoothSnapshot;
     private String exhibitionName;
     private String participationReason;
     private String boothName;

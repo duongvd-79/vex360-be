@@ -28,6 +28,7 @@ import com.example.vex360.features.packagetemplate.dtos.request.CreatePackageTem
 import com.example.vex360.features.packagetemplate.dtos.request.UpdatePackageTemplateRequest;
 import com.example.vex360.features.packagetemplate.dtos.request.UpdatePackageTemplateStatusRequest;
 import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
+import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateSelectionResponseDTO;
 import com.example.vex360.features.packagetemplate.mapper.PackageTemplateMapper;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
@@ -132,7 +133,7 @@ class PackageTemplateServiceUnitTest {
         when(packageTemplateRepository.findByStatus(eq(PackageTemplateStatus.ACTIVE), any(Sort.class)))
                 .thenReturn(List.of(template));
 
-        List<PackageTemplateResponseDTO> response = packageTemplateService.getActivePackageTemplates();
+        List<PackageTemplateSelectionResponseDTO> response = packageTemplateService.getActivePackageTemplates();
 
         assertEquals(1, response.size());
         assertEquals(PackageTemplateStatus.ACTIVE, response.get(0).getStatus());
@@ -248,6 +249,8 @@ class PackageTemplateServiceUnitTest {
         PackageTemplateResponseDTO response = packageTemplateService.getPackageTemplateById(id);
 
         assertEquals("Pro", response.getName());
+        assertEquals(admin.getId(), response.getCreatedById());
+        assertEquals(admin.getEmail(), response.getCreatedByEmail());
     }
 
     @Test
@@ -267,7 +270,7 @@ class PackageTemplateServiceUnitTest {
         when(packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE))
                 .thenReturn(Optional.of(template));
 
-        PackageTemplateResponseDTO response = packageTemplateService.getActivePackageTemplateById(id);
+        PackageTemplateSelectionResponseDTO response = packageTemplateService.getActivePackageTemplateById(id);
 
         assertEquals("Pro", response.getName());
     }

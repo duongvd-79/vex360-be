@@ -229,7 +229,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 log.warn(
                         "Registration closed for exhibition, refusing to generate new payment link for registration {}",
                         registration.getId());
-                return payment;
+                throw new AppException(ErrorCode.REGISTRATION_CLOSED);
             }
 
             BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
@@ -614,6 +614,10 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .priceSnapshot(registration.getPriceSnapshot())
                 .finalPriceSnapshot(registration.getFinalPriceSnapshot())
                 .currencySnapshot(registration.getCurrencySnapshot())
+                .maxProductsPerBoothSnapshot(registration.getMaxProductsPerBoothSnapshot())
+                .maxEmbeddedVideosPerBoothSnapshot(registration.getMaxEmbeddedVideosPerBoothSnapshot())
+                .maxPanoramasPerBoothSnapshot(registration.getMaxPanoramasPerBoothSnapshot())
+                .maxHotspotsPerBoothSnapshot(registration.getMaxHotspotsPerBoothSnapshot())
                 .exhibitionName(registration.getExhibitionPackage().getExhibition().getName())
                 .participationReason(registration.getParticipationReason())
                 .boothName(registration.getBoothName())

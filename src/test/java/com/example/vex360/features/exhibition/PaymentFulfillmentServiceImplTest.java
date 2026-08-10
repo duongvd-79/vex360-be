@@ -313,8 +313,8 @@ class PaymentFulfillmentServiceImplTest {
         when(paymentRepository.findByOrderCodeForUpdate(orderCode))
                 .thenReturn(Optional.empty(), Optional.of(Payment.builder().status(PaymentStatus.PENDING).build()));
 
-        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
-        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isEmpty());
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
+        assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
     }
 
     @Test

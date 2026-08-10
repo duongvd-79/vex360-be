@@ -14,6 +14,7 @@ import com.example.vex360.features.packagetemplate.dtos.request.CreatePackageTem
 import com.example.vex360.features.packagetemplate.dtos.request.UpdatePackageTemplateRequest;
 import com.example.vex360.features.packagetemplate.dtos.request.UpdatePackageTemplateStatusRequest;
 import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
+import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateSelectionResponseDTO;
 import com.example.vex360.features.packagetemplate.mapper.PackageTemplateMapper;
 import com.example.vex360.features.packagetemplate.repositories.PackageTemplateRepository;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -68,12 +69,12 @@ public class PackageTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<PackageTemplateResponseDTO> getActivePackageTemplates() {
+    public List<PackageTemplateSelectionResponseDTO> getActivePackageTemplates() {
         return packageTemplateRepository.findByStatus(
                 PackageTemplateStatus.ACTIVE,
                 Sort.by(Sort.Order.asc(PackageTemplate::getPrice), Sort.Order.asc(PackageTemplate::getName)))
                 .stream()
-                .map(packageTemplateMapper::toResponse)
+                .map(packageTemplateMapper::toSelectionResponse)
                 .toList();
     }
 
@@ -83,8 +84,8 @@ public class PackageTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public PackageTemplateResponseDTO getActivePackageTemplateById(UUID id) {
-        return packageTemplateMapper.toResponse(getActivePackageTemplateEntity(id));
+    public PackageTemplateSelectionResponseDTO getActivePackageTemplateById(UUID id) {
+        return packageTemplateMapper.toSelectionResponse(getActivePackageTemplateEntity(id));
     }
 
     @Transactional

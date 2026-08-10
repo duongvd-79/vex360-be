@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,6 +20,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,18 +51,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.mail.MailService;
-import com.example.vex360.features.packagetemplate.dtos.response.PackageTemplateResponseDTO;
 import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
-import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.RejectExhibitionRequest;
-import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
-import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.PackageSelection;
-import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.SelectionType;
 import com.example.vex360.features.exhibition.dtos.request.SponsorRequestDTO;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionAsset;
@@ -470,14 +464,17 @@ class ExhibitionServiceUnitTest {
     @Test
     void testSearchExhibitionsForExhibitor_Success() {
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Exhibition> page = new PageImpl<>(List.of(registrationExhibition), pageable, 1);
+        AdminExhibitionProjection row = mock(AdminExhibitionProjection.class);
+        when(row.getExhibition()).thenReturn(registrationExhibition);
+        when(row.getCompanyName()).thenReturn("Organizer Company");
+        Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), pageable, 1);
 
         List<ExhibitionStatus> expectedStatuses = List.of(
                 ExhibitionStatus.REGISTRATION,
                 ExhibitionStatus.PUBLISHED,
                 ExhibitionStatus.ACTIVE);
 
-        when(exhibitionRepository.searchExhibitions(
+        when(exhibitionRepository.searchAdminExhibitions(
                 eq("Expo"), eq(expectedStatuses), eq("Tech"), any(), any(), eq(pageable)))
                 .thenReturn(page);
 
@@ -493,6 +490,8 @@ class ExhibitionServiceUnitTest {
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
         assertEquals(1, result.getContent().get(0).getId()); // Exhibitors can see internal ID
+        assertEquals("Organizer Company", result.getContent().get(0).getCompanyName());
+        verify(companyService, never()).findByOwnerUserId(any());
     }
 
     @Test
@@ -856,16 +855,16 @@ class ExhibitionServiceUnitTest {
     @Test
     void updateExhibitionForOrganizerUsesTimelinePolicyDate() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
-        registrationExhibition.setStartDate(LocalDate.of(2026, 1, 11));
-        when(timelinePolicy.today()).thenReturn(LocalDate.of(2026, 1, 10));
+        registrationExhibition.setStartDate(LocalDate.of(2026, Month.JANUARY, 11));
+        when(timelinePolicy.today()).thenReturn(LocalDate.of(2026, Month.JANUARY, 10));
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitorRegistrationRepository
                 .existsByExhibitionPackageExhibitionId(registrationExhibition.getId()))
                 .thenReturn(true);
         CreateExhibitionRequest request = CreateExhibitionRequest.builder()
                 .name("New Name")
-                .startDate(LocalDate.of(2026, 1, 20))
-                .endDate(LocalDate.of(2026, 1, 25))
+                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
                 .build();
 
         AppException exception = assertThrows(AppException.class,
@@ -903,6 +902,8 @@ class ExhibitionServiceUnitTest {
         when(exhibitionPackageRepository.findByExhibition(any())).thenReturn(List.of(
                 ExhibitionPackage.builder()
                         .template(template)
+                        .priceSnapshot(BigDecimal.TEN)
+                        .listingPrioritySnapshot(BoothListingPriority.NORMAL)
                         .finalPrice(BigDecimal.TEN)
                         .status(ExhibitionPackageStatus.ACTIVE)
                         .build()));
@@ -1354,7 +1355,9 @@ class ExhibitionServiceUnitTest {
                 .status(PackageTemplateStatus.INACTIVE).listingPriority(BoothListingPriority.PRIORITY)
                 .build();
         ExhibitionPackage valid = ExhibitionPackage.builder().id(1).status(ExhibitionPackageStatus.ACTIVE)
-                .template(active).finalPrice(BigDecimal.TEN).build();
+                .template(active).priceSnapshot(BigDecimal.TEN)
+                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
+                .finalPrice(BigDecimal.TEN).build();
 
         assertThrows(AppException.class,
                 () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validatePackagesForApproval",
@@ -1547,11 +1550,13 @@ class ExhibitionServiceUnitTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<ExhibitionStatus> statuses = List.of(
                 ExhibitionStatus.REGISTRATION, ExhibitionStatus.PUBLISHED, ExhibitionStatus.ACTIVE);
-        Page<Exhibition> page = new PageImpl<>(List.of(registrationExhibition), pageable, 1);
+        AdminExhibitionProjection row = mock(AdminExhibitionProjection.class);
+        when(row.getExhibition()).thenReturn(registrationExhibition);
+        Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), pageable, 1);
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
-        when(exhibitionRepository.searchExhibitions(null, statuses, null, null, null, pageable))
+        when(exhibitionRepository.searchAdminExhibitions(null, statuses, null, null, null, pageable))
                 .thenReturn(page);
-        when(exhibitionRepository.searchExhibitions("Expo", statuses, "Tech", null, null, pageable))
+        when(exhibitionRepository.searchAdminExhibitions("Expo", statuses, "Tech", null, null, pageable))
                 .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition)).thenReturn(dto);
 
@@ -1638,10 +1643,12 @@ class ExhibitionServiceUnitTest {
         ExhibitionPackage normalPackage = ExhibitionPackage.builder()
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
                         .build())
+                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
                 .build();
         ExhibitionPackage priorityPackage = ExhibitionPackage.builder()
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.PRIORITY)
                         .build())
+                .listingPrioritySnapshot(BoothListingPriority.PRIORITY)
                 .build();
         List<ExhibitionPackage> threePackages = List.of(normalPackage, priorityPackage,
                 ExhibitionPackage.builder().build());
@@ -1694,6 +1701,7 @@ class ExhibitionServiceUnitTest {
         ExhibitionPackage otherNormal = ExhibitionPackage.builder().id(11)
                 .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
                         .build())
+                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
                 .build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionPackageRepository.findById(10)).thenReturn(
@@ -1902,7 +1910,9 @@ class ExhibitionServiceUnitTest {
                 .status(PackageTemplateStatus.ACTIVE).listingPriority(BoothListingPriority.NORMAL)
                 .build();
         ExhibitionPackage pkg = ExhibitionPackage.builder().status(ExhibitionPackageStatus.ACTIVE)
-                .template(template).finalPrice(BigDecimal.TEN).build();
+                .template(template).priceSnapshot(BigDecimal.ONE)
+                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
+                .finalPrice(BigDecimal.TEN).build();
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of(pkg));
@@ -2077,7 +2087,7 @@ class ExhibitionServiceUnitTest {
         ReflectionTestUtils.invokeMethod(exhibitionService, "deleteCloudAssetAfterCommit", "no-tx", "image");
         TransactionSynchronizationManager.clearSynchronization();
 
-        org.mockito.Mockito.doThrow(new RuntimeException("cloud"))
+        doThrow(new RuntimeException("cloud"))
                 .when(cloudService).delete("failure", "image");
         ReflectionTestUtils.invokeMethod(exhibitionService, "deleteCloudAsset", "failure", "image");
     }
