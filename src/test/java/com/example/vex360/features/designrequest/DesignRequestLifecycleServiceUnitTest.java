@@ -1,6 +1,7 @@
 package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
@@ -35,7 +37,7 @@ class DesignRequestLifecycleServiceUnitTest {
     void lifecycleCancellationRefundsQuotaClearsDraftsAndAssets() {
         DesignRequest request = DesignRequest.builder()
                 .id(UUID.randomUUID())
-                .booth(Booth.builder().id(UUID.randomUUID()).build())
+                .booth(Booth.builder().id(UUID.randomUUID()).status(BoothStatus.DESIGNING).build())
                 .status(DesignRequestStatus.ASSIGNED)
                 .quotaCharged(true)
                 .build();
@@ -52,6 +54,7 @@ class DesignRequestLifecycleServiceUnitTest {
         service.handleExhibitionLifecycleTransition(1);
 
         assertFalse(request.getQuotaCharged());
+        assertEquals(BoothStatus.DRAFT, request.getBooth().getStatus());
         assertTrue(request.getDrafts().isEmpty());
         verify(draftRepository).flush();
         verify(assetService).cleanupAfterApproval(request);

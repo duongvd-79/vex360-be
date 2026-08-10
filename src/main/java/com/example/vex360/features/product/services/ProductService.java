@@ -148,7 +148,7 @@ public class ProductService {
             UUID productId,
             UpdateProductRequest request) {
         Company company = getCompanyForCurrentUser(currentUser);
-        Product product = getProductForCompany(productId, company);
+        Product product = getProductForCompanyForUpdate(productId, company);
         assertNotUsedByPendingBooth(productId);
         String sku = request.getSku().trim();
         if (productRepository.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(company.getId(), sku, productId)) {
@@ -192,7 +192,7 @@ public class ProductService {
     @Transactional
     public ProductResponseDTO deleteProduct(User currentUser, UUID productId) {
         Company company = getCompanyForCurrentUser(currentUser);
-        Product product = getProductForCompany(productId, company);
+        Product product = getProductForCompanyForUpdate(productId, company);
         assertNotUsedByPendingBooth(productId);
         companyStorageService.deductUsage(company, product.getThumbnailFileSize());
         deleteCloudFile(product.getThumbnailPublicId(), "image");
@@ -360,6 +360,11 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Product getProductForCompany(UUID productId, Company company) {
         return productRepository.findByIdAndCompanyId(productId, company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    private Product getProductForCompanyForUpdate(UUID productId, Company company) {
+        return productRepository.findByIdAndCompanyIdForUpdate(productId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 

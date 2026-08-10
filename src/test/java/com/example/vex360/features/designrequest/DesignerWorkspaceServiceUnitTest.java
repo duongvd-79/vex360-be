@@ -26,6 +26,7 @@ import com.example.vex360.features.booth.enums.MediaAssetType;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.designrequest.dtos.response.DesignerWorkspaceResponseDTO;
+import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
@@ -133,6 +134,12 @@ class DesignerWorkspaceServiceUnitTest {
 
     @Test
     void getWorkspaceReturnsAssignedRequestAndBooth() {
+        DesignDraft workingDraft = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .revision(4L)
+                .build();
+        request.getDrafts().add(workingDraft);
         when(designRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
 
         DesignerWorkspaceResponseDTO response = service.getWorkspace(designer, request.getId());
@@ -143,6 +150,7 @@ class DesignerWorkspaceServiceUnitTest {
         assertEquals("0912345678", response.getContactPhone());
         assertEquals(0, response.getRequiredMediaAssetCount());
         assertEquals(0, response.getOptionalMediaAssetCount());
+        assertEquals(4L, response.getWorkingDraft().getRevision());
     }
 
     @Test

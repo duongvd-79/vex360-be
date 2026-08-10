@@ -68,6 +68,7 @@ import com.example.vex360.features.designrequest.services.DesignRequestMediaAsse
 import com.example.vex360.features.designrequest.services.DesignRequestBaselineService;
 import com.example.vex360.features.designrequest.services.DesignDraftSettingsService;
 import com.example.vex360.features.designrequest.services.DesignDraftCloneService;
+import com.example.vex360.features.designrequest.services.DesignDraftDiffService;
 import com.example.vex360.features.designrequest.services.DesignDraftRetentionService;
 import com.example.vex360.features.designrequest.services.DesignDraftGraphValidator;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
@@ -129,6 +130,8 @@ class DesignRequestServiceUnitTest {
     @Mock
     private DesignDraftCloneService draftCloneService;
     @Mock
+    private DesignDraftDiffService draftDiffService;
+    @Mock
     private DesignDraftRetentionService draftRetentionService;
     @Mock
     private DesignDraftGraphValidator draftGraphValidator;
@@ -169,6 +172,7 @@ class DesignRequestServiceUnitTest {
                 designDraftAssetService,
                 draftSettingsService,
                 draftCloneService,
+                draftDiffService,
                 draftRetentionService,
                 draftGraphValidator,
                 draftBenefitGuardService,
@@ -476,7 +480,7 @@ class DesignRequestServiceUnitTest {
                 .thenThrow(new AppException(ErrorCode.PRODUCT_NOT_FOUND));
 
         AppException exception = assertThrows(AppException.class,
-                () -> service.saveWorkingDraft(designer, requestId, draftRequest));
+                () -> service.saveWorkingDraft(designer, requestId, 0L, draftRequest));
 
         assertSame(ErrorCode.PRODUCT_NOT_FOUND, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
@@ -497,10 +501,11 @@ class DesignRequestServiceUnitTest {
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.saveWorkingDraft(designer, requestId, draftRequest);
+        service.saveWorkingDraft(designer, requestId, 0L, draftRequest);
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());
+        assertEquals(1L, request.getDrafts().get(0).getRevision());
         assertEquals(DesignRequestStatus.ASSIGNED, request.getStatus());
         verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
         verify(draftBenefitGuardService).assertMutationAllowed(
@@ -526,10 +531,29 @@ class DesignRequestServiceUnitTest {
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.saveWorkingDraft(designer, requestId, draftRequest);
+        service.saveWorkingDraft(designer, requestId, 0L, draftRequest);
 
         assertTrue(working.getPanoramas().isEmpty());
         verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
+    }
+
+    @Test
+    void saveWorkingDraftRejectsStaleRevision() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.getDrafts().add(DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .revision(2L)
+                .build());
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.saveWorkingDraft(designer, requestId, 1L, simpleDraftRequest()));
+
+        assertSame(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT, exception.getErrorCode());
+        verify(draftGraphValidator, never()).validateWorkingGraph(any(), any());
+        verify(designRequestRepository, never()).save(any());
     }
 
     @Test
@@ -560,6 +584,57 @@ class DesignRequestServiceUnitTest {
         verify(eventPublisher).publishEvent(any(DesignRequestStatusChangedEvent.class));
         verify(userService, never()).getUserEntityByIdForUpdate(designer.getId());
         verify(designRequestLifecyclePolicy).assertCanContinue(request);
+    }
+
+    @Test
+    void submitWorkingDraftAllowsInitialSubmission() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        DesignDraft working = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        request.getDrafts().add(working);
+
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.submitWorkingDraft(designer, requestId);
+
+        assertEquals(1, working.getVersionNumber());
+        assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, request.getStatus());
+        verify(draftDiffService, never()).hasSameDesignContent(any(), any());
+    }
+
+    @Test
+    void submitWorkingDraftRejectsUnchangedRevision() {
+        UUID requestId = UUID.randomUUID();
+        DesignRequest request = assignedRequest(requestId);
+        request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
+        DesignDraft previous = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(1)
+                .build();
+        DesignDraft working = DesignDraft.builder()
+                .designRequest(request)
+                .versionNumber(0)
+                .build();
+        request.getDrafts().add(previous);
+        request.getDrafts().add(working);
+
+        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(draftDiffService.hasSameDesignContent(working, previous)).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.submitWorkingDraft(designer, requestId));
+
+        assertSame(ErrorCode.DESIGN_DRAFT_UNCHANGED, exception.getErrorCode());
+        assertEquals(0, working.getVersionNumber());
+        assertEquals(DesignRequestStatus.REVISION_REQUESTED, request.getStatus());
+        verify(designRequestRepository, never()).save(any());
+        verify(designDraftAssetService, never()).cleanupUnreferencedAssets(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
