@@ -12,8 +12,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -22,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.CreateMediaAssetRequest;
+import com.example.vex360.features.booth.dtos.request.RenameMediaAssetRequest;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.services.ExhibitorMediaAssetService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
@@ -58,6 +61,14 @@ public class ExhibitorMediaAssetController extends BaseController {
             @Valid @RequestPart("metadata") CreateMediaAssetRequest request,
             @RequestPart("file") MultipartFile file) {
         return created(exhibitorMediaAssetService.createMediaAsset(userDetails.getUser(), request, file));
+    }
+
+    @PatchMapping("/{assetId}")
+    public ResponseEntity<ApiResponse<MediaAssetResponseDTO>> renameAsset(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID assetId,
+            @Valid @RequestBody RenameMediaAssetRequest request) {
+        return ok(exhibitorMediaAssetService.renameAsset(userDetails.getUser(), assetId, request));
     }
 
     @DeleteMapping("/{assetId}")

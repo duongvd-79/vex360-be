@@ -90,7 +90,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             "company.name", "c.name",
             "exhibitionName", "name",
             "expectedBoothCount", "estimatedBooths",
-            "status", "status");
+            "status", "status",
+            "proposedStartDate", "startDate",
+            "proposedEndDate", "endDate");
 
     private final ExhibitionRepository exhibitionRepository;
     private final ExhibitionPackageRepository exhibitionPackageRepository;
