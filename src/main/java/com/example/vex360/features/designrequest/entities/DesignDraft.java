@@ -55,10 +55,6 @@ public class DesignDraft {
     @Column(name = "version_number", nullable = false)
     Integer versionNumber;
 
-    @Column(name = "revision")
-    @Builder.Default
-    Long revision = 0L;
-
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 

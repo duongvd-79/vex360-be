@@ -412,7 +412,6 @@ public class DesignRequestService {
     public DesignRequestResponseDTO saveWorkingDraft(
             User currentUser,
             UUID id,
-            long expectedRevision,
             SubmitDesignDraftRequest draftRequest) {
         DesignRequest request = getRequest(id);
         requireDesignerCanEdit(currentUser, request);
@@ -422,22 +421,14 @@ public class DesignRequestService {
                 .filter(draft -> draft.getVersionNumber() == 0)
                 .findFirst()
                 .orElse(null);
-        long currentRevision = currentWorking == null || currentWorking.getRevision() == null
-                ? 0L
-                : currentWorking.getRevision();
-        if (expectedRevision != currentRevision) {
-            throw new AppException(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT);
-        }
         DesignDraftBenefitGuardService.Usage beforeUsage = draftBenefitGuardService.calculateUsage(currentWorking);
         DesignDraft workingDraft = buildDraft(request, draftRequest, 0);
         draftGraphValidator.validateWorkingGraph(request, workingDraft);
         draftBenefitGuardService.assertMutationAllowed(request, beforeUsage, workingDraft);
         if (currentWorking == null) {
-            workingDraft.setRevision(1L);
             request.getDrafts().add(workingDraft);
         } else {
             replaceWorkingDraft(currentWorking, workingDraft);
-            currentWorking.setRevision(currentRevision + 1);
         }
         DesignRequest saved = designRequestRepository.save(request);
         designRequestRepository.flush();

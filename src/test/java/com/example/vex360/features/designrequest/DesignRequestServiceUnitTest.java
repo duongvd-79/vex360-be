@@ -480,7 +480,7 @@ class DesignRequestServiceUnitTest {
                 .thenThrow(new AppException(ErrorCode.PRODUCT_NOT_FOUND));
 
         AppException exception = assertThrows(AppException.class,
-                () -> service.saveWorkingDraft(designer, requestId, 0L, draftRequest));
+                () -> service.saveWorkingDraft(designer, requestId, draftRequest));
 
         assertSame(ErrorCode.PRODUCT_NOT_FOUND, exception.getErrorCode());
         verify(designRequestRepository, never()).save(any());
@@ -501,11 +501,10 @@ class DesignRequestServiceUnitTest {
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.saveWorkingDraft(designer, requestId, 0L, draftRequest);
+        service.saveWorkingDraft(designer, requestId, draftRequest);
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());
-        assertEquals(1L, request.getDrafts().get(0).getRevision());
         assertEquals(DesignRequestStatus.ASSIGNED, request.getStatus());
         verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
         verify(draftBenefitGuardService).assertMutationAllowed(
@@ -531,29 +530,10 @@ class DesignRequestServiceUnitTest {
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.saveWorkingDraft(designer, requestId, 0L, draftRequest);
+        service.saveWorkingDraft(designer, requestId, draftRequest);
 
         assertTrue(working.getPanoramas().isEmpty());
         verify(draftGraphValidator).validateWorkingGraph(eq(request), any(DesignDraft.class));
-    }
-
-    @Test
-    void saveWorkingDraftRejectsStaleRevision() {
-        UUID requestId = UUID.randomUUID();
-        DesignRequest request = assignedRequest(requestId);
-        request.getDrafts().add(DesignDraft.builder()
-                .designRequest(request)
-                .versionNumber(0)
-                .revision(2L)
-                .build());
-        when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
-
-        AppException exception = assertThrows(AppException.class,
-                () -> service.saveWorkingDraft(designer, requestId, 1L, simpleDraftRequest()));
-
-        assertSame(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT, exception.getErrorCode());
-        verify(draftGraphValidator, never()).validateWorkingGraph(any(), any());
-        verify(designRequestRepository, never()).save(any());
     }
 
     @Test
@@ -608,7 +588,7 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void submitWorkingDraftRejectsUnchangedRevision() {
+    void submitWorkingDraftRejectsUnchangedDesignContent() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.REVISION_REQUESTED);
