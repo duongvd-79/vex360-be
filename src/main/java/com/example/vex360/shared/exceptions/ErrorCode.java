@@ -289,6 +289,11 @@ public enum ErrorCode {
     DESIGN_REQUEST_EXHIBITION_NOT_ELIGIBLE("DESIGN-043", "Triển lãm không ở trạng thái cho phép tiếp tục thiết kế.",
             HttpStatus.CONFLICT),
 
+    DESIGN_DRAFT_UNCHANGED("DESIGN-044", "Bản thiết kế không có thay đổi so với phiên bản đã gửi gần nhất.",
+            HttpStatus.CONFLICT),
+    DESIGN_DRAFT_EDIT_CONFLICT("DESIGN-045", "Bản thiết kế đã được thay đổi ở phiên làm việc khác. Vui lòng tải lại dữ liệu.",
+            HttpStatus.CONFLICT),
+
     // PACKAGE TEMPLATE ERRORS
     PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Không tìm thấy mẫu gói dịch vụ.", HttpStatus.NOT_FOUND),
     PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Tên mẫu gói dịch vụ đã tồn tại.", HttpStatus.CONFLICT),

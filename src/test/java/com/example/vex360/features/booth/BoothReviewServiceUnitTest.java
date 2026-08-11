@@ -51,6 +51,7 @@ import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.booth.services.BoothReviewDiffService;
 import com.example.vex360.features.booth.services.BoothReviewContentAssembler;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.booth.services.BoothReviewPolicyService;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.features.booth.services.BoothReviewSnapshotFactory;
@@ -81,6 +82,8 @@ class BoothReviewServiceUnitTest {
     @Mock
     BoothReviewPolicyService policyService;
     @Mock
+    BoothDesignService boothDesignService;
+    @Mock
     BoothReviewContentAssembler contentAssembler;
     @Mock
     ExhibitionService exhibitionService;
@@ -108,6 +111,7 @@ class BoothReviewServiceUnitTest {
                 companyService,
                 Mappers.getMapper(BoothMapper.class),
                 policyService,
+                boothDesignService,
                 snapshotFactory,
                 diffService,
                 contentAssembler,
@@ -151,6 +155,20 @@ class BoothReviewServiceUnitTest {
                 response.getChangeSummary().getComparisonCompleteness());
         assertEquals(3, response.getChangeSummary().getVersionNumber());
         verify(boothRepository).findCompanyBoothByIdForUpdate(booth.getId(), company.getId());
+    }
+
+    @Test
+    void submitReviewRejectsInactiveHotspotProduct() {
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(boothRepository.findCompanyBoothByIdForUpdate(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(boothDesignService.existsInactiveHotspotProductInBoothForUpdate(booth.getId())).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.submitReview(exhibitor, booth.getId()));
+
+        assertSame(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE, exception.getErrorCode());
+        verify(reviewRepository, never()).save(any());
     }
 
     @Test
@@ -365,6 +383,22 @@ class BoothReviewServiceUnitTest {
         assertEquals(BoothStatus.DRAFT, booth.getStatus());
         verify(exhibitionService, times(2)).findExhibitionForUpdate(exhibitionUuid);
         verify(policyService, times(2)).assertCanReviewBooth(booth);
+    }
+
+    @Test
+    void approveRejectsProductDeactivatedAfterSubmission() {
+        booth.setStatus(BoothStatus.PENDING);
+        BoothReviewRequest pending = reviewRequest(BoothReviewStatus.PENDING, 1);
+        when(policyService.getOrganizerReviewRequest(organizer, exhibitionUuid, pending.getId()))
+                .thenReturn(pending);
+        when(boothDesignService.existsInactiveHotspotProductInBoothForUpdate(booth.getId())).thenReturn(true);
+
+        AppException exception = assertThrows(AppException.class,
+                () -> service.approve(organizer, exhibitionUuid, pending.getId()));
+
+        assertSame(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE, exception.getErrorCode());
+        assertSame(BoothReviewStatus.PENDING, pending.getStatus());
+        verify(reviewRepository, never()).save(any());
     }
 
     @Test

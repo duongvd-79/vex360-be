@@ -30,7 +30,12 @@ public class CloudinaryOrphanCleanupJob {
             new Scope("avatar/", "image"),
             new Scope("video/", "video"),
             new Scope("audio/", "video"),
-            new Scope("booth-background-music/", "video"));
+            new Scope("booth-background-music/", "video"),
+            new Scope("design-draft-thumbnail/", "image"),
+            new Scope("design-draft-background-music/", "video"),
+            new Scope("design-draft-media-attachment/", "image"),
+            new Scope("design-draft-media-attachment/", "video"),
+            new Scope("design-draft-model-3d/", "raw"));
 
     private final CloudinaryAssetInventoryService inventoryService;
     private final CloudAssetReferenceService referenceService;

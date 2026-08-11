@@ -249,6 +249,7 @@ public class DesignerWorkspaceService {
         return new DesignDraftWorkspaceResponseDTO(
                 draft.getId(),
                 draft.getVersionNumber(),
+                draft.getRevision() == null ? 0L : draft.getRevision(),
                 draft.getCreatedAt(),
                 new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas, mediaAssets));
     }

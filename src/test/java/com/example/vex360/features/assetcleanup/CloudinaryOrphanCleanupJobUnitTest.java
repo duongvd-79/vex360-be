@@ -78,6 +78,17 @@ class CloudinaryOrphanCleanupJobUnitTest {
     }
 
     @Test
+    void scansEveryDesignDraftAssetScope() {
+        job.cleanupOrphans();
+
+        verify(inventoryService).list("design-draft-thumbnail/", "image", null, 100);
+        verify(inventoryService).list("design-draft-background-music/", "video", null, 100);
+        verify(inventoryService).list("design-draft-media-attachment/", "image", null, 100);
+        verify(inventoryService).list("design-draft-media-attachment/", "video", null, 100);
+        verify(inventoryService).list("design-draft-model-3d/", "raw", null, 100);
+    }
+
+    @Test
     void followsPaginationWithinSameRun() {
         Asset referenced = new Asset("image/referenced", "image", NOW.minus(Duration.ofDays(2)));
         Asset orphan = new Asset("image/orphan-on-second-page", "image", NOW.minus(Duration.ofDays(2)));

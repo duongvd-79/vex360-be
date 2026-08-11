@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.booth.entities.Hotspot;
@@ -16,6 +17,7 @@ import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.booth.enums.BoothStatus;
+import jakarta.persistence.LockModeType;
 
 public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     @Query(value = """
@@ -102,6 +104,15 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     long countBySourcePanoramaBoothId(@Param("boothId") UUID boothId);
 
     boolean existsBySourcePanoramaBoothIdAndProductStatusNot(UUID boothId, ProductStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT DISTINCT h.product
+            FROM Hotspot h
+            WHERE h.sourcePanorama.booth.id = :boothId
+              AND h.product IS NOT NULL
+            """)
+    List<Product> findProductsByBoothIdForUpdate(@Param("boothId") UUID boothId);
 
     @Query("""
             SELECT DISTINCT h.product

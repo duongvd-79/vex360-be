@@ -249,6 +249,12 @@ public class BoothDesignService {
         return hotspotRepository.existsBySourcePanoramaBoothIdAndProductStatusNot(boothId, ProductStatus.ACTIVE);
     }
 
+    @Transactional
+    public boolean existsInactiveHotspotProductInBoothForUpdate(UUID boothId) {
+        return hotspotRepository.findProductsByBoothIdForUpdate(boothId).stream()
+                .anyMatch(product -> product.getStatus() != ProductStatus.ACTIVE);
+    }
+
     @Transactional(readOnly = true)
     public List<UUID> findDistinctMediaAssetIdsByBoothId(UUID boothId, UUID excludedHotspotId) {
         return hotspotRepository.findDistinctMediaAssetsByBoothIdExcludingHotspot(boothId, excludedHotspotId)
