@@ -1,5 +1,6 @@
 package com.example.vex360.shared.services.impl;
 
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Map;
 
@@ -101,7 +102,7 @@ public class CloudinaryService implements CloudService {
         String publicId = null;
         String resourceType = null;
         try {
-            String date = java.time.LocalDate.now().toString();
+            String date = LocalDate.now().toString();
             String targetFolder = (folder != null && !folder.isBlank())
                     ? folder + "/" + date
                     : FileUploadUtils.generateFolderName(file);

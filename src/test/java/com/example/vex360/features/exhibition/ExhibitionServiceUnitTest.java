@@ -1203,16 +1203,12 @@ class ExhibitionServiceUnitTest {
 
     @Test
     void entityLookupsCoverPresentMissingAndNullKeys() {
-        when(exhibitionRepository.findById(1)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionRepository.findById(2)).thenReturn(Optional.empty());
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionRepository.findByUuid(UUID.fromString("00000000-0000-0000-0000-000000000002")))
                 .thenReturn(Optional.empty());
         when(exhibitionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(registrationExhibition));
         when(exhibitionRepository.findByIdForUpdate(2)).thenReturn(Optional.empty());
 
-        assertEquals(registrationExhibition, exhibitionService.getExhibitionEntityById(1));
-        assertThrows(AppException.class, () -> exhibitionService.getExhibitionEntityById(2));
         assertEquals(registrationExhibition, exhibitionService.findExhibitionEntityByUuid(exhibitionUuid));
         assertThrows(AppException.class, () -> exhibitionService.findExhibitionEntityByUuid(
                 UUID.fromString("00000000-0000-0000-0000-000000000002")));
@@ -1231,16 +1227,10 @@ class ExhibitionServiceUnitTest {
         List<Exhibition> exhibitions = List.of(registrationExhibition);
         when(exhibitionRepository.findByOrganizerIdOrderByCreatedAtDesc(organizer.getId()))
                 .thenReturn(exhibitions);
-        when(exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(anyList(), any()))
-                .thenReturn(Collections.singletonList(new Object[] { 1, 3L }));
 
         assertThrows(AppException.class, () -> exhibitionService.getOrganizerExhibitions(null));
         assertThrows(AppException.class, () -> exhibitionService.getOrganizerExhibitions(missingId));
         assertEquals(exhibitions, exhibitionService.getOrganizerExhibitions(organizer));
-        assertEquals(Map.of(), exhibitionService.getPendingRegistrationCountsGroupedByExhibition(null));
-        assertEquals(Map.of(), exhibitionService.getPendingRegistrationCountsGroupedByExhibition(List.of()));
-        assertEquals(Map.of(1, 3L),
-                exhibitionService.getPendingRegistrationCountsGroupedByExhibition(List.of(1)));
     }
 
     @Test

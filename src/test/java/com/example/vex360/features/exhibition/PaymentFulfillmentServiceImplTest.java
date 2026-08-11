@@ -386,41 +386,4 @@ class PaymentFulfillmentServiceImplTest {
             }
         };
     }
-
-    @Test
-    void replayFulfillment_resetsManualReviewAndFulfills_ReplayAlreadyApprovedDoesNotPublishEvent() {
-        Exhibition exhibition = Exhibition.builder().status(ExhibitionStatus.PUBLISHED).build();
-        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5)
-                .status(ExhibitorRegistrationStatus.APPROVED)
-                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
-                .build();
-        Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
-                .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
-        PaymentReceipt manualReceipt = PaymentReceipt.builder().orderCode(orderCode)
-                .status(PaymentReceiptStatus.MANUAL_REVIEW).build();
-
-        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(manualReceipt));
-        when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
-        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(reg.getId())));
-        when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(reg));
-        when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(manualReceipt));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
-
-        Optional<PaymentReceipt> res = fulfillmentService.replayFulfillment(orderCode, "admin@vex360.com");
-
-        assertTrue(res.isPresent());
-        verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
-    }
-
-    @Test
-    void replayFulfillment_leavesNonManualReceiptAndHandlesMissingReceipt() {
-        PaymentReceipt pending = PaymentReceipt.builder().status(PaymentReceiptStatus.PENDING).build();
-        when(receiptRepository.findByOrderCodeForUpdate(orderCode))
-                .thenReturn(Optional.of(pending), Optional.empty());
-        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.empty());
-
-        assertTrue(fulfillmentService.replayFulfillment(orderCode, "admin").isEmpty());
-        assertTrue(fulfillmentService.replayFulfillment(orderCode, "admin").isEmpty());
-        verify(receiptRepository, never()).save(pending);
-    }
 }

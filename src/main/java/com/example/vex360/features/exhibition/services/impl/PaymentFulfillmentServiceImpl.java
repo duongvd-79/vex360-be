@@ -228,21 +228,6 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
         return receiptRepository.findByOrderCode(orderCode);
     }
 
-    @Override
-    @Transactional
-    public Optional<PaymentReceipt> replayFulfillment(Long orderCode, String auditActor) {
-        log.info("[PB-006 Audit] Admin/Reconciliation replay triggered by actor: {} for orderCode: {}",
-                auditActor, orderCode);
-
-        PaymentReceipt receipt = receiptRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
-        if (receipt != null && receipt.getStatus() == PaymentReceiptStatus.MANUAL_REVIEW) {
-            receipt.setStatus(PaymentReceiptStatus.PENDING);
-            receiptRepository.save(receipt);
-        }
-
-        return processFulfillmentForOrderCode(orderCode);
-    }
-
     private boolean isNonRetryableException(Throwable t) {
         if (t instanceof AppException appEx) {
             return appEx.getErrorCode() == ErrorCode.REGISTRATION_DEPENDENCY_INVALID

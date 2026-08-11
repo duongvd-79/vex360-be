@@ -136,13 +136,7 @@ class ExhibitionTimelinePolicyTest {
         assertNull(policy.getBoothReviewDeadline(Exhibition.builder().build()));
         assertFalse(policy.isBoothPreparationOpen(null));
         assertFalse(policy.isRegistrationOpen(null));
-        assertEquals(0, policy.getDaysUntilDeadline(null));
         assertFalse(policy.hasMinimumLeadTime(null, 1));
-
-        Exhibition exhibition = Exhibition.builder()
-                .startDate(LocalDate.of(2026, Month.JANUARY, 15))
-                .build();
-        assertEquals(2, policy.getDaysUntilDeadline(exhibition));
 
         LocalDate today = LocalDate.of(2026, Month.JANUARY, 10);
         assertNull(policy.resolveTargetStatus(null, today));

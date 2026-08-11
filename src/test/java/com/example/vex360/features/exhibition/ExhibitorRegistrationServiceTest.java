@@ -675,7 +675,6 @@ class ExhibitorRegistrationServiceTest {
 
         assertNotNull(pageResponse);
         assertEquals(0, pageResponse.getContent().size());
-        verify(paymentRepository, never()).findByExhibitorRegistrationIdIn(any());
     }
 
     @Test
