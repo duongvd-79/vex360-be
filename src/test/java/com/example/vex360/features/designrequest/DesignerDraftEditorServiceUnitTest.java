@@ -170,9 +170,21 @@ class DesignerDraftEditorServiceUnitTest {
                 .when(lifecyclePolicy).assertCanContinue(request);
 
         AppException exception = assertThrows(AppException.class,
-                () -> service.createPanorama(designer, request.getId(), null));
+                () -> service.createPanorama(designer, request.getId(), 0L, null));
 
         assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, exception.getErrorCode());
+        verify(draftRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void staleRevisionBlocksGranularDraftMutation() {
+        draft.setRevision(2L);
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> service.updateSettings(designer, request.getId(), 1L, null));
+
+        assertSame(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT, exception.getErrorCode());
         verify(draftRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
@@ -191,6 +203,7 @@ class DesignerDraftEditorServiceUnitTest {
         service.createPanorama(
                 designer,
                 request.getId(),
+                0L,
                 new CreateDesignDraftPanoramaRequest("Main hall", assetId, null, false));
 
         assertEquals(1, draft.getPanoramas().size());
@@ -223,7 +236,7 @@ class DesignerDraftEditorServiceUnitTest {
         draft.getPanoramas().add(first);
         draft.getPanoramas().add(second);
 
-        service.deletePanorama(designer, request.getId(), second.getId());
+        service.deletePanorama(designer, request.getId(), 0L, second.getId());
 
         assertEquals(1, draft.getPanoramas().size());
         assertSame(first, draft.getPanoramas().get(0));
@@ -247,7 +260,7 @@ class DesignerDraftEditorServiceUnitTest {
         create.setInfoContentType(HotspotInfoContentType.TEXT);
         create.setInfoText("Company introduction");
 
-        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+        service.createHotspot(designer, request.getId(), panorama.getId(), 0L, create);
 
         assertEquals(1, panorama.getHotspots().size());
         DesignDraftHotspot hotspot = panorama.getHotspots().get(0);
@@ -271,7 +284,7 @@ class DesignerDraftEditorServiceUnitTest {
         create.setInfoContentType(HotspotInfoContentType.IMAGE);
         create.setDesignDraftMediaAssetId(stagedMedia.getId());
 
-        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+        service.createHotspot(designer, request.getId(), panorama.getId(), 0L, create);
 
         DesignDraftHotspot hotspot = panorama.getHotspots().get(0);
         assertSame(stagedMedia, hotspot.getDesignDraftMediaAsset());
@@ -291,7 +304,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.createHotspot(designer, request.getId(), panorama.getId(), create));
+                () -> service.createHotspot(designer, request.getId(), panorama.getId(), 0L, create));
 
         assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, exception.getErrorCode());
         assertTrue(panorama.getHotspots().isEmpty());
@@ -310,7 +323,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.createHotspot(designer, request.getId(), panorama.getId(), create));
+                () -> service.createHotspot(designer, request.getId(), panorama.getId(), 0L, create));
 
         assertSame(ErrorCode.DESIGN_MEDIA_ASSET_NOT_ALLOWED, exception.getErrorCode());
         assertTrue(panorama.getHotspots().isEmpty());
@@ -332,10 +345,11 @@ class DesignerDraftEditorServiceUnitTest {
                 assertThrows(
                         AppException.class,
                         () -> service.createHotspot(
-                                designer,
-                                request.getId(),
-                                panorama.getId(),
-                                wrongType))
+                               designer,
+                               request.getId(),
+                               panorama.getId(),
+                               0L,
+                               wrongType))
                         .getErrorCode());
 
         UpsertDesignDraftHotspotRequest foreignMedia = hotspotRequest(HotspotType.INFO);
@@ -346,10 +360,11 @@ class DesignerDraftEditorServiceUnitTest {
                 assertThrows(
                         AppException.class,
                         () -> service.createHotspot(
-                                designer,
-                                request.getId(),
-                                panorama.getId(),
-                                foreignMedia))
+                               designer,
+                               request.getId(),
+                               panorama.getId(),
+                               0L,
+                               foreignMedia))
                         .getErrorCode());
     }
 
@@ -365,7 +380,7 @@ class DesignerDraftEditorServiceUnitTest {
         UpsertDesignDraftHotspotRequest update = hotspotRequest(HotspotType.MEDIA);
         update.setDesignDraftMediaAssetId(replacementMedia.getId());
 
-        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), 0L, update);
 
         assertSame(replacementMedia, hotspot.getDesignDraftMediaAsset());
         assertEquals(List.of(originalMedia, replacementMedia), draft.getMediaAssets());
@@ -384,7 +399,7 @@ class DesignerDraftEditorServiceUnitTest {
         update.setInfoContentType(HotspotInfoContentType.TEXT);
         update.setInfoText("Updated text");
 
-        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), update);
+        service.updateHotspot(designer, request.getId(), panorama.getId(), hotspot.getId(), 0L, update);
 
         assertNull(hotspot.getDesignDraftMediaAsset());
         assertEquals(List.of(stagedMedia), draft.getMediaAssets());
@@ -400,14 +415,14 @@ class DesignerDraftEditorServiceUnitTest {
         DesignDraftHotspot hotspot = stagedMediaHotspot(panorama, stagedMedia);
         when(benefitGuardService.calculateUsage(draft)).thenReturn(emptyUsage);
 
-        service.deleteHotspot(designer, request.getId(), panorama.getId(), hotspot.getId());
+        service.deleteHotspot(designer, request.getId(), panorama.getId(), 0L, hotspot.getId());
 
         assertTrue(panorama.getHotspots().isEmpty());
         assertEquals(List.of(stagedMedia), draft.getMediaAssets());
 
         UpsertDesignDraftHotspotRequest create = hotspotRequest(HotspotType.MEDIA);
         create.setDesignDraftMediaAssetId(stagedMedia.getId());
-        service.createHotspot(designer, request.getId(), panorama.getId(), create);
+        service.createHotspot(designer, request.getId(), panorama.getId(), 1L, create);
 
         assertSame(stagedMedia, panorama.getHotspots().get(0).getDesignDraftMediaAsset());
         verify(assetService, never()).cleanupUnreferencedAssets(request);
@@ -421,7 +436,7 @@ class DesignerDraftEditorServiceUnitTest {
         draft.getMediaAssets().add(stagedMedia);
         stagedMediaHotspot(panorama, stagedMedia);
 
-        service.deletePanorama(designer, request.getId(), panorama.getId());
+        service.deletePanorama(designer, request.getId(), 0L, panorama.getId());
 
         assertTrue(draft.getPanoramas().isEmpty());
         assertEquals(List.of(stagedMedia), draft.getMediaAssets());
@@ -451,7 +466,7 @@ class DesignerDraftEditorServiceUnitTest {
                 DesignDraftFileAction.CLEAR,
                 null);
 
-        service.updateSettings(designer, request.getId(), update);
+        service.updateSettings(designer, request.getId(), 0L, update);
 
         assertEquals("New booth", draft.getBoothName());
         assertNull(draft.getBoothDescription());
@@ -477,7 +492,7 @@ class DesignerDraftEditorServiceUnitTest {
         SubmitDesignDraftMediaAssetRequest req = new SubmitDesignDraftMediaAssetRequest(null, assetId, "Duplicate", 0);
 
         AppException ex = assertThrows(AppException.class,
-                () -> service.addMediaAsset(designer, request.getId(), req));
+                () -> service.addMediaAsset(designer, request.getId(), 0L, req));
         assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_DUPLICATED, ex.getErrorCode());
     }
 
@@ -495,7 +510,7 @@ class DesignerDraftEditorServiceUnitTest {
                 .thenReturn(Optional.of(panoramaAsset));
 
         AppException ex = assertThrows(AppException.class,
-                () -> service.addMediaAsset(designer, request.getId(), req));
+                () -> service.addMediaAsset(designer, request.getId(), 0L, req));
         assertEquals(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID, ex.getErrorCode());
     }
 
@@ -507,7 +522,7 @@ class DesignerDraftEditorServiceUnitTest {
         List<UUID> invalidList = List.of(existingId, UUID.randomUUID());
 
         AppException ex = assertThrows(AppException.class,
-                () -> service.reorderMediaAssets(designer, request.getId(), invalidList));
+                () -> service.reorderMediaAssets(designer, request.getId(), 0L, invalidList));
         assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID, ex.getErrorCode());
     }
 
@@ -520,7 +535,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException ex = assertThrows(
                 AppException.class,
-                () -> service.reorderMediaAssets(designer, request.getId(), List.of(firstId, firstId)));
+                () -> service.reorderMediaAssets(designer, request.getId(), 0L, List.of(firstId, firstId)));
 
         assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID, ex.getErrorCode());
     }
@@ -538,6 +553,7 @@ class DesignerDraftEditorServiceUnitTest {
         service.addMediaAsset(
                 designer,
                 request.getId(),
+                0L,
                 new SubmitDesignDraftMediaAssetRequest(null, assetId, " Intro ", -50));
 
         assertEquals(0, draft.getMediaAssets().get(0).getSortOrder());
@@ -569,6 +585,7 @@ class DesignerDraftEditorServiceUnitTest {
         service.addMediaAsset(
                 designer,
                 request.getId(),
+                0L,
                 new SubmitDesignDraftMediaAssetRequest(null, newAssetId, "New", -1));
 
         assertEquals(3, draft.getMediaAssets().get(2).getSortOrder());
@@ -589,6 +606,7 @@ class DesignerDraftEditorServiceUnitTest {
                 () -> service.addMediaAsset(
                         designer,
                         request.getId(),
+                        0L,
                         new SubmitDesignDraftMediaAssetRequest(null, assetId, "a".repeat(256), null)));
 
         assertEquals(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID, ex.getErrorCode());
@@ -597,7 +615,7 @@ class DesignerDraftEditorServiceUnitTest {
     @Test
     void removeMediaAsset_NonExistentId_ThrowsAppException() {
         AppException ex = assertThrows(AppException.class,
-                () -> service.removeMediaAsset(designer, request.getId(), UUID.randomUUID()));
+                () -> service.removeMediaAsset(designer, request.getId(), 0L, UUID.randomUUID()));
         assertEquals(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID, ex.getErrorCode());
     }
 
@@ -615,7 +633,7 @@ class DesignerDraftEditorServiceUnitTest {
                 .asset(asset)
                 .build());
 
-        service.removeMediaAsset(designer, request.getId(), mediaId);
+        service.removeMediaAsset(designer, request.getId(), 0L, mediaId);
 
         assertTrue(draft.getMediaAssets().isEmpty());
         verify(assetService, never()).cleanupUnreferencedAssets(request);
@@ -625,6 +643,7 @@ class DesignerDraftEditorServiceUnitTest {
         service.addMediaAsset(
                 designer,
                 request.getId(),
+                1L,
                 new SubmitDesignDraftMediaAssetRequest(null, assetId, "Reusable", null));
 
         assertEquals(1, draft.getMediaAssets().size());
@@ -652,7 +671,7 @@ class DesignerDraftEditorServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.removeMediaAsset(designer, request.getId(), mediaId));
+                () -> service.removeMediaAsset(designer, request.getId(), 0L, mediaId));
 
         assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         assertEquals(List.of(media), draft.getMediaAssets());

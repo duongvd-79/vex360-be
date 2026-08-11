@@ -2,6 +2,7 @@ package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +32,8 @@ import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.booth.services.BoothDesignService.HotspotDesign;
 import com.example.vex360.features.booth.services.BoothDesignService.PanoramaDesign;
 import com.example.vex360.features.booth.services.PanoramaImageCleanupService;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.product.enums.ProductStatus;
 
 @ExtendWith(MockitoExtension.class)
 class BoothDesignServiceUnitTest {
@@ -133,5 +136,16 @@ class BoothDesignServiceUnitTest {
         Hotspot savedHotspot = hotspotCaptor.getValue();
         assertEquals(HotspotType.MEDIA, savedHotspot.getType());
         assertSame(mediaAsset, savedHotspot.getMediaAsset());
+    }
+
+    @Test
+    void lockedProductValidationDetectsInactiveReference() {
+        UUID boothId = UUID.randomUUID();
+        when(hotspotRepository.findProductsByBoothIdForUpdate(boothId))
+                .thenReturn(List.of(Product.builder().status(ProductStatus.INACTIVE).build()));
+
+        assertTrue(service.existsInactiveHotspotProductInBoothForUpdate(boothId));
+
+        verify(hotspotRepository).findProductsByBoothIdForUpdate(boothId);
     }
 }

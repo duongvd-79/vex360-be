@@ -1,18 +1,23 @@
 package com.example.vex360.features.designrequest.services;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.entities.Hotspot;
 import com.example.vex360.features.booth.entities.Panorama;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
+import com.example.vex360.features.booth.enums.HotspotType;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO.ChangeScope;
 import com.example.vex360.features.designrequest.dtos.response.DesignDraftChangeItemDTO.ChangeType;
@@ -22,6 +27,7 @@ import com.example.vex360.features.designrequest.entities.DesignDraft;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 
 @Service
 public class DesignDraftDiffService {
@@ -48,6 +54,16 @@ public class DesignDraftDiffService {
         compareMediaAssetsBetweenDrafts(current, previous, items);
 
         return buildSummaryFromItems(items);
+    }
+
+    /**
+     * Compares persisted design content while ignoring draft identity, lifecycle
+     * metadata, rejection metadata, and the Designer note.
+     */
+    public boolean hasSameDesignContent(DesignDraft current, DesignDraft previous) {
+        return current != null
+                && previous != null
+                && toDesignContent(current).equals(toDesignContent(previous));
     }
 
     public DesignDraftChangeSummaryDTO compareDraftWithBooth(DesignDraft current, Booth booth) {
@@ -570,6 +586,87 @@ public class DesignDraftDiffService {
     // ==========================================
     // UTILITIES & KEYS
     // ==========================================
+    private DraftContent toDesignContent(DesignDraft draft) {
+        return new DraftContent(
+                draft.getBoothName(),
+                draft.getBoothDescription(),
+                draft.getDisplayTemplateKey(),
+                draft.getThumbnailAction(),
+                draft.getThumbnailAsset() == null ? null : draft.getThumbnailAsset().getId(),
+                draft.getBackgroundMusicAction(),
+                draft.getBackgroundMusicAsset() == null ? null : draft.getBackgroundMusicAsset().getId(),
+                panoramaContents(draft.getPanoramas()),
+                mediaContents(draft.getMediaAssets()));
+    }
+
+    private Map<String, PanoramaContent> panoramaContents(List<DesignDraftPanorama> panoramas) {
+        Map<String, PanoramaContent> contents = new LinkedHashMap<>();
+        if (panoramas == null) {
+            return contents;
+        }
+        for (DesignDraftPanorama panorama : panoramas) {
+            contents.put(panorama.getClientKey(), new PanoramaContent(
+                    panorama.getName(),
+                    panorama.getImageUrl(),
+                    panorama.getImageKey(),
+                    panorama.getOrderIndex(),
+                    panorama.getIsDefault(),
+                    hotspotContents(panorama.getHotspots())));
+        }
+        return contents;
+    }
+
+    private Map<HotspotContent, Integer> hotspotContents(List<DesignDraftHotspot> hotspots) {
+        Map<HotspotContent, Integer> contents = new HashMap<>();
+        if (hotspots == null) {
+            return contents;
+        }
+        for (DesignDraftHotspot hotspot : hotspots) {
+            UUID draftAssetId = hotspot.getDesignDraftMediaAsset() == null
+                    || hotspot.getDesignDraftMediaAsset().getAsset() == null
+                            ? null
+                            : hotspot.getDesignDraftMediaAsset().getAsset().getId();
+            HotspotContent content = new HotspotContent(
+                    hotspot.getType(),
+                    hotspot.getName(),
+                    hotspot.getTargetDraftPanoramaKey(),
+                    hotspot.getProduct() == null ? null : hotspot.getProduct().getId(),
+                    hotspot.getMediaAsset() == null ? null : hotspot.getMediaAsset().getId(),
+                    draftAssetId,
+                    hotspot.getInfoText(),
+                    hotspot.getXPosition(),
+                    hotspot.getYPosition(),
+                    hotspot.getZPosition(),
+                    hotspot.getIconStyle(),
+                    hotspot.getScale(),
+                    hotspot.getZIndex(),
+                    hotspot.getMediaClickAction(),
+                    hotspot.getInfoContentType(),
+                    new CornerContent(
+                            new PointContent(hotspot.getCornerTlX(), hotspot.getCornerTlY(), hotspot.getCornerTlZ()),
+                            new PointContent(hotspot.getCornerTrX(), hotspot.getCornerTrY(), hotspot.getCornerTrZ()),
+                            new PointContent(hotspot.getCornerBlX(), hotspot.getCornerBlY(), hotspot.getCornerBlZ()),
+                            new PointContent(hotspot.getCornerBrX(), hotspot.getCornerBrY(), hotspot.getCornerBrZ())));
+            contents.merge(content, 1, Integer::sum);
+        }
+        return contents;
+    }
+
+    private Map<MediaContent, Integer> mediaContents(List<DesignDraftMediaAsset> mediaAssets) {
+        Map<MediaContent, Integer> contents = new HashMap<>();
+        if (mediaAssets == null) {
+            return contents;
+        }
+        for (DesignDraftMediaAsset media : mediaAssets) {
+            MediaContent content = new MediaContent(
+                    media.getAsset() == null ? null : media.getAsset().getId(),
+                    media.getTitle(),
+                    media.getSortOrder());
+            contents.merge(content, 1, Integer::sum);
+        }
+        return contents;
+    }
+
     private String draftPanoKey(DesignDraftPanorama p) {
         if (p == null) return "";
         if (p.getClientKey() != null && !p.getClientKey().isBlank()) return p.getClientKey();
@@ -719,5 +816,58 @@ public class DesignDraftDiffService {
         BoothHotspotPair(Panorama panorama, Hotspot hotspot) {
             this.hotspot = hotspot;
         }
+    }
+
+    private record DraftContent(
+            String boothName,
+            String boothDescription,
+            String displayTemplateKey,
+            DesignDraftFileAction thumbnailAction,
+            UUID thumbnailAssetId,
+            DesignDraftFileAction backgroundMusicAction,
+            UUID backgroundMusicAssetId,
+            Map<String, PanoramaContent> panoramas,
+            Map<MediaContent, Integer> mediaAssets) {
+    }
+
+    private record PanoramaContent(
+            String name,
+            String imageUrl,
+            String imageKey,
+            Integer orderIndex,
+            Boolean isDefault,
+            Map<HotspotContent, Integer> hotspots) {
+    }
+
+    private record HotspotContent(
+            HotspotType type,
+            String name,
+            String targetDraftPanoramaKey,
+            UUID productId,
+            UUID mediaAssetId,
+            UUID draftAssetId,
+            String infoText,
+            Double xPosition,
+            Double yPosition,
+            Double zPosition,
+            String iconStyle,
+            Double scale,
+            Integer zIndex,
+            HotspotMediaClickAction mediaClickAction,
+            HotspotInfoContentType infoContentType,
+            CornerContent corners) {
+    }
+
+    private record CornerContent(
+            PointContent topLeft,
+            PointContent topRight,
+            PointContent bottomLeft,
+            PointContent bottomRight) {
+    }
+
+    private record PointContent(Double x, Double y, Double z) {
+    }
+
+    private record MediaContent(UUID assetId, String title, Integer sortOrder) {
     }
 }

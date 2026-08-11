@@ -50,6 +50,7 @@ public class BoothReviewService {
     private final CompanyService companyService;
     private final BoothMapper boothMapper;
     private final BoothReviewPolicyService boothReviewPolicyService;
+    private final BoothDesignService boothDesignService;
     private final BoothReviewSnapshotFactory snapshotFactory;
     private final BoothReviewDiffService diffService;
     private final BoothReviewContentAssembler contentAssembler;
@@ -75,6 +76,7 @@ public class BoothReviewService {
         Booth booth = boothRepository.findCompanyBoothByIdForUpdate(boothId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
         boothReviewPolicyService.assertCanSubmitReview(booth);
+        assertProductsActive(booth);
         booth.setLateEditAllowedUntil(null);
 
         BoothReviewRequest previousRequest = boothReviewRequestRepository
@@ -140,6 +142,7 @@ public class BoothReviewService {
                 .getOrganizerReviewRequest(organizer, exhibitionUuid, requestId);
         boothReviewPolicyService.assertCanReviewBooth(request.getBooth());
         assertPending(request);
+        assertProductsActive(request.getBooth());
         request.setStatus(BoothReviewStatus.APPROVED);
         request.setReviewedBy(organizer);
         request.setReviewedAt(Instant.now(clock));
@@ -327,6 +330,12 @@ public class BoothReviewService {
         if (request.getStatus() != BoothReviewStatus.PENDING
                 || request.getBooth().getStatus() != BoothStatus.PENDING) {
             throw new AppException(ErrorCode.INVALID_BOOTH_REVIEW_STATUS);
+        }
+    }
+
+    private void assertProductsActive(Booth booth) {
+        if (boothDesignService.existsInactiveHotspotProductInBoothForUpdate(booth.getId())) {
+            throw new AppException(ErrorCode.BOOTH_DRAFT_NOT_REVIEWABLE);
         }
     }
 

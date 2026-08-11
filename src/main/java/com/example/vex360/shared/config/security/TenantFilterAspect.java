@@ -31,8 +31,9 @@ public class TenantFilterAspect {
         try {
             if (RequestContextHolder.getRequestAttributes() != null && request != null) {
                 String path = request.getRequestURI();
-                if (path != null && path.startsWith("/api/v1/public/")) {
-                    log.debug("Bypassing tenant filter for public endpoint: {}", path);
+                if (path != null && (path.startsWith("/api/v1/public/")
+                        || path.startsWith("/api/v1/visitor/"))) {
+                    log.debug("Bypassing tenant filter for visitor-facing endpoint: {}", path);
                     return;
                 }
             }

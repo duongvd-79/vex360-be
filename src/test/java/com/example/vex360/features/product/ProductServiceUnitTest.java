@@ -92,6 +92,8 @@ class ProductServiceUnitTest {
         lenient().when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
         lenient().when(productRepository.findByIdAndCompanyId(product.getId(),
                 company.getId())).thenReturn(Optional.of(product));
+        lenient().when(productRepository.findByIdAndCompanyIdForUpdate(product.getId(),
+                company.getId())).thenReturn(Optional.of(product));
     }
 
     @Test

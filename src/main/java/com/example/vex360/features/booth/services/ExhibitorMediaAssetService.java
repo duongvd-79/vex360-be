@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.vex360.features.booth.dtos.request.CreateMediaAssetRequest;
+import com.example.vex360.features.booth.dtos.request.RenameMediaAssetRequest;
 import com.example.vex360.features.booth.dtos.response.MediaAssetResponseDTO;
 import com.example.vex360.features.booth.entities.MediaAsset;
 import com.example.vex360.features.booth.enums.MediaAssetType;
@@ -99,6 +100,15 @@ public class ExhibitorMediaAssetService {
         companyStorageService.addUsage(company, fileSize); // ← thêm dòng này SAU khi lưu
         return result;
 
+    }
+
+    @Transactional
+    public MediaAssetResponseDTO renameAsset(User currentUser, UUID assetId, RenameMediaAssetRequest request) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        MediaAsset mediaAsset = mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
+        mediaAsset.setName(request.getName().trim());
+        return boothMapper.toMediaAssetResponseDTO(mediaAssetRepository.save(mediaAsset));
     }
 
     @Transactional

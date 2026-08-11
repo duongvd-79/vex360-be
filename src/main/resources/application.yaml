@@ -42,7 +42,7 @@ app:
     api-key: ${CLOUDINARY_API_KEY}
     api-secret: ${CLOUDINARY_API_SECRET}
     orphan-cleanup:
-      enabled: ${CLOUDINARY_ORPHAN_CLEANUP_ENABLED:false}
+      enabled: ${CLOUDINARY_ORPHAN_CLEANUP_ENABLED:true}
       cron: ${CLOUDINARY_ORPHAN_CLEANUP_CRON:0 30 2 * * *}
       grace-period: ${CLOUDINARY_ORPHAN_CLEANUP_GRACE_PERIOD:PT24H}
       page-size: ${CLOUDINARY_ORPHAN_CLEANUP_PAGE_SIZE:100}

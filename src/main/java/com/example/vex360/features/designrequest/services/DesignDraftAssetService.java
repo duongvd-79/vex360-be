@@ -156,9 +156,14 @@ public class DesignDraftAssetService {
      *                      it is in use
      */
     @Transactional
-    public DesignDraftAssetResponseDTO releaseAsset(User currentUser, UUID requestId, UUID assetId) {
+    public DesignDraftAssetResponseDTO releaseAsset(
+            User currentUser,
+            UUID requestId,
+            long expectedRevision,
+            UUID assetId) {
         DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
         requireEditableRequest(request);
+        DesignDraft workingDraft = requireDraftRevision(request, expectedRevision);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         pruneUnreferencedDraftMedia(request, asset.getId());
@@ -166,6 +171,7 @@ public class DesignDraftAssetService {
             throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE);
         }
         deleteAsset(asset);
+        bumpRevision(workingDraft);
         return toResponse(asset);
     }
 
@@ -193,6 +199,7 @@ public class DesignDraftAssetService {
             User currentUser,
             UUID requestId,
             UUID assetId,
+            long expectedRevision,
             String newName) {
         DesignRequest request = workspaceService.getAssignedRequestForUpdate(currentUser, requestId);
         requireEditableRequest(request);
@@ -200,6 +207,7 @@ public class DesignDraftAssetService {
         if (normalized == null || normalized.isEmpty() || normalized.length() > 255) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID);
         }
+        DesignDraft workingDraft = requireDraftRevision(request, expectedRevision);
         DesignDraftAsset asset = assetRepository.findByIdAndDesignRequestId(assetId, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_ASSET_NOT_FOUND));
         if (asset.getAssetType() != DesignDraftAssetType.MEDIA_ATTACHMENT) {
@@ -211,6 +219,7 @@ public class DesignDraftAssetService {
                 .flatMap(draft -> draft.getMediaAssets().stream())
                 .filter(media -> media.getAsset() != null && assetId.equals(media.getAsset().getId()))
                 .forEach(media -> media.setTitle(normalized));
+        bumpRevision(workingDraft);
         return toResponse(assetRepository.save(asset));
     }
 
@@ -403,6 +412,21 @@ public class DesignDraftAssetService {
 
     private boolean isUsedByBooth(DesignRequest request, String publicId) {
         return boothImageKeys(request).contains(publicId);
+    }
+
+    private void bumpRevision(DesignDraft draft) {
+        draft.setRevision((draft.getRevision() == null ? 0L : draft.getRevision()) + 1);
+    }
+
+    private DesignDraft requireDraftRevision(DesignRequest request, long expectedRevision) {
+        DesignDraft workingDraft = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() == 0)
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
+        if (expectedRevision != (workingDraft.getRevision() == null ? 0L : workingDraft.getRevision())) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT);
+        }
+        return workingDraft;
     }
 
     private void requireEditableRequest(DesignRequest request) {

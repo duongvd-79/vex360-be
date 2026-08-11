@@ -10,6 +10,7 @@ import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.repositories.DesignRequestRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
+import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.shared.enums.DesignRequestStatus;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class DesignRequestLifecycleService {
             request.setCancellationStatus(DesignRequestCancellationStatus.APPROVED);
             request.setCancellationReason("EXHIBITION_LIFECYCLE");
             request.setQuotaCharged(false);
+            request.getBooth().setStatus(BoothStatus.DRAFT);
             request.getDrafts().clear();
         }
         if (!openRequests.isEmpty()) {

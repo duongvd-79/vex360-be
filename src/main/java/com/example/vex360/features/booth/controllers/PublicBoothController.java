@@ -43,4 +43,5 @@ public class PublicBoothController extends BaseController {
                 exhibitionUuid, keyword, listingPriority, pageable);
         return ok(response);
     }
+
 }

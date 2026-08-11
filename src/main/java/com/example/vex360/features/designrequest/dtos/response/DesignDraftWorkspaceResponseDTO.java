@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 public class DesignDraftWorkspaceResponseDTO {
     private UUID id;
     private Integer versionNumber;
+    private Long revision;
     private Instant createdAt;
     private SubmitDesignDraftRequest content;
 }

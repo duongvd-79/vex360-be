@@ -8,13 +8,21 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.product.enums.ProductStatus;
 import com.example.vex360.features.product.entities.Product;
+import jakarta.persistence.LockModeType;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Product p WHERE p.id = :id AND p.company.id = :companyId")
+    Optional<Product> findByIdAndCompanyIdForUpdate(
+            @Param("id") UUID id,
+            @Param("companyId") UUID companyId);
+
     boolean existsByThumbnailPublicId(String publicId);
 
     @Query("SELECT COUNT(content) > 0 FROM ProductContent content WHERE content.publicId = :publicId")

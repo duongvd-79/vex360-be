@@ -103,7 +103,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                     .status(HttpStatus.TOO_MANY_REQUESTS.value())
                     .error(HttpStatus.TOO_MANY_REQUESTS.name())
                     .code("SYS-004")
-                    .message("Too many requests. Please try again after 1 minute.")
+                    .message("Quá nhiều yêu cầu. Vui lòng hãy thử lại sau 1 phút!.")
                     .path(path)
                     .build();
 

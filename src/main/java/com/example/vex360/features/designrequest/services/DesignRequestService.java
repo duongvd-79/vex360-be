@@ -123,6 +123,7 @@ public class DesignRequestService {
     private final DesignDraftAssetService designDraftAssetService;
     private final DesignDraftSettingsService draftSettingsService;
     private final DesignDraftCloneService draftCloneService;
+    private final DesignDraftDiffService draftDiffService;
     private final DesignDraftRetentionService draftRetentionService;
     private final DesignDraftGraphValidator draftGraphValidator;
     private final DesignDraftBenefitGuardService draftBenefitGuardService;
@@ -411,6 +412,7 @@ public class DesignRequestService {
     public DesignRequestResponseDTO saveWorkingDraft(
             User currentUser,
             UUID id,
+            long expectedRevision,
             SubmitDesignDraftRequest draftRequest) {
         DesignRequest request = getRequest(id);
         requireDesignerCanEdit(currentUser, request);
@@ -420,14 +422,22 @@ public class DesignRequestService {
                 .filter(draft -> draft.getVersionNumber() == 0)
                 .findFirst()
                 .orElse(null);
+        long currentRevision = currentWorking == null || currentWorking.getRevision() == null
+                ? 0L
+                : currentWorking.getRevision();
+        if (expectedRevision != currentRevision) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT);
+        }
         DesignDraftBenefitGuardService.Usage beforeUsage = draftBenefitGuardService.calculateUsage(currentWorking);
         DesignDraft workingDraft = buildDraft(request, draftRequest, 0);
         draftGraphValidator.validateWorkingGraph(request, workingDraft);
         draftBenefitGuardService.assertMutationAllowed(request, beforeUsage, workingDraft);
         if (currentWorking == null) {
+            workingDraft.setRevision(1L);
             request.getDrafts().add(workingDraft);
         } else {
             replaceWorkingDraft(currentWorking, workingDraft);
+            currentWorking.setRevision(currentRevision + 1);
         }
         DesignRequest saved = designRequestRepository.save(request);
         designRequestRepository.flush();
@@ -457,6 +467,14 @@ public class DesignRequestService {
 
         draftGraphValidator.validateForSubmission(request, workingDraft);
         draftBenefitGuardService.assertWithinSubmissionLimits(request, workingDraft);
+        DesignDraft previousSubmitted = request.getDrafts().stream()
+                .filter(draft -> draft.getVersionNumber() != null && draft.getVersionNumber() > 0)
+                .max(Comparator.comparing(DesignDraft::getVersionNumber))
+                .orElse(null);
+        if (previousSubmitted != null
+                && draftDiffService.hasSameDesignContent(workingDraft, previousSubmitted)) {
+            throw new AppException(ErrorCode.DESIGN_DRAFT_UNCHANGED);
+        }
         DesignRequestStatus previousStatus = request.getStatus();
         workingDraft.setVersionNumber(nextSubmittedVersion(request));
         workingDraft.setSubmittedAt(java.time.Instant.now());
