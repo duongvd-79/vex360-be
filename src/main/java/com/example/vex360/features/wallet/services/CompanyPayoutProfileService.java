@@ -1,6 +1,5 @@
 package com.example.vex360.features.wallet.services;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -55,11 +54,6 @@ public class CompanyPayoutProfileService {
         profile.setAccountNumber(dto.getAccountNumber().trim());
         profile.setAccountHolderName(dto.getAccountHolderName().trim().toUpperCase());
         profile.setStatus(PayoutProfileStatus.VERIFIED);
-        profile.setVerifiedBy(null);
-        profile.setVerifiedAt(Instant.now());
-        profile.setRejectedBy(null);
-        profile.setRejectedAt(null);
-        profile.setRejectedReason(null);
 
         profile = payoutProfileRepository.save(profile);
         walletDomainService.getOrCreateWallet(company);
@@ -114,9 +108,6 @@ public class CompanyPayoutProfileService {
                 .accountNumber(accNum)
                 .accountHolderName(profile.getAccountHolderName())
                 .status(profile.getStatus())
-                .verifiedAt(profile.getVerifiedAt())
-                .rejectedAt(profile.getRejectedAt())
-                .rejectedReason(profile.getRejectedReason())
                 .createdAt(profile.getCreatedAt())
                 .updatedAt(profile.getUpdatedAt())
                 .build();

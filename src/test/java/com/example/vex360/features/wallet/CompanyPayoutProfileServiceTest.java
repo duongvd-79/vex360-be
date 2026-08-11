@@ -1,12 +1,10 @@
 package com.example.vex360.features.wallet;
 
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,10 +108,8 @@ class CompanyPayoutProfileServiceTest {
     }
 
     @Test
-    void updateProfileForOrganizerOverwritesExistingProfileAndClearsRejection() {
-        CompanyPayoutProfile rejected = existingProfile(PayoutProfileStatus.REJECTED);
-        rejected.setRejectedReason("Sai thông tin");
-        rejected.setRejectedAt(Instant.now());
+    void updateProfileForOrganizerOverwritesExistingProfile() {
+        CompanyPayoutProfile existing = existingProfile(PayoutProfileStatus.VERIFIED);
         UpdatePayoutProfileRequestDTO dto = UpdatePayoutProfileRequestDTO.builder()
                 .bankCode("TCB")
                 .bankNameSnapshot("Techcombank")
@@ -122,14 +118,12 @@ class CompanyPayoutProfileServiceTest {
                 .build();
 
         when(companyService.getCompanyEntityForCurrentUser(user)).thenReturn(company);
-        when(payoutProfileRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(rejected));
+        when(payoutProfileRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(existing));
         when(payoutProfileRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         CompanyPayoutProfileResponseDTO response = payoutProfileService.updateProfileForOrganizer(user, dto);
 
         assertEquals(PayoutProfileStatus.VERIFIED, response.getStatus());
-        assertNull(response.getRejectedReason());
-        assertNull(response.getRejectedAt());
         assertEquals("TCB", response.getBankCode());
         assertEquals("999888777", response.getAccountNumber());
     }

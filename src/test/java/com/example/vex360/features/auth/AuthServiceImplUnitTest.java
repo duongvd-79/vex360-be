@@ -80,13 +80,13 @@ class AuthServiceImplUnitTest {
         when(userService.findOrCreateGoogleUser("google@example.com", "Google User", "http://avatar")).thenReturn(user);
 
         TokenResponse expected = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
-        when(authSessionService.issue(user, false)).thenReturn(expected);
+        when(authSessionService.issue(user, true)).thenReturn(expected);
 
         TokenResponse response = authService.loginWithGoogle("code123");
 
         assertNotNull(response);
         assertEquals("access", response.getAccessToken());
-        verify(authSessionService).issue(user, false);
+        verify(authSessionService).issue(user, true);
     }
 
     @Test

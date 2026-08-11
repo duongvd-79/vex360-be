@@ -6,7 +6,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.wallet.enums.PayoutProfileStatus;
 
 import jakarta.persistence.Column;
@@ -18,7 +17,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -65,23 +63,6 @@ public class CompanyPayoutProfile {
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     PayoutProfileStatus status = PayoutProfileStatus.VERIFIED;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "verified_by")
-    User verifiedBy;
-
-    @Column(name = "verified_at")
-    Instant verifiedAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "rejected_by")
-    User rejectedBy;
-
-    @Column(name = "rejected_at")
-    Instant rejectedAt;
-
-    @Column(name = "rejected_reason", length = 500)
-    String rejectedReason;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

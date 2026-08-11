@@ -49,7 +49,7 @@ public class AuthServiceImpl implements AuthService {
                 profile.email(),
                 profile.fullName(),
                 profile.avatarUrl());
-        return authSessionService.issue(user, false);
+        return authSessionService.issue(user, true);
     }
 
     /** {@inheritDoc} */

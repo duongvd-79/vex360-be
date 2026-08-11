@@ -420,7 +420,7 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST),
     ACTIVE_WITHDRAWAL_EXISTS("WALLET-004", "Doanh nghiệp đang có một yêu cầu rút tiền chưa hoàn tất.",
             HttpStatus.CONFLICT),
-    PAYOUT_PROFILE_NOT_VERIFIED("WALLET-005", "Thông tin tài khoản nhận tiền chưa được xác minh bởi quản trị viên.",
+    PAYOUT_PROFILE_NOT_VERIFIED("WALLET-005", "Thông tin tài khoản nhận tiền chưa được xác minh.",
             HttpStatus.BAD_REQUEST),
     PAYOUT_PROFILE_NOT_FOUND("WALLET-006", "Chưa có thông tin tài khoản nhận tiền.", HttpStatus.NOT_FOUND),
     WITHDRAWAL_REQUEST_NOT_FOUND("WALLET-007", "Không tìm thấy yêu cầu rút tiền.", HttpStatus.NOT_FOUND),
