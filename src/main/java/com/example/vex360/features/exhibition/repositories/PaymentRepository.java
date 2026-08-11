@@ -40,8 +40,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
 
     Optional<Payment> findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(Integer exhibitorRegistrationId);
 
-    List<Payment> findByExhibitorRegistrationIdIn(List<Integer> exhibitorRegistrationIds);
-
     @Query("""
             SELECT p FROM Payment p
             LEFT JOIN p.exhibitorRegistration r

@@ -2,7 +2,6 @@ package com.example.vex360.features.exhibition.services;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 
 import org.springframework.stereotype.Component;
 
@@ -64,14 +63,6 @@ public class ExhibitionTimelinePolicy {
             return false;
         }
         return isBoothPreparationOpen(exhibition);
-    }
-
-    public long getDaysUntilDeadline(Exhibition exhibition) {
-        LocalDate deadline = getBoothReviewDeadline(exhibition);
-        if (deadline == null) {
-            return 0;
-        }
-        return ChronoUnit.DAYS.between(today(), deadline);
     }
 
     public boolean hasMinimumLeadTime(LocalDate startDate) {

@@ -29,8 +29,6 @@ public interface ExhibitionService {
 
 	ExhibitionResponseDTO getExhibitionByUuid(UUID uuid);
 
-	Exhibition getExhibitionEntityById(Integer id);
-
 	ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
 			ConfigureExhibitionPackageRequest request);
 
@@ -45,8 +43,6 @@ public interface ExhibitionService {
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForOrganizer(
 			User organizer, String keyword, ExhibitionStatus status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);
-
-	Map<Integer, Long> getPendingRegistrationCountsGroupedByExhibition(List<Integer> exhibitionIds);
 
 	List<Exhibition> getOrganizerExhibitions(User organizer);
 

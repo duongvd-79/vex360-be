@@ -80,9 +80,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
     private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
-    private static final List<ExhibitorRegistrationStatus> ACTION_REQUIRED_REGISTRATION_STATUSES = List.of(
-            ExhibitorRegistrationStatus.PENDING,
-            ExhibitorRegistrationStatus.PENDING_PAYMENT);
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
             "organizerName", "organizer.fullName",
@@ -271,16 +268,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Exhibition getExhibitionEntityById(Integer id) {
-        return exhibitionRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for ID: {}", id);
-                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
-                });
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
             String keyword, AdminExhibitionStatusFilter status, String category,
             LocalDate startDate, LocalDate endDate, Pageable pageable) {
@@ -393,20 +380,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                 .map(exhibitionMapper::toResponse);
 
         return PageResponse.from(exhibitions);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<Integer, Long> getPendingRegistrationCountsGroupedByExhibition(List<Integer> exhibitionIds) {
-        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<Integer, Long> counts = new HashMap<>();
-        for (Object[] row : exhibitorRegistrationRepository.countActionRequiredGroupedByExhibition(
-                exhibitionIds, ACTION_REQUIRED_REGISTRATION_STATUSES)) {
-            counts.put((Integer) row[0], ((Number) row[1]).longValue());
-        }
-        return counts;
     }
 
     @Override
