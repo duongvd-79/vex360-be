@@ -379,7 +379,7 @@ class DesignRequestServiceAdditionalUnitTest {
         when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
         stubSaveAndResponse(request);
 
-        service.saveWorkingDraft(designer, requestId, 0L, new SubmitDesignDraftRequest("Empty", List.of()));
+        service.saveWorkingDraft(designer, requestId, new SubmitDesignDraftRequest("Empty", List.of()));
 
         assertEquals(1, request.getDrafts().size());
         assertEquals(0, request.getDrafts().get(0).getVersionNumber());

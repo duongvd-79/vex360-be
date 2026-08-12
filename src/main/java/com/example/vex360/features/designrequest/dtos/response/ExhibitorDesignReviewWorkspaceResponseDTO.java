@@ -26,6 +26,9 @@ public class ExhibitorDesignReviewWorkspaceResponseDTO {
     private Integer remainingDesignActions;
     private BoothResponseDTO currentBooth;
     private String submittedThumbnailUrl;
+    private String submittedBackgroundMusicUrl;
+    private String submittedBackgroundMusicFileName;
+    private Long submittedBackgroundMusicFileSize;
     private DesignDraftWorkspaceResponseDTO latestSubmittedDraft;
     private List<ProductResponseDTO> requiredProducts;
     private List<ProductResponseDTO> optionalProducts;

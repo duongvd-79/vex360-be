@@ -149,7 +149,6 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
                 designer,
                 request.getId(),
                 updated.getId(),
-                0L,
                 new UpdateDesignDraftPanoramaRequest("  Updated  ", assetId, true));
 
         assertEquals("Updated", updated.getName());
@@ -165,7 +164,7 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
     void updatePanoramaRejectsNullUpdate() {
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.updatePanorama(designer, request.getId(), UUID.randomUUID(), 0L, null));
+                () -> service.updatePanorama(designer, request.getId(), UUID.randomUUID(), null));
 
         assertSame(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID, exception.getErrorCode());
     }
@@ -179,7 +178,6 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
         service.reorderPanoramas(
                 designer,
                 request.getId(),
-                0L,
                 new ReorderDesignDraftPanoramasRequest(List.of(second.getId(), first.getId())));
 
         assertEquals(0, second.getOrderIndex());
@@ -199,7 +197,6 @@ class DesignerDraftEditorServiceAdditionalUnitTest {
                 () -> service.reorderPanoramas(
                         designer,
                         request.getId(),
-                        0L,
                         new ReorderDesignDraftPanoramasRequest(List.of(first.getId(), first.getId()))));
 
         assertSame(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID, exception.getErrorCode());

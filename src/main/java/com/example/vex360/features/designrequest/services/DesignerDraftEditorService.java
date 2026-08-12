@@ -80,9 +80,8 @@ public class DesignerDraftEditorService {
     public DesignDraftSettingsResponseDTO updateSettings(
             User designer,
             UUID requestId,
-            long expectedRevision,
             UpdateDesignDraftSettingsRequest update) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         if (update == null) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_SETTINGS_INVALID);
         }
@@ -95,7 +94,6 @@ public class DesignerDraftEditorService {
         applyThumbnailSettings(context.request(), draft, update);
         applyMusicSettings(context.request(), draft, update);
         graphValidator.validateWorkingGraph(context.request(), draft);
-        bumpRevision(draft);
         DesignDraft saved = draftRepository.saveAndFlush(draft);
         return previewService.toSettingsResponse(context.request(), saved);
     }
@@ -104,9 +102,8 @@ public class DesignerDraftEditorService {
     public DesignDraftPanoramaResponseDTO createPanorama(
             User designer,
             UUID requestId,
-            long expectedRevision,
             CreateDesignDraftPanoramaRequest create) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         if (create == null || create.getPanoramaAssetId() == null) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
         }
@@ -138,7 +135,6 @@ public class DesignerDraftEditorService {
         normalizePanoramas(draft);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        bumpRevision(draft);
         draftPanoramaRepository.saveAndFlush(panorama);
         return previewService.toPanoramaResponse(panorama);
     }
@@ -148,9 +144,8 @@ public class DesignerDraftEditorService {
             User designer,
             UUID requestId,
             UUID panoramaId,
-            long expectedRevision,
             UpdateDesignDraftPanoramaRequest update) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         if (update == null) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_INVALID);
         }
@@ -177,7 +172,6 @@ public class DesignerDraftEditorService {
         normalizePanoramas(draft);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
         return previewService.toPanoramaResponse(panorama);
     }
@@ -186,9 +180,8 @@ public class DesignerDraftEditorService {
     public List<DesignDraftPanoramaResponseDTO> reorderPanoramas(
             User designer,
             UUID requestId,
-            long expectedRevision,
             ReorderDesignDraftPanoramasRequest reorder) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         if (reorder == null || reorder.getPanoramaIds() == null) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_PANORAMA_ORDER_INVALID);
         }
@@ -206,7 +199,6 @@ public class DesignerDraftEditorService {
         }
         normalizePanoramas(draft);
         graphValidator.validateWorkingGraph(context.request(), draft);
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
         return draft.getPanoramas().stream()
                 .sorted(Comparator.comparing(DesignDraftPanorama::getOrderIndex))
@@ -218,9 +210,8 @@ public class DesignerDraftEditorService {
     public DesignDraftPanoramaResponseDTO deletePanorama(
             User designer,
             UUID requestId,
-            long expectedRevision,
             UUID panoramaId) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftPanorama panorama = getPanorama(draft, panoramaId);
         DesignDraftPanoramaResponseDTO response = previewService.toPanoramaResponse(panorama);
@@ -233,7 +224,6 @@ public class DesignerDraftEditorService {
         draft.getPanoramas().remove(panorama);
         normalizePanoramas(draft);
         graphValidator.validateWorkingGraph(context.request(), draft);
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
         return response;
     }
@@ -243,9 +233,8 @@ public class DesignerDraftEditorService {
             User designer,
             UUID requestId,
             UUID panoramaId,
-            long expectedRevision,
             UpsertDesignDraftHotspotRequest create) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftPanorama source = getPanorama(draft, panoramaId);
         DesignDraftBenefitGuardService.Usage beforeUsage = benefitGuardService.calculateUsage(draft);
@@ -256,7 +245,6 @@ public class DesignerDraftEditorService {
         source.getHotspots().add(hotspot);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        bumpRevision(draft);
         draftHotspotRepository.saveAndFlush(hotspot);
         return previewService.toHotspotResponse(hotspot);
     }
@@ -267,9 +255,8 @@ public class DesignerDraftEditorService {
             UUID requestId,
             UUID panoramaId,
             UUID hotspotId,
-            long expectedRevision,
             UpsertDesignDraftHotspotRequest update) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftPanorama source = getPanorama(draft, panoramaId);
         DesignDraftHotspot hotspot = getHotspot(source, hotspotId);
@@ -277,7 +264,6 @@ public class DesignerDraftEditorService {
         applyHotspot(context.request(), draft, hotspot, update);
         graphValidator.validateWorkingGraph(context.request(), draft);
         benefitGuardService.assertMutationAllowed(context.request(), beforeUsage, draft);
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
         return previewService.toHotspotResponse(hotspot);
     }
@@ -287,20 +273,18 @@ public class DesignerDraftEditorService {
             User designer,
             UUID requestId,
             UUID panoramaId,
-            long expectedRevision,
             UUID hotspotId) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraftPanorama source = getPanorama(context.draft(), panoramaId);
         DesignDraftHotspot hotspot = getHotspot(source, hotspotId);
         DesignDraftHotspotResponseDTO response = previewService.toHotspotResponse(hotspot);
         source.getHotspots().remove(hotspot);
         graphValidator.validateWorkingGraph(context.request(), context.draft());
-        bumpRevision(context.draft());
         draftRepository.saveAndFlush(context.draft());
         return response;
     }
 
-    private EditableDraft getEditableDraft(User designer, UUID requestId, long expectedRevision) {
+    private EditableDraft getEditableDraft(User designer, UUID requestId) {
         if (designer == null || designer.getId() == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -320,9 +304,6 @@ public class DesignerDraftEditorService {
         lifecyclePolicy.assertCanContinue(request);
         DesignDraft draft = draftRepository.findByDesignRequestIdAndVersionNumber(requestId, WORKING_VERSION)
                 .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_NOT_FOUND));
-        if (expectedRevision != (draft.getRevision() == null ? 0L : draft.getRevision())) {
-            throw new AppException(ErrorCode.DESIGN_DRAFT_EDIT_CONFLICT);
-        }
         return new EditableDraft(request, draft);
     }
 
@@ -691,9 +672,8 @@ public class DesignerDraftEditorService {
     public DesignDraftMediaAssetResponseDTO addMediaAsset(
             User designer,
             UUID requestId,
-            long expectedRevision,
             SubmitDesignDraftMediaAssetRequest request) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         if (request == null || request.getAssetId() == null) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
@@ -721,7 +701,6 @@ public class DesignerDraftEditorService {
                 .sortOrder(nextMediaSortOrder(draft))
                 .build();
         draft.getMediaAssets().add(mediaAsset);
-        bumpRevision(draft);
         draftMediaAssetRepository.saveAndFlush(mediaAsset);
         return designRequestMapper.toMediaAssetResponse(mediaAsset);
     }
@@ -730,9 +709,8 @@ public class DesignerDraftEditorService {
     public List<DesignDraftMediaAssetResponseDTO> reorderMediaAssets(
             User designer,
             UUID requestId,
-            long expectedRevision,
             List<UUID> mediaAssetIds) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         if (mediaAssetIds == null || mediaAssetIds.size() != draft.getMediaAssets().size()) {
             throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID);
@@ -749,7 +727,6 @@ public class DesignerDraftEditorService {
                     .orElseThrow(() -> new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_ORDER_INVALID))
                     .setSortOrder(index);
         }
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
         return draft.getMediaAssets().stream()
                 .sorted(Comparator.comparing(DesignDraftMediaAsset::getSortOrder))
@@ -758,8 +735,8 @@ public class DesignerDraftEditorService {
     }
 
     @Transactional
-    public void removeMediaAsset(User designer, UUID requestId, long expectedRevision, UUID mediaAssetId) {
-        EditableDraft context = getEditableDraft(designer, requestId, expectedRevision);
+    public void removeMediaAsset(User designer, UUID requestId, UUID mediaAssetId) {
+        EditableDraft context = getEditableDraft(designer, requestId);
         DesignDraft draft = context.draft();
         DesignDraftMediaAsset media = draft.getMediaAssets().stream()
                 .filter(ma -> Objects.equals(ma.getId(), mediaAssetId))
@@ -773,7 +750,6 @@ public class DesignerDraftEditorService {
             throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE);
         }
         draft.getMediaAssets().remove(media);
-        bumpRevision(draft);
         draftRepository.saveAndFlush(draft);
     }
 
@@ -783,10 +759,6 @@ public class DesignerDraftEditorService {
                 .filter(Objects::nonNull)
                 .max(Integer::compareTo)
                 .orElse(-1) + 1;
-    }
-
-    private void bumpRevision(DesignDraft draft) {
-        draft.setRevision((draft.getRevision() == null ? 0L : draft.getRevision()) + 1);
     }
 
     private record EditableDraft(DesignRequest request, DesignDraft draft) {

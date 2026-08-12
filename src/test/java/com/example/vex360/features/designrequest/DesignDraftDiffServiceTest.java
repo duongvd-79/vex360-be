@@ -206,6 +206,8 @@ class DesignDraftDiffServiceTest {
         assertDetected(draft -> draft.setBoothDescription("Changed"));
         assertDetected(draft -> draft.setThumbnailAction(DesignDraftFileAction.CLEAR));
         assertDetected(draft -> draft.setThumbnailAsset(DesignDraftAsset.builder().id(UUID.randomUUID()).build()));
+        assertDetected(draft -> draft.setBackgroundMusicAction(DesignDraftFileAction.CLEAR));
+        assertDetected(draft -> draft.setBackgroundMusicAsset(DesignDraftAsset.builder().id(UUID.randomUUID()).build()));
         assertDetected(draft -> panorama(draft, "p1").setImageKey("changed/key"));
         assertDetected(draft -> panorama(draft, "p1").setOrderIndex(2));
     }

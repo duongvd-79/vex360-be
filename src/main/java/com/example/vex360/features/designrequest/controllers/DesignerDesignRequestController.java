@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -113,9 +112,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftSettingsResponseDTO>> updateDraftSettings(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody UpdateDesignDraftSettingsRequest request) {
-        return ok(draftEditorService.updateSettings(userDetails.getUser(), id, expectedRevision, request));
+        return ok(draftEditorService.updateSettings(userDetails.getUser(), id, request));
     }
 
     @PostMapping("/{id}/working-draft/panoramas")
@@ -123,9 +121,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftPanoramaResponseDTO>> createDraftPanorama(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody CreateDesignDraftPanoramaRequest request) {
-        return created(draftEditorService.createPanorama(userDetails.getUser(), id, expectedRevision, request));
+        return created(draftEditorService.createPanorama(userDetails.getUser(), id, request));
     }
 
     @PatchMapping("/{id}/working-draft/panoramas/{panoramaId}")
@@ -134,9 +131,8 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody UpdateDesignDraftPanoramaRequest request) {
-        return ok(draftEditorService.updatePanorama(userDetails.getUser(), id, panoramaId, expectedRevision, request));
+        return ok(draftEditorService.updatePanorama(userDetails.getUser(), id, panoramaId, request));
     }
 
     @PutMapping("/{id}/working-draft/panoramas/order")
@@ -144,9 +140,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<List<DesignDraftPanoramaResponseDTO>>> reorderDraftPanoramas(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody ReorderDesignDraftPanoramasRequest request) {
-        return ok(draftEditorService.reorderPanoramas(userDetails.getUser(), id, expectedRevision, request));
+        return ok(draftEditorService.reorderPanoramas(userDetails.getUser(), id, request));
     }
 
     @DeleteMapping("/{id}/working-draft/panoramas/{panoramaId}")
@@ -154,9 +149,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftPanoramaResponseDTO>> deleteDraftPanorama(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @PathVariable UUID panoramaId) {
-        return ok(draftEditorService.deletePanorama(userDetails.getUser(), id, expectedRevision, panoramaId));
+        return ok(draftEditorService.deletePanorama(userDetails.getUser(), id, panoramaId));
     }
 
     @PostMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots")
@@ -165,9 +159,8 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody UpsertDesignDraftHotspotRequest request) {
-        return created(draftEditorService.createHotspot(userDetails.getUser(), id, panoramaId, expectedRevision, request));
+        return created(draftEditorService.createHotspot(userDetails.getUser(), id, panoramaId, request));
     }
 
     @PatchMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
@@ -177,10 +170,9 @@ public class DesignerDesignRequestController extends BaseController {
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
             @PathVariable UUID hotspotId,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody UpsertDesignDraftHotspotRequest request) {
         return ok(draftEditorService.updateHotspot(
-                userDetails.getUser(), id, panoramaId, hotspotId, expectedRevision, request));
+                userDetails.getUser(), id, panoramaId, hotspotId, request));
     }
 
     @DeleteMapping("/{id}/working-draft/panoramas/{panoramaId}/hotspots/{hotspotId}")
@@ -189,10 +181,9 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID panoramaId,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @PathVariable UUID hotspotId) {
         return ok(draftEditorService.deleteHotspot(
-                userDetails.getUser(), id, panoramaId, expectedRevision, hotspotId));
+                userDetails.getUser(), id, panoramaId, hotspotId));
     }
 
     @GetMapping("/{id}/products")
@@ -237,9 +228,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftAssetResponseDTO>> deleteAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @PathVariable UUID assetId) {
-        return ok(designDraftAssetService.releaseAsset(userDetails.getUser(), id, expectedRevision, assetId));
+        return ok(designDraftAssetService.releaseAsset(userDetails.getUser(), id, assetId));
     }
 
     @PatchMapping("/{id}/assets/{assetId}/name")
@@ -248,10 +238,9 @@ public class DesignerDesignRequestController extends BaseController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
             @PathVariable UUID assetId,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody UpdateDesignDraftAssetNameRequest request) {
         return ok(designDraftAssetService.renameAsset(
-                userDetails.getUser(), id, assetId, expectedRevision, request.getFileName()));
+                userDetails.getUser(), id, assetId, request.getFileName()));
     }
 
     @GetMapping("/{id}/assets")
@@ -269,9 +258,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignRequestResponseDTO>> saveWorkingDraft(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody SubmitDesignDraftRequest request) {
-        return ok(designRequestService.saveWorkingDraft(userDetails.getUser(), id, expectedRevision, request));
+        return ok(designRequestService.saveWorkingDraft(userDetails.getUser(), id, request));
     }
 
     @PostMapping("/{id}/working-draft/submit")
@@ -293,9 +281,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<DesignDraftMediaAssetResponseDTO>> addMediaAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @Valid @RequestBody SubmitDesignDraftMediaAssetRequest request) {
-        return created(draftEditorService.addMediaAsset(userDetails.getUser(), id, expectedRevision, request));
+        return created(draftEditorService.addMediaAsset(userDetails.getUser(), id, request));
     }
 
     @DeleteMapping("/{id}/working-draft/media-assets/{mediaAssetId}")
@@ -303,9 +290,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<Void>> removeMediaAsset(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @PathVariable UUID mediaAssetId) {
-        draftEditorService.removeMediaAsset(userDetails.getUser(), id, expectedRevision, mediaAssetId);
+        draftEditorService.removeMediaAsset(userDetails.getUser(), id, mediaAssetId);
         return ok(null);
     }
 
@@ -314,9 +300,8 @@ public class DesignerDesignRequestController extends BaseController {
     public ResponseEntity<ApiResponse<List<DesignDraftMediaAssetResponseDTO>>> reorderMediaAssets(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID id,
-            @RequestHeader("X-Draft-Revision") long expectedRevision,
             @RequestBody List<UUID> orderedMediaAssetIds) {
         return ok(draftEditorService.reorderMediaAssets(
-                userDetails.getUser(), id, expectedRevision, orderedMediaAssetIds));
+                userDetails.getUser(), id, orderedMediaAssetIds));
     }
 }
