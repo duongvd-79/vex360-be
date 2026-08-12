@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.jobs;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -34,6 +35,8 @@ public class PaymentReconciliationJob {
     private final PayOSIntegrationService payOSIntegrationService;
     private final ApplicationEventPublisher eventPublisher;
 
+    private static final Duration PAYOS_LINK_EXPIRY = Duration.ofHours(24);
+
     @Scheduled(fixedDelayString = "${app.payment.reconciliation-delay-ms:60000}")
     public void runReconciliation() {
         // 1. Process claimable receipts (PENDING or RETRYABLE_FAILED)
@@ -48,12 +51,19 @@ public class PaymentReconciliationJob {
         // 3. Query PayOS for PENDING local payments that may have paid on provider side
         List<Payment> pendingPayments = paymentRepository.findPendingExhibitionPayments(PageRequest.of(0, 50));
 
-        if (claimableReceipts.isEmpty() && unfulfilledPaid.isEmpty() && pendingPayments.isEmpty()) {
+        // 4. Mark PENDING payments past the PayOS link lifetime as EXPIRED
+        Instant expirationCutoff = Instant.now().minus(PAYOS_LINK_EXPIRY);
+        List<Payment> expiredPendingPayments = paymentRepository.findExpiredPendingPayments(
+                expirationCutoff, PageRequest.of(0, 50));
+
+        if (claimableReceipts.isEmpty() && unfulfilledPaid.isEmpty() && pendingPayments.isEmpty()
+                && expiredPendingPayments.isEmpty()) {
             return;
         }
 
-        log.info("[PB-006 Reconciliation Job] Starting auto-repair reconciliation run for {} receipts, {} unfulfilled, {} pending payments...",
-                claimableReceipts.size(), unfulfilledPaid.size(), pendingPayments.size());
+        log.info("[PB-006 Reconciliation Job] Starting auto-repair reconciliation run for {} receipts, {} unfulfilled, {} pending payments, {} expired payments...",
+                claimableReceipts.size(), unfulfilledPaid.size(), pendingPayments.size(),
+                expiredPendingPayments.size());
 
         for (PaymentReceipt receipt : claimableReceipts) {
             try {
@@ -90,11 +100,15 @@ public class PaymentReconciliationJob {
                         paymentRepository.save(payment);
                         fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
                         eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
-                    } else if (linkInfo.getStatus() == PaymentLinkStatus.CANCELLED
-                            || linkInfo.getStatus() == PaymentLinkStatus.EXPIRED) {
-                        log.info("[PB-006] Provider confirmed {} for local PENDING orderCode {}. Marking FAILED...",
-                                linkInfo.getStatus(), payment.getOrderCode());
+                    } else if (linkInfo.getStatus() == PaymentLinkStatus.CANCELLED) {
+                        log.info("[PB-006] Provider confirmed CANCELLED for local PENDING orderCode {}. Marking FAILED...",
+                                payment.getOrderCode());
                         payment.setStatus(PaymentStatus.FAILED);
+                        paymentRepository.save(payment);
+                    } else if (linkInfo.getStatus() == PaymentLinkStatus.EXPIRED) {
+                        log.info("[PB-006] Provider confirmed EXPIRED for local PENDING orderCode {}. Marking EXPIRED...",
+                                payment.getOrderCode());
+                        payment.setStatus(PaymentStatus.EXPIRED);
                         paymentRepository.save(payment);
                     }
                 }
@@ -102,6 +116,16 @@ public class PaymentReconciliationJob {
                 log.debug("[PB-006] PayOS status check exception for orderCode {}: {}", payment.getOrderCode(),
                         e.getMessage());
             }
+        }
+
+        for (Payment payment : expiredPendingPayments) {
+            if (payment.getOrderCode() == null || payment.getStatus() != PaymentStatus.PENDING) {
+                continue;
+            }
+            log.info("[PB-006] Payment orderCode {} pending since {} (past {}); marking EXPIRED...",
+                    payment.getOrderCode(), payment.getCreatedAt(), PAYOS_LINK_EXPIRY);
+            payment.setStatus(PaymentStatus.EXPIRED);
+            paymentRepository.save(payment);
         }
 
         log.info("[PB-006 Reconciliation Job] Reconciliation run finished.");
