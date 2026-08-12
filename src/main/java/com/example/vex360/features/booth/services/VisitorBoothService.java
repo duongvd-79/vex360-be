@@ -11,7 +11,6 @@ import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.enums.BoothListingPriority;
-import com.example.vex360.shared.exceptions.AppException;
 
 public interface VisitorBoothService {
     /**

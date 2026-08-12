@@ -15,7 +15,6 @@ import com.example.vex360.features.company.entities.StoragePackageOrder;
 import com.example.vex360.shared.enums.StoragePackageOrderStatus;
 
 public interface StoragePackageOrderRepository extends JpaRepository<StoragePackageOrder, Integer> {
-    Optional<StoragePackageOrder> findByOrderCode(Long orderCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM StoragePackageOrder o WHERE o.id = :id")

@@ -868,7 +868,6 @@ class DesignRequestServiceUnitTest {
 
         assertTrue(draft.getMediaAssets().isEmpty());
         verify(exhibitorMediaAssetService, never()).saveMediaAsset(any(MediaAsset.class));
-        verify(storageService, never()).promoteReservedUsage(any(), any(Long.class));
     }
 
     @Test
@@ -930,7 +929,6 @@ class DesignRequestServiceUnitTest {
         assertEquals(List.of(accepted), draft.getMediaAssets());
         assertEquals(DesignDraftAssetQuotaState.PROMOTED, accepted.getAsset().getQuotaState());
         verify(storageService).reconcileUsage(company, 0L, 20L, 0L);
-        verify(storageService, never()).promoteReservedUsage(company, 20L);
         ArgumentCaptor<MediaAsset> mediaCaptor = ArgumentCaptor.forClass(MediaAsset.class);
         verify(exhibitorMediaAssetService).saveMediaAsset(mediaCaptor.capture());
         assertEquals(MediaAssetType.VIDEO, mediaCaptor.getValue().getType());

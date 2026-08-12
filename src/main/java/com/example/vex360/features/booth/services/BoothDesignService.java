@@ -10,8 +10,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,11 +70,6 @@ public class BoothDesignService {
             throw new AppException(ErrorCode.DESIGN_DRAFT_MEDIA_REFERENCE_INVALID);
         }
         return mediaAsset;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<MediaAsset> getMediaAssetsForCompany(UUID companyId, Pageable pageable) {
-        return mediaAssetRepository.findByCompanyId(companyId, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -232,11 +225,6 @@ public class BoothDesignService {
     @Transactional(readOnly = true)
     public long countPanoramasByBoothId(UUID boothId) {
         return panoramaRepository.countByBoothId(boothId);
-    }
-
-    @Transactional(readOnly = true)
-    public long countHotspotsByBoothId(UUID boothId) {
-        return hotspotRepository.countBySourcePanoramaBoothId(boothId);
     }
 
     @Transactional(readOnly = true)
