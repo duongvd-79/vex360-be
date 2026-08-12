@@ -98,11 +98,6 @@ public class CompanyService {
         return companyRepository.findByOwnerUserId(ownerUserId);
     }
 
-    @Transactional(readOnly = true)
-    public boolean existsByOwnerUserId(UUID ownerUserId) {
-        return companyRepository.existsByOwnerUserId(ownerUserId);
-    }
-
     /**
      * Ensures an eligible company-role user owns exactly one company.
      *

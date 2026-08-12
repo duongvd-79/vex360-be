@@ -48,42 +48,6 @@ public class CompanyStorageService {
     }
 
     @Transactional
-    public void reserveUsage(Company company, long fileSizeBytes) {
-        Company locked = lock(company);
-        checkQuota(locked, fileSizeBytes);
-        locked.setStorageReservedBytes(reserved(locked) + fileSizeBytes);
-        companyRepository.save(locked);
-    }
-
-    @Transactional
-    public void adjustReservation(Company company, long previousBytes, long actualBytes) {
-        validateBytes(previousBytes);
-        validateBytes(actualBytes);
-        Company locked = lock(company);
-        if (reserved(locked) < previousBytes) {
-            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
-        }
-        long remainingReserved = reserved(locked) - previousBytes;
-        if (used(locked) + remainingReserved + actualBytes > quota(locked)) {
-            throw new AppException(ErrorCode.STORAGE_QUOTA_EXCEEDED);
-        }
-        locked.setStorageReservedBytes(remainingReserved + actualBytes);
-        companyRepository.save(locked);
-    }
-
-    @Transactional
-    public void promoteReservedUsage(Company company, long fileSizeBytes) {
-        validateBytes(fileSizeBytes);
-        Company locked = lock(company);
-        if (reserved(locked) < fileSizeBytes) {
-            throw new AppException(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT);
-        }
-        locked.setStorageReservedBytes(reserved(locked) - fileSizeBytes);
-        locked.setStorageUsedBytes(used(locked) + fileSizeBytes);
-        companyRepository.save(locked);
-    }
-
-    @Transactional
     public void releaseReservedUsage(Company company, long fileSizeBytes) {
         validateBytes(fileSizeBytes);
         Company locked = lock(company);

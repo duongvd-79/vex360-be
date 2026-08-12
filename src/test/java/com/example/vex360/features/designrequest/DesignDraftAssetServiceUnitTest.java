@@ -158,7 +158,6 @@ class DesignDraftAssetServiceUnitTest {
 
         assertSame(ErrorCode.FILE_TYPE_NOT_SUPPORTED, exception.getErrorCode());
         verify(cloudService, never()).uploadToFolder(any(), any());
-        verify(storageService, never()).reserveUsage(any(), any(Long.class));
     }
 
     @Test
@@ -171,7 +170,6 @@ class DesignDraftAssetServiceUnitTest {
                 () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
 
         assertSame(ErrorCode.PANORAMA_FILE_INVALID, exception.getErrorCode());
-        verify(storageService, never()).reserveUsage(any(), any(Long.class));
         verify(cloudService, never()).uploadToFolder(any(), any());
     }
 
@@ -201,7 +199,6 @@ class DesignDraftAssetServiceUnitTest {
                 () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
 
         assertSame(ErrorCode.FILE_TOO_LARGE, exception.getErrorCode());
-        verify(storageService, never()).reserveUsage(any(), any(Long.class));
         verify(cloudService, never()).uploadToFolder(any(), any());
     }
 
@@ -217,7 +214,6 @@ class DesignDraftAssetServiceUnitTest {
                 () -> service.uploadAsset(designer, request.getId(), file, DesignDraftAssetType.MEDIA_ATTACHMENT));
 
         assertSame(ErrorCode.DESIGN_CANCELLATION_PENDING, exception.getErrorCode());
-        verify(storageService, never()).reserveUsage(any(), any(Long.class));
         verify(cloudService, never()).uploadToFolder(any(), any());
     }
 

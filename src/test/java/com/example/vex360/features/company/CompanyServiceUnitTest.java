@@ -345,26 +345,4 @@ class CompanyServiceUnitTest {
 
         assertSame(ErrorCode.COMPANY_NOT_FOUND, exception.getErrorCode());
     }
-
-    // ================= existsByOwnerUserId =================
-
-    @Test
-    void existsByOwnerUserId_OwnerHasCompany_ReturnsTrue() {
-        UUID ownerId = UUID.randomUUID();
-        when(companyRepository.existsByOwnerUserId(ownerId)).thenReturn(true);
-
-        boolean result = companyService.existsByOwnerUserId(ownerId);
-
-        assertTrue(result);
-    }
-
-    @Test
-    void existsByOwnerUserId_OwnerHasNoCompany_ReturnsFalse() {
-        UUID ownerId = UUID.randomUUID();
-        when(companyRepository.existsByOwnerUserId(ownerId)).thenReturn(false);
-
-        boolean result = companyService.existsByOwnerUserId(ownerId);
-
-        assertFalse(result);
-    }
 }

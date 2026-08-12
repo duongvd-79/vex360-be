@@ -115,14 +115,6 @@ public interface HotspotRepository extends JpaRepository<Hotspot, UUID> {
     List<Product> findProductsByBoothIdForUpdate(@Param("boothId") UUID boothId);
 
     @Query("""
-            SELECT DISTINCT h.product
-            FROM Hotspot h
-            WHERE h.sourcePanorama.booth.id = :boothId
-              AND h.product IS NOT NULL
-            """)
-    List<Product> findDistinctProductsByBoothId(@Param("boothId") UUID boothId);
-
-    @Query("""
             SELECT h.sourcePanorama.booth.id AS boothId, COUNT(h.id) AS contentCount
             FROM Hotspot h
             WHERE h.sourcePanorama.booth.id IN :boothIds

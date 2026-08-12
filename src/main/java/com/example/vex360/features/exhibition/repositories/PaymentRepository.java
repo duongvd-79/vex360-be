@@ -83,6 +83,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             """)
     List<Payment> findPendingExhibitionPayments(Pageable pageable);
 
+    @Query("""
+            SELECT p FROM Payment p
+            WHERE p.status = com.example.vex360.shared.enums.PaymentStatus.PENDING
+              AND p.paymentType = com.example.vex360.shared.enums.PaymentType.EXHIBITION_REGISTRATION
+              AND p.createdAt < :cutoff
+            """)
+    List<Payment> findExpiredPendingPayments(@Param("cutoff") Instant cutoff, Pageable pageable);
+
     /**
      * Doanh thu bán gói đã thanh toán theo từng ngày của một triển lãm — dùng cho
      * biểu đồ doanh thu ở dashboard ban tổ chức.

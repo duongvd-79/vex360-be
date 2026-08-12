@@ -2,7 +2,6 @@ package com.example.vex360.features.booth.repositories;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,13 +31,6 @@ public interface PanoramaRepository extends JpaRepository<Panorama, UUID> {
     long countByBoothId(UUID boothId);
 
     boolean existsByImageKey(String imageKey);
-
-    @Query("""
-            SELECT DISTINCT p.imageKey
-            FROM Panorama p
-            WHERE p.imageKey IN :imageKeys
-            """)
-    List<String> findUsedImageKeys(@Param("imageKeys") Set<String> imageKeys);
 
     @Query("""
             SELECT p.booth.id AS boothId, COUNT(p.id) AS contentCount

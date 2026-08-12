@@ -70,44 +70,6 @@ class CompanyStorageServiceUnitTest {
     }
 
     @Test
-    void reserveUsage_IncreasesReservedWithoutChargingUsed() {
-        stubCompanyLock();
-        when(companyRepository.save(company)).thenReturn(company);
-
-        companyStorageService.reserveUsage(company, 40L);
-
-        assertEquals(100L, company.getStorageUsedBytes());
-        assertEquals(90L, company.getStorageReservedBytes());
-        verify(companyRepository).save(company);
-    }
-
-    @Test
-    void reserveUsage_AcceptsExactBoundaryThenRejectsOneMoreByte() {
-        stubCompanyLock();
-        when(companyRepository.save(company)).thenReturn(company);
-
-        companyStorageService.reserveUsage(company, 350L);
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> companyStorageService.reserveUsage(company, 1L));
-
-        assertEquals(400L, company.getStorageReservedBytes());
-        assertEquals(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
-    }
-
-    @Test
-    void promoteReservedUsage_MovesBytesFromReservedToUsed() {
-        stubCompanyLock();
-        when(companyRepository.save(company)).thenReturn(company);
-
-        companyStorageService.promoteReservedUsage(company, 30L);
-
-        assertEquals(130L, company.getStorageUsedBytes());
-        assertEquals(20L, company.getStorageReservedBytes());
-        verify(companyRepository).save(company);
-    }
-
-    @Test
     void releaseReservedUsage_CannotReleaseMoreThanReserved() {
         stubCompanyLock();
         AppException exception = assertThrows(
@@ -204,26 +166,6 @@ class CompanyStorageServiceUnitTest {
         assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
     }
 
-    // ================= promoteReservedUsage =================
-
-    @Test
-    void promoteReservedUsage_InsufficientReserved_ThrowsInvalidStorageUsage() {
-        stubCompanyLock();
-
-        AppException exception = assertThrows(AppException.class,
-                () -> companyStorageService.promoteReservedUsage(company, 51L));
-
-        assertEquals(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT, exception.getErrorCode());
-    }
-
-    @Test
-    void promoteReservedUsage_NegativeBytes_ThrowsInvalidStorageUsage() {
-        AppException exception = assertThrows(AppException.class,
-                () -> companyStorageService.promoteReservedUsage(company, -1L));
-
-        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
-    }
-
     // ================= releaseReservedUsage =================
 
     @Test
@@ -244,55 +186,9 @@ class CompanyStorageServiceUnitTest {
                 () -> companyStorageService.releaseReservedUsage(company, -1L));
 
         assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
-    }
-
-    // ================= adjustReservation =================
-
-    @Test
-    void adjustReservation_Success_UpdatesReservedToActualBytes() {
-        stubCompanyLock();
-        when(companyRepository.save(company)).thenReturn(company);
-
-        // reserved=50 -> release 30 of the old estimate, commit 25 as the real size
-        companyStorageService.adjustReservation(company, 30L, 25L);
-
-        assertEquals(45L, company.getStorageReservedBytes());
-        assertEquals(100L, company.getStorageUsedBytes());
-        verify(companyRepository).save(company);
-    }
-
-    @Test
-    void adjustReservation_PreviousBytesExceedsReserved_ThrowsInvalidStorageUsage() {
-        stubCompanyLock();
-
-        AppException exception = assertThrows(AppException.class,
-                () -> companyStorageService.adjustReservation(company, 51L, 10L));
-
-        assertEquals(ErrorCode.STORAGE_RESERVED_USAGE_INSUFFICIENT, exception.getErrorCode());
-    }
-
-    @Test
-    void adjustReservation_QuotaExceeded_ThrowsStorageQuotaExceeded() {
-        stubCompanyLock();
-
-        // used=100, reserved=50, quota=500 -> releasing all 50 then committing 401
-        // overflows quota
-        AppException exception = assertThrows(AppException.class,
-                () -> companyStorageService.adjustReservation(company, 50L, 401L));
-
-        assertEquals(ErrorCode.STORAGE_QUOTA_EXCEEDED, exception.getErrorCode());
-    }
-
-    @Test
-    void adjustReservation_NegativeBytes_ThrowsInvalidStorageUsage() {
-        AppException exception = assertThrows(AppException.class,
-                () -> companyStorageService.adjustReservation(company, -1L, 10L));
-
-        assertEquals(ErrorCode.STORAGE_USAGE_AMOUNT_INVALID, exception.getErrorCode());
-    }
+}
 
     // ================= getUsage =================
-
     @Test
     void getUsage_NormalCase_ReturnsCorrectPercentageAndAvailable() {
         StorageUsageResponseDTO result = companyStorageService.getUsage(company);

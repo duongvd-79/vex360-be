@@ -98,7 +98,7 @@ public class OrganizerWalletDomainService {
 
         try {
             return organizerWalletTransactionRepository.save(tx);
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException e) {
             log.warn("Duplicate PAYMENT_CREDIT transaction detected for payment ID {}. Idempotent fallback triggered.",
                     payment.getId());
             return null;
