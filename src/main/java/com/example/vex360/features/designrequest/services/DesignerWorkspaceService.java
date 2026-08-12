@@ -249,7 +249,6 @@ public class DesignerWorkspaceService {
         return new DesignDraftWorkspaceResponseDTO(
                 draft.getId(),
                 draft.getVersionNumber(),
-                draft.getRevision() == null ? 0L : draft.getRevision(),
                 draft.getCreatedAt(),
                 new SubmitDesignDraftRequest(draft.getNote(), toSettings(draft), panoramas, mediaAssets));
     }
@@ -354,6 +353,9 @@ public class DesignerWorkspaceService {
                 .remainingDesignActions(eligibilityService.remainingActions(request.getBooth()))
                 .currentBooth(boothMapper.toBoothResponseDTO(request.getBooth()))
                 .submittedThumbnailUrl(resolveThumbnailUrl(request, latest))
+                .submittedBackgroundMusicUrl(resolveBackgroundMusicUrl(request, latest))
+                .submittedBackgroundMusicFileName(resolveBackgroundMusicFileName(request, latest))
+                .submittedBackgroundMusicFileSize(resolveBackgroundMusicFileSize(request, latest))
                 .latestSubmittedDraft(toDraftResponse(latest))
                 .requiredProducts(required)
                 .optionalProducts(optional)
@@ -377,6 +379,45 @@ public class DesignerWorkspaceService {
         return switch (action) {
             case KEEP -> asset == null ? request.getBooth().getThumbnailUrl() : asset.getUrl();
             case REPLACE -> asset == null ? null : asset.getUrl();
+            case CLEAR -> null;
+        };
+    }
+
+    private String resolveBackgroundMusicUrl(DesignRequest request, DesignDraft draft) {
+        DesignDraftFileAction action = draft.getBackgroundMusicAction() == null
+                ? DesignDraftFileAction.KEEP
+                : draft.getBackgroundMusicAction();
+        DesignDraftAsset asset = draft.getBackgroundMusicAsset();
+
+        return switch (action) {
+            case KEEP -> asset == null ? request.getBooth().getBackgroundMusicUrl() : asset.getUrl();
+            case REPLACE -> asset == null ? null : asset.getUrl();
+            case CLEAR -> null;
+        };
+    }
+
+    private String resolveBackgroundMusicFileName(DesignRequest request, DesignDraft draft) {
+        DesignDraftFileAction action = draft.getBackgroundMusicAction() == null
+                ? DesignDraftFileAction.KEEP
+                : draft.getBackgroundMusicAction();
+        DesignDraftAsset asset = draft.getBackgroundMusicAsset();
+
+        return switch (action) {
+            case KEEP -> asset == null ? request.getBooth().getBackgroundMusicFileName() : asset.getFileName();
+            case REPLACE -> asset == null ? null : asset.getFileName();
+            case CLEAR -> null;
+        };
+    }
+
+    private Long resolveBackgroundMusicFileSize(DesignRequest request, DesignDraft draft) {
+        DesignDraftFileAction action = draft.getBackgroundMusicAction() == null
+                ? DesignDraftFileAction.KEEP
+                : draft.getBackgroundMusicAction();
+        DesignDraftAsset asset = draft.getBackgroundMusicAsset();
+
+        return switch (action) {
+            case KEEP -> asset == null ? request.getBooth().getBackgroundMusicFileSize() : asset.getFileSize();
+            case REPLACE -> asset == null ? null : asset.getFileSize();
             case CLEAR -> null;
         };
     }

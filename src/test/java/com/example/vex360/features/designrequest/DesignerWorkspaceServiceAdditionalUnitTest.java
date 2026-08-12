@@ -1,6 +1,7 @@
 package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
@@ -27,7 +28,9 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.designrequest.dtos.response.ExhibitorDesignReviewWorkspaceResponseDTO;
 import com.example.vex360.features.designrequest.entities.DesignDraft;
+import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
+import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.designrequest.mapper.DesignRequestMapper;
 import com.example.vex360.features.designrequest.repositories.DesignRequestMediaAssetRepository;
@@ -164,10 +167,14 @@ class DesignerWorkspaceServiceAdditionalUnitTest {
     @Test
     void getReviewWorkspaceReturnsLatestSubmittedDraft() {
         User exhibitor = User.builder().id(UUID.randomUUID()).build();
+        booth.setBackgroundMusicUrl("https://cdn.example/baseline.mp3");
+        booth.setBackgroundMusicFileName("baseline.mp3");
+        booth.setBackgroundMusicFileSize(100L);
         DesignDraft draft = DesignDraft.builder()
                 .id(UUID.randomUUID())
                 .versionNumber(1)
                 .createdAt(Instant.now())
+                .backgroundMusicAction(DesignDraftFileAction.KEEP)
                 .build();
         DesignRequest submitted = DesignRequest.builder()
                 .id(request.getId())
@@ -186,7 +193,73 @@ class DesignerWorkspaceServiceAdditionalUnitTest {
         assertEquals(DesignRequestStatus.DRAFT_SUBMITTED, response.getStatus());
         assertEquals(1, response.getLatestSubmittedDraft().getVersionNumber());
         assertEquals(1, response.getSubmissionHistory().size());
+        assertEquals("https://cdn.example/baseline.mp3", response.getSubmittedBackgroundMusicUrl());
+        assertEquals("baseline.mp3", response.getSubmittedBackgroundMusicFileName());
+        assertEquals(100L, response.getSubmittedBackgroundMusicFileSize());
         verify(designDraftDiffService).compareDraftWithBooth(draft, booth);
+    }
+
+    @Test
+    void getReviewWorkspaceReturnsReplacedMusic() {
+        User exhibitor = User.builder().id(UUID.randomUUID()).build();
+        DesignDraftAsset music = DesignDraftAsset.builder()
+                .url("https://cdn.example/designer.mp3")
+                .fileName("designer.mp3")
+                .fileSize(200L)
+                .build();
+        DesignDraft draft = DesignDraft.builder()
+                .id(UUID.randomUUID())
+                .versionNumber(1)
+                .createdAt(Instant.now())
+                .backgroundMusicAction(DesignDraftFileAction.REPLACE)
+                .backgroundMusicAsset(music)
+                .build();
+        DesignRequest submitted = DesignRequest.builder()
+                .id(request.getId())
+                .company(company)
+                .booth(booth)
+                .status(DesignRequestStatus.DRAFT_SUBMITTED)
+                .drafts(List.of(draft))
+                .build();
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findById(submitted.getId())).thenReturn(Optional.of(submitted));
+
+        ExhibitorDesignReviewWorkspaceResponseDTO response = service.getReviewWorkspace(
+                exhibitor, submitted.getId());
+
+        assertEquals("https://cdn.example/designer.mp3", response.getSubmittedBackgroundMusicUrl());
+        assertEquals("designer.mp3", response.getSubmittedBackgroundMusicFileName());
+        assertEquals(200L, response.getSubmittedBackgroundMusicFileSize());
+    }
+
+    @Test
+    void getReviewWorkspaceClearsMusic() {
+        User exhibitor = User.builder().id(UUID.randomUUID()).build();
+        booth.setBackgroundMusicUrl("https://cdn.example/baseline.mp3");
+        booth.setBackgroundMusicFileName("baseline.mp3");
+        booth.setBackgroundMusicFileSize(100L);
+        DesignDraft draft = DesignDraft.builder()
+                .id(UUID.randomUUID())
+                .versionNumber(1)
+                .createdAt(Instant.now())
+                .backgroundMusicAction(DesignDraftFileAction.CLEAR)
+                .build();
+        DesignRequest submitted = DesignRequest.builder()
+                .id(request.getId())
+                .company(company)
+                .booth(booth)
+                .status(DesignRequestStatus.DRAFT_SUBMITTED)
+                .drafts(List.of(draft))
+                .build();
+        when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
+        when(designRequestRepository.findById(submitted.getId())).thenReturn(Optional.of(submitted));
+
+        ExhibitorDesignReviewWorkspaceResponseDTO response = service.getReviewWorkspace(
+                exhibitor, submitted.getId());
+
+        assertNull(response.getSubmittedBackgroundMusicUrl());
+        assertNull(response.getSubmittedBackgroundMusicFileName());
+        assertNull(response.getSubmittedBackgroundMusicFileSize());
     }
 
     @Test

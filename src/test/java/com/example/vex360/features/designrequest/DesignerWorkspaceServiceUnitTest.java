@@ -137,7 +137,6 @@ class DesignerWorkspaceServiceUnitTest {
         DesignDraft workingDraft = DesignDraft.builder()
                 .designRequest(request)
                 .versionNumber(0)
-                .revision(4L)
                 .build();
         request.getDrafts().add(workingDraft);
         when(designRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
@@ -150,7 +149,6 @@ class DesignerWorkspaceServiceUnitTest {
         assertEquals("0912345678", response.getContactPhone());
         assertEquals(0, response.getRequiredMediaAssetCount());
         assertEquals(0, response.getOptionalMediaAssetCount());
-        assertEquals(4L, response.getWorkingDraft().getRevision());
     }
 
     @Test

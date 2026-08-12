@@ -281,7 +281,7 @@ class DesignDraftAssetServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.releaseAsset(designer, request.getId(), 0L, asset.getId()));
+                () -> service.releaseAsset(designer, request.getId(), asset.getId()));
 
         assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         verify(cloudService, never()).delete(any(), any());
@@ -313,14 +313,13 @@ class DesignDraftAssetServiceUnitTest {
                 .thenReturn(Optional.of(asset));
         when(boothDesignService.getPanoramaImageKeys(request.getBooth().getId())).thenReturn(Set.of());
 
-        service.releaseAsset(designer, request.getId(), 0L, asset.getId());
+        service.releaseAsset(designer, request.getId(), asset.getId());
 
         assertEquals(List.of(retainedMedia), draft.getMediaAssets());
         verify(draftMediaAssetRepository).deleteAll(List.of(media));
         verify(assetRepository).delete(asset);
         verify(assetRepository, never()).delete(retainedAsset);
         verify(assetReferenceService).scheduleCleanup(asset.getPublicId(), "image");
-        assertEquals(1L, draft.getRevision());
     }
 
     @Test
@@ -356,7 +355,7 @@ class DesignDraftAssetServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.releaseAsset(designer, request.getId(), 0L, asset.getId()));
+                () -> service.releaseAsset(designer, request.getId(), asset.getId()));
 
         assertSame(ErrorCode.DESIGN_DRAFT_MEDIA_IN_USE, exception.getErrorCode());
         assertEquals(List.of(media), draft.getMediaAssets());
@@ -430,7 +429,7 @@ class DesignDraftAssetServiceUnitTest {
                 .thenReturn(Optional.of(asset));
         when(assetRepository.save(asset)).thenReturn(asset);
 
-        DesignDraftAssetResponseDTO response = service.renameAsset(designer, request.getId(), asset.getId(), 0L,
+        DesignDraftAssetResponseDTO response = service.renameAsset(designer, request.getId(), asset.getId(),
                 "  Welcome video  ");
 
         assertEquals("Welcome video", response.getFileName());
@@ -438,7 +437,6 @@ class DesignDraftAssetServiceUnitTest {
         assertEquals("https://cdn.example/design-media/intro", asset.getUrl());
         assertEquals("design-media/intro", asset.getPublicId());
         assertEquals("image/jpeg", asset.getMimeType());
-        assertEquals(1L, draft.getRevision());
     }
 
     @Test
@@ -449,7 +447,7 @@ class DesignDraftAssetServiceUnitTest {
                 ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID,
                 assertThrows(
                         AppException.class,
-                        () -> service.renameAsset(designer, request.getId(), UUID.randomUUID(), 0L, "  "))
+                        () -> service.renameAsset(designer, request.getId(), UUID.randomUUID(), "  "))
                         .getErrorCode());
         assertSame(
                 ErrorCode.DESIGN_DRAFT_ASSET_NAME_INVALID,
@@ -459,7 +457,6 @@ class DesignDraftAssetServiceUnitTest {
                                 designer,
                                 request.getId(),
                                 UUID.randomUUID(),
-                                0L,
                                 "x".repeat(256)))
                         .getErrorCode());
         verify(assetRepository, never()).save(any());
@@ -476,7 +473,7 @@ class DesignDraftAssetServiceUnitTest {
 
         AppException exception = assertThrows(
                 AppException.class,
-                () -> service.renameAsset(designer, request.getId(), asset.getId(), 0L, "New name"));
+                () -> service.renameAsset(designer, request.getId(), asset.getId(), "New name"));
 
         assertSame(ErrorCode.DESIGN_DRAFT_ASSET_TYPE_INVALID, exception.getErrorCode());
         verify(assetRepository, never()).save(any());
