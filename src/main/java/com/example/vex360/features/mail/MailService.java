@@ -10,19 +10,25 @@ import com.example.vex360.shared.enums.Role;
 
 public interface MailService {
     void sendForgotPasswordEmail(String toEmail, String resetUrl);
+
     void sendRegistrationVerificationEmail(String toEmail, String verifyUrl);
+
     void sendPasswordChangeNotificationEmail(String toEmail);
+
     void sendNewUserCredentialsEmail(String toEmail, String fullName, String password);
+
     void sendPartnershipApprovedEmail(
             String toEmail,
             String fullName,
             Role role,
             String organizationName);
+
     void sendPartnershipRejectedEmail(
             String toEmail,
             String fullName,
             String organizationName,
             String reviewNote);
+
     void sendPartnershipVerificationEmail(
             String toEmail,
             String fullName,
@@ -98,4 +104,20 @@ public interface MailService {
             String cancellationReason,
             String resolutionNote,
             Instant resolvedAt);
+
+    void sendBoothWarningEmail(
+            String toEmail,
+            String fullName,
+            String boothName,
+            String exhibitionName,
+            String warningReason,
+            Instant warnedAt);
+
+    void sendBoothBanEmail(
+            String toEmail,
+            String fullName,
+            String boothName,
+            String exhibitionName,
+            String banReason,
+            Instant bannedAt);
 }

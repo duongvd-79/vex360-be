@@ -18,7 +18,8 @@ import lombok.NoArgsConstructor;
 public class BoothResponseDTO {
     private UUID id;
     private UUID companyId;
-    // Id của user exhibitor sở hữu gian hàng - dùng ở FE để mở phòng chat trực tiếp với gian hàng
+    // Id của user exhibitor sở hữu gian hàng - dùng ở FE để mở phòng chat trực tiếp
+    // với gian hàng
     private UUID exhibitorUserId;
     private UUID registrationUuid;
     private UUID exhibitionUuid;
@@ -46,4 +47,9 @@ public class BoothResponseDTO {
     private LocalDate boothReviewDeadline;
     private Boolean boothPreparationOpen;
     private Long daysUntilBoothDeadline;
+    private Integer warningCount;
+    private String warningReason;
+    private Instant warnedAt;
+    private String banReason;
+    private Instant bannedAt;
 }

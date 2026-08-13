@@ -12,14 +12,12 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-    properties:
-      hibernate:
-        format_sql: true
 
   # Flyway Configuration
   flyway:
     enabled: false
     baseline-on-migrate: true
+    baseline-version: 18
 
   # File Upload Configuration
   servlet:
