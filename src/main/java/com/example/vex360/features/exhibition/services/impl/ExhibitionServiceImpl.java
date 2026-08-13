@@ -1485,6 +1485,15 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<Integer, Long> aggregateProfitByExhibition(List<Integer> exhibitionIds, Instant start, Instant end) {
+        Map<Integer, Long> result = new HashMap<>();
+        paymentRepository.aggregateProfitByExhibition(exhibitionIds, start, end)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Exhibition findExhibitionEntityByUuid(UUID uuid) {
         return exhibitionRepository.findByUuid(uuid)
                 .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));

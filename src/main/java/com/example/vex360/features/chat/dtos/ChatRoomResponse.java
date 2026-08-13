@@ -18,6 +18,9 @@ import lombok.Setter;
 public class ChatRoomResponse {
 
     private UUID roomId;
+    private String boothName;
+    private String boothThumbnailUrl;
+    private String exhibitionName;
     private String exhibitorName;
     private String exhibitorAvatar;
     private boolean exhibitorOnline;
