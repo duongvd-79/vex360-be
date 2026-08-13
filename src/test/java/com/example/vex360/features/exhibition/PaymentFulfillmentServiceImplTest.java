@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -254,6 +255,37 @@ class PaymentFulfillmentServiceImplTest {
         assertEquals(PaymentReceiptStatus.SUCCEEDED, res.get().getStatus());
         assertEquals(ExhibitorRegistrationStatus.APPROVED, reg.getStatus());
         verify(eventPublisher).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
+    }
+
+    @Test
+    void processFulfillmentForOrderCode_updatesRevenueSplitBeforeFulfillment() {
+        Exhibition exhibition = Exhibition.builder().status(ExhibitionStatus.PUBLISHED).build();
+        ExhibitorRegistration reg = ExhibitorRegistration.builder().id(5)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .priceSnapshot(BigDecimal.valueOf(1000000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1500000))
+                .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
+                .build();
+        Payment payment = Payment.builder().orderCode(orderCode).status(PaymentStatus.PAID)
+                .amount(BigDecimal.valueOf(1500000))
+                .systemFee(BigDecimal.ZERO)
+                .organizerPayout(BigDecimal.valueOf(1500000))
+                .paymentType(PaymentType.EXHIBITION_REGISTRATION).exhibitorRegistration(reg).build();
+        PaymentReceipt receipt = PaymentReceipt.builder().orderCode(orderCode).status(PaymentReceiptStatus.SUCCEEDED)
+                .build();
+
+        when(paymentRepository.findRouteByOrderCode(orderCode)).thenReturn(Optional.of(routeFor(reg.getId())));
+        when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
+        when(registrationRepository.findByIdForUpdate(reg.getId())).thenReturn(Optional.of(reg));
+        when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
+        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+
+        fulfillmentService.processFulfillmentForOrderCode(orderCode);
+
+        assertEquals(BigDecimal.valueOf(1000000), payment.getSystemFee());
+        assertEquals(BigDecimal.valueOf(500000), payment.getOrganizerPayout());
+        verify(paymentRepository).save(payment);
     }
 
     @Test

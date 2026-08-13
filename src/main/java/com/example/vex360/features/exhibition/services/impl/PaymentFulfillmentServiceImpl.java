@@ -1,5 +1,6 @@
 package com.example.vex360.features.exhibition.services.impl;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -181,6 +182,20 @@ public class PaymentFulfillmentServiceImpl implements PaymentFulfillmentService 
                         && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
             updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_CLOSED));
             return receiptRepository.findByOrderCode(orderCode);
+        }
+
+        BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
+                ? registration.getFinalPriceSnapshot()
+                : registration.getExhibitionPackage().getFinalPrice();
+        if (finalPrice != null) {
+            BigDecimal systemFee = registration.getPriceSnapshot() != null
+                    ? registration.getPriceSnapshot()
+                    : registration.getExhibitionPackage().getPriceSnapshot();
+            systemFee = systemFee == null ? BigDecimal.ZERO : systemFee;
+            payment.setAmount(finalPrice);
+            payment.setSystemFee(systemFee);
+            payment.setOrganizerPayout(finalPrice.subtract(systemFee));
+            paymentRepository.save(payment);
         }
 
         if (registration.getReservedUntil() != null && registration.getReservedUntil().isBefore(Instant.now())) {

@@ -78,7 +78,9 @@ public class PaymentReconciliationJob {
             try {
                 log.info("[PB-006] Processing unfulfilled PAID payment orderCode {}", payment.getOrderCode());
                 fulfillmentService.processFulfillmentForOrderCode(payment.getOrderCode());
-                eventPublisher.publishEvent(new ExhibitionPaymentCompletedEvent(this, payment));
+                paymentRepository.findByOrderCode(payment.getOrderCode())
+                        .ifPresent(updatedPayment -> eventPublisher
+                                .publishEvent(new ExhibitionPaymentCompletedEvent(this, updatedPayment)));
             } catch (Exception e) {
                 log.error("[PB-006] Exception processing unfulfilled PAID payment orderCode {}", payment.getOrderCode(),
                         e);
