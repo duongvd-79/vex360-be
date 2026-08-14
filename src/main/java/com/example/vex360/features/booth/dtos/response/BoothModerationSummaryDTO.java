@@ -17,6 +17,8 @@ import lombok.NoArgsConstructor;
 public class BoothModerationSummaryDTO {
     private UUID boothId;
     private String boothName;
+    private UUID exhibitionId;
+    private String exhibitionName;
     private String companyName;
     private BoothStatus boothStatus;
     private Integer warningCount;

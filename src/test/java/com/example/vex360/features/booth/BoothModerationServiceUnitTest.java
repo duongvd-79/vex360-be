@@ -29,6 +29,8 @@ import org.springframework.data.domain.PageRequest;
 import com.example.vex360.features.booth.dtos.request.BanBoothRequest;
 import com.example.vex360.features.booth.dtos.request.WarnBoothRequest;
 import com.example.vex360.features.booth.dtos.response.BoothModerationSummaryDTO;
+import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
+import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.entities.Booth;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.mapper.BoothMapper;
@@ -215,16 +217,33 @@ class BoothModerationServiceUnitTest {
         booth.setWarningReason("Nội dung sai quy định");
         booth.setWarnedAt(Instant.parse("2026-08-09T10:00:00Z"));
         PageRequest pageable = PageRequest.of(0, 10);
-        when(boothRepository.searchModeratedForAdmin(exhibition.getUuid(), null, pageable))
+        when(boothRepository.searchModeratedForAdmin(null, pageable))
                 .thenReturn(new PageImpl<>(List.of(booth), pageable, 1));
 
-        var result = moderationService.getModerationSummary(admin, exhibition.getUuid(), null, pageable);
+        var result = moderationService.getModerationSummary(admin, null, pageable);
 
         assertEquals(1, result.getTotalElements());
         BoothModerationSummaryDTO item = result.getContent().getFirst();
         assertEquals(booth.getId(), item.getBoothId());
+        assertEquals(exhibition.getUuid(), item.getExhibitionId());
+        assertEquals(exhibition.getName(), item.getExhibitionName());
         assertEquals("WARNING", item.getLatestAction());
         assertEquals("Nội dung sai quy định", item.getLatestReason());
+    }
+
+    @Test
+    void getContentOverview_FindsBoothWithoutExhibitionFilter() {
+        BoothResponseDTO boothResponse = new BoothResponseDTO();
+        BoothReviewContentOverviewDTO contentOverview = new BoothReviewContentOverviewDTO();
+        when(boothRepository.findDetailForAdmin(booth.getId())).thenReturn(Optional.of(booth));
+        when(boothMapper.toBoothResponseDTO(booth)).thenReturn(boothResponse);
+        when(contentAssembler.toContentOverview(booth)).thenReturn(contentOverview);
+
+        var result = moderationService.getContentOverviewForAdmin(admin, booth.getId());
+
+        assertSame(boothResponse, result.getBooth());
+        assertSame(contentOverview, result.getContentOverview());
+        verify(boothRepository).findDetailForAdmin(booth.getId());
     }
 
 }

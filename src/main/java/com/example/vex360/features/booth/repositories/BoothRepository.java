@@ -150,6 +150,18 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             @Param("exhibitionUuid") UUID exhibitionUuid);
 
     @Query("""
+            SELECT DISTINCT b FROM Booth b
+            JOIN FETCH b.exhibitorRegistration registration
+            JOIN FETCH registration.exhibitionPackage exhibitionPackage
+            JOIN FETCH exhibitionPackage.exhibition
+            LEFT JOIN FETCH b.company
+            LEFT JOIN FETCH b.panoramas
+            WHERE b.id = :id
+              AND b.isTemplate = false
+            """)
+    Optional<Booth> findDetailForAdmin(@Param("id") UUID id);
+
+    @Query("""
             SELECT b FROM Booth b
             JOIN b.exhibitorRegistration registration
             JOIN registration.exhibitionPackage exhibitionPackage
@@ -176,15 +188,13 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             JOIN registration.exhibitionPackage exhibitionPackage
             JOIN exhibitionPackage.exhibition exhibition
             LEFT JOIN b.company company
-            WHERE exhibition.uuid = :exhibitionUuid
-              AND (COALESCE(b.warningCount, 0) > 0 OR b.bannedAt IS NOT NULL)
+            WHERE (COALESCE(b.warningCount, 0) > 0 OR b.bannedAt IS NOT NULL)
               AND (:keyword IS NULL
                 OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
             ORDER BY COALESCE(b.bannedAt, b.warnedAt) DESC
             """)
     Page<Booth> searchModeratedForAdmin(
-            @Param("exhibitionUuid") UUID exhibitionUuid,
             @Param("keyword") String keyword,
             Pageable pageable);
 

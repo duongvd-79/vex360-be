@@ -63,22 +63,20 @@ public class AdminBoothModerationService {
 
     @Transactional(readOnly = true)
     public PageResponse<BoothModerationSummaryDTO> getModerationSummary(
-            User admin, UUID exhibitionUuid, String keyword, Pageable pageable) {
+            User admin, String keyword, Pageable pageable) {
         assertAdmin(admin);
-        exhibitionService.getExhibitionDetailForAdmin(exhibitionUuid);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return PageResponse.from(boothRepository
-                .searchModeratedForAdmin(exhibitionUuid, normalizedKeyword, pageable)
+                .searchModeratedForAdmin(normalizedKeyword, pageable)
                 .map(this::toModerationSummary));
     }
 
     @Transactional(readOnly = true)
     public AdminBoothContentOverviewDTO getContentOverviewForAdmin(
             User admin,
-            UUID exhibitionUuid,
             UUID boothId) {
         assertAdmin(admin);
-        Booth booth = boothRepository.findDetailForAdmin(boothId, exhibitionUuid)
+        Booth booth = boothRepository.findDetailForAdmin(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
 
         BoothResponseDTO boothDTO = boothMapper.toBoothResponseDTO(booth);
@@ -208,9 +206,12 @@ public class AdminBoothModerationService {
     private BoothModerationSummaryDTO toModerationSummary(Booth booth) {
         boolean latestIsBan = booth.getBannedAt() != null
                 && (booth.getWarnedAt() == null || !booth.getBannedAt().isBefore(booth.getWarnedAt()));
+        var exhibition = booth.getExhibitorRegistration().getExhibitionPackage().getExhibition();
         return BoothModerationSummaryDTO.builder()
                 .boothId(booth.getId())
                 .boothName(booth.getName())
+                .exhibitionId(exhibition.getUuid())
+                .exhibitionName(exhibition.getName())
                 .companyName(booth.getCompany() == null ? null : booth.getCompany().getName())
                 .boothStatus(booth.getStatus())
                 .warningCount(booth.getWarningCount() == null ? 0 : booth.getWarningCount())
