@@ -223,8 +223,6 @@ public enum ErrorCode {
 	// DESIGN REQUEST ERRORS
 	DESIGN_REQUEST_NOT_FOUND("DESIGN-001", "Không tìm thấy yêu cầu thiết kế.", HttpStatus.NOT_FOUND),
 	INVALID_DESIGN_REQUEST_STATUS("DESIGN-002", "Trạng thái yêu cầu thiết kế không hợp lệ.", HttpStatus.BAD_REQUEST),
-	DESIGN_REQUEST_QUOTA_EXCEEDED("DESIGN-003", "Đã hết số lượt yêu cầu thiết kế cho phép cho gian hàng này.",
-			HttpStatus.BAD_REQUEST),
 	DESIGNER_WORKLOAD_EXCEEDED("DESIGN-004", "Nhà thiết kế đã đạt giới hạn tối đa số lượng công việc đang xử lý.",
 			HttpStatus.BAD_REQUEST),
 	INVALID_DESIGNER("DESIGN-005", "Người dùng được chỉ định không có vai trò Nhà thiết kế (Designer).",

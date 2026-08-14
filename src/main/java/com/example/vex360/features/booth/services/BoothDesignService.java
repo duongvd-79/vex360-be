@@ -54,6 +54,11 @@ public class BoothDesignService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<Booth> findChatBooth(Integer exhibitionId, UUID exhibitorUserId) {
+        return boothRepository.findChatBooth(exhibitionId, exhibitorUserId);
+    }
+
+    @Transactional(readOnly = true)
     public Panorama getPanoramaForBooth(UUID panoramaId, UUID boothId) {
         return panoramaRepository.findByIdAndBoothId(panoramaId, boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.PANORAMA_NOT_FOUND));

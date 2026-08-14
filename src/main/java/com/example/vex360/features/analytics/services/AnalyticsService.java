@@ -283,6 +283,8 @@ public class AnalyticsService {
 
                 Map<Integer, Long> revenueByExhibition = exhibitionService.aggregateRevenueByExhibition(
                                 exhibitionIds, startDateTime, endDateTime);
+                Map<Integer, Long> profitByExhibition = exhibitionService.aggregateProfitByExhibition(
+                                exhibitionIds, startDateTime, endDateTime);
 
                 Map<Integer, long[]> leadsByExhibition = new HashMap<>();
                 boothLeadService.aggregatePerformanceForExhibitions(exhibitionIds, startDateTime, endDateTime)
@@ -317,6 +319,7 @@ public class AnalyticsService {
                                                 .label(row[0].toString())
                                                 .paidTransactionCount(longValue(row[1]))
                                                 .revenue(longValue(row[2]))
+                                                .profit(longValue(row[3]))
                                                 .build())
                                 .toList();
 
@@ -327,6 +330,7 @@ public class AnalyticsService {
                 long totalEstimated = 0;
                 long totalVisits = 0;
                 long totalRevenue = 0;
+                long totalProfit = 0;
                 long totalLeads = 0;
 
                 for (Exhibition exhibition : exhibitions) {
@@ -337,6 +341,7 @@ public class AnalyticsService {
                         long[] traffic = trafficByExhibition.getOrDefault(id, new long[2]);
                         long[] lead = leadsByExhibition.getOrDefault(id, new long[3]);
                         long revenue = revenueByExhibition.getOrDefault(id, 0L);
+                        long profit = profitByExhibition.getOrDefault(id, 0L);
                         double fillRate = estimated == 0 ? 0.0 : approved * 100.0 / estimated;
                         double leadRate = traffic[1] == 0 ? 0.0 : lead[1] * 100.0 / traffic[1];
                         long pending = pendingCounts.getOrDefault(id, 0L);
@@ -358,6 +363,7 @@ public class AnalyticsService {
                                         .totalVisits(traffic[0])
                                         .uniqueVisitorCount(traffic[1])
                                         .totalRevenue(revenue)
+                                        .totalProfit(profit)
                                         .totalLeads(lead[0])
                                         .uniqueLeadVisitors(lead[1])
                                         .visitorToLeadRatePercent(leadRate)
@@ -391,6 +397,7 @@ public class AnalyticsService {
                         totalEstimated += estimated;
                         totalVisits += traffic[0];
                         totalRevenue += revenue;
+                        totalProfit += profit;
                         totalLeads += lead[0];
                 }
 
@@ -426,6 +433,7 @@ public class AnalyticsService {
                                                 .totalVisits(totalVisits)
                                                 .uniqueVisitorCount(uniqueVisitors)
                                                 .totalRevenue(totalRevenue)
+                                                .totalProfit(totalProfit)
                                                 .totalLeads(totalLeads)
                                                 .uniqueLeadVisitors(uniqueLeadVisitors)
                                                 .visitorToLeadRatePercent(
@@ -579,6 +587,9 @@ public class AnalyticsService {
                         totalVisits += p.getVisits();
                         totalRevenue += p.getRevenue();
                 }
+                long totalProfit = exhibitionService
+                                .aggregateProfitByExhibition(List.of(exhibitionId), startDateTime, endDateTime)
+                                .getOrDefault(exhibitionId, 0L);
                 // Thời lượng visit TB = AVG trên TOÀN BỘ lượt rời (trung bình có trọng số,
                 // không phải trung-bình-của-trung-bình theo ngày)
                 Double avgDurationSeconds = analyticsEventRepository.averageVisitDurationSeconds(
@@ -589,6 +600,7 @@ public class AnalyticsService {
                                 .estimatedBooths(estimatedBooths)
                                 .boothFillRatePercent(boothFillRatePercent)
                                 .totalRevenue(totalRevenue)
+                                .totalProfit(totalProfit)
                                 .totalVisits(totalVisits)
                                 .uniqueVisitorCount(uniqueVisitorCount)
                                 .averageVisitDurationMinutes(averageVisitDurationMinutes)
@@ -612,11 +624,13 @@ public class AnalyticsService {
                         String packageName = row[0] != null ? row[0].toString() : "Không xác định";
                         long quantity = ((Number) row[1]).longValue();
                         long revenue = row[2] == null ? 0L : ((Number) row[2]).longValue();
+                        long profit = row[3] == null ? 0L : ((Number) row[3]).longValue();
                         packages.add(ExhibitionAnalyticsDetailDTO.PackageSummary.builder()
                                         .key(packageName)
                                         .label(packageName)
                                         .quantity(quantity)
                                         .revenue(revenue)
+                                        .profit(profit)
                                         .build());
                 }
 

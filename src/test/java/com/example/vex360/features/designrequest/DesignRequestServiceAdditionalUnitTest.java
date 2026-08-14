@@ -449,7 +449,6 @@ class DesignRequestServiceAdditionalUnitTest {
         DesignDraft latest = DesignDraft.builder().designRequest(request).versionNumber(2).build();
         request.getDrafts().addAll(List.of(older, latest));
         stubCompanyRequest(request);
-        when(eligibilityService.remainingActions(booth)).thenReturn(1);
         stubSaveAndResponse(request);
 
         service.rejectDraft(exhibitor, requestId, new RejectDesignDraftRequest("  Move entrance  "));
@@ -561,7 +560,6 @@ class DesignRequestServiceAdditionalUnitTest {
         DesignRequestResponseDTO response = new DesignRequestResponseDTO();
         when(designRequestRepository.save(request)).thenReturn(request);
         when(designRequestMapper.toResponse(request)).thenReturn(response);
-        when(eligibilityService.remainingActions(booth)).thenReturn(3);
         return response;
     }
 }

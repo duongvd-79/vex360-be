@@ -62,6 +62,8 @@ public interface ExhibitionService {
 
 	Map<Integer, Long> aggregateRevenueByExhibition(List<Integer> exhibitionIds, Instant start, Instant end);
 
+	Map<Integer, Long> aggregateProfitByExhibition(List<Integer> exhibitionIds, Instant start, Instant end);
+
 	Exhibition findExhibitionEntityByUuid(UUID uuid);
 
 	Map<Integer, Long> countRegistrationsByStatusGroupedByExhibition(List<Integer> exhibitionIds,

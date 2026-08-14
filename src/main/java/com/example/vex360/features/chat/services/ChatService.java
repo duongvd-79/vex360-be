@@ -7,6 +7,8 @@ import com.example.vex360.features.chat.entities.ChatMessage;
 import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
+import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.services.UserService;
@@ -30,6 +32,7 @@ public class ChatService {
     private final UserService userService;
     private final ExhibitionService exhibitionService;
     private final PresenceService presenceService;
+    private final BoothDesignService boothDesignService;
 
     private boolean isOnline(UUID userId) {
         return presenceService.isOnline(userId);
@@ -67,6 +70,9 @@ public class ChatService {
 
         return ChatRoomResponse.builder()
                 .roomId(room.getId())
+                .boothName(findBoothName(room))
+                .boothThumbnailUrl(findBoothThumbnail(room))
+                .exhibitionName(room.getExhibition().getName())
                 .exhibitorName(exhibitorUser.getFullName())
                 .exhibitorAvatar(exhibitorUser.getAvatarUrl())
                 .exhibitorOnline(isOnline(exhibitorUser.getId()))
@@ -136,6 +142,9 @@ public class ChatService {
 
         return ChatRoomResponse.builder()
                 .roomId(room.getId())
+                .boothName(findBoothName(room))
+                .boothThumbnailUrl(findBoothThumbnail(room))
+                .exhibitionName(room.getExhibition().getName())
                 .exhibitorName(room.getExhibitorUser().getFullName())
                 .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
                 .exhibitorOnline(isOnline(room.getExhibitorUser().getId()))
@@ -157,6 +166,9 @@ public class ChatService {
 
         return rooms.stream().map(room -> ChatRoomResponse.builder()
                 .roomId(room.getId())
+                .boothName(findBoothName(room))
+                .boothThumbnailUrl(findBoothThumbnail(room))
+                .exhibitionName(room.getExhibition().getName())
                 .exhibitorName(room.getExhibitorUser().getFullName())
                 .exhibitorAvatar(room.getExhibitorUser().getAvatarUrl())
                 .exhibitorOnline(isOnline(room.getExhibitorUser().getId()))
@@ -169,6 +181,25 @@ public class ChatService {
                         userId))
                 .messages(List.of())
                 .build()).toList();
+    }
+
+    private String findBoothName(ChatRoom room) {
+        return findBooth(room)
+                .map(booth -> booth.getName())
+                .orElse(null);
+    }
+
+    private String findBoothThumbnail(ChatRoom room) {
+        return findBooth(room)
+                .map(Booth::getThumbnailUrl)
+                .orElse(null);
+    }
+
+    private java.util.Optional<Booth> findBooth(ChatRoom room) {
+        if (room.getExhibition() == null || room.getExhibitorUser() == null) {
+            return java.util.Optional.empty();
+        }
+        return boothDesignService.findChatBooth(room.getExhibition().getId(), room.getExhibitorUser().getId());
     }
 
     // ── Helper: Entity → DTO ─────────────────────────────────────

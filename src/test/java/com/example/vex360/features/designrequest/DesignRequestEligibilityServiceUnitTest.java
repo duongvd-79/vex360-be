@@ -2,6 +2,7 @@ package com.example.vex360.features.designrequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +44,7 @@ class DesignRequestEligibilityServiceUnitTest {
 
         assertEquals(DesignRequestMode.INITIAL_DESIGN, result.getMode());
         assertTrue(result.isEligible());
-        assertEquals(3, result.getRemainingDesignActions());
+        assertNull(result.getRemainingDesignActions());
     }
 
     @Test
@@ -59,10 +60,10 @@ class DesignRequestEligibilityServiceUnitTest {
     }
 
     @Test
-    void refundedPendingCancellationDoesNotConsumeQuota() {
-        when(requestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(1L);
-        when(requestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(1L);
+    void priorDesignActionsDoNotLimitEligibility() {
+        DesignRequestEligibilityResponseDTO result = service.evaluate(booth);
 
-        assertEquals(1, service.remainingActions(booth));
+        assertTrue(result.isEligible());
+        assertNull(result.getRemainingDesignActions());
     }
 }

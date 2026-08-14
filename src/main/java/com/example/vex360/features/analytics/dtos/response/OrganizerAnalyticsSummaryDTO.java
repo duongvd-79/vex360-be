@@ -28,6 +28,7 @@ public class OrganizerAnalyticsSummaryDTO {
         private long totalVisits;
         private long uniqueVisitorCount;
         private long totalRevenue;
+        private long totalProfit;
         private long totalLeads;
         private long uniqueLeadVisitors;
         private double visitorToLeadRatePercent;
@@ -63,6 +64,7 @@ public class OrganizerAnalyticsSummaryDTO {
         private long totalVisits;
         private long uniqueVisitorCount;
         private long totalRevenue;
+        private long totalProfit;
         private long totalLeads;
         private long uniqueLeadVisitors;
         private double visitorToLeadRatePercent;
@@ -77,6 +79,7 @@ public class OrganizerAnalyticsSummaryDTO {
         private String label;
         private long paidTransactionCount;
         private long revenue;
+        private long profit;
     }
 
     @Data
