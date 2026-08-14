@@ -79,6 +79,7 @@ public class AdminAnalyticsService {
         List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
         Map<Integer, long[]> exhibitionTraffic = new HashMap<>();
         Map<Integer, Long> exhibitionRevenue = new HashMap<>();
+        Map<Integer, Long> exhibitionSystemRevenue = new HashMap<>();
         Map<Integer, Long> exhibitionLeads = new HashMap<>();
         if (!exhibitionIds.isEmpty()) {
             analyticsEventRepository.aggregateOrganizerDailyMetrics(exhibitionIds, start, end)
@@ -90,12 +91,14 @@ public class AdminAnalyticsService {
                             ((Number) row[0]).intValue(),
                             new long[] { longValue(row[1]), longValue(row[2]) }));
             exhibitionRevenue = exhibitionService.aggregateRevenueByExhibition(exhibitionIds, start, end);
+            exhibitionSystemRevenue = exhibitionService.aggregateSystemRevenueByExhibition(exhibitionIds, start, end);
             boothLeadService.aggregatePerformanceForExhibitions(exhibitionIds, start, end)
                     .forEach(row -> exhibitionLeads.put(
                             ((Number) row[0]).intValue(), longValue(row[1])));
         }
 
         Map<Integer, Long> finalExhibitionRevenue = exhibitionRevenue;
+        Map<Integer, Long> finalExhibitionSystemRevenue = exhibitionSystemRevenue;
         List<AdminSystemAnalyticsDTO.TopExhibition> topExhibitions = exhibitions.stream()
                 .map(exhibition -> {
                     long[] values = exhibitionTraffic.getOrDefault(exhibition.getId(), new long[2]);
@@ -106,6 +109,7 @@ public class AdminAnalyticsService {
                             .visits(values[0])
                             .uniqueVisitors(values[1])
                             .revenue(finalExhibitionRevenue.getOrDefault(exhibition.getId(), 0L))
+                            .systemRevenue(finalExhibitionSystemRevenue.getOrDefault(exhibition.getId(), 0L))
                             .leads(exhibitionLeads.getOrDefault(exhibition.getId(), 0L))
                             .build();
                 })

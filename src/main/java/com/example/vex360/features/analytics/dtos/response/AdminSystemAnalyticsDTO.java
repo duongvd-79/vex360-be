@@ -74,6 +74,7 @@ public class AdminSystemAnalyticsDTO {
         private long visits;
         private long uniqueVisitors;
         private long revenue;
+        private long systemRevenue;
         private long leads;
     }
 }
