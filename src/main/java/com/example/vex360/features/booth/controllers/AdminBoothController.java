@@ -20,6 +20,7 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.BanBoothRequest;
 import com.example.vex360.features.booth.dtos.request.WarnBoothRequest;
 import com.example.vex360.features.booth.dtos.response.AdminBoothContentOverviewDTO;
+import com.example.vex360.features.booth.dtos.response.BoothModerationSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.AdminBoothModerationService;
@@ -54,6 +55,17 @@ public class AdminBoothController extends BaseController {
                 keyword,
                 status,
                 pageable));
+    }
+
+    @GetMapping("/moderation")
+    @Operation(summary = "Admin xem tổng hợp các lệnh cảnh báo và ban theo gian hàng")
+    public ResponseEntity<ApiResponse<PageResponse<BoothModerationSummaryDTO>>> getModerationSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID exhibitionUuid,
+            @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(page = 0, size = 10) Pageable pageable) {
+        return ok(moderationService.getModerationSummary(
+                userDetails.getUser(), exhibitionUuid, keyword, pageable));
     }
 
     @GetMapping("/{boothId}/content-overview")

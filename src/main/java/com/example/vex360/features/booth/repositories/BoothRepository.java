@@ -172,6 +172,24 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
 
     @Query("""
             SELECT b FROM Booth b
+            JOIN b.exhibitorRegistration registration
+            JOIN registration.exhibitionPackage exhibitionPackage
+            JOIN exhibitionPackage.exhibition exhibition
+            LEFT JOIN b.company company
+            WHERE exhibition.uuid = :exhibitionUuid
+              AND (COALESCE(b.warningCount, 0) > 0 OR b.bannedAt IS NOT NULL)
+              AND (:keyword IS NULL
+                OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            ORDER BY COALESCE(b.bannedAt, b.warnedAt) DESC
+            """)
+    Page<Booth> searchModeratedForAdmin(
+            @Param("exhibitionUuid") UUID exhibitionUuid,
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Booth b
             JOIN b.exhibitorRegistration reg
             JOIN reg.exhibitionPackage pkg
             JOIN pkg.exhibition exh

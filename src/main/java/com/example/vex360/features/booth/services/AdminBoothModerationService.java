@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.vex360.features.booth.dtos.request.BanBoothRequest;
 import com.example.vex360.features.booth.dtos.request.WarnBoothRequest;
 import com.example.vex360.features.booth.dtos.response.AdminBoothContentOverviewDTO;
+import com.example.vex360.features.booth.dtos.response.BoothModerationSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.dtos.response.BoothReviewContentOverviewDTO;
 import com.example.vex360.features.booth.entities.Booth;
@@ -58,6 +59,17 @@ public class AdminBoothModerationService {
                 .searchForAdmin(exhibitionUuid, normKeyword, status, pageable)
                 .map(boothMapper::toBoothResponseDTO);
         return PageResponse.from(page);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<BoothModerationSummaryDTO> getModerationSummary(
+            User admin, UUID exhibitionUuid, String keyword, Pageable pageable) {
+        assertAdmin(admin);
+        exhibitionService.getExhibitionDetailForAdmin(exhibitionUuid);
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        return PageResponse.from(boothRepository
+                .searchModeratedForAdmin(exhibitionUuid, normalizedKeyword, pageable)
+                .map(this::toModerationSummary));
     }
 
     @Transactional(readOnly = true)
@@ -191,6 +203,25 @@ public class AdminBoothModerationService {
         if (user == null || user.getRole() != Role.ADMIN) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
+    }
+
+    private BoothModerationSummaryDTO toModerationSummary(Booth booth) {
+        boolean latestIsBan = booth.getBannedAt() != null
+                && (booth.getWarnedAt() == null || !booth.getBannedAt().isBefore(booth.getWarnedAt()));
+        return BoothModerationSummaryDTO.builder()
+                .boothId(booth.getId())
+                .boothName(booth.getName())
+                .companyName(booth.getCompany() == null ? null : booth.getCompany().getName())
+                .boothStatus(booth.getStatus())
+                .warningCount(booth.getWarningCount() == null ? 0 : booth.getWarningCount())
+                .warningReason(booth.getWarningReason())
+                .warnedAt(booth.getWarnedAt())
+                .banReason(booth.getBanReason())
+                .bannedAt(booth.getBannedAt())
+                .latestAction(latestIsBan ? "BAN" : "WARNING")
+                .latestReason(latestIsBan ? booth.getBanReason() : booth.getWarningReason())
+                .latestActionAt(latestIsBan ? booth.getBannedAt() : booth.getWarnedAt())
+                .build();
     }
 
     private User getRecipient(Booth booth) {
