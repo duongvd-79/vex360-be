@@ -20,6 +20,7 @@ import com.example.vex360.features.auth.entities.CustomUserDetails;
 import com.example.vex360.features.booth.dtos.request.BanBoothRequest;
 import com.example.vex360.features.booth.dtos.request.WarnBoothRequest;
 import com.example.vex360.features.booth.dtos.response.AdminBoothContentOverviewDTO;
+import com.example.vex360.features.booth.dtos.response.BoothModerationSummaryDTO;
 import com.example.vex360.features.booth.dtos.response.BoothResponseDTO;
 import com.example.vex360.features.booth.enums.BoothStatus;
 import com.example.vex360.features.booth.services.AdminBoothModerationService;
@@ -33,14 +34,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/admin/exhibitions/{exhibitionUuid}/booths")
+@RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ADMIN')")
 @Tag(name = "Admin - Booth Moderation", description = "Admin kiểm duyệt gian hàng: xem danh sách, chi tiết 360, cảnh báo (warn) và khóa (ban)")
 public class AdminBoothController extends BaseController {
     private final AdminBoothModerationService moderationService;
 
-    @GetMapping
+    @GetMapping("/exhibitions/{exhibitionUuid}/booths")
     @Operation(summary = "Admin xem danh sách gian hàng trong triển lãm")
     public ResponseEntity<ApiResponse<PageResponse<BoothResponseDTO>>> getBooths(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -56,19 +57,27 @@ public class AdminBoothController extends BaseController {
                 pageable));
     }
 
-    @GetMapping("/{boothId}/content-overview")
+    @GetMapping("/booths/moderation")
+    @Operation(summary = "Admin xem tổng hợp các lệnh cảnh báo và ban theo gian hàng")
+    public ResponseEntity<ApiResponse<PageResponse<BoothModerationSummaryDTO>>> getModerationSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) String keyword,
+            @ParameterObject @PageableDefault(page = 0, size = 10) Pageable pageable) {
+        return ok(moderationService.getModerationSummary(
+                userDetails.getUser(), keyword, pageable));
+    }
+
+    @GetMapping("/booths/{boothId}/content-overview")
     @Operation(summary = "Admin xem chi tiết thông tin và nội dung 360 gian hàng kèm trạng thái kiểm duyệt (Warn/Ban)")
     public ResponseEntity<ApiResponse<AdminBoothContentOverviewDTO>> getContentOverview(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable UUID exhibitionUuid,
             @PathVariable UUID boothId) {
         return ok(moderationService.getContentOverviewForAdmin(
                 userDetails.getUser(),
-                exhibitionUuid,
                 boothId));
     }
 
-    @PostMapping("/{boothId}/warn")
+    @PostMapping("/exhibitions/{exhibitionUuid}/booths/{boothId}/warn")
     @Operation(summary = "Admin cảnh báo gian hàng (tối đa 1 lần, chỉ khả dụng trước mốc T-3)")
     public ResponseEntity<ApiResponse<BoothResponseDTO>> warnBooth(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -82,7 +91,7 @@ public class AdminBoothController extends BaseController {
                 request));
     }
 
-    @PostMapping("/{boothId}/ban")
+    @PostMapping("/exhibitions/{exhibitionUuid}/booths/{boothId}/ban")
     @Operation(summary = "Admin khóa (BAN) gian hàng")
     public ResponseEntity<ApiResponse<BoothResponseDTO>> banBooth(
             @AuthenticationPrincipal CustomUserDetails userDetails,
