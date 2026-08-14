@@ -105,7 +105,7 @@ public class DesignerWorkspaceService {
                 request.getStatus(),
                 request.getMode(),
                 request.getCancellationStatus(),
-                eligibilityService.remainingActions(request.getBooth()),
+                null,
                 (int) request.getProducts().stream()
                         .filter(item -> Boolean.TRUE.equals(item.getRequiredFromBaseline())).count(),
                 (int) request.getProducts().stream()
@@ -350,7 +350,7 @@ public class DesignerWorkspaceService {
                 .requestId(request.getId())
                 .status(request.getStatus())
                 .mode(request.getMode())
-                .remainingDesignActions(eligibilityService.remainingActions(request.getBooth()))
+                .remainingDesignActions(null)
                 .currentBooth(boothMapper.toBoothResponseDTO(request.getBooth()))
                 .submittedThumbnailUrl(resolveThumbnailUrl(request, latest))
                 .submittedBackgroundMusicUrl(resolveBackgroundMusicUrl(request, latest))

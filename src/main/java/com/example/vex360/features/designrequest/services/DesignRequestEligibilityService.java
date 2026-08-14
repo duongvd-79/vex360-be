@@ -18,17 +18,14 @@ import lombok.RequiredArgsConstructor;
 /**
  * Service responsible for evaluating and enforcing eligibility rules for Booth
  * Design Requests.
- * Checks factors like remaining action quota, request mode
- * (INITIAL_DESIGN/REDESIGN),
+ * Checks request mode (INITIAL_DESIGN/REDESIGN),
  * active requests, and product states.
  */
 @Service
 @RequiredArgsConstructor
 public class DesignRequestEligibilityService {
-    public static final int MAX_DESIGN_ACTIONS = 3;
     public static final String BOOTH_NOT_DRAFT = "BOOTH_NOT_DRAFT";
     public static final String ACTIVE_REQUEST_EXISTS = "ACTIVE_REQUEST_EXISTS";
-    public static final String ACTION_QUOTA_EXHAUSTED = "ACTION_QUOTA_EXHAUSTED";
     public static final String INACTIVE_BASELINE_PRODUCT = "INACTIVE_BASELINE_PRODUCT";
 
     private final BoothDesignService boothDesignService;
@@ -45,10 +42,9 @@ public class DesignRequestEligibilityService {
     @Transactional(readOnly = true)
     public DesignRequestEligibilityResponseDTO evaluate(Booth booth) {
         DesignRequestMode mode = inferMode(booth);
-        int remaining = remainingActions(booth);
-        String requestReason = requestReason(booth, mode, remaining);
+        String requestReason = requestReason(booth, mode);
         return new DesignRequestEligibilityResponseDTO(
-                booth.getId(), mode, requestReason == null, requestReason, remaining);
+                booth.getId(), mode, requestReason == null, requestReason, null);
     }
 
     /**
@@ -56,13 +52,11 @@ public class DesignRequestEligibilityService {
      * Throws an exception if not eligible.
      *
      * @param eligibility the evaluated eligibility details
-     * @throws AppException if quota is exceeded or the request is unavailable
+     * @throws AppException if the request is unavailable
      */
     public void assertCanCreate(DesignRequestEligibilityResponseDTO eligibility) {
         if (!eligibility.isEligible()) {
-            throw eligibility.getRemainingDesignActions() == 0
-                    ? new AppException(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED)
-                    : new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
+            throw new AppException(ErrorCode.DESIGN_REQUEST_NOT_ELIGIBLE);
         }
     }
 
@@ -98,28 +92,13 @@ public class DesignRequestEligibilityService {
                 : DesignRequestMode.REDESIGN;
     }
 
-    /**
-     * Calculates the remaining design actions allowed for a booth.
-     *
-     * @param booth the booth to check
-     * @return the number of remaining design actions
-     */
-    public int remainingActions(Booth booth) {
-        long used = designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())
-                + designRequestRepository.sumReviewCountByBoothId(booth.getId());
-        return (int) Math.max(0, MAX_DESIGN_ACTIONS - used);
-    }
-
-    private String requestReason(Booth booth, DesignRequestMode mode, int remaining) {
+    private String requestReason(Booth booth, DesignRequestMode mode) {
         if (booth.getStatus() != BoothStatus.DRAFT) {
             return BOOTH_NOT_DRAFT;
         }
         if (designRequestRepository.existsByBoothIdAndStatusIn(
                 booth.getId(), DesignRequestRepository.NON_TERMINAL_STATUSES)) {
             return ACTIVE_REQUEST_EXISTS;
-        }
-        if (remaining == 0) {
-            return ACTION_QUOTA_EXHAUSTED;
         }
         if (mode == DesignRequestMode.REDESIGN
                 && boothDesignService.existsInactiveHotspotProductInBooth(booth.getId())) {

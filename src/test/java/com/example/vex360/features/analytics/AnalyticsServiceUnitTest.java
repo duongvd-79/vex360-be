@@ -114,7 +114,8 @@ class AnalyticsServiceUnitTest {
                                 .thenReturn(7L);
                 when(exhibitionService.aggregatePaidPackageRevenueForExhibition(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
-                                                new Object[] { "Gói Cơ Bản", 2L, BigDecimal.valueOf(10_000_000) }));
+                                                new Object[] { "Gói Cơ Bản", 2L, BigDecimal.valueOf(10_000_000),
+                                                                BigDecimal.valueOf(8_000_000) }));
                 when(boothLeadService.countByStatusForExhibitionInRange(anyInt(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
                                                 new Object[] { LeadStatus.NEW, 2L },
@@ -167,6 +168,8 @@ class AnalyticsServiceUnitTest {
                                 .thenReturn(List.<Object[]>of(new Object[] { 1, 20L, 7L, 300.0 }));
                 when(exhibitionService.aggregateRevenueByExhibition(any(), any(), any()))
                                 .thenReturn(Map.of(1, 12_000_000L));
+                when(exhibitionService.aggregateProfitByExhibition(any(), any(), any()))
+                                .thenReturn(Map.of(1, 9_600_000L));
                 when(boothLeadService.aggregatePerformanceForExhibitions(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(new Object[] { 1, 5L, 3L, 2L }));
                 when(analyticsEventRepository.aggregateOrganizerDailyMetrics(any(), any(), any()))
@@ -180,7 +183,9 @@ class AnalyticsServiceUnitTest {
                                 .thenReturn(List.<Object[]>of(new Object[] { "2026-07-01", 2L }));
                 when(exhibitionService.aggregateOrganizerPackageRevenue(any(), any(), any()))
                                 .thenReturn(List.<Object[]>of(
-                                                new Object[] { "Gói Tiêu chuẩn", 2L, BigDecimal.valueOf(12_000_000) }));
+                                                new Object[] { "Gói Tiêu chuẩn", 2L,
+                                                                BigDecimal.valueOf(12_000_000),
+                                                                BigDecimal.valueOf(9_600_000) }));
                 when(analyticsEventRepository.countUniqueVisitorsForExhibitions(any(), any(), any())).thenReturn(7L);
                 when(boothLeadService.countUniqueLeadVisitorsForExhibitions(any(), any(), any())).thenReturn(3L);
                 when(analyticsEventRepository.averageVisitDurationSecondsForExhibitions(any(), any(), any()))

@@ -7,8 +7,8 @@ import com.example.vex360.features.chat.entities.ChatMessage;
 import com.example.vex360.features.chat.entities.ChatRoom;
 import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
-import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.services.UserService;
@@ -32,7 +32,7 @@ public class ChatService {
     private final UserService userService;
     private final ExhibitionService exhibitionService;
     private final PresenceService presenceService;
-    private final BoothRepository boothRepository;
+    private final BoothDesignService boothDesignService;
 
     private boolean isOnline(UUID userId) {
         return presenceService.isOnline(userId);
@@ -196,7 +196,10 @@ public class ChatService {
     }
 
     private java.util.Optional<Booth> findBooth(ChatRoom room) {
-        return boothRepository.findChatBooth(room.getExhibition().getId(), room.getExhibitorUser().getId());
+        if (room.getExhibition() == null || room.getExhibitorUser() == null) {
+            return java.util.Optional.empty();
+        }
+        return boothDesignService.findChatBooth(room.getExhibition().getId(), room.getExhibitorUser().getId());
     }
 
     // ── Helper: Entity → DTO ─────────────────────────────────────
