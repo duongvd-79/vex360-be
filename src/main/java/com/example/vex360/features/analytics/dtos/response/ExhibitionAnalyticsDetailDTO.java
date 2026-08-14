@@ -37,6 +37,8 @@ public class ExhibitionAnalyticsDetailDTO {
         private double boothFillRatePercent;
         /** Tổng doanh thu bán gói đã thanh toán trong kỳ (VND). */
         private long totalRevenue;
+        /** Tổng tiền organizer thực nhận sau phí hệ thống trong kỳ (VND). */
+        private long totalProfit;
         /** Số lượt vào triển lãm (ENTER_EXHIBITION). */
         private long totalVisits;
         /** Số khách khác nhau đã vào triển lãm trong kỳ. */
@@ -71,6 +73,7 @@ public class ExhibitionAnalyticsDetailDTO {
         /** Số payment record trạng thái PAID; không phải số registration/gói duy nhất. */
         private long quantity;
         private long revenue;
+        private long profit;
     }
 
     @Data

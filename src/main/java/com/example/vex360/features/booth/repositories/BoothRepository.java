@@ -17,6 +17,18 @@ import com.example.vex360.shared.enums.BoothListingPriority;
 import jakarta.persistence.LockModeType;
 
 public interface BoothRepository extends JpaRepository<Booth, UUID> {
+    @Query("""
+            SELECT b FROM Booth b
+            JOIN b.exhibitorRegistration r
+            JOIN r.exhibitionPackage p
+            WHERE p.exhibition.id = :exhibitionId
+              AND b.createdBy.id = :exhibitorUserId
+              AND b.isTemplate = false
+            """)
+    Optional<Booth> findChatBooth(
+            @Param("exhibitionId") Integer exhibitionId,
+            @Param("exhibitorUserId") UUID exhibitorUserId);
+
     boolean existsByThumbnailPublicIdOrBackgroundMusicPublicId(
             String thumbnailPublicId,
             String backgroundMusicPublicId);

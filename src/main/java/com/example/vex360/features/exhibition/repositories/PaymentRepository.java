@@ -120,7 +120,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     @Query(value = """
             SELECT r.package_name_snapshot AS package_name,
                    COUNT(p.id) AS quantity,
-                   COALESCE(SUM(p.amount), 0) AS revenue
+                   COALESCE(SUM(p.amount), 0) AS revenue,
+                   COALESCE(SUM(CASE
+                       WHEN p.organizer_payout > 0 THEN p.organizer_payout
+                       ELSE GREATEST(p.amount - COALESCE(p.system_fee, 0), 0)
+                   END), 0) AS profit
             FROM payments p
             JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
             JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
@@ -151,6 +155,27 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             @Param("end") Instant end);
 
     @Query(value = """
+            SELECT ep.exhibition_id,
+                   COALESCE(SUM(
+                       CASE
+                           WHEN p.organizer_payout > 0 THEN p.organizer_payout
+                           ELSE GREATEST(p.amount - COALESCE(p.system_fee, 0), 0)
+                       END
+                   ), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id IN (:exhibitionIds)
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY ep.exhibition_id
+            """, nativeQuery = true)
+    List<Object[]> aggregateProfitByExhibition(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
             SELECT DATE(p.paid_at), COALESCE(SUM(p.amount), 0)
             FROM payments p
             JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
@@ -169,7 +194,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     @Query(value = """
             SELECT COALESCE(r.package_name_snapshot, 'Không xác định'),
                    COUNT(p.id),
-                   COALESCE(SUM(p.amount), 0)
+                   COALESCE(SUM(p.amount), 0),
+                   COALESCE(SUM(CASE
+                       WHEN p.organizer_payout > 0 THEN p.organizer_payout
+                       ELSE GREATEST(p.amount - COALESCE(p.system_fee, 0), 0)
+                   END), 0)
             FROM payments p
             JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
             JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
