@@ -6,5 +6,6 @@ public enum BoothStatus {
     DESIGNING,
     PENDING,
     PUBLISHED,
-    ARCHIVED
+    ARCHIVED,
+    BANNED
 }

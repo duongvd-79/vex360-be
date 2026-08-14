@@ -43,7 +43,8 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendForgotPasswordEmail(String toEmail, String resetUrl) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String subject = "Yêu cầu khôi phục mật khẩu - VEX360";
         String safeResetUrl = HtmlUtils.htmlEscape(resetUrl);
         String htmlContent = buildHtmlTemplate(
@@ -64,7 +65,8 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendRegistrationVerificationEmail(String toEmail, String verifyUrl) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String subject = "Xác thực tài khoản VEX360";
         String safeVerifyUrl = HtmlUtils.htmlEscape(verifyUrl);
         String htmlContent = buildHtmlTemplate(
@@ -84,7 +86,8 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendPasswordChangeNotificationEmail(String toEmail) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String subject = "Mật khẩu của bạn đã được thay đổi thành công - VEX360";
         String htmlContent = buildHtmlTemplate(
                 "Đổi mật khẩu thành công",
@@ -100,7 +103,8 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendNewUserCredentialsEmail(String toEmail, String fullName, String password) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String subject = "Thông tin tài khoản VEX360";
         String displayName = safeDisplayName(fullName);
         String htmlContent = buildHtmlTemplate(
@@ -129,7 +133,8 @@ public class MailServiceImpl implements MailService {
             String fullName,
             Role role,
             String organizationName) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String displayName = safeDisplayName(fullName);
         String subject = "Yêu cầu hợp tác đã được phê duyệt - VEX360";
         String htmlContent = buildHtmlTemplate(
@@ -159,7 +164,8 @@ public class MailServiceImpl implements MailService {
             String fullName,
             String organizationName,
             String reviewNote) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String displayName = safeDisplayName(fullName);
         String reason = reviewNote == null || reviewNote.isBlank()
                 ? "Ban quản trị chưa cung cấp lý do cụ thể."
@@ -190,7 +196,8 @@ public class MailServiceImpl implements MailService {
             String fullName,
             String organizationName,
             String confirmUrl) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String displayName = safeDisplayName(fullName);
         String safeConfirmUrl = HtmlUtils.htmlEscape(confirmUrl);
         String subject = "Xác nhận yêu cầu hợp tác - Vex360";
@@ -218,7 +225,8 @@ public class MailServiceImpl implements MailService {
             String temporaryPassword,
             Role role,
             String organizationName) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         String displayName = safeDisplayName(fullName);
         String subject = "Yêu cầu hợp tác đã được phê duyệt - Thông tin tài khoản VEX360";
         String safeLoginUrl = HtmlUtils.htmlEscape(loginUrl);
@@ -264,7 +272,8 @@ public class MailServiceImpl implements MailService {
             String rejectedReason,
             int rejectionCount,
             Instant reviewedAt) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         boolean isApproved = "APPROVED".equalsIgnoreCase(resultStatus);
         boolean isRejected = "REJECTED".equalsIgnoreCase(resultStatus);
         if (!isApproved && !isRejected) {
@@ -365,7 +374,8 @@ public class MailServiceImpl implements MailService {
             String currency,
             ExhibitorRegistrationStatus result,
             String rejectedReason) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         if (result != ExhibitorRegistrationStatus.APPROVED
                 && result != ExhibitorRegistrationStatus.PENDING_PAYMENT
                 && result != ExhibitorRegistrationStatus.REJECTED) {
@@ -499,7 +509,8 @@ public class MailServiceImpl implements MailService {
             String currency,
             Long orderCode,
             Instant paidAt) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
 
         String displayName = safeDisplayName(fullName);
         String safeLoginUrl = HtmlUtils.htmlEscape(loginUrl);
@@ -558,7 +569,8 @@ public class MailServiceImpl implements MailService {
             String resultStatus,
             String rejectedReason,
             Instant reviewedAt) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         boolean isApproved = "APPROVED".equalsIgnoreCase(resultStatus);
         boolean isRejected = "REJECTED".equalsIgnoreCase(resultStatus);
         if (!isApproved && !isRejected) {
@@ -654,7 +666,8 @@ public class MailServiceImpl implements MailService {
             Integer versionNumber,
             DesignRequestStatus result,
             String reviewNote) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         if (result != DesignRequestStatus.APPROVED && result != DesignRequestStatus.REVISION_REQUESTED) {
             log.warn("Invalid DesignRequestStatus for draft review email sending: {}", result);
             return;
@@ -747,7 +760,8 @@ public class MailServiceImpl implements MailService {
             String cancellationReason,
             String resolutionNote,
             Instant resolvedAt) {
-        if (isEmailInvalid(toEmail)) return;
+        if (isEmailInvalid(toEmail))
+            return;
         boolean isApproved = "APPROVED".equalsIgnoreCase(resultStatus);
         boolean isRejected = "REJECTED".equalsIgnoreCase(resultStatus);
         if (!isApproved && !isRejected) {
@@ -896,6 +910,110 @@ public class MailServiceImpl implements MailService {
         }
     }
 
+    @Override
+    public void sendBoothWarningEmail(
+            String toEmail,
+            String fullName,
+            String boothName,
+            String exhibitionName,
+            String warningReason,
+            Instant warnedAt) {
+        if (isEmailInvalid(toEmail))
+            return;
+        String displayName = safeDisplayName(fullName);
+        String safeLoginUrl = HtmlUtils.htmlEscape(loginUrl);
+        String formattedWarnedAt = formatInstant(warnedAt);
+        String safeReason = (warningReason == null || warningReason.isBlank()) ? "Vi phạm quy định gian hàng"
+                : warningReason.trim();
+
+        String subject = "Cảnh báo nội dung gian hàng \"" + boothName + "\" - Triển lãm " + exhibitionName;
+        String htmlContent = buildHtmlTemplate(
+                "Cảnh báo nội dung gian hàng",
+                """
+                        <h2>Cảnh báo vi phạm nội dung gian hàng</h2>
+                        <p>Xin chào %s,</p>
+                        <p>Ban quản trị hệ thống phát hiện gian hàng <strong>%s</strong> trong triển lãm <strong>%s</strong> có nội dung chưa phù hợp quy định.</p>
+                        <div class="info-box">
+                            <div class="label">Gian hàng</div>
+                            <div class="value">%s</div>
+                            <div class="label">Triển lãm</div>
+                            <div class="value">%s</div>
+                            <div class="label">Thời gian cảnh báo</div>
+                            <div class="value" style="margin-bottom: 0;">%s</div>
+                        </div>
+                        <div class="reason-box">
+                            <p class="reason-title">Lý do cảnh báo (1 lần duy nhất):</p>
+                            <p class="reason-text">%s</p>
+                        </div>
+                        <p>Gian hàng của bạn đã được chuyển về bản nháp. Vui lòng chỉnh sửa và resubmit trước hạn chót T-3. Nếu tiếp tục vi phạm hoặc không chỉnh sửa phù hợp, gian hàng sẽ bị khóa (BAN) vĩnh viễn.</p>
+                        <div class="btn-container">
+                            <a href="%s" class="btn">Chỉnh sửa gian hàng</a>
+                        </div>"""
+                        .formatted(
+                                HtmlUtils.htmlEscape(displayName),
+                                HtmlUtils.htmlEscape(boothName),
+                                HtmlUtils.htmlEscape(exhibitionName),
+                                HtmlUtils.htmlEscape(boothName),
+                                HtmlUtils.htmlEscape(exhibitionName),
+                                HtmlUtils.htmlEscape(formattedWarnedAt),
+                                HtmlUtils.htmlEscape(safeReason),
+                                safeLoginUrl));
+        sendHtmlMail(toEmail, subject, htmlContent);
+    }
+
+    @Override
+    public void sendBoothBanEmail(
+            String toEmail,
+            String fullName,
+            String boothName,
+            String exhibitionName,
+            String banReason,
+            Instant bannedAt) {
+        if (isEmailInvalid(toEmail))
+            return;
+        String displayName = safeDisplayName(fullName);
+        String safeLoginUrl = HtmlUtils.htmlEscape(loginUrl);
+        String formattedBannedAt = formatInstant(bannedAt);
+        String safeReason = (banReason == null || banReason.isBlank()) ? "Vi phạm nghiêm trọng quy định triển lãm"
+                : banReason.trim();
+
+        String subject = "Thông báo khóa (BAN) gian hàng \"" + boothName + "\" - Triển lãm " + exhibitionName;
+        String htmlContent = buildHtmlTemplate(
+                "Thông báo khóa gian hàng",
+                """
+                        <h2>Gian hàng đã bị khóa (BAN)</h2>
+                        <p>Xin chào %s,</p>
+                        <p>Gian hàng <strong>%s</strong> trong triển lãm <strong>%s</strong> đã bị Ban quản trị quyết định khóa (BAN).</p>
+                        <div class="info-box">
+                            <div class="label">Gian hàng</div>
+                            <div class="value">%s</div>
+                            <div class="label">Triển lãm</div>
+                            <div class="value">%s</div>
+                            <div class="label">Trạng thái</div>
+                            <div class="value">BANNED (Bị khóa)</div>
+                            <div class="label">Thời gian thực hiện</div>
+                            <div class="value" style="margin-bottom: 0;">%s</div>
+                        </div>
+                        <div class="reason-box">
+                            <p class="reason-title">Lý do khóa gian hàng:</p>
+                            <p class="reason-text">%s</p>
+                        </div>
+                        <p>Gian hàng sẽ bị gỡ bỏ khỏi triển lãm công khai và không thể tiếp tục chỉnh sửa hay duyệt resubmit.</p>
+                        <div class="btn-container">
+                            <a href="%s" class="btn">Đăng nhập VEX360</a>
+                        </div>"""
+                        .formatted(
+                                HtmlUtils.htmlEscape(displayName),
+                                HtmlUtils.htmlEscape(boothName),
+                                HtmlUtils.htmlEscape(exhibitionName),
+                                HtmlUtils.htmlEscape(boothName),
+                                HtmlUtils.htmlEscape(exhibitionName),
+                                HtmlUtils.htmlEscape(formattedBannedAt),
+                                HtmlUtils.htmlEscape(safeReason),
+                                safeLoginUrl));
+        sendHtmlMail(toEmail, subject, htmlContent);
+    }
+
     private boolean isEmailInvalid(String toEmail) {
         if (toEmail == null || toEmail.isBlank()) {
             log.warn("Recipient email is null or blank. Skipping email sending.");
@@ -913,18 +1031,21 @@ public class MailServiceImpl implements MailService {
     }
 
     private String formatDate(LocalDate date) {
-        if (date == null) return "";
+        if (date == null)
+            return "";
         return DATE_FORMATTER.format(date);
     }
 
     private String formatInstant(Instant instant) {
-        if (instant == null) return "";
+        if (instant == null)
+            return "";
         return DATE_TIME_FORMATTER.format(instant);
     }
 
     private String formatMoney(BigDecimal amount, String currency) {
         String curr = (currency == null || currency.isBlank()) ? "VND" : currency;
-        if (amount == null) return "Không xác định";
+        if (amount == null)
+            return "Không xác định";
         return new DecimalFormat("#,##0", DecimalFormatSymbols.getInstance(Locale.US)).format(amount) + " " + curr;
     }
 

@@ -31,6 +31,9 @@ public class BoothReviewPolicyService {
     private final ExhibitionTimelinePolicy exhibitionTimelinePolicy;
 
     public boolean isBoothEditAllowed(Booth booth) {
+        if (booth.getStatus() == BoothStatus.BANNED) {
+            return false;
+        }
         if (booth.getIsTemplate() != null && booth.getIsTemplate()) {
             return true;
         }
@@ -145,6 +148,59 @@ public class BoothReviewPolicyService {
         }
         return boothReviewRequestRepository.findForOrganizer(organizer.getId(), exhibitionUuid, requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_REVIEW_REQUEST_NOT_FOUND));
+    }
+
+    public boolean isBoothWarnAllowed(Booth booth) {
+        if (booth == null || (booth.getIsTemplate() != null && booth.getIsTemplate())) {
+            return false;
+        }
+        if (booth.getStatus() == BoothStatus.BANNED || booth.getStatus() == BoothStatus.ARCHIVED) {
+            return false;
+        }
+        if (booth.getWarningCount() != null && booth.getWarningCount() >= 1) {
+            return false;
+        }
+        Exhibition exhibition = getExhibition(booth);
+        if (exhibition == null) {
+            return false;
+        }
+        ExhibitionStatus status = exhibition.getStatus();
+        if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
+            return false;
+        }
+        LocalDate today = exhibitionTimelinePolicy.today();
+        LocalDate startDate = exhibition.getStartDate();
+        if (startDate == null) {
+            return false;
+        }
+        LocalDate t3Deadline = startDate.minusDays(3);
+        return !today.isAfter(t3Deadline);
+    }
+
+    public boolean isBoothBanAllowed(Booth booth) {
+        return booth != null && (booth.getIsTemplate() == null || !booth.getIsTemplate())
+                && booth.getStatus() != BoothStatus.BANNED && booth.getStatus() != BoothStatus.ARCHIVED;
+    }
+
+    public void assertCanWarnBooth(Booth booth) {
+        if (booth.getStatus() == BoothStatus.BANNED) {
+            throw new AppException(ErrorCode.BOOTH_ALREADY_BANNED);
+        }
+        if (booth.getWarningCount() != null && booth.getWarningCount() >= 1) {
+            throw new AppException(ErrorCode.BOOTH_ALREADY_WARNED);
+        }
+        if (!isBoothWarnAllowed(booth)) {
+            throw new AppException(ErrorCode.BOOTH_WARNING_NOT_ALLOWED_AFTER_DEADLINE);
+        }
+    }
+
+    public void assertCanBanBooth(Booth booth) {
+        if (booth.getStatus() == BoothStatus.BANNED) {
+            throw new AppException(ErrorCode.BOOTH_ALREADY_BANNED);
+        }
+        if (!isBoothBanAllowed(booth)) {
+            throw new AppException(ErrorCode.INVALID_BOOTH);
+        }
     }
 
     private Exhibition getExhibition(Booth booth) {

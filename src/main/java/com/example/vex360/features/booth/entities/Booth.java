@@ -32,17 +32,17 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "booths", uniqueConstraints = {
         @UniqueConstraint(name = "uk_booths_exhibitor_registration", columnNames = "exhibitor_registration_id")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -69,20 +69,14 @@ public class Booth {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id", nullable = false)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     Company company;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exhibitor_registration_id", unique = true)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     ExhibitorRegistration exhibitorRegistration;
 
     @Column(name = "thumbnail_url", length = 1000)
@@ -110,10 +104,32 @@ public class Booth {
     @Builder.Default
     String displayTemplateKey = "classic";
 
+    @Column(name = "warning_count")
+    @Builder.Default
+    Integer warningCount = 0;
+
+    @Column(name = "warning_reason", columnDefinition = "TEXT")
+    String warningReason;
+
+    @Column(name = "warned_at")
+    Instant warnedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warned_by_id")
+    User warnedBy;
+
+    @Column(name = "ban_reason", columnDefinition = "TEXT")
+    String banReason;
+
+    @Column(name = "banned_at")
+    Instant bannedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "banned_by_id")
+    User bannedBy;
+
     @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     List<Panorama> panoramas = new ArrayList<>();
 
     @CreationTimestamp

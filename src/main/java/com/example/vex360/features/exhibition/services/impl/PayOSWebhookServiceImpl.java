@@ -102,6 +102,19 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
             if ("00".equals(data.getCode())) {
                 reconcileWebhookInvariants(data, payment);
 
+                if (registration != null) {
+                    BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
+                            ? registration.getFinalPriceSnapshot()
+                            : registration.getExhibitionPackage().getFinalPrice();
+                    BigDecimal systemFee = registration.getPriceSnapshot() != null
+                            ? registration.getPriceSnapshot()
+                            : registration.getExhibitionPackage().getPriceSnapshot();
+                    systemFee = systemFee == null ? BigDecimal.ZERO : systemFee;
+                    payment.setAmount(finalPrice);
+                    payment.setSystemFee(systemFee);
+                    payment.setOrganizerPayout(finalPrice.subtract(systemFee));
+                }
+
                 payment.setStatus(PaymentStatus.PAID);
                 payment.setPaidAt(Instant.now());
                 if (data.getReference() != null) {

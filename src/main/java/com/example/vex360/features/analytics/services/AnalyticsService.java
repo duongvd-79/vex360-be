@@ -1046,6 +1046,7 @@ public class AnalyticsService {
                         case PENDING -> "Chờ duyệt nội dung";
                         case PUBLISHED -> "Đã xuất bản";
                         case ARCHIVED -> "Đã lưu trữ";
+                        case BANNED -> "Bị khóa (BANNED)";
                 };
         }
 

@@ -147,6 +147,42 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             Pageable pageable);
 
     @Query("""
+            SELECT DISTINCT b FROM Booth b
+            JOIN FETCH b.exhibitorRegistration registration
+            JOIN FETCH registration.exhibitionPackage exhibitionPackage
+            JOIN FETCH exhibitionPackage.exhibition exhibition
+            LEFT JOIN FETCH b.company
+            LEFT JOIN FETCH b.panoramas
+            WHERE b.id = :id
+              AND b.isTemplate = false
+              AND exhibition.uuid = :exhibitionUuid
+            """)
+    Optional<Booth> findDetailForAdmin(
+            @Param("id") UUID id,
+            @Param("exhibitionUuid") UUID exhibitionUuid);
+
+    @Query("""
+            SELECT b FROM Booth b
+            JOIN b.exhibitorRegistration registration
+            JOIN registration.exhibitionPackage exhibitionPackage
+            JOIN exhibitionPackage.exhibition exhibition
+            LEFT JOIN b.company company
+            LEFT JOIN company.ownerUser ownerUser
+            WHERE exhibition.uuid = :exhibitionUuid
+              AND (:keyword IS NULL
+                OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(ownerUser.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:status IS NULL OR b.status = :status)
+            ORDER BY CASE WHEN b.status = 'PENDING' THEN 1 WHEN b.status = 'PUBLISHED' THEN 2 ELSE 3 END ASC, b.updatedAt DESC
+            """)
+    Page<Booth> searchForAdmin(
+            @Param("exhibitionUuid") UUID exhibitionUuid,
+            @Param("keyword") String keyword,
+            @Param("status") BoothStatus status,
+            Pageable pageable);
+
+    @Query("""
             SELECT b FROM Booth b
             JOIN b.exhibitorRegistration reg
             JOIN reg.exhibitionPackage pkg

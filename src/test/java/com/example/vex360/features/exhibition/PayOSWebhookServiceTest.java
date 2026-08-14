@@ -94,6 +94,8 @@ class PayOSWebhookServiceTest {
         pendingRegistration = ExhibitorRegistration.builder()
                 .id(1)
                 .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .priceSnapshot(BigDecimal.valueOf(700000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1000000))
                 .exhibitionPackage(ExhibitionPackage.builder().exhibition(exhibition).build())
                 .company(Company.builder().id(UUID.randomUUID())
                         .name("Test Co").build())
@@ -160,6 +162,8 @@ class PayOSWebhookServiceTest {
         assertNotNull(result);
         assertEquals("00", result.getCode());
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
+        assertEquals(BigDecimal.valueOf(700000), pendingPayment.getSystemFee());
+        assertEquals(BigDecimal.valueOf(300000), pendingPayment.getOrganizerPayout());
         assertEquals("payos_ref_123", pendingPayment.getPaymentReference());
         assertEquals(ExhibitorRegistrationStatus.APPROVED, pendingRegistration.getStatus());
 

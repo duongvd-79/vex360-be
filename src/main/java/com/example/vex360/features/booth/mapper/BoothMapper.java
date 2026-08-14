@@ -109,7 +109,12 @@ public interface BoothMapper {
                 toPanoramaResponseDTOs(panoramas),
                 deadline,
                 isOpen,
-                daysUntil);
+                daysUntil,
+                booth.getWarningCount(),
+                booth.getWarningReason(),
+                booth.getWarnedAt(),
+                booth.getBanReason(),
+                booth.getBannedAt());
     }
 
     private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {

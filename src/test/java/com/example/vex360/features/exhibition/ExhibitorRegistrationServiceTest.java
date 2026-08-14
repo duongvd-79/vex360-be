@@ -57,7 +57,6 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
@@ -119,9 +118,6 @@ class ExhibitorRegistrationServiceTest {
     private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor();
 
     @Mock
-    private CommissionCalculator commissionCalculator;
-
-    @Mock
     private Clock clock;
 
     @InjectMocks
@@ -137,11 +133,6 @@ class ExhibitorRegistrationServiceTest {
         ReflectionTestUtils.setField(registrationService, "cancelUrl", "http://localhost:5173/payment/cancel");
         Mockito.lenient().when(clock.instant()).thenReturn(Instant.parse("2026-01-10T00:00:00Z"));
         Mockito.lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-        Mockito.lenient().when(commissionCalculator.calculateCommission(any(), any())).thenAnswer(inv -> {
-            BigDecimal amt = inv.getArgument(0);
-            return new CommissionCalculator.CommissionResult(
-                    amt, BigDecimal.ZERO, amt, 0);
-        });
         ReflectionTestUtils.setField(registrationService, "timelinePolicy", new ExhibitionTimelinePolicy(clock));
 
         companyUser = User.builder()
@@ -998,6 +989,46 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
+    void getRegistrationDetails_updatesLegacyPendingPaymentRevenueSplit() {
+        UUID registrationUuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(registrationUuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .priceSnapshot(BigDecimal.valueOf(1000000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1500000))
+                .build();
+        Payment pendingPayment = Payment.builder()
+                .id(1)
+                .exhibitorRegistration(registration)
+                .orderCode(123456L)
+                .amount(BigDecimal.valueOf(1500000))
+                .systemFee(BigDecimal.ZERO)
+                .organizerPayout(BigDecimal.valueOf(1500000))
+                .checkoutUrl("oldCheckoutUrl")
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(registrationUuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.of(pendingPayment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PaymentLink mockLink = mock(PaymentLink.class);
+        when(mockLink.getStatus()).thenReturn(PaymentLinkStatus.PENDING);
+        when(payOSIntegrationService.getPaymentLinkInformation(123456L)).thenReturn(mockLink);
+
+        registrationService.getRegistrationDetails(registrationUuid, companyUser.getId());
+
+        assertEquals(BigDecimal.valueOf(1000000), pendingPayment.getSystemFee());
+        assertEquals(BigDecimal.valueOf(500000), pendingPayment.getOrganizerPayout());
+        verify(paymentRepository).save(pendingPayment);
+    }
+
+    @Test
     void getRegistrationDetails_payOSLookupFails_keepsPendingPayment() {
         UUID registrationUuid = UUID.randomUUID();
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
@@ -1026,7 +1057,7 @@ class ExhibitorRegistrationServiceTest {
 
         assertEquals(PaymentStatus.PENDING, pendingPayment.getStatus());
         assertEquals("existing-checkout-url", dto.getCheckoutUrl());
-        verify(paymentRepository, never()).save(any(Payment.class));
+        verify(paymentRepository).save(pendingPayment);
         verify(payOSIntegrationService, never()).createPaymentLink(any(), any(), any(), any(), any());
     }
 
@@ -1358,7 +1389,7 @@ class ExhibitorRegistrationServiceTest {
 
         assertNotNull(dto);
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
-        verify(paymentRepository).save(argThat(p -> p.getStatus() == PaymentStatus.PAID));
+        verify(paymentRepository, Mockito.times(2)).save(argThat(p -> p.getStatus() == PaymentStatus.PAID));
         verify(paymentFulfillmentService).processFulfillmentForOrderCode(123456L);
         verify(eventPublisher).publishEvent(any(ExhibitionPaymentCompletedEvent.class));
         verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
@@ -1771,8 +1802,66 @@ class ExhibitorRegistrationServiceTest {
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
         registrationService.getRegistrationDetails(uuid, companyUser.getId());
 
-        verify(commissionCalculator, Mockito.times(3))
-                .calculateCommission(eq(BigDecimal.valueOf(123)), any());
+        verify(paymentRepository, Mockito.times(3)).save(argThat(payment ->
+                BigDecimal.valueOf(123).equals(payment.getAmount())));
+    }
+
+    @Test
+    void getRegistrationDetails_splitsFinalPriceUsingBasePriceSnapshot() {
+        UUID uuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .priceSnapshot(BigDecimal.valueOf(1000000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1500000))
+                .build();
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("create failed"));
+
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+
+        verify(paymentRepository).save(argThat(payment ->
+                BigDecimal.valueOf(1500000).equals(payment.getAmount())
+                        && BigDecimal.valueOf(1000000).equals(payment.getSystemFee())
+                        && BigDecimal.valueOf(500000).equals(payment.getOrganizerPayout())));
+    }
+
+    @Test
+    void getRegistrationDetails_givesSystemAllRevenueWhenFinalPriceEqualsBasePrice() {
+        UUID uuid = UUID.randomUUID();
+        ExhibitorRegistration registration = ExhibitorRegistration.builder()
+                .id(1)
+                .uuid(uuid)
+                .company(company)
+                .exhibitionPackage(paidPackage)
+                .status(ExhibitorRegistrationStatus.PENDING_PAYMENT)
+                .priceSnapshot(BigDecimal.valueOf(1000000))
+                .finalPriceSnapshot(BigDecimal.valueOf(1000000))
+                .build();
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUser(companyUser)).thenReturn(company);
+        when(registrationRepository.findByUuidForUpdate(uuid)).thenReturn(Optional.of(registration));
+        when(paymentRepository.findFirstByExhibitorRegistrationIdOrderByCreatedAtDesc(1))
+                .thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(payOSIntegrationService.createPaymentLink(any(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("create failed"));
+
+        registrationService.getRegistrationDetails(uuid, companyUser.getId());
+
+        verify(paymentRepository).save(argThat(payment ->
+                BigDecimal.valueOf(1000000).equals(payment.getAmount())
+                        && BigDecimal.valueOf(1000000).equals(payment.getSystemFee())
+                        && BigDecimal.ZERO.equals(payment.getOrganizerPayout())));
     }
 
     @Test

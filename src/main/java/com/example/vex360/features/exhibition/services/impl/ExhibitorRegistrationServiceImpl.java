@@ -25,8 +25,6 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.exhibition.services.CommissionCalculator;
-import com.example.vex360.features.exhibition.services.CommissionCalculator.CommissionResult;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
@@ -73,7 +71,6 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
     private final PaymentRepository paymentRepository;
     private final PayOSIntegrationService payOSIntegrationService;
     private final PaymentFulfillmentService paymentFulfillmentService;
-    private final CommissionCalculator commissionCalculator;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
     private final MailService mailService;
@@ -192,6 +189,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 .orElse(null);
 
         if (payment != null && payment.getStatus() == PaymentStatus.PENDING) {
+            BigDecimal finalPrice = getFinalPrice(registration);
+            BigDecimal systemFee = getBasePrice(registration);
+            BigDecimal organizerPayout = finalPrice.subtract(systemFee);
+            if (!finalPrice.equals(payment.getAmount())
+                    || !systemFee.equals(payment.getSystemFee())
+                    || !organizerPayout.equals(payment.getOrganizerPayout())) {
+                payment.setAmount(finalPrice);
+                payment.setSystemFee(systemFee);
+                payment.setOrganizerPayout(organizerPayout);
+                paymentRepository.save(payment);
+            }
             if (payment.getOrderCode() != null) {
                 PaymentLink linkData = null;
                 try {
@@ -232,20 +240,17 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
                 throw new AppException(ErrorCode.REGISTRATION_CLOSED);
             }
 
-            BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
-                    ? registration.getFinalPriceSnapshot()
-                    : registration.getExhibitionPackage().getFinalPrice();
+            BigDecimal finalPrice = getFinalPrice(registration);
             long orderCode = System.currentTimeMillis() / 1000 * 1000000L + this.random.nextLong(1000000L);
 
-            CommissionResult calc = commissionCalculator
-                    .calculateCommission(finalPrice, Instant.now());
+            BigDecimal systemFee = getBasePrice(registration);
 
             Payment newPayment = Payment.builder()
                     .exhibitorRegistration(registration)
                     .orderCode(orderCode)
-                    .amount(calc.amount())
-                    .systemFee(calc.systemFee())
-                    .organizerPayout(calc.organizerPayout())
+                    .amount(finalPrice)
+                    .systemFee(systemFee)
+                    .organizerPayout(finalPrice.subtract(systemFee))
                     .paymentProvider("PAYOS")
                     .status(PaymentStatus.PENDING)
                     .build();
@@ -277,6 +282,19 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         }
 
         return payment;
+    }
+
+    private BigDecimal getFinalPrice(ExhibitorRegistration registration) {
+        return registration.getFinalPriceSnapshot() != null
+                ? registration.getFinalPriceSnapshot()
+                : registration.getExhibitionPackage().getFinalPrice();
+    }
+
+    private BigDecimal getBasePrice(ExhibitorRegistration registration) {
+        BigDecimal basePrice = registration.getPriceSnapshot() != null
+                ? registration.getPriceSnapshot()
+                : registration.getExhibitionPackage().getPriceSnapshot();
+        return basePrice == null ? BigDecimal.ZERO : basePrice;
     }
 
     @Override

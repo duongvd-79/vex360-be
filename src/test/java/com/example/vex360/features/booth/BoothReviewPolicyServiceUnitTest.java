@@ -1,8 +1,10 @@
 package com.example.vex360.features.booth;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -224,6 +226,59 @@ class BoothReviewPolicyServiceUnitTest {
                 .setStartDate(LocalDate.now(clock).plusDays(2));
         AppException ex = assertThrows(AppException.class, () -> policyService.assertCanStartEdit(booth));
         assertSame(ErrorCode.BOOTH_REVIEW_DEADLINE_PASSED, ex.getErrorCode());
+    }
+
+    @Test
+    void warnAndBanPolicyRules() {
+        // Today is Jan 10
+        // Case 1: T-5 (startDate = Jan 15), warningCount = 0 -> Warn allowed, Ban
+        // allowed
+        booth = booth(LocalDate.now(clock).plusDays(5));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition().setStatus(ExhibitionStatus.PUBLISHED);
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.setWarningCount(0);
+
+        assertTrue(policyService.isBoothWarnAllowed(booth));
+        assertTrue(policyService.isBoothBanAllowed(booth));
+        assertDoesNotThrow(() -> policyService.assertCanWarnBooth(booth));
+        assertDoesNotThrow(() -> policyService.assertCanBanBooth(booth));
+
+        // Case 2: T-3 (startDate = Jan 13) -> Warn allowed at T-3
+        booth = booth(LocalDate.now(clock).plusDays(3));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition().setStatus(ExhibitionStatus.PUBLISHED);
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.setWarningCount(0);
+
+        assertTrue(policyService.isBoothWarnAllowed(booth));
+
+        // Case 3: T-2 (startDate = Jan 12) -> Warn NOT allowed at T-2, Ban IS allowed
+        booth = booth(LocalDate.now(clock).plusDays(2));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition().setStatus(ExhibitionStatus.PUBLISHED);
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.setWarningCount(0);
+
+        assertFalse(policyService.isBoothWarnAllowed(booth));
+        assertTrue(policyService.isBoothBanAllowed(booth));
+        AppException exWarn = assertThrows(AppException.class, () -> policyService.assertCanWarnBooth(booth));
+        assertSame(ErrorCode.BOOTH_WARNING_NOT_ALLOWED_AFTER_DEADLINE, exWarn.getErrorCode());
+        assertDoesNotThrow(() -> policyService.assertCanBanBooth(booth));
+
+        // Case 4: warningCount = 1 at T-5 -> Warn NOT allowed (only 1 warning allowed)
+        booth = booth(LocalDate.now(clock).plusDays(5));
+        booth.getExhibitorRegistration().getExhibitionPackage().getExhibition().setStatus(ExhibitionStatus.PUBLISHED);
+        booth.setStatus(BoothStatus.PUBLISHED);
+        booth.setWarningCount(1);
+
+        assertFalse(policyService.isBoothWarnAllowed(booth));
+        AppException exWarnTwice = assertThrows(AppException.class, () -> policyService.assertCanWarnBooth(booth));
+        assertSame(ErrorCode.BOOTH_ALREADY_WARNED, exWarnTwice.getErrorCode());
+
+        // Case 5: Already BANNED -> Warn & Ban NOT allowed
+        booth.setStatus(BoothStatus.BANNED);
+        assertFalse(policyService.isBoothWarnAllowed(booth));
+        assertFalse(policyService.isBoothBanAllowed(booth));
+        AppException exAlreadyBanned = assertThrows(AppException.class, () -> policyService.assertCanBanBooth(booth));
+        assertSame(ErrorCode.BOOTH_ALREADY_BANNED, exAlreadyBanned.getErrorCode());
     }
 
     private Booth booth(LocalDate startDate) {
