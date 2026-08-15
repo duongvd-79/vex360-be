@@ -87,7 +87,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             "company.name", "c.name",
             "exhibitionName", "name",
             "expectedBoothCount", "estimatedBooths",
-            "status", "status",
             "proposedStartDate", "startDate",
             "proposedEndDate", "endDate");
 
@@ -321,45 +320,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
                         .phone(company.getPhone())
                         .build())
                 .orElse(response);
-    }
-
-    @Override
-    @Transactional
-    public ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
-            ConfigureExhibitionPackageRequest request) {
-        Exhibition exhibition = exhibitionRepository.findByUuid(uuid)
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for UUID: {}", uuid);
-                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
-                });
-
-        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
-            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
-
-        if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
-            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
-        }
-
-        if (exhibitionPackageRepository.findByExhibitionIdAndTemplateId(exhibition.getId(), template.getId())
-                .isPresent()) {
-            log.error("Package template {} already configured for exhibition {}", template.getId(), uuid);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_ALREADY_CONFIGURED);
-        }
-
-        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                .exhibition(exhibition)
-                .finalPrice(request.getFinalPrice())
-                .status(ExhibitionPackageStatus.ACTIVE)
-                .build();
-        exhibitionPackage.snapshotTemplateTerms(template);
-
-        exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
-        return exhibitionMapper.toPackageResponse(exhibitionPackage);
     }
 
     @Override
@@ -629,7 +589,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             eventPublisher.publishEvent(new ExhibitionCompletedEvent(this, exhibition));
         }
 
-        packages = exhibitionPackageRepository.findByExhibition(exhibition);
         ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
         sendExhibitionReviewMailSafely(exhibition, exhibition.getName(), ExhibitionReviewStatus.APPROVED, null);
         return response;
@@ -1267,7 +1226,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             }
 
             validateFinalPrice(selection.getFinalPrice(), floorPrice);
-            if (tier == null || !selectedTiers.add(tier)) {
+            if (!selectedTiers.add(tier)) {
                 throw new AppException(ErrorCode.VALIDATION_FAILED);
             }
             selectedPackage.setFinalPrice(selection.getFinalPrice());

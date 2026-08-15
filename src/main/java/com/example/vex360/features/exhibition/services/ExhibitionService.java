@@ -29,9 +29,6 @@ public interface ExhibitionService {
 
 	ExhibitionResponseDTO getExhibitionByUuid(UUID uuid);
 
-	ExhibitionPackageResponseDTO configureExhibitionPackage(User organizer, UUID uuid,
-			ConfigureExhibitionPackageRequest request);
-
 	PageResponse<ExhibitionResponseDTO> searchExhibitionsForAdmin(
 			String keyword, AdminExhibitionStatusFilter status, String category,
 			LocalDate startDate, LocalDate endDate, Pageable pageable);

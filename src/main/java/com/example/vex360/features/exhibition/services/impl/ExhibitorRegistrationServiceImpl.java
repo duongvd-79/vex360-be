@@ -329,17 +329,7 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         Page<ExhibitorRegistration> page = registrationRepository.searchForExhibitor(
                 company.getId(), status, normalizedKeyword, pageable);
 
-        List<Integer> registrationIds = page.getContent().stream().map(ExhibitorRegistration::getId).toList();
-
-        Map<Integer, Payment> paymentMap = new HashMap<>();
-        if (!registrationIds.isEmpty()) {
-            List<Payment> payments = paymentRepository.findLatestPaymentsByRegistrationIds(registrationIds);
-            for (Payment p : payments) {
-                paymentMap.put(p.getExhibitorRegistration().getId(), p);
-            }
-        }
-
-        return PageResponse.from(page.map(r -> mapToResponse(r, paymentMap.get(r.getId()))));
+        return mapToPageResponse(page);
     }
 
     private PageResponse<ExhibitorRegistrationResponseDTO> mapToPageResponse(Page<ExhibitorRegistration> page) {
