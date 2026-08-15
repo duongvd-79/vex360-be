@@ -22,6 +22,7 @@ public class BoothResponseDTO {
     // với gian hàng
     private UUID exhibitorUserId;
     private UUID registrationUuid;
+    private String packageName;
     private UUID exhibitionUuid;
     private String exhibitionName;
     private String name;

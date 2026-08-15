@@ -1485,6 +1485,16 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<Integer, Long> aggregateSystemRevenueByExhibition(List<Integer> exhibitionIds, Instant start,
+            Instant end) {
+        Map<Integer, Long> result = new HashMap<>();
+        paymentRepository.aggregateSystemRevenueByExhibition(exhibitionIds, start, end)
+                .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Map<Integer, Long> aggregateProfitByExhibition(List<Integer> exhibitionIds, Instant start, Instant end) {
         Map<Integer, Long> result = new HashMap<>();
         paymentRepository.aggregateProfitByExhibition(exhibitionIds, start, end)

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,6 +33,12 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class AdminAnalyticsService {
+
+    /**
+     * Giới hạn số ngày được bù điểm 0 vào biểu đồ xu hướng. Khoảng lọc dài hơn mức
+     * này thì bỏ qua việc bù để không trả về hàng nghìn điểm vô ích qua mạng.
+     */
+    private static final long MAX_CHART_ZERO_FILL_DAYS = 366;
 
     private final UserService userService;
     private final ExhibitionService exhibitionService;
@@ -79,6 +86,7 @@ public class AdminAnalyticsService {
         List<Integer> exhibitionIds = exhibitions.stream().map(Exhibition::getId).toList();
         Map<Integer, long[]> exhibitionTraffic = new HashMap<>();
         Map<Integer, Long> exhibitionRevenue = new HashMap<>();
+        Map<Integer, Long> exhibitionSystemRevenue = new HashMap<>();
         Map<Integer, Long> exhibitionLeads = new HashMap<>();
         if (!exhibitionIds.isEmpty()) {
             analyticsEventRepository.aggregateOrganizerDailyMetrics(exhibitionIds, start, end)
@@ -90,12 +98,25 @@ public class AdminAnalyticsService {
                             ((Number) row[0]).intValue(),
                             new long[] { longValue(row[1]), longValue(row[2]) }));
             exhibitionRevenue = exhibitionService.aggregateRevenueByExhibition(exhibitionIds, start, end);
+            exhibitionSystemRevenue = exhibitionService.aggregateSystemRevenueByExhibition(exhibitionIds, start, end);
             boothLeadService.aggregatePerformanceForExhibitions(exhibitionIds, start, end)
                     .forEach(row -> exhibitionLeads.put(
                             ((Number) row[0]).intValue(), longValue(row[1])));
         }
 
+        // Bù điểm 0 cho ngày không phát sinh sự kiện: các query GROUP BY chỉ trả về
+        // ngày CÓ dữ liệu, nếu để nguyên thì biểu đồ đường nối thẳng qua khoảng trống
+        // khiến người xem tưởng ngày đó vẫn có số liệu. dailyPoint() dùng
+        // computeIfAbsent nên không ghi đè ngày đã có dữ liệu.
+        if (!trend.isEmpty()
+                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+            for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                dailyPoint(trend, day.toString());
+            }
+        }
+
         Map<Integer, Long> finalExhibitionRevenue = exhibitionRevenue;
+        Map<Integer, Long> finalExhibitionSystemRevenue = exhibitionSystemRevenue;
         List<AdminSystemAnalyticsDTO.TopExhibition> topExhibitions = exhibitions.stream()
                 .map(exhibition -> {
                     long[] values = exhibitionTraffic.getOrDefault(exhibition.getId(), new long[2]);
@@ -106,6 +127,7 @@ public class AdminAnalyticsService {
                             .visits(values[0])
                             .uniqueVisitors(values[1])
                             .revenue(finalExhibitionRevenue.getOrDefault(exhibition.getId(), 0L))
+                            .systemRevenue(finalExhibitionSystemRevenue.getOrDefault(exhibition.getId(), 0L))
                             .leads(exhibitionLeads.getOrDefault(exhibition.getId(), 0L))
                             .build();
                 })

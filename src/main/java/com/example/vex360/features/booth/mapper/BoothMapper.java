@@ -85,6 +85,7 @@ public interface BoothMapper {
                 company == null ? null : company.getId(),
                 createdBy == null ? null : createdBy.getId(),
                 registration == null ? null : registration.getUuid(),
+                resolvePackageName(registration),
                 getExhibitionUuid(registration),
                 getExhibitionName(registration),
                 booth.getName(),
@@ -115,6 +116,19 @@ public interface BoothMapper {
                 booth.getWarnedAt(),
                 booth.getBanReason(),
                 booth.getBannedAt());
+    }
+
+    private String resolvePackageName(ExhibitorRegistration registration) {
+        if (registration == null) {
+            return null;
+        }
+        if (registration.getPackageNameSnapshot() != null
+                && !registration.getPackageNameSnapshot().isBlank()) {
+            return registration.getPackageNameSnapshot();
+        }
+        return registration.getExhibitionPackage() == null
+                ? null
+                : registration.getExhibitionPackage().getPackageNameSnapshot();
     }
 
     private BoothListingPriority resolveListingPriority(ExhibitorRegistration registration) {

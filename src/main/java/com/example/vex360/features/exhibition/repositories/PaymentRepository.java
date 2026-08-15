@@ -156,6 +156,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
 
     @Query(value = """
             SELECT ep.exhibition_id,
+                   COALESCE(SUM(COALESCE(r.price_snapshot, ep.price_snapshot, 0)), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE ep.exhibition_id IN (:exhibitionIds)
+              AND p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY ep.exhibition_id
+            """, nativeQuery = true)
+    List<Object[]> aggregateSystemRevenueByExhibition(
+            @Param("exhibitionIds") List<Integer> exhibitionIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    @Query(value = """
+            SELECT ep.exhibition_id,
                    COALESCE(SUM(
                        CASE
                            WHEN p.organizer_payout > 0 THEN p.organizer_payout
@@ -216,22 +232,29 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     long countByStatus(PaymentStatus status);
 
     @Query(value = """
-            SELECT COUNT(*), COALESCE(SUM(amount), 0), COALESCE(SUM(system_fee), 0)
-            FROM payments
-            WHERE status = 'PAID'
-              AND paid_at BETWEEN :start AND :end
+            SELECT COUNT(p.id),
+                   COALESCE(SUM(p.amount), 0),
+                   COALESCE(SUM(COALESCE(r.price_snapshot, ep.price_snapshot, 0)), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
             """, nativeQuery = true)
     List<Object[]> aggregateAdminPaidMetrics(
             @Param("start") Instant start,
             @Param("end") Instant end);
 
     @Query(value = """
-            SELECT DATE(paid_at), COALESCE(SUM(amount), 0)
-            FROM payments
-            WHERE status = 'PAID'
-              AND paid_at BETWEEN :start AND :end
-            GROUP BY DATE(paid_at)
-            ORDER BY DATE(paid_at)
+            SELECT DATE(p.paid_at),
+                   COALESCE(SUM(COALESCE(r.price_snapshot, ep.price_snapshot, 0)), 0)
+            FROM payments p
+            JOIN exhibitor_registrations r ON r.id = p.exhibitor_registration_id
+            JOIN exhibition_packages ep ON ep.id = r.exhibition_package_id
+            WHERE p.status = 'PAID'
+              AND p.paid_at BETWEEN :start AND :end
+            GROUP BY DATE(p.paid_at)
+            ORDER BY DATE(p.paid_at)
             """, nativeQuery = true)
     List<Object[]> aggregateAdminDailyRevenue(
             @Param("start") Instant start,

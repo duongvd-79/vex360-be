@@ -275,6 +275,7 @@ class BoothReviewServiceUnitTest {
         assertEquals(10, response.getSize());
         assertEquals(21, response.getTotalElements());
         assertEquals(3, response.getTotalPages());
+        assertEquals("Premium", response.getContent().getFirst().getPackageName());
         verify(boothRepository).searchForOrganizer(
                 exhibitionUuid, organizer.getId(), "Exhibitor Owner", BoothStatus.PENDING, pageable);
     }
