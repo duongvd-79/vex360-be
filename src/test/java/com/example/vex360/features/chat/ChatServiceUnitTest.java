@@ -30,6 +30,7 @@ import com.example.vex360.features.chat.repositories.ChatMessageRepository;
 import com.example.vex360.features.chat.repositories.ChatRoomRepository;
 import com.example.vex360.features.chat.services.ChatService;
 import com.example.vex360.features.chat.services.PresenceService;
+import com.example.vex360.features.booth.services.BoothDesignService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.user.entities.User;
@@ -55,6 +56,8 @@ class ChatServiceUnitTest {
     ExhibitionService exhibitionService;
     @Mock
     PresenceService presenceService;
+    @Mock
+    BoothDesignService boothDesignService;
     @InjectMocks
     ChatService chatService;
 
@@ -150,7 +153,9 @@ class ChatServiceUnitTest {
         UUID visitorId = UUID.randomUUID();
         User exhibitor = User.builder().id(exhibitorId).fullName("Trần Quang Huy").build();
         User visitor = User.builder().id(visitorId).fullName("Hoàng Khách Tham Quan").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitor).visitorUser(visitor).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitor).visitorUser(visitor).build();
         String content = "Chào bạn, sản phẩm còn hàng nhé!";
 
         when(chatRoomRepository.findById(roomId)).thenReturn(Optional.of(room));
@@ -179,7 +184,9 @@ class ChatServiceUnitTest {
         UUID visitorId = UUID.randomUUID();
         User exhibitor = User.builder().id(exhibitorId).fullName("Trần Quang Huy").build();
         User visitor = User.builder().id(visitorId).fullName("Hoàng Khách Tham Quan").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitor).visitorUser(visitor).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitor).visitorUser(visitor).build();
         // 60 ký tự -> vượt ngưỡng 50 ký tự cắt preview
         String longContent = "A".repeat(60);
 
@@ -234,7 +241,9 @@ class ChatServiceUnitTest {
         UUID visitorId = UUID.randomUUID();
         User exhibitor = User.builder().id(exhibitorId).fullName("Trần Quang Huy").build();
         User visitor = User.builder().id(visitorId).fullName("Hoàng Khách Tham Quan").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitor).visitorUser(visitor).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitor).visitorUser(visitor).build();
 
         when(chatRoomRepository.findById(roomId)).thenReturn(Optional.of(room));
         when(chatMessageRepository.findByRoomIdOrderBySentAtAsc(roomId)).thenReturn(List.of());
@@ -253,7 +262,9 @@ class ChatServiceUnitTest {
         UUID visitorId = UUID.randomUUID();
         User exhibitor = User.builder().id(exhibitorId).fullName("Trần Quang Huy").build();
         User visitor = User.builder().id(visitorId).fullName("Hoàng Khách Tham Quan").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitor).visitorUser(visitor).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitor).visitorUser(visitor).build();
 
         when(chatRoomRepository.findById(roomId)).thenReturn(Optional.of(room));
         when(chatMessageRepository.findByRoomIdOrderBySentAtAsc(roomId)).thenReturn(List.of());
@@ -302,7 +313,9 @@ class ChatServiceUnitTest {
         UUID roomId = UUID.randomUUID();
         User exhibitorUser = User.builder().id(exhibitorId).role(Role.EXHIBITOR).fullName("Trần Quang Huy").build();
         User visitor = User.builder().id(UUID.randomUUID()).fullName("Hoàng Khách Tham Quan").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitorUser).visitorUser(visitor).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitorUser).visitorUser(visitor).build();
 
         when(chatRoomRepository.findByExhibitorUserIdOrderByLastMessageAtDesc(exhibitorId))
                 .thenReturn(List.of(room));
@@ -322,7 +335,9 @@ class ChatServiceUnitTest {
         UUID roomId = UUID.randomUUID();
         User visitorUser = User.builder().id(visitorId).role(Role.VISITOR).fullName("Hoàng Khách Tham Quan").build();
         User exhibitor = User.builder().id(UUID.randomUUID()).fullName("Trần Quang Huy").build();
-        ChatRoom room = ChatRoom.builder().id(roomId).exhibitorUser(exhibitor).visitorUser(visitorUser).build();
+        ChatRoom room = ChatRoom.builder().id(roomId)
+                .exhibition(Exhibition.builder().id(1).name("Demo").build())
+                .exhibitorUser(exhibitor).visitorUser(visitorUser).build();
 
         when(chatRoomRepository.findByVisitorUserIdOrderByLastMessageAtDesc(visitorId))
                 .thenReturn(List.of(room));

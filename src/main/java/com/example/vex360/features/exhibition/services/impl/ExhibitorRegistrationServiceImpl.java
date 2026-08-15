@@ -401,6 +401,11 @@ public class ExhibitorRegistrationServiceImpl implements ExhibitorRegistrationSe
         BigDecimal finalPrice = registration.getFinalPriceSnapshot() != null
                 ? registration.getFinalPriceSnapshot()
                 : (pkg != null ? pkg.getFinalPrice() : BigDecimal.ZERO);
+        if (finalPrice.compareTo(BigDecimal.ZERO) == 0 && pkg != null && pkg.getFinalPrice() != null
+                && pkg.getFinalPrice().compareTo(BigDecimal.ZERO) > 0) {
+            finalPrice = pkg.getFinalPrice();
+            registration.setFinalPriceSnapshot(finalPrice);
+        }
         if (finalPrice.compareTo(BigDecimal.ZERO) == 0) {
             // Free package: direct approve
             registration.setStatus(ExhibitorRegistrationStatus.APPROVED);

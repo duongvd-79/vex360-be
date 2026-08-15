@@ -290,8 +290,6 @@ class DesignRequestServiceUnitTest {
     void createRequestMovesDraftBoothToDesigning() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(0L);
-        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -327,8 +325,6 @@ class DesignRequestServiceUnitTest {
     void createRequestStoresContactOverridesWithoutChangingCompany() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(0L);
-        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
         when(designRequestRepository.save(any(DesignRequest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         CreateDesignRequest create = new CreateDesignRequest(
@@ -349,8 +345,6 @@ class DesignRequestServiceUnitTest {
         company.setPhone(null);
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(0L);
-        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(0L);
 
         AppException exception = assertThrows(
                 AppException.class,
@@ -375,17 +369,15 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void createRequestThrowsWhenBoothActionQuotaIsFull() {
+    void createRequestAllowsMoreThanThreeDesignActions() {
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(boothDesignService.getCompanyBoothForUpdate(booth.getId(), company.getId())).thenReturn(booth);
-        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(2L);
-        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(1L);
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        AppException exception = assertThrows(AppException.class,
-                () -> service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design")));
+        service.createRequest(exhibitor, new CreateDesignRequest(booth.getId(), "Need design"));
 
-        assertSame(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED, exception.getErrorCode());
-        verify(designRequestRepository, never()).save(any());
+        verify(designRequestRepository).save(any());
     }
 
     @Test
@@ -618,21 +610,21 @@ class DesignRequestServiceUnitTest {
     }
 
     @Test
-    void rejectDraftCountsAgainstBoothActionQuota() {
+    void rejectDraftAllowsMoreThanThreeDesignActions() {
         UUID requestId = UUID.randomUUID();
         DesignRequest request = assignedRequest(requestId);
         request.setStatus(DesignRequestStatus.DRAFT_SUBMITTED);
 
         when(companyService.getCompanyEntityForCurrentUser(exhibitor)).thenReturn(company);
         when(designRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
-        when(designRequestRepository.countByBoothIdAndQuotaChargedTrue(booth.getId())).thenReturn(1L);
-        when(designRequestRepository.sumReviewCountByBoothId(booth.getId())).thenReturn(2L);
 
-        AppException exception = assertThrows(AppException.class,
-                () -> service.rejectDraft(exhibitor, requestId, null));
+        when(designRequestRepository.save(any(DesignRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertSame(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED, exception.getErrorCode());
-        verify(designRequestRepository, never()).save(any());
+        service.rejectDraft(exhibitor, requestId, new RejectDesignDraftRequest("Please revise"));
+
+        assertEquals(1, request.getReviewCount());
+        verify(designRequestRepository).save(request);
     }
 
     @Test

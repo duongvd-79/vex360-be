@@ -478,8 +478,8 @@ public class DesignRequestService {
 
     /**
      * Rejects the latest submitted draft and returns the request to the assigned
-     * Designer for revision. Each rejection requires a note and increments both
-     * the request review count and the booth's shared design-action usage. The
+     * Designer for revision. Each rejection requires a note and increments
+     * the request review count. The
      * request already owns a Designer slot while waiting for review, so rejection
      * returns it directly to revision.
      *
@@ -488,7 +488,7 @@ public class DesignRequestService {
      * @param rejectRequest required revision note for the Designer
      * @return the request in REVISION_REQUESTED status
      * @throws AppException if the request is not DRAFT_SUBMITTED, belongs to
-     *                      another company, or the booth action quota is exhausted
+     *                      another company
      */
     @Transactional
     public DesignRequestResponseDTO rejectDraft(User currentUser, UUID id, RejectDesignDraftRequest rejectRequest) {
@@ -498,10 +498,6 @@ public class DesignRequestService {
         if (request.getStatus() != DesignRequestStatus.DRAFT_SUBMITTED) {
             throw new AppException(ErrorCode.INVALID_DESIGN_REQUEST_STATUS);
         }
-        if (eligibilityService.remainingActions(request.getBooth()) == 0) {
-            throw new AppException(ErrorCode.DESIGN_REQUEST_QUOTA_EXCEEDED);
-        }
-
         DesignRequestStatus previousStatus = request.getStatus();
         request.setReviewCount(request.getReviewCount() + 1);
         String reviewNote = rejectRequest == null ? null : trimToNull(rejectRequest.getReviewNote());
@@ -1343,9 +1339,7 @@ public class DesignRequestService {
     }
 
     private DesignRequestResponseDTO toResponse(DesignRequest request) {
-        DesignRequestResponseDTO response = designRequestMapper.toResponse(request);
-        response.setRemainingDesignActions(eligibilityService.remainingActions(request.getBooth()));
-        return response;
+        return designRequestMapper.toResponse(request);
     }
 
     @Transactional(readOnly = true)

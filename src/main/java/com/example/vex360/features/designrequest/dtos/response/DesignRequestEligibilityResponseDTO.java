@@ -16,5 +16,5 @@ public class DesignRequestEligibilityResponseDTO {
     private DesignRequestMode mode;
     private boolean eligible;
     private String reasonCode;
-    private int remainingDesignActions;
+    private Integer remainingDesignActions;
 }

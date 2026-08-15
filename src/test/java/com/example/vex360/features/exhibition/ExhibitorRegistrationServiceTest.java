@@ -1434,7 +1434,7 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void testApproveRegistration_UsesFinalPriceSnapshot() {
+    void testApproveRegistration_FreeSnapshotWithPaidOrganizerPrice_RequiresPayment() {
         User organizer = User.builder().id(UUID.randomUUID()).build();
         UUID registrationUuid = UUID.randomUUID();
         Exhibition exhibition = Exhibition.builder().id(1).organizer(organizer).name("Expo")
@@ -1456,8 +1456,9 @@ class ExhibitorRegistrationServiceTest {
         var dto = registrationService.approveRegistration(organizer, registrationUuid);
 
         assertNotNull(dto);
-        assertEquals("APPROVED", dto.getStatus());
-        verify(paymentRepository).save(argThat(p -> p.getAmount().compareTo(BigDecimal.ZERO) == 0));
+        assertEquals("PENDING_PAYMENT", dto.getStatus());
+        assertEquals(BigDecimal.valueOf(9999), registration.getFinalPriceSnapshot());
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test
