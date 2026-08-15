@@ -603,7 +603,12 @@ public class AnalyticsService {
                 // Bù điểm 0 cho những ngày không phát sinh sự kiện: query GROUP BY chỉ trả về
                 // ngày CÓ dữ liệu, nếu để nguyên thì biểu đồ nối thẳng qua khoảng trống khiến
                 // người xem tưởng ngày đó vẫn có số liệu.
-                if (ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                // Khối early-return bên trên chỉ thoát khi CẢ BA điều kiện cùng đúng, nên vẫn
+                // có thể tới đây với chartByDate rỗng (vd: chưa có lượt truy cập nào nhưng đã
+                // duyệt gian hàng). Khi đó giữ chart rỗng để frontend chỉ hiện tỷ lệ lấp đầy,
+                // không vẽ một đường phẳng toàn số 0.
+                if (!chartByDate.isEmpty()
+                                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
                         for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
                                 String dateKey = day.toString();
                                 chartByDate.putIfAbsent(dateKey, ExhibitionAnalyticsDetailDTO.ChartPoint.builder()
