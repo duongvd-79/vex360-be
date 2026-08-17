@@ -58,9 +58,9 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
-import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.user.services.UserService;
@@ -121,7 +121,7 @@ class ExhibitorRegistrationServiceTest {
     private Clock clock;
 
     @InjectMocks
-    private ExhibitorRegistrationServiceImpl registrationService;
+    private ExhibitorRegistrationService registrationService;
 
     private User companyUser;
     private Company company;

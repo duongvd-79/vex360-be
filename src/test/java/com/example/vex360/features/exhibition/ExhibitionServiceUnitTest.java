@@ -69,8 +69,8 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
-import com.example.vex360.features.exhibition.services.impl.ExhibitionServiceImpl;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -139,7 +139,7 @@ class ExhibitionServiceUnitTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
-    private ExhibitionServiceImpl exhibitionService;
+    private ExhibitionService exhibitionService;
 
     private User organizer;
     private Exhibition registrationExhibition;
@@ -152,7 +152,7 @@ class ExhibitionServiceUnitTest {
         lenient().when(timelinePolicy.today()).thenReturn(LocalDate.now());
         lenient().when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(true);
 
-        exhibitionService = new ExhibitionServiceImpl(
+        exhibitionService = new ExhibitionService(
                 exhibitionRepository,
                 exhibitionPackageRepository,
                 packageTemplateService,

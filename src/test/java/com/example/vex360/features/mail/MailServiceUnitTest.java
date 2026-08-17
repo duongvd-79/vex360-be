@@ -35,11 +35,11 @@ class MailServiceUnitTest {
     @Mock
     private EmailTransport emailTransport;
 
-    private MailServiceImpl mailService;
+    private MailService mailService;
 
     @BeforeEach
     void setUp() {
-        mailService = new MailServiceImpl(emailTransport, "http://localhost:5175/login");
+        mailService = new MailService(emailTransport, "http://localhost:5175/login");
     }
 
     @Test

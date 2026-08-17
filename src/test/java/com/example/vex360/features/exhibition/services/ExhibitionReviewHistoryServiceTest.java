@@ -33,7 +33,6 @@ import com.example.vex360.features.exhibition.mapper.ExhibitionReviewHistoryMapp
 import com.example.vex360.features.exhibition.repositories.ExhibitionAssetRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitionReviewRequestRepository;
-import com.example.vex360.features.exhibition.services.impl.ExhibitionReviewHistoryServiceImpl;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
@@ -55,7 +54,7 @@ class ExhibitionReviewHistoryServiceTest {
 
     private ExhibitionReviewHistoryMapper mapper = Mappers.getMapper(ExhibitionReviewHistoryMapper.class);
 
-    private ExhibitionReviewHistoryServiceImpl reviewHistoryService;
+    private ExhibitionReviewHistoryService reviewHistoryService;
 
     private User organizer;
     private User admin;
@@ -63,7 +62,7 @@ class ExhibitionReviewHistoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        reviewHistoryService = new ExhibitionReviewHistoryServiceImpl(
+        reviewHistoryService = new ExhibitionReviewHistoryService(
                 reviewRequestRepository,
                 exhibitionRepository,
                 mapper);
