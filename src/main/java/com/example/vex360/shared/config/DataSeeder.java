@@ -5,6 +5,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -56,12 +57,8 @@ import com.example.vex360.features.company.repositories.CompanyRepository;
 import com.example.vex360.features.company.repositories.StoragePackageOrderRepository;
 import com.example.vex360.features.company.repositories.StoragePackageRepository;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
-import com.example.vex360.features.designrequest.entities.DesignDraft;
-import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
-import com.example.vex360.features.designrequest.enums.DesignDraftFileAction;
 import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
 import com.example.vex360.features.designrequest.enums.DesignRequestMode;
-import com.example.vex360.features.designrequest.repositories.DesignDraftPanoramaRepository;
 import com.example.vex360.features.designrequest.repositories.DesignDraftRepository;
 import com.example.vex360.features.designrequest.entities.DesignRequestMediaAsset;
 import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
@@ -554,7 +551,6 @@ WIKI_THUMB +
         private final BoothReviewRequestRepository boothReviewRequestRepository;
         private final DesignRequestRepository designRequestRepository;
         private final DesignDraftRepository designDraftRepository;
-        private final DesignDraftPanoramaRepository designDraftPanoramaRepository;
         private final DesignRequestProductRepository designRequestProductRepository;
         private final DesignRequestMediaAssetRepository designRequestMediaAssetRepository;
         private final DesignRequestBaselineService designRequestBaselineService;
@@ -1597,36 +1593,36 @@ IMG_FOOD_BEVERAGE);
 // 3 PUBLISHED (1 ngày 17/08/2026, 1 cuối tháng 8, 1 cuối tháng 9)
 createExhibitionIfAbsent(org[0], "Triển lãm Trang sức & Phụ kiện 2026",
 "Trang sức",
-"Triển lãm trang sức và phụ kiện thời trang cao cấp.",
-LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), 25,
+"Triển lãm trang sứMonth.AUGUST và phụ kiện thời trang cao cấp.",
+LocalDate.of(2026, Month.AUGUST, 17), LocalDate.of(2026, Month.AUGUST, 17), 25,
 ExhibitionStatus.PUBLISHED,
 admin, null, IMG_JEWELRY);
 createExhibitionIfAbsent(org[1], "Triển lãm Nội thất Văn phòng 2026", "Nội thất văn phòng",
 "Triển lãm giải pháp nội thất văn phòng cho doanh nghiệp.",
-LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 30), 35,
+LocalDate.of(2026, Month.AUGUST, 28), LocalDate.of(2026, Month.AUGUST, 30), 35,
 ExhibitionStatus.PUBLISHED,
 admin, null, IMG_OFFICE_FURNITURE);
 createExhibitionIfAbsent(org[2], "Triển lãm Thiết bị Y tế 2026", "Y tế",
 "Triển lãm thiết bị và công nghệ y tế hiện đại.",
-LocalDate.of(2026, 9, 27), LocalDate.of(2026, 9, 29), 30,
+LocalDate.of(2026, Month.SEPTEMBER, 27), LocalDate.of(2026, Month.SEPTEMBER, 29), 30,
 ExhibitionStatus.PUBLISHED,
 admin, null, IMG_MEDICAL);
 
 // 3 REGISTRATION - diễn ra trong tháng 9
 createExhibitionIfAbsent(org[1], "Triển lãm Giáo dục & Đào tạo 2026", "Giáo dục",
 "Triển lãm các chương trình giáo dục và đào tạo kỹ năng.",
-LocalDate.of(2026, 9, 3), LocalDate.of(2026, 9, 7), 40,
+LocalDate.of(2026, Month.SEPTEMBER, 3), LocalDate.of(2026, Month.SEPTEMBER, 7), 40,
 ExhibitionStatus.REGISTRATION,
 admin, null, IMG_EDUCATION);
 createExhibitionIfAbsent(org[2], "Triển lãm Du lịch & Lữ hành 2026", "Du lịch",
 "Triển lãm các tour du lịch và dịch vụ lữ hành trong và ngoài nước.",
-LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 14), 50,
+LocalDate.of(2026, Month.SEPTEMBER, 10), LocalDate.of(2026, Month.SEPTEMBER, 14), 50,
 ExhibitionStatus.REGISTRATION,
 admin,
 null, IMG_TRAVEL);
 createExhibitionIfAbsent(org[4], "Triển lãm Cơ khí & Tự động hóa 2026", "Cơ khí",
 "Triển lãm máy móc cơ khí và giải pháp tự động hóa sản xuất.",
-LocalDate.of(2026, 9, 18), LocalDate.of(2026, 9, 22), 55,
+LocalDate.of(2026, Month.SEPTEMBER, 18), LocalDate.of(2026, Month.SEPTEMBER, 22), 55,
 ExhibitionStatus.REGISTRATION,
 admin,
 null, IMG_MACHINERY);
@@ -1634,55 +1630,55 @@ null, IMG_MACHINERY);
 // 2 COMPLETED
 createExhibitionIfAbsent(org[2], "Triển lãm Thủy sản Việt Nam 2025", "Thủy sản",
 "Triển lãm ngành thủy sản đã diễn ra thành công.",
-LocalDate.of(2025, 11, 10), LocalDate.of(2025, 11, 15), 40,
+LocalDate.of(2025, Month.NOVEMBER, 10), LocalDate.of(2025, Month.NOVEMBER, 15), 40,
 ExhibitionStatus.COMPLETED,
 admin,
 null, IMG_FISHERY);
 createExhibitionIfAbsent(org[5], "Triển lãm Nông nghiệp Công nghệ cao 2026",
 "Nông nghiệp",
 "Triển lãm giải pháp nông nghiệp công nghệ cao đã kết thúc.",
-LocalDate.of(2026, 5, 5), LocalDate.of(2026, 5, 10), 35,
+LocalDate.of(2026, Month.MAY, 5), LocalDate.of(2026, Month.MAY, 10), 35,
 ExhibitionStatus.COMPLETED,
 admin, null, IMG_AGRICULTURE);
 
 // 5 PENDING - chờ duyệt, diễn ra từ tháng 9 đến tháng 10
 createExhibitionIfAbsent(org[0], "Triển lãm Đồ chơi & Mẹ bé 2026", "Mẹ và bé",
 "Hồ sơ vừa gửi, đang chờ quản trị viên xét duyệt.",
-LocalDate.of(2026, 9, 5), LocalDate.of(2026, 9, 9), 30,
+LocalDate.of(2026, Month.SEPTEMBER, 5), LocalDate.of(2026, Month.SEPTEMBER, 9), 30,
 ExhibitionStatus.PENDING, null,
 null, IMG_TOYS);
 createExhibitionIfAbsent(org[1], "Triển lãm Sách & Văn phòng phẩm 2026",
 "Sách - Văn phòng phẩm",
 "Hồ sơ vừa gửi, đang chờ quản trị viên xét duyệt.",
-LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 18), 25,
+LocalDate.of(2026, Month.SEPTEMBER, 15), LocalDate.of(2026, Month.SEPTEMBER, 18), 25,
 ExhibitionStatus.PENDING,
 null, null, IMG_BOOKS);
 createExhibitionIfAbsent(org[4], "Triển lãm Thể thao & Dã ngoại 2026", "Thể thao",
 "Hồ sơ vừa gửi, đang chờ quản trị viên xét duyệt.",
-LocalDate.of(2026, 9, 25), LocalDate.of(2026, 9, 28), 35,
+LocalDate.of(2026, Month.SEPTEMBER, 25), LocalDate.of(2026, Month.SEPTEMBER, 28), 35,
 ExhibitionStatus.PENDING,
 null, null, IMG_SPORTS_OUTDOOR);
 createExhibitionIfAbsent(org[5], "Triển lãm Điện tử tiêu dùng 2026", "Điện tử",
 "Hồ sơ vừa gửi, đang chờ quản trị viên xét duyệt.",
-LocalDate.of(2026, 10, 2), LocalDate.of(2026, 10, 6), 45,
+LocalDate.of(2026, Month.OCTOBER, 2), LocalDate.of(2026, Month.OCTOBER, 6), 45,
 ExhibitionStatus.PENDING,
 null, null, IMG_ELECTRONICS);
 createExhibitionIfAbsent(org[6], "Triển lãm Mỹ phẩm & Chăm sóc sức khỏe 2026", "Mỹ phẩm",
 "Hồ sơ vừa gửi, đang chờ quản trị viên xét duyệt.",
-LocalDate.of(2026, 10, 12), LocalDate.of(2026, 10, 16), 30,
+LocalDate.of(2026, Month.OCTOBER, 12), LocalDate.of(2026, Month.OCTOBER, 16), 30,
 ExhibitionStatus.PENDING,
 null, null, IMG_COSMETICS);
 
 // 2 REJECTED
 createExhibitionIfAbsent(org[3], "Triển lãm Vật nuôi & Thú cưng 2026", "Thú cưng",
 "Hồ sơ đã bị từ chối, tổ chức cần bổ sung giấy tờ.",
-LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 4), 20,
+LocalDate.of(2026, Month.SEPTEMBER, 1), LocalDate.of(2026, Month.SEPTEMBER, 4), 20,
 ExhibitionStatus.REJECTED,
 admin,
 "Danh mục sản phẩm chưa phù hợp với quy định nền tảng.", IMG_PETS);
 createExhibitionIfAbsent(org[6], "Triển lãm Rượu & Đồ uống có cồn 2026", "Đồ uống có cồn",
 "Hồ sơ đã bị từ chối, tổ chức cần bổ sung giấy tờ.",
-LocalDate.of(2026, 9, 8), LocalDate.of(2026, 9, 11), 20,
+LocalDate.of(2026, Month.SEPTEMBER, 8), LocalDate.of(2026, Month.SEPTEMBER, 11), 20,
 ExhibitionStatus.REJECTED,
 admin,
 "Ngành hàng thuộc danh mục hạn chế, cần giấy phép kinh doanh đặc biệt.",

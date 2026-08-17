@@ -14,14 +14,12 @@ import com.example.vex360.features.designrequest.entities.DesignDraftAsset;
 import com.example.vex360.features.designrequest.entities.DesignDraftHotspot;
 import com.example.vex360.features.designrequest.entities.DesignDraftMediaAsset;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
-import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class DesignDraftStorageMetricsService {
-    private final DesignDraftAssetRepository assetRepository;
     private final CompanyStorageService storageService;
 
     @Transactional(readOnly = true)
@@ -33,12 +31,6 @@ public class DesignDraftStorageMetricsService {
             return new DesignDraftStorageMetricsResponseDTO(0L, 0L, available);
         }
 
-        Map<String, DesignDraftAsset> assetsByPublicId = new LinkedHashMap<>();
-        assetRepository.findByDesignRequestId(draft.getDesignRequest().getId()).forEach(asset -> {
-            if (asset.getPublicId() != null) {
-                assetsByPublicId.putIfAbsent(asset.getPublicId(), asset);
-            }
-        });
         Map<String, Long> totalAssets = new LinkedHashMap<>();
         Map<String, Long> newAssets = new LinkedHashMap<>();
         draft.getPanoramas().stream()

@@ -1,6 +1,5 @@
 package com.example.vex360.features.designrequest.repositories;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,8 +12,6 @@ import com.example.vex360.features.designrequest.entities.DesignRequestProduct;
 import com.example.vex360.features.product.enums.ProductStatus;
 
 public interface DesignRequestProductRepository extends JpaRepository<DesignRequestProduct, UUID> {
-    List<DesignRequestProduct> findByDesignRequestId(UUID requestId);
-
     boolean existsByDesignRequestIdAndProductId(UUID requestId, UUID productId);
 
     @Query(value = """

@@ -124,8 +124,6 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
 
     long countByStatus(DesignRequestStatus status);
 
-    long countByStatusIn(List<DesignRequestStatus> statuses);
-
     @Query("SELECT dr.status, COUNT(dr) FROM DesignRequest dr GROUP BY dr.status")
     List<Object[]> countGroupedByStatus();
 
@@ -139,15 +137,6 @@ public interface DesignRequestRepository extends JpaRepository<DesignRequest, UU
     List<Object[]> aggregateDailyCreated(
             @Param("start") Instant start,
             @Param("end") Instant end);
-
-    @Query("""
-            SELECT dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email, COUNT(dr)
-            FROM DesignRequest dr
-            WHERE dr.status IN :statuses
-              AND dr.assignedDesigner IS NOT NULL
-            GROUP BY dr.assignedDesigner.id, dr.assignedDesigner.fullName, dr.assignedDesigner.email
-            """)
-    List<Object[]> countActiveRequestsByDesigner(@Param("statuses") List<DesignRequestStatus> statuses);
 
     @Query("""
             SELECT COUNT(dr) FROM DesignRequest dr

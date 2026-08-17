@@ -114,7 +114,8 @@ class DesignDraftAssetServiceUnitTest {
             return asset;
         });
 
-        DesignDraftAssetResponseDTO response = service.uploadPanorama(designer, request.getId(), file);
+        DesignDraftAssetResponseDTO response = service.uploadAsset(
+                designer, request.getId(), file, DesignDraftAssetType.PANORAMA);
 
         assertEquals("panorama/pano", response.getImageKey());
         assertEquals(DesignDraftAssetQuotaState.NONE, response.getQuotaState());

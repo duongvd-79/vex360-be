@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class ExhibitionTimelinePolicy {
-    public static final int DEFAULT_MINIMUM_LEAD_DAYS = 7;
+    public static final int DEFAULT_MINIMUM_LEAD_DAYS = 31;
     public static final int BOOTH_DEADLINE_DAYS_BEFORE_START = 3;
 
     private final Clock clock;
