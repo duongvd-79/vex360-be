@@ -37,7 +37,6 @@ import com.example.vex360.features.designrequest.repositories.DesignRequestProdu
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.company.services.CompanyStorageService;
 import com.example.vex360.features.company.entities.Company;
-import com.example.vex360.features.designrequest.services.DesignRequestEligibilityService;
 import com.example.vex360.features.designrequest.services.DesignDraftBenefitGuardService;
 import com.example.vex360.features.designrequest.services.DesignDraftContentAssembler;
 import com.example.vex360.features.designrequest.services.DesignDraftDiffService;
@@ -67,8 +66,6 @@ class DesignerWorkspaceServiceUnitTest {
     @Mock
     CompanyStorageService storageService;
     @Mock
-    DesignRequestEligibilityService eligibilityService;
-    @Mock
     DesignDraftBenefitGuardService benefitGuardService;
     @Mock
     DesignDraftStorageMetricsService storageMetricsService;
@@ -96,7 +93,6 @@ class DesignerWorkspaceServiceUnitTest {
                 companyService,
                 storageService,
                 storageMetricsService,
-                eligibilityService,
                 benefitGuardService,
                 designRequestMapper,
                 designDraftContentAssembler,

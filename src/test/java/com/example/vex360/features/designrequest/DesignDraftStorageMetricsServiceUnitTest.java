@@ -24,13 +24,10 @@ import com.example.vex360.features.designrequest.entities.DesignDraftPanorama;
 import com.example.vex360.features.designrequest.entities.DesignRequest;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetSource;
 import com.example.vex360.features.designrequest.enums.DesignDraftAssetType;
-import com.example.vex360.features.designrequest.repositories.DesignDraftAssetRepository;
 import com.example.vex360.features.designrequest.services.DesignDraftStorageMetricsService;
 
 @ExtendWith(MockitoExtension.class)
 class DesignDraftStorageMetricsServiceUnitTest {
-    @Mock
-    private DesignDraftAssetRepository assetRepository;
 
     @Mock
     private CompanyStorageService storageService;
@@ -48,20 +45,10 @@ class DesignDraftStorageMetricsServiceUnitTest {
                 .versionNumber(0)
                 .build();
 
-        DesignDraftAsset baselinePanorama = asset(
-                request,
-                "panorama/baseline",
-                100L,
-                DesignDraftAssetType.PANORAMA,
-                DesignDraftAssetSource.BOOTH_BASELINE);
-        DesignDraftAsset uploadedPanorama = asset(
-                request, "panorama/new", 50L, DesignDraftAssetType.PANORAMA, DesignDraftAssetSource.UPLOADED);
         DesignDraftAsset stagedMedia = asset(
                 request, "design-media/used", 30L, DesignDraftAssetType.MEDIA_ATTACHMENT, DesignDraftAssetSource.UPLOADED);
         DesignDraftAsset unusedMedia = asset(
                 request, "design-media/unused", 70L, DesignDraftAssetType.MEDIA_ATTACHMENT, DesignDraftAssetSource.UPLOADED);
-        DesignDraftAsset thumbnail = asset(
-                request, "thumbnail/free", 90L, DesignDraftAssetType.THUMBNAIL, DesignDraftAssetSource.UPLOADED);
         DesignDraftMediaAsset draftMedia = DesignDraftMediaAsset.builder()
                 .id(UUID.randomUUID())
                 .draft(draft)
@@ -86,14 +73,12 @@ class DesignDraftStorageMetricsServiceUnitTest {
         baseline.getHotspots().add(hotspot(baseline, null, officialMedia));
         draft.getPanoramas().addAll(List.of(baseline, panorama(draft, "panorama/new")));
 
-        when(assetRepository.findByDesignRequestId(request.getId()))
-                .thenReturn(List.of(baselinePanorama, uploadedPanorama, stagedMedia, unusedMedia, thumbnail));
         when(storageService.getUsage(company)).thenReturn(StorageUsageResponseDTO.builder()
                 .availableBytes(500L)
                 .build());
 
         DesignDraftStorageMetricsResponseDTO result =
-                new DesignDraftStorageMetricsService(assetRepository, storageService).calculate(draft);
+                new DesignDraftStorageMetricsService(storageService).calculate(draft);
 
         assertEquals(70L, result.getProjectedTotalStorageBytes());
         assertEquals(30L, result.getProjectedNewAssetsStorageBytes());

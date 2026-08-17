@@ -68,18 +68,7 @@ public class DesignDraftAssetService {
      * Accepted files are JPEG, PNG, or WEBP images up to 10 MB. Upload does not
      * change company storage counters; a failed database operation removes the
      * uploaded cloud asset.
-     *
-     * @param currentUser authenticated Designer
-     * @param requestId   design request identifier
-     * @param file        panorama image to upload
-     * @return metadata used to reference the asset from a draft panorama
-     * @throws AppException if assignment, request status, file validation, or
-     *                      upload fails
      */
-    @Transactional
-    public DesignDraftAssetResponseDTO uploadPanorama(User currentUser, UUID requestId, MultipartFile file) {
-        return uploadAsset(currentUser, requestId, file, DesignDraftAssetType.PANORAMA);
-    }
 
     /**
      * Uploads a staging asset (panorama, thumbnail, or background music) for an

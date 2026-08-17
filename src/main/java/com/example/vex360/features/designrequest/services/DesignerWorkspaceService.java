@@ -71,7 +71,6 @@ public class DesignerWorkspaceService {
     private final CompanyService companyService;
     private final CompanyStorageService storageService;
     private final DesignDraftStorageMetricsService storageMetricsService;
-    private final DesignRequestEligibilityService eligibilityService;
     private final DesignDraftBenefitGuardService benefitGuardService;
     private final DesignRequestMapper designRequestMapper;
     private final DesignDraftContentAssembler designDraftContentAssembler;
@@ -329,7 +328,7 @@ public class DesignerWorkspaceService {
                         .versionNumber(draft.getVersionNumber())
                         .submittedAt(draft.getSubmittedAt() != null ? draft.getSubmittedAt() : draft.getCreatedAt())
                         .designerNote(draft.getNote())
-                        .reviewStatus(resolveDraftReviewStatus(request, draft, latest))
+                        .reviewStatus(resolveDraftReviewStatus(draft, latest))
                         .rejectionReason(draft.getRejectionReason())
                         .panoramaCount(draft.getPanoramas().size())
                         .hotspotCount((int) draft.getPanoramas().stream().mapToLong(p -> p.getHotspots().size()).sum())
@@ -445,11 +444,7 @@ public class DesignerWorkspaceService {
         return toDraftResponse(draft);
     }
 
-    private DesignRequestStatus resolveDraftReviewStatus(DesignRequest request, DesignDraft draft, DesignDraft latest) {
-        if (request.getStatus() == DesignRequestStatus.APPROVED
-                && Objects.equals(draft.getVersionNumber(), latest.getVersionNumber())) {
-            return DesignRequestStatus.APPROVED;
-        }
+    private DesignRequestStatus resolveDraftReviewStatus(DesignDraft draft, DesignDraft latest) {
         if (draft.getRejectionReason() != null || draft.getVersionNumber() < latest.getVersionNumber()) {
             return DesignRequestStatus.REVISION_REQUESTED;
         }
