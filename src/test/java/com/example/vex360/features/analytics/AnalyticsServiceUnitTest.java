@@ -128,7 +128,10 @@ class AnalyticsServiceUnitTest {
                                 anyInt(), any(), any(), any(org.springframework.data.domain.Pageable.class)))
                                 .thenReturn(List.<Object[]>of(new Object[] { UUID.randomUUID(), "Mộc Việt", 4L }));
 
-                var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(), null, null);
+                // Truyền khoảng ngày khớp với dữ liệu mock: chart được bù đủ mọi ngày trong
+                // khoảng lọc, nên khoảng ngày và dữ liệu phải nhất quán với nhau.
+                var dto = analyticsService.getExhibitionAnalytics(organizer, exhibition.getUuid(),
+                                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
 
                 assertTrue(dto.isHasData());
                 assertEquals(10, dto.getMetrics().getTotalVisits());
@@ -203,8 +206,12 @@ class AnalyticsServiceUnitTest {
                 assertEquals(5, summary.getMetrics().getTotalLeads());
                 assertEquals(3 * 100.0 / 7, summary.getMetrics().getVisitorToLeadRatePercent());
                 assertEquals(5.0, summary.getMetrics().getAverageVisitDurationMinutes());
-                assertEquals(1, summary.getTrend().size());
+                // Khoảng lọc 01/07 -> 31/07 = 31 ngày; ngày không có sự kiện được bù điểm 0 nên
+                // trend luôn phủ kín khoảng lọc thay vì chỉ chứa ngày có dữ liệu.
+                assertEquals(31, summary.getTrend().size());
+                assertEquals("2026-07-01", summary.getTrend().get(0).getDate());
                 assertEquals(2, summary.getTrend().get(0).getRegistrations());
+                assertEquals(0, summary.getTrend().get(1).getVisits());
                 assertEquals(1, summary.getPackages().size());
                 assertEquals(1, summary.getAlerts().size());
         }

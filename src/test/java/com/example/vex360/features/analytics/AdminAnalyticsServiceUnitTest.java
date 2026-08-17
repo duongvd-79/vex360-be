@@ -102,11 +102,13 @@ class AdminAnalyticsServiceUnitTest {
         assertThat(result.getMetrics().getSystemRevenue()).isEqualTo(2_000_000L);
         assertThat(result.getMetrics().getTotalLeads()).isEqualTo(7L);
         assertThat(result.getMetrics().getPendingDesignRequests()).isEqualTo(3L);
-        assertThat(result.getTrend()).singleElement()
-                .satisfies(point -> {
-                    assertThat(point.getDate()).isEqualTo("2026-07-28");
-                    assertThat(point.getNewUsers()).isEqualTo(3L);
-                });
+        // Khoảng lọc 01/07 -> 28/07 = 28 ngày; ngày không phát sinh sự kiện được bù
+        // điểm 0 nên trend phủ kín khoảng lọc thay vì chỉ chứa ngày có dữ liệu.
+        assertThat(result.getTrend()).hasSize(28);
+        assertThat(result.getTrend().get(0).getDate()).isEqualTo("2026-07-01");
+        assertThat(result.getTrend().get(0).getNewUsers()).isZero();
+        assertThat(result.getTrend().get(27).getDate()).isEqualTo("2026-07-28");
+        assertThat(result.getTrend().get(27).getNewUsers()).isEqualTo(3L);
         assertThat(result.getUserRoles()).hasSize(2);
         assertThat(result.getTopExhibitions()).isEmpty();
     }

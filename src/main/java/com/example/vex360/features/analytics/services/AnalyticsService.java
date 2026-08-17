@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -61,6 +62,12 @@ import lombok.RequiredArgsConstructor;
 public class AnalyticsService {
 
         private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+        /**
+         * Giới hạn số ngày được bù điểm 0 vào biểu đồ. Khoảng lọc dài hơn mức này thì
+         * bỏ qua việc bù để không trả về hàng nghìn điểm vô ích qua mạng.
+         */
+        private static final long MAX_CHART_ZERO_FILL_DAYS = 366;
 
         private final ExhibitionService exhibitionService;
         private final BoothReviewService boothReviewService;
@@ -311,6 +318,18 @@ public class AnalyticsService {
                                 .forEach(row -> dailyPoint(trendByDate, row[0].toString())
                                                 .setRegistrations(longValue(row[1])));
 
+                // Bù điểm 0 cho ngày không phát sinh sự kiện (xem ghi chú ở
+                // getExhibitionAnalytics). dailyPoint() dùng computeIfAbsent nên không ghi đè
+                // ngày đã có dữ liệu; các trường số của DailyPoint mặc định là 0.
+                // Khi client không gửi startDate thì khoảng mặc định là từ 1970 -> vượt ngưỡng
+                // và tự động bỏ qua, tránh sinh hàng chục nghìn điểm.
+                if (!trendByDate.isEmpty()
+                                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                        for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                                dailyPoint(trendByDate, day.toString());
+                        }
+                }
+
                 List<OrganizerAnalyticsSummaryDTO.PackageSummary> packages = exhibitionService
                                 .aggregateOrganizerPackageRevenue(exhibitionIds, startDateTime, endDateTime)
                                 .stream()
@@ -554,16 +573,18 @@ public class AnalyticsService {
                         }
                 }
 
-                List<ExhibitionAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
                 long uniqueVisitorCount = analyticsEventRepository.countUniqueVisitors(
                                 exhibitionId, startDateTime, endDateTime);
                 ExhibitionAnalyticsDetailDTO.LeadAnalytics leadAnalytics = computeExhibitionLeadAnalytics(
-                                exhibitionId, startDateTime, endDateTime, uniqueVisitorCount);
+                                exhibitionId, startDateTime, endDateTime, uniqueVisitorCount,
+                                rangeStart, rangeEnd);
 
                 // Chỉ coi là "chưa có dữ liệu" khi vừa không có lượt truy cập/doanh thu nào,
                 // vừa chưa duyệt gian hàng nào — nếu đã có gian hàng được duyệt thì organizer
                 // vẫn cần thấy tỷ lệ lấp đầy dù chưa có khách vào.
-                if (chart.isEmpty() && approvedBoothCount == 0 && leadAnalytics.getTotalLeads() == 0) {
+                // Kiểm tra trên chartByDate (dữ liệu thật) TRƯỚC khi bù ngày trống bên dưới,
+                // vì sau khi bù thì danh sách điểm không bao giờ rỗng nữa.
+                if (chartByDate.isEmpty() && approvedBoothCount == 0 && leadAnalytics.getTotalLeads() == 0) {
                         return ExhibitionAnalyticsDetailDTO.builder()
                                         .exhibition(toOverviewDTO(exhibition, boothCount))
                                         .startDate(rangeStart.toString())
@@ -578,6 +599,30 @@ public class AnalyticsService {
                                         .leadAnalytics(leadAnalytics)
                                         .build();
                 }
+
+                // Bù điểm 0 cho những ngày không phát sinh sự kiện: query GROUP BY chỉ trả về
+                // ngày CÓ dữ liệu, nếu để nguyên thì biểu đồ nối thẳng qua khoảng trống khiến
+                // người xem tưởng ngày đó vẫn có số liệu.
+                // Khối early-return bên trên chỉ thoát khi CẢ BA điều kiện cùng đúng, nên vẫn
+                // có thể tới đây với chartByDate rỗng (vd: chưa có lượt truy cập nào nhưng đã
+                // duyệt gian hàng). Khi đó giữ chart rỗng để frontend chỉ hiện tỷ lệ lấp đầy,
+                // không vẽ một đường phẳng toàn số 0.
+                if (!chartByDate.isEmpty()
+                                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                        for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                                String dateKey = day.toString();
+                                chartByDate.putIfAbsent(dateKey, ExhibitionAnalyticsDetailDTO.ChartPoint.builder()
+                                                .date(dateKey)
+                                                .visits(0)
+                                                .revenue(0)
+                                                .averageVisitDurationMinutes(0.0)
+                                                .build());
+                        }
+                }
+
+                // TreeMap đã sort sẵn theo key "yyyy-MM-dd" (số 0 đệm đủ nên sort chuỗi trùng
+                // với sort ngày), không cần sort lại sau khi bù.
+                List<ExhibitionAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
 
                 // Chặng 5: cộng dồn từ chart -> tổng lượt vào triển lãm + tổng doanh thu trong
                 // kỳ
@@ -654,7 +699,9 @@ public class AnalyticsService {
                         Integer exhibitionId,
                         Instant startDateTime,
                         Instant endDateTime,
-                        long uniqueVisitorCount) {
+                        long uniqueVisitorCount,
+                        LocalDate rangeStart,
+                        LocalDate rangeEnd) {
                 Map<LeadStatus, Long> counts = new HashMap<>();
                 boothLeadService.countByStatusForExhibitionInRange(exhibitionId, startDateTime, endDateTime)
                                 .forEach(row -> counts.put((LeadStatus) row[0], ((Number) row[1]).longValue()));
@@ -670,14 +717,28 @@ public class AnalyticsService {
                 long boothsWithLeads = boothLeadService.countBoothsWithLeadsForExhibition(
                                 exhibitionId, startDateTime, endDateTime);
 
-                List<ExhibitionAnalyticsDetailDTO.LeadDailyPoint> dailyTrend = boothLeadService
-                                .aggregateDailyForExhibition(exhibitionId, startDateTime, endDateTime)
-                                .stream()
-                                .map(row -> ExhibitionAnalyticsDetailDTO.LeadDailyPoint.builder()
-                                                .date(row[0].toString())
-                                                .leads(((Number) row[1]).longValue())
-                                                .build())
-                                .toList();
+                Map<String, ExhibitionAnalyticsDetailDTO.LeadDailyPoint> trendByDate = new TreeMap<>();
+                boothLeadService.aggregateDailyForExhibition(exhibitionId, startDateTime, endDateTime)
+                                .forEach(row -> {
+                                        String dateKey = row[0].toString();
+                                        trendByDate.put(dateKey, ExhibitionAnalyticsDetailDTO.LeadDailyPoint.builder()
+                                                        .date(dateKey)
+                                                        .leads(((Number) row[1]).longValue())
+                                                        .build());
+                                });
+
+                // Bù ngày trống để trục hoành của biểu đồ cột lead không nhảy cóc ngày.
+                if (!trendByDate.isEmpty()
+                                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                        for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                                String dateKey = day.toString();
+                                trendByDate.putIfAbsent(dateKey, ExhibitionAnalyticsDetailDTO.LeadDailyPoint.builder()
+                                                .date(dateKey)
+                                                .leads(0)
+                                                .build());
+                        }
+                }
+                List<ExhibitionAnalyticsDetailDTO.LeadDailyPoint> dailyTrend = new ArrayList<>(trendByDate.values());
 
                 List<ExhibitionAnalyticsDetailDTO.LeadBoothSummary> topBooths = boothLeadService
                                 .findTopBoothsForExhibition(
@@ -854,7 +915,9 @@ public class AnalyticsService {
                 }
 
                 // Chặng 4: dựng chart theo ngày + cộng dồn tổng
-                List<BoothAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>();
+                // TreeMap tự sort theo key "yyyy-MM-dd" (số 0 đệm đủ nên sort chuỗi trùng với
+                // sort ngày), để bước bù ngày trống bên dưới không phá thứ tự.
+                Map<String, BoothAnalyticsDetailDTO.ChartPoint> chartByDate = new TreeMap<>();
                 long totalViews = 0;
                 long totalProductClicks = 0;
                 long totalChats = 0;
@@ -864,7 +927,7 @@ public class AnalyticsService {
                         long productClicks = ((Number) row[2]).longValue();
                         long chats = ((Number) row[3]).longValue();
                         double avgSeconds = row[4] == null ? 0.0 : ((Number) row[4]).doubleValue();
-                        chart.add(BoothAnalyticsDetailDTO.ChartPoint.builder()
+                        chartByDate.put(dateKey, BoothAnalyticsDetailDTO.ChartPoint.builder()
                                         .date(dateKey)
                                         .views(views)
                                         .productClicks(productClicks)
@@ -875,6 +938,22 @@ public class AnalyticsService {
                         totalProductClicks += productClicks;
                         totalChats += chats;
                 }
+
+                // Bù điểm 0 cho ngày không phát sinh sự kiện (xem ghi chú ở
+                // getExhibitionAnalytics). Các tổng bên trên không đổi vì chỉ cộng thêm 0.
+                if (ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                        for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                                String dateKey = day.toString();
+                                chartByDate.putIfAbsent(dateKey, BoothAnalyticsDetailDTO.ChartPoint.builder()
+                                                .date(dateKey)
+                                                .views(0)
+                                                .productClicks(0)
+                                                .chats(0)
+                                                .averageTimeInBoothMinutes(0.0)
+                                                .build());
+                        }
+                }
+                List<BoothAnalyticsDetailDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
 
                 // Thời lượng ở booth TB = AVG trên toàn bộ lượt rời (trung bình có trọng số,
                 // không phải trung-bình-của-trung-bình theo ngày)
@@ -1074,7 +1153,9 @@ public class AnalyticsService {
                                 company.getId(), startDateTime, endDateTime);
 
                 // Chặng 3: chart tổng hợp theo ngày (view + tương tác) gộp mọi gian hàng
-                List<ExhibitorDashboardOverviewDTO.ChartPoint> chart = new ArrayList<>();
+                // TreeMap tự sort theo key "yyyy-MM-dd", để bước bù ngày trống bên dưới không
+                // phá thứ tự.
+                Map<String, ExhibitorDashboardOverviewDTO.ChartPoint> chartByDate = new TreeMap<>();
                 long totalViews = 0;
                 long totalInteractions = 0;
                 List<UUID> boothIds = booths.stream().map(Booth::getId).toList();
@@ -1085,12 +1166,26 @@ public class AnalyticsService {
                                 String dateKey = row[0].toString();
                                 long views = ((Number) row[1]).longValue();
                                 long interactions = ((Number) row[2]).longValue();
-                                chart.add(ExhibitorDashboardOverviewDTO.ChartPoint.builder()
+                                chartByDate.put(dateKey, ExhibitorDashboardOverviewDTO.ChartPoint.builder()
                                                 .date(dateKey).views(views).interactions(interactions).build());
                                 totalViews += views;
                                 totalInteractions += interactions;
                         }
                 }
+
+                // Bù điểm 0 cho ngày không phát sinh sự kiện (xem ghi chú ở
+                // getExhibitionAnalytics). Hai tổng bên trên không đổi vì chỉ cộng thêm 0.
+                // Giữ nguyên chart rỗng khi cả kỳ không có tương tác nào, để frontend vẫn hiện
+                // "Chưa có lượt tương tác nào" thay vì một đường phẳng toàn số 0.
+                if (!chartByDate.isEmpty()
+                                && ChronoUnit.DAYS.between(rangeStart, rangeEnd) <= MAX_CHART_ZERO_FILL_DAYS) {
+                        for (LocalDate day = rangeStart; !day.isAfter(rangeEnd); day = day.plusDays(1)) {
+                                String dateKey = day.toString();
+                                chartByDate.putIfAbsent(dateKey, ExhibitorDashboardOverviewDTO.ChartPoint.builder()
+                                                .date(dateKey).views(0).interactions(0).build());
+                        }
+                }
+                List<ExhibitorDashboardOverviewDTO.ChartPoint> chart = new ArrayList<>(chartByDate.values());
 
                 // Chặng 4: tin nhắn chưa đọc + số gian hàng đang hoạt động
                 long unreadMessages = chatService.countUnreadForExhibitor(exhibitor.getId());
