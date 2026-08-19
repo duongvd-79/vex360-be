@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.example.vex360.features.booth.dtos.request.UpdateBoothTemplateRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -82,6 +83,7 @@ public class BoothTemplateService {
                 .build();
 
         List<String> uploadedImageKeys = new ArrayList<>();
+        // ngăn chặn ảnh lỗi.
         try {
             if (thumbnail != null && !thumbnail.isEmpty()) {
                 validateThumbnail(thumbnail);
@@ -303,7 +305,7 @@ public class BoothTemplateService {
             throw new AppException(ErrorCode.BOOTH_TEMPLATE_NAVIGATION_REQUIRED);
         }
     }
-
+// Kiểm tra tính liên thông
     private void validateReachablePanoramas(List<CreatePanoramaRequest> panoramas) {
         if (panoramas.size() <= 1) {
             return;
@@ -344,7 +346,7 @@ public class BoothTemplateService {
             throw new AppException(ErrorCode.BOOTH_TEMPLATE_PANORAMA_UNREACHABLE);
         }
     }
-
+// Kiểm tra xem Panorama phòng mặc định chưa ?
     private void markDefaultPanorama(CreateBoothTemplateRequest request) {
         boolean hasDefaultPanorama = request.getPanoramas().stream()
                 .anyMatch(panorama -> Boolean.TRUE.equals(panorama.getIsDefault()));
@@ -396,7 +398,7 @@ public class BoothTemplateService {
     public BoothTemplateResponseDTO updateBoothTemplate(
             User currentUser,
             UUID id,
-            com.example.vex360.features.booth.dtos.request.UpdateBoothTemplateRequest request,
+            UpdateBoothTemplateRequest request,
             MultipartFile thumbnail) {
         if (currentUser == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
@@ -434,10 +436,7 @@ public class BoothTemplateService {
                 }
             }
             if (thumbnail != null && !thumbnail.isEmpty()) {
-                validateThumbnail(thumbnail);
-                CloudinaryResponse upload = cloudService.upload(thumbnail);
-                booth.setThumbnailUrl(upload.getUrl());
-                booth.setThumbnailPublicId(upload.getPublicId());
+                replaceThumbnail(booth, thumbnail);
             }
         } else if (currentStatus == BoothStatus.DRAFT) {
             if (request != null) {

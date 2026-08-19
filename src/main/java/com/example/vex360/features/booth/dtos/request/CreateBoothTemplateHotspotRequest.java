@@ -12,19 +12,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateBoothTemplateHotspotRequest {
-    @NotBlank(message = "Ten hotspot khong duoc de trong")
+    @NotBlank(message = "Tên hotspot không được để trống")
     @Size(max = 255, message = "Tên hotspot không được vượt quá 255 ký tự.")
     private String name;
 
-    @NotNull(message = "Panorama dich khong duoc de trong")
+    @NotNull(message = "Panorama đích không được để trống")
     private UUID targetPanoramaId;
 
-    @NotNull(message = "Vi tri x khong duoc de trong")
+    @NotNull(message = "Vị trí x không được để trống")
     private Double xPosition;
 
-    @NotNull(message = "Vi tri y khong duoc de trong")
+    @NotNull(message = "Vị trí y không được để trống")
     private Double yPosition;
 
-    @NotNull(message = "Vi tri z khong duoc de trong")
+    @NotNull(message = "Vị trí z không được để trống")
     private Double zPosition;
 }

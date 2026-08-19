@@ -29,6 +29,7 @@ public class BoothProvisioningService {
     private final ExhibitorRegistrationService exhibitorRegistrationService;
     private final ExhibitionTimelinePolicy timelinePolicy;
 
+    // Hàm tạo Booth sau khi đơn ExhibitorRegistration = "Approved".
     @Transactional
     public Optional<Booth> ensureBoothForApprovedRegistration(ExhibitorRegistration registration) {
         if (registration == null || registration.getId() == null) {
@@ -42,7 +43,7 @@ public class BoothProvisioningService {
         if (registrationId == null) {
             return Optional.empty();
         }
-
+// Kiểm tra xem đơn đăng ký tham gia triển lãm có phù hợp khi Left Join với(Company/User/ExhibitionPackage)
         ExhibitorRegistration registration = exhibitorRegistrationService
                 .findRegistrationWithRelationsById(registrationId)
                 .orElse(null);

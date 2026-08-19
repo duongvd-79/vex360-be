@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateBoothTemplateRequest {
-    @NotBlank(message = "Ten booth khong duoc de trong")
+    @NotBlank(message = "Tên booth không được để trống")
     @Size(max = 255, message = "Tên booth không được vượt quá 255 ký tự.")
     private String name;
 
@@ -25,6 +25,6 @@ public class CreateBoothTemplateRequest {
 
     private BoothStatus status;
 
-    @NotEmpty(message = "Booth template can it nhat 1 panorama")
+    @NotEmpty(message = "Booth template cần ít nhất 1 Panorama")
     private List<@Valid CreatePanoramaRequest> panoramas;
 }
