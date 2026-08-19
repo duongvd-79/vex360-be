@@ -1,7 +1,11 @@
 package com.example.vex360.features.exhibition.dtos.request;
 
+import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -12,7 +16,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ExhibitorRegistrationRequestDTO {
-    @NotNull(message = "ID gói triển lãm không được để trống")
+    private UUID exhibitionUuid;
+
+    @Deprecated
     @Positive(message = "ID gói triển lãm phải lớn hơn 0.")
     private Integer exhibitionPackageId;
 
@@ -27,4 +33,10 @@ public class ExhibitorRegistrationRequestDTO {
     @NotBlank(message = "Mô tả gian hàng không được để trống")
     @Size(max = 2000, message = "Mô tả gian hàng không được vượt quá 2000 ký tự")
     private String boothDescription;
+
+    @JsonIgnore
+    @AssertTrue(message = "UUID triển lãm hoặc ID gói triển lãm không được để trống")
+    public boolean isRegistrationTargetValid() {
+        return exhibitionUuid != null || exhibitionPackageId != null;
+    }
 }

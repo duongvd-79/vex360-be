@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.PackageTemplateStatus;
 
@@ -28,6 +29,8 @@ public class PackageTemplateResponseDTO {
     private Integer maxHotspotsPerBooth;
     private BoothListingPriority listingPriority;
     private PackageTemplateStatus status;
+    @JsonProperty("isDefault")
+    private boolean isDefault;
     private Instant createdAt;
     private Instant updatedAt;
 }

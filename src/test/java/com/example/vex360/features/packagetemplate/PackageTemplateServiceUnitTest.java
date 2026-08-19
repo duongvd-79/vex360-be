@@ -1,7 +1,9 @@
 package com.example.vex360.features.packagetemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -184,6 +186,40 @@ class PackageTemplateServiceUnitTest {
         assertEquals(PackageTemplateStatus.INACTIVE, template.getStatus());
         assertEquals(PackageTemplateStatus.INACTIVE, response.getStatus());
         verify(packageTemplateRepository).save(template);
+    }
+
+    @Test
+    void setDefaultPackageTemplateClearsPreviousDefault() {
+        PackageTemplate previous = sampleTemplate("Previous", PackageTemplateStatus.ACTIVE);
+        previous.setId(UUID.randomUUID());
+        previous.setDefault(true);
+        PackageTemplate target = sampleTemplate("Target", PackageTemplateStatus.ACTIVE);
+        target.setId(UUID.randomUUID());
+        when(packageTemplateRepository.findAllForUpdate()).thenReturn(List.of(previous, target));
+        when(packageTemplateRepository.save(target)).thenReturn(target);
+
+        PackageTemplateResponseDTO response = packageTemplateService.setDefaultPackageTemplate(target.getId());
+
+        assertFalse(previous.isDefault());
+        assertTrue(target.isDefault());
+        assertTrue(response.isDefault());
+        verify(packageTemplateRepository).saveAllAndFlush(List.of(previous, target));
+    }
+
+    @Test
+    void defaultPackageCannotBeDeactivated() {
+        PackageTemplate template = sampleTemplate("Default", PackageTemplateStatus.ACTIVE);
+        template.setId(UUID.randomUUID());
+        template.setDefault(true);
+        when(packageTemplateRepository.findById(template.getId())).thenReturn(Optional.of(template));
+
+        AppException exception = assertThrows(AppException.class,
+                () -> packageTemplateService.updatePackageTemplateStatus(
+                        template.getId(),
+                        new UpdatePackageTemplateStatusRequest(PackageTemplateStatus.INACTIVE)));
+
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_MUST_BE_ACTIVE, exception.getErrorCode());
+        verify(packageTemplateRepository, never()).save(template);
     }
 
     @Test

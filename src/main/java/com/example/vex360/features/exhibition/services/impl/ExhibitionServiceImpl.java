@@ -26,8 +26,6 @@ import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.features.exhibition.dtos.request.ConfigureExhibitionPackageRequest;
 import com.example.vex360.features.exhibition.dtos.request.CreateExhibitionRequest;
 import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest;
-import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.PackageSelection;
-import com.example.vex360.features.exhibition.dtos.request.ReconcileExhibitionPackagesRequest.SelectionType;
 import com.example.vex360.features.exhibition.dtos.request.AdminExhibitionStatusFilter;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionPackageEditContextResponseDTO;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
@@ -171,8 +169,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
-        // Pre-validate packages
-        List<ValidatedPackage> validatedPackages = validateAndResolvePackages(request.getPackages());
+        PackageTemplate defaultTemplate = packageTemplateService.getDefaultActivePackageTemplateEntity();
 
         // Save exhibition entity after all validations pass
         Exhibition exhibition = Exhibition.builder()
@@ -203,18 +200,14 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         exhibitionAssetRepository.save(keyVisualAsset);
         exhibition.getAssets().add(keyVisualAsset);
 
-        // Save packages
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .exhibition(exhibition)
+                .finalPrice(defaultTemplate.getPrice())
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        exhibitionPackage.snapshotTemplateTerms(defaultTemplate);
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
-        for (ValidatedPackage vp : validatedPackages) {
-            ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                    .exhibition(exhibition)
-                    .finalPrice(vp.request().getFinalPrice())
-                    .status(ExhibitionPackageStatus.ACTIVE)
-                    .build();
-            exhibitionPackage.snapshotTemplateTerms(vp.template());
-
-            savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
-        }
+        savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
 
         // Upload sponsor logos and save as ExhibitionAsset
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
@@ -444,8 +437,11 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
-        // Pre-validate packages
-        List<ValidatedPackage> validatedPackages = validateAndResolvePackages(request.getPackages());
+        List<ExhibitionPackage> savedPackages = new ArrayList<>(
+                exhibitionPackageRepository.findByExhibition(exhibition));
+        PackageTemplate fallbackTemplate = savedPackages.isEmpty()
+                ? packageTemplateService.getDefaultActivePackageTemplateEntity()
+                : null;
 
         // Update basic metadata
         exhibition.setName(trimmedName);
@@ -471,19 +467,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             uploadOrReplaceAsset(exhibition, keyVisual, ExhibitionAssetType.KEY_VISUAL, "image");
         }
 
-        // Delete old packages and save new packages
-        List<ExhibitionPackage> oldPackages = exhibitionPackageRepository.findByExhibition(exhibition);
-        exhibitionPackageRepository.deleteAll(oldPackages);
-
-        List<ExhibitionPackage> savedPackages = new ArrayList<>();
-        for (ValidatedPackage vp : validatedPackages) {
+        if (savedPackages.isEmpty()) {
             ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                     .exhibition(exhibition)
-                    .finalPrice(vp.request().getFinalPrice())
+                    .finalPrice(fallbackTemplate.getPrice())
                     .status(ExhibitionPackageStatus.ACTIVE)
                     .build();
-            exhibitionPackage.snapshotTemplateTerms(vp.template());
-
+            exhibitionPackage.snapshotTemplateTerms(fallbackTemplate);
             savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
         }
 
@@ -705,36 +695,6 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             log.error("Video file size {} exceeds 100MB", file.getSize());
             throw new AppException(ErrorCode.FILE_SIZE_EXCEEDED);
         }
-    }
-
-    private record ValidatedPackage(ConfigureExhibitionPackageRequest request, PackageTemplate template) {
-    }
-
-    private List<ValidatedPackage> validateAndResolvePackages(List<ConfigureExhibitionPackageRequest> requests) {
-        if (requests == null || requests.isEmpty() || requests.size() > 3) {
-            log.error("Exhibition packages count must be between 1 and 3");
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID);
-        }
-        List<ValidatedPackage> validatedList = new ArrayList<>(requests.size());
-        Set<BoothListingPriority> priorities = new HashSet<>();
-        for (ConfigureExhibitionPackageRequest pkgReq : requests) {
-            if (pkgReq == null || pkgReq.getTemplateId() == null || pkgReq.getFinalPrice() == null) {
-                log.error("Exhibition package request element or required fields are null");
-                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CONFIGURATION_INVALID);
-            }
-            PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(pkgReq.getTemplateId());
-            if (pkgReq.getFinalPrice().compareTo(template.getPrice()) < 0) {
-                log.error("Package final price {} is below floor price {}", pkgReq.getFinalPrice(),
-                        template.getPrice());
-                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
-            }
-            if (!priorities.add(template.getListingPriority())) {
-                log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
-            }
-            validatedList.add(new ValidatedPackage(pkgReq, template));
-        }
-        return validatedList;
     }
 
     private void validatePackagesForApproval(List<ExhibitionPackage> packages) {
@@ -989,167 +949,20 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     @Transactional
     public ExhibitionPackageResponseDTO addExhibitionPackage(User organizer, UUID uuid,
             ConfigureExhibitionPackageRequest request) {
-        if (organizer == null || organizer.getId() == null) {
-            log.error("Organizer authentication failed: null or missing ID");
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for UUID: {}", uuid);
-                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
-                });
-
-        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
-            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
-            log.error("Cannot add package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
-        }
-
-        List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
-        if (currentPackages.size() >= 3) {
-            log.error("Exhibition packages size exceeds limit of 3");
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_COUNT_INVALID);
-        }
-
-        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
-
-        if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
-            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
-        }
-
-        boolean duplicatePriority = currentPackages.stream()
-                .anyMatch(pkg -> pkg.getListingPrioritySnapshot() == template.getListingPriority());
-        if (duplicatePriority) {
-            log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
-        }
-
-        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                .exhibition(exhibition)
-                .finalPrice(request.getFinalPrice())
-                .status(ExhibitionPackageStatus.ACTIVE)
-                .build();
-        exhibitionPackage.snapshotTemplateTerms(template);
-
-        exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
-        return exhibitionMapper.toPackageResponse(exhibitionPackage);
+        throw packageMutationRejected(organizer, uuid);
     }
 
     @Override
     @Transactional
     public ExhibitionPackageResponseDTO updateExhibitionPackage(User organizer, UUID uuid, Integer packageId,
             ConfigureExhibitionPackageRequest request) {
-        if (organizer == null || organizer.getId() == null) {
-            log.error("Organizer authentication failed: null or missing ID");
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for UUID: {}", uuid);
-                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
-                });
-
-        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
-            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
-            log.error("Cannot update package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
-        }
-
-        if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
-            log.error("Cannot update package {} because exhibitors have already registered", packageId);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_IN_USE);
-        }
-
-        ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
-                .orElseThrow(() -> {
-                    log.error("Exhibition package not found for ID: {}", packageId);
-                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-                });
-
-        if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
-            log.error("Package {} does not belong to exhibition {}", packageId, uuid);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_OWNERSHIP_INVALID);
-        }
-
-        PackageTemplate template = packageTemplateService.getActivePackageTemplateEntity(request.getTemplateId());
-
-        if (!exhibitionPackage.getTemplate().getId().equals(template.getId())) {
-            List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
-            boolean duplicatePriority = currentPackages.stream()
-                    .filter(pkg -> !pkg.getId().equals(packageId))
-                    .anyMatch(pkg -> pkg.getListingPrioritySnapshot() == template.getListingPriority());
-            if (duplicatePriority) {
-                log.error("Duplicate package priority type {} is not allowed", template.getListingPriority());
-                throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRIORITY_DUPLICATED);
-            }
-        }
-
-        if (request.getFinalPrice().compareTo(template.getPrice()) < 0) {
-            log.error("Package final price {} is below floor price {}", request.getFinalPrice(), template.getPrice());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_PRICE_BELOW_MINIMUM);
-        }
-
-        exhibitionPackage.snapshotTemplateTerms(template);
-        exhibitionPackage.setFinalPrice(request.getFinalPrice());
-        exhibitionPackage = exhibitionPackageRepository.save(exhibitionPackage);
-        return exhibitionMapper.toPackageResponse(exhibitionPackage);
+        throw packageMutationRejected(organizer, uuid);
     }
 
     @Override
     @Transactional
     public ExhibitionResponseDTO deleteExhibitionPackage(User organizer, UUID uuid, Integer packageId) {
-        if (organizer == null || organizer.getId() == null) {
-            log.error("Organizer authentication failed: null or missing ID");
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        Exhibition exhibition = exhibitionRepository.findByUuidForUpdate(uuid)
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for UUID: {}", uuid);
-                    return new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
-                });
-
-        if (!exhibition.getOrganizer().getId().equals(organizer.getId())) {
-            log.error("Organizer {} is not authorized for exhibition {}", organizer.getId(), uuid);
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        if (exhibition.getStatus() != ExhibitionStatus.PENDING && exhibition.getStatus() != ExhibitionStatus.REJECTED) {
-            log.error("Cannot delete package for exhibition status {}", exhibition.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
-        }
-
-        if (exhibitorRegistrationRepository.existsByExhibitionPackageId(packageId)) {
-            log.error("Cannot delete package {} because exhibitors have already registered", packageId);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_IN_USE);
-        }
-
-        ExhibitionPackage exhibitionPackage = exhibitionPackageRepository.findById(packageId)
-                .orElseThrow(() -> {
-                    log.error("Exhibition package not found for ID: {}", packageId);
-                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-                });
-
-        if (!exhibitionPackage.getExhibition().getId().equals(exhibition.getId())) {
-            log.error("Package {} does not belong to exhibition {}", packageId, uuid);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_OWNERSHIP_INVALID);
-        }
-
-        exhibitionPackageRepository.delete(exhibitionPackage);
-
-        List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        throw packageMutationRejected(organizer, uuid);
     }
 
     @Override
@@ -1164,83 +977,7 @@ public class ExhibitionServiceImpl implements ExhibitionService {
     public ExhibitionPackageEditContextResponseDTO reconcileExhibitionPackages(User organizer, UUID uuid,
             ReconcileExhibitionPackagesRequest request) {
         Exhibition exhibition = getEditableExhibition(organizer, uuid, true);
-        if (request == null || request.getPackages() == null
-                || request.getPackages().isEmpty() || request.getPackages().size() > 3) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
-        }
-        if (exhibitorRegistrationRepository.existsByExhibitionPackageExhibitionId(exhibition.getId())) {
-            throw new AppException(ErrorCode.EXHIBITION_HAS_REGISTRATIONS);
-        }
-
-        List<ExhibitionPackage> currentPackages = exhibitionPackageRepository.findByExhibition(exhibition);
-        Map<Integer, ExhibitionPackage> currentById = new HashMap<>();
-        currentPackages.forEach(pkg -> currentById.put(pkg.getId(), pkg));
-
-        Set<Integer> consumedPackageIds = new HashSet<>();
-        Set<BoothListingPriority> selectedTiers = new HashSet<>();
-        List<ExhibitionPackage> desiredPackages = new ArrayList<>();
-
-        for (PackageSelection selection : request.getPackages()) {
-            if (selection == null || selection.getType() == null || selection.getFinalPrice() == null) {
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-
-            ExhibitionPackage selectedPackage;
-            BigDecimal floorPrice;
-            BoothListingPriority tier;
-
-            if (selection.getType() == SelectionType.EXISTING) {
-                if (selection.getExhibitionPackageId() == null || selection.getTemplateId() != null
-                        || selection.getReplacesExhibitionPackageId() != null) {
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-                selectedPackage = requireCurrentPackage(currentById, selection.getExhibitionPackageId());
-                if (!consumedPackageIds.add(selectedPackage.getId())) {
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-                floorPrice = selectedPackage.getPriceSnapshot();
-                tier = selectedPackage.getListingPrioritySnapshot();
-            } else {
-                if (selection.getTemplateId() == null || selection.getExhibitionPackageId() != null) {
-                    throw new AppException(ErrorCode.VALIDATION_FAILED);
-                }
-                PackageTemplate template = packageTemplateService
-                        .getActivePackageTemplateEntity(selection.getTemplateId());
-                tier = template.getListingPriority();
-                floorPrice = template.getPrice();
-
-                if (selection.getReplacesExhibitionPackageId() == null) {
-                    selectedPackage = ExhibitionPackage.builder()
-                            .exhibition(exhibition)
-                            .status(ExhibitionPackageStatus.ACTIVE)
-                            .build();
-                } else {
-                    selectedPackage = requireCurrentPackage(currentById,
-                            selection.getReplacesExhibitionPackageId());
-                    if (!consumedPackageIds.add(selectedPackage.getId())
-                            || selectedPackage.getListingPrioritySnapshot() != tier) {
-                        throw new AppException(ErrorCode.VALIDATION_FAILED);
-                    }
-                }
-                selectedPackage.snapshotTemplateTerms(template);
-            }
-
-            validateFinalPrice(selection.getFinalPrice(), floorPrice);
-            if (!selectedTiers.add(tier)) {
-                throw new AppException(ErrorCode.VALIDATION_FAILED);
-            }
-            selectedPackage.setFinalPrice(selection.getFinalPrice());
-            desiredPackages.add(selectedPackage);
-        }
-
-        List<ExhibitionPackage> removedPackages = currentPackages.stream()
-                .filter(pkg -> !consumedPackageIds.contains(pkg.getId()))
-                .toList();
-        if (!removedPackages.isEmpty()) {
-            exhibitionPackageRepository.deleteAll(removedPackages);
-        }
-        List<ExhibitionPackage> savedPackages = exhibitionPackageRepository.saveAll(desiredPackages);
-        return toPackageEditContext(savedPackages);
+        return toPackageEditContext(exhibitionPackageRepository.findByExhibition(exhibition));
     }
 
     private Exhibition getEditableExhibition(User organizer, UUID uuid, boolean lock) {
@@ -1261,18 +998,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
         return exhibition;
     }
 
-    private ExhibitionPackage requireCurrentPackage(Map<Integer, ExhibitionPackage> currentById, Integer packageId) {
-        ExhibitionPackage exhibitionPackage = currentById.get(packageId);
-        if (exhibitionPackage == null) {
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-        }
-        return exhibitionPackage;
-    }
-
-    private void validateFinalPrice(BigDecimal finalPrice, BigDecimal floorPrice) {
-        if (finalPrice.signum() < 0 || floorPrice == null || finalPrice.compareTo(floorPrice) < 0) {
-            throw new AppException(ErrorCode.VALIDATION_FAILED);
-        }
+    private AppException packageMutationRejected(User organizer, UUID uuid) {
+        getEditableExhibition(organizer, uuid, true);
+        return new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
     }
 
     private ExhibitionPackageEditContextResponseDTO toPackageEditContext(List<ExhibitionPackage> packages) {

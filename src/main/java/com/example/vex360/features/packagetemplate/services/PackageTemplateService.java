@@ -114,8 +114,28 @@ public class PackageTemplateService {
             UUID id,
             UpdatePackageTemplateStatusRequest request) {
         PackageTemplate template = getPackageTemplate(id);
+        if (template.isDefault() && request.getStatus() != PackageTemplateStatus.ACTIVE) {
+            throw new AppException(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_MUST_BE_ACTIVE);
+        }
         template.setStatus(request.getStatus());
         return packageTemplateMapper.toResponse(packageTemplateRepository.save(template));
+    }
+
+    @Transactional
+    public PackageTemplateResponseDTO setDefaultPackageTemplate(UUID id) {
+        List<PackageTemplate> templates = packageTemplateRepository.findAllForUpdate();
+        PackageTemplate target = templates.stream()
+                .filter(template -> template.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        if (target.getStatus() != PackageTemplateStatus.ACTIVE) {
+            throw new AppException(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_MUST_BE_ACTIVE);
+        }
+
+        templates.forEach(template -> template.setDefault(false));
+        packageTemplateRepository.saveAllAndFlush(templates);
+        target.setDefault(true);
+        return packageTemplateMapper.toResponse(packageTemplateRepository.save(target));
     }
 
     @Transactional(readOnly = true)
@@ -127,6 +147,13 @@ public class PackageTemplateService {
     public PackageTemplate getActivePackageTemplateEntity(UUID id) {
         return packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public PackageTemplate getDefaultActivePackageTemplateEntity() {
+        return packageTemplateRepository
+                .findByIsDefaultTrueAndStatus(PackageTemplateStatus.ACTIVE)
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_NOT_CONFIGURED));
     }
 
     private PackageTemplate getPackageTemplate(UUID id) {

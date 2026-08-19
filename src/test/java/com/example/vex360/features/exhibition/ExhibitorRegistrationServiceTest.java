@@ -68,6 +68,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
@@ -89,6 +90,9 @@ class ExhibitorRegistrationServiceTest {
 
     @Mock
     private ExhibitionRepository exhibitionRepository;
+
+    @Mock
+    private PackageTemplateService packageTemplateService;
 
     @Mock
     private UserService userService;
@@ -168,6 +172,8 @@ class ExhibitorRegistrationServiceTest {
                 .finalPrice(BigDecimal.valueOf(1500000)) // finalPrice >= floorPrice (1M)
                 .status(ExhibitionPackageStatus.ACTIVE)
                 .build();
+        Mockito.lenient().when(packageRepository.findByExhibition(any(Exhibition.class)))
+                .thenReturn(List.of(paidPackage));
 
         ExhibitionPackage.builder()
                 .id(11)
@@ -206,6 +212,74 @@ class ExhibitorRegistrationServiceTest {
         verify(packageRepository).findById(10);
         verify(exhibitionRepository).findByIdForUpdate(1);
         verify(registrationRepository).save(any(ExhibitorRegistration.class));
+    }
+
+    @Test
+    void initializeRegistrationByExhibitionUuidPrefersDefaultTemplatePackage() {
+        UUID exhibitionUuid = UUID.randomUUID();
+        Exhibition exhibition = paidPackage.getExhibition();
+        exhibition.setUuid(exhibitionUuid);
+        PackageTemplate defaultTemplate = PackageTemplate.builder()
+                .id(UUID.randomUUID())
+                .name("Default")
+                .price(BigDecimal.valueOf(2000000))
+                .isDefault(true)
+                .build();
+        ExhibitionPackage defaultPackage = ExhibitionPackage.builder()
+                .id(20)
+                .exhibition(exhibition)
+                .finalPrice(BigDecimal.valueOf(2000000))
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        defaultPackage.snapshotTemplateTerms(defaultTemplate);
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(exhibitionRepository.findByUuidForUpdate(exhibitionUuid)).thenReturn(Optional.of(exhibition));
+        when(packageRepository.findByExhibition(exhibition)).thenReturn(List.of(paidPackage, defaultPackage));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(
+                companyUser.getId(), exhibitionUuid, 999,
+                "Join expo", "Test Booth", "Test Booth Description");
+
+        assertEquals(defaultPackage, registration.getExhibitionPackage());
+        verify(packageRepository, never()).findById(999);
+    }
+
+    @Test
+    void initializeRegistrationCreatesDefaultPackageWhenExhibitionHasNoActivePackage() {
+        UUID exhibitionUuid = UUID.randomUUID();
+        Exhibition exhibition = paidPackage.getExhibition();
+        exhibition.setUuid(exhibitionUuid);
+        PackageTemplate defaultTemplate = PackageTemplate.builder()
+                .id(UUID.randomUUID())
+                .name("Default")
+                .price(BigDecimal.valueOf(500000))
+                .isDefault(true)
+                .build();
+
+        when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
+        when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
+        when(exhibitionRepository.findByUuidForUpdate(exhibitionUuid)).thenReturn(Optional.of(exhibition));
+        when(packageRepository.findByExhibition(exhibition)).thenReturn(List.of());
+        when(packageTemplateService.getDefaultActivePackageTemplateEntity()).thenReturn(defaultTemplate);
+        when(packageRepository.save(any(ExhibitionPackage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExhibitorRegistration registration = registrationService.initializeRegistration(
+                companyUser.getId(), exhibitionUuid, null,
+                "Join expo", "Test Booth", "Test Booth Description");
+
+        assertEquals(defaultTemplate, registration.getExhibitionPackage().getTemplate());
+        assertEquals(defaultTemplate.getPrice(), registration.getExhibitionPackage().getFinalPrice());
     }
 
     @Test
@@ -376,18 +450,29 @@ class ExhibitorRegistrationServiceTest {
     }
 
     @Test
-    void initializeRegistration_inactivePackage_throwsValidationFailed() {
+    void initializeRegistration_inactiveLegacyPackage_usesSystemDefault() {
         paidPackage.setStatus(ExhibitionPackageStatus.INACTIVE);
+        PackageTemplate defaultTemplate = PackageTemplate.builder()
+                .id(UUID.randomUUID())
+                .name("Default")
+                .price(BigDecimal.valueOf(500000))
+                .isDefault(true)
+                .build();
         when(userService.getUserEntityById(companyUser.getId())).thenReturn(companyUser);
         when(companyService.getCompanyEntityForCurrentUserForUpdate(companyUser)).thenReturn(company);
         when(packageRepository.findById(10)).thenReturn(Optional.of(paidPackage));
+        when(packageTemplateService.getDefaultActivePackageTemplateEntity()).thenReturn(defaultTemplate);
+        when(packageRepository.save(any(ExhibitionPackage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(registrationRepository.existsActiveRegistration(eq(company.getId()), eq(1), any()))
+                .thenReturn(false);
+        when(registrationRepository.save(any(ExhibitorRegistration.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        AppException exception = assertThrows(AppException.class,
-                () -> registrationService.initializeRegistration(companyUser.getId(), 10, "Join expo", "Test Booth",
-                        "Test Booth Description"));
+        ExhibitorRegistration registration = registrationService.initializeRegistration(
+                companyUser.getId(), 10, "Join expo", "Test Booth", "Test Booth Description");
 
-        assertEquals(ErrorCode.EXHIBITION_PACKAGE_INACTIVE, exception.getErrorCode());
-        verify(registrationRepository, never()).save(any());
+        assertEquals(defaultTemplate, registration.getExhibitionPackage().getTemplate());
     }
 
     @Test

@@ -1,6 +1,9 @@
 package com.example.vex360.features.exhibition;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,6 +22,23 @@ class ExhibitorRegistrationRequestDTOTest {
     @Test
     void validRequest_HasNoViolations() {
         assertTrue(validator.validate(validRequest()).isEmpty());
+    }
+
+    @Test
+    void exhibitionUuidWithoutLegacyPackageId_IsValid() {
+        ExhibitorRegistrationRequestDTO dto = validRequest();
+        dto.setExhibitionPackageId(null);
+        dto.setExhibitionUuid(UUID.randomUUID());
+
+        assertTrue(validator.validate(dto).isEmpty());
+    }
+
+    @Test
+    void requestWithoutExhibitionTarget_IsInvalid() {
+        ExhibitorRegistrationRequestDTO dto = validRequest();
+        dto.setExhibitionPackageId(null);
+
+        assertFalse(validator.validate(dto).isEmpty());
     }
 
     @ParameterizedTest
