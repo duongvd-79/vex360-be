@@ -304,6 +304,10 @@ public enum ErrorCode {
 	// PACKAGE TEMPLATE ERRORS
 	PACKAGE_TEMPLATE_NOT_FOUND("PACKAGE-001", "Không tìm thấy mẫu gói dịch vụ.", HttpStatus.NOT_FOUND),
 	PACKAGE_TEMPLATE_NAME_DUPLICATED("PACKAGE-002", "Tên mẫu gói dịch vụ đã tồn tại.", HttpStatus.CONFLICT),
+	PACKAGE_TEMPLATE_DEFAULT_NOT_CONFIGURED("PACKAGE-003",
+			"Chưa cấu hình gói dịch vụ mặc định của hệ thống.", HttpStatus.CONFLICT),
+	PACKAGE_TEMPLATE_DEFAULT_MUST_BE_ACTIVE("PACKAGE-004",
+			"Gói dịch vụ mặc định phải ở trạng thái hoạt động.", HttpStatus.CONFLICT),
 
 	// EXHIBITION ERRORS
 	EXHIBITION_NOT_FOUND("EXHIBITION-001", "Không tìm thấy thông tin triển lãm.", HttpStatus.NOT_FOUND),
@@ -336,8 +340,8 @@ public enum ErrorCode {
 			"Chưa thể duyệt hồ sơ vì ngày bắt đầu quá gần. Vui lòng yêu cầu nhà tổ chức điều chỉnh thời gian.",
 			HttpStatus.BAD_REQUEST),
 	EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED("EXHIBITION-014",
-			"Chỉ có thể thay đổi gói dịch vụ khi hồ sơ đang chờ duyệt hoặc đã bị từ chối.",
-			HttpStatus.BAD_REQUEST),
+			"Gói dịch vụ được hệ thống quản lý và không thể thay đổi.",
+			HttpStatus.CONFLICT),
 	EXHIBITION_PACKAGE_IN_USE("EXHIBITION-015",
 			"Không thể sửa hoặc xóa gói dịch vụ vì đã có doanh nghiệp đăng ký gói này.",
 			HttpStatus.BAD_REQUEST),

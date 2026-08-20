@@ -3,6 +3,7 @@ package com.example.vex360.features.exhibition.services;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,8 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
+import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
+import com.example.vex360.features.packagetemplate.services.PackageTemplateService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.dtos.PageResponse;
@@ -58,6 +61,7 @@ public class ExhibitorRegistrationService {
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ExhibitionPackageRepository packageRepository;
     private final ExhibitionRepository exhibitionRepository;
+    private final PackageTemplateService packageTemplateService;
     private final UserService userService;
     private final CompanyService companyService;
     private final PaymentRepository paymentRepository;
@@ -78,31 +82,18 @@ public class ExhibitorRegistrationService {
     @Transactional
     public ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
             String participationReason, String boothName, String boothDescription) {
+        return initializeRegistration(companyUserId, null, exhibitionPackageId,
+                participationReason, boothName, boothDescription);
+    }
+
+    @Transactional
+    public ExhibitorRegistration initializeRegistration(UUID companyUserId, UUID exhibitionUuid,
+            Integer legacyExhibitionPackageId, String participationReason, String boothName,
+            String boothDescription) {
         User exhibitorUser = userService.getUserEntityById(companyUserId);
         Company company = companyService.getCompanyEntityForCurrentUserForUpdate(exhibitorUser);
 
-        ExhibitionPackage expPackage = packageRepository.findById(exhibitionPackageId)
-                .orElseThrow(() -> {
-                    log.error("Exhibition package not found for ID: {}", exhibitionPackageId);
-                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-                });
-
-        if (expPackage.getStatus() != ExhibitionPackageStatus.ACTIVE) {
-            log.error("Exhibition package {} is not active (status: {})", exhibitionPackageId, expPackage.getStatus());
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_INACTIVE);
-        }
-
-        Exhibition packageExhibition = expPackage.getExhibition();
-        if (packageExhibition == null) {
-            log.error("Exhibition package {} has no associated exhibition", exhibitionPackageId);
-            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-        }
-
-        Exhibition exhibition = exhibitionRepository.findByIdForUpdate(packageExhibition.getId())
-                .orElseThrow(() -> {
-                    log.error("Exhibition not found for ID: {}", packageExhibition.getId());
-                    return new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
-                });
+        Exhibition exhibition = resolveRegistrationExhibition(exhibitionUuid, legacyExhibitionPackageId);
         if (!timelinePolicy.isRegistrationOpen(exhibition)) {
             log.error("Registration is closed for exhibition {}", exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_CLOSED);
@@ -120,6 +111,7 @@ public class ExhibitorRegistrationService {
                     exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
+        ExhibitionPackage expPackage = resolveRegistrationPackage(exhibition);
         // Create registration record in PENDING status with the exhibition package
         // terms.
         ExhibitorRegistration registration = ExhibitorRegistration.builder()
@@ -140,6 +132,51 @@ public class ExhibitorRegistrationService {
                 .listingPrioritySnapshot(expPackage.getListingPrioritySnapshot())
                 .build();
         return registrationRepository.save(registration);
+    }
+
+    private Exhibition resolveRegistrationExhibition(UUID exhibitionUuid, Integer legacyExhibitionPackageId) {
+        if (exhibitionUuid != null) {
+            return exhibitionRepository.findByUuidForUpdate(exhibitionUuid)
+                    .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_NOT_FOUND));
+        }
+        if (legacyExhibitionPackageId == null) {
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
+        }
+
+        ExhibitionPackage legacyPackage = packageRepository.findById(legacyExhibitionPackageId)
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+        Exhibition exhibition = legacyPackage.getExhibition();
+        if (exhibition == null) {
+            throw new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND);
+        }
+        return exhibitionRepository.findByIdForUpdate(exhibition.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.EXHIBITION_PACKAGE_NOT_FOUND));
+    }
+
+    private ExhibitionPackage resolveRegistrationPackage(Exhibition exhibition) {
+        List<ExhibitionPackage> activePackages = packageRepository.findByExhibition(exhibition).stream()
+                .filter(pkg -> pkg.getStatus() == ExhibitionPackageStatus.ACTIVE)
+                .sorted(Comparator
+                        .comparing(ExhibitionPackage::getFinalPrice,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(ExhibitionPackage::getId,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        if (!activePackages.isEmpty()) {
+            return activePackages.stream()
+                    .filter(pkg -> pkg.getTemplate() != null && pkg.getTemplate().isDefault())
+                    .findFirst()
+                    .orElse(activePackages.get(0));
+        }
+
+        PackageTemplate template = packageTemplateService.getDefaultActivePackageTemplateEntity();
+        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                .exhibition(exhibition)
+                .finalPrice(template.getPrice())
+                .status(ExhibitionPackageStatus.ACTIVE)
+                .build();
+        exhibitionPackage.snapshotTemplateTerms(template);
+        return packageRepository.save(exhibitionPackage);
     }
 
     @Transactional
