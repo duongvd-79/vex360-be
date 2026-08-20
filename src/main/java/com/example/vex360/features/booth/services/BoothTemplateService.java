@@ -436,7 +436,10 @@ public class BoothTemplateService {
                 }
             }
             if (thumbnail != null && !thumbnail.isEmpty()) {
-                replaceThumbnail(booth, thumbnail);
+                validateThumbnail(thumbnail);
+                CloudinaryResponse upload = cloudService.upload(thumbnail);
+                booth.setThumbnailUrl(upload.getUrl());
+                booth.setThumbnailPublicId(upload.getPublicId());
             }
         } else if (currentStatus == BoothStatus.DRAFT) {
             if (request != null) {

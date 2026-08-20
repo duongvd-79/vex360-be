@@ -9,13 +9,11 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 import java.util.Set;
 
 public class FileUploadUtils {
     private FileUploadUtils() {
     }
-    private static final Random r = new Random();
 
     /** Cloudinary folder prefix for panorama images */
     public static final String PANORAMA_FOLDER = "panorama";
@@ -129,16 +127,6 @@ public class FileUploadUtils {
             return "audio";
         }
         return "other";
-    }
-
-    /**
-     * Generate unique filename
-     */
-    public static String generateUniqueFilename(MultipartFile file) {
-        String extension = getFileExtension(file.getOriginalFilename());
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        String random = String.valueOf(r.nextInt(10000));
-        return "upload_" + timestamp + "_" + random + "." + extension;
     }
 
     /**

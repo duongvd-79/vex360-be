@@ -29,10 +29,10 @@ import org.springframework.security.core.Authentication;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.features.auth.services.AuthService;
 import com.example.vex360.features.auth.services.AuthSessionService;
 import com.example.vex360.features.auth.services.GoogleOAuthClient;
 import com.example.vex360.features.auth.services.GoogleOAuthClient.GoogleProfile;
-import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.shared.enums.Role;
@@ -55,13 +55,13 @@ class AuthServiceImplUnitTest {
     private Authentication authentication;
 
     private Clock clock;
-    private AuthServiceImpl authService;
+    private AuthService authService;
     private User user;
 
     @BeforeEach
     void setUp() {
         clock = Clock.fixed(Instant.parse("2026-08-01T10:00:00Z"), ZoneId.of("UTC"));
-        authService = new AuthServiceImpl(userService, authenticationManager, authSessionService, googleOAuthClient, clock);
+        authService = new AuthService(userService, authenticationManager, authSessionService, googleOAuthClient, clock);
 
         user = User.builder()
                 .id(UUID.randomUUID())

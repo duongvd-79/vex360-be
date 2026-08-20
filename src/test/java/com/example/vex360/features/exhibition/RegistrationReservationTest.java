@@ -37,10 +37,9 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionPackageRepo
 import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
-import com.example.vex360.features.exhibition.services.CommissionCalculator;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
-import com.example.vex360.features.exhibition.services.impl.ExhibitorRegistrationServiceImpl;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.packagetemplate.entities.PackageTemplate;
@@ -66,8 +65,6 @@ class RegistrationReservationTest {
     @Mock
     private PayOSIntegrationService payOSIntegrationService;
     @Mock
-    private CommissionCalculator commissionCalculator;
-    @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -77,7 +74,7 @@ class RegistrationReservationTest {
     private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor();
 
     @InjectMocks
-    private ExhibitorRegistrationServiceImpl registrationService;
+    private ExhibitorRegistrationService registrationService;
 
     private User organizer;
     private Exhibition exhibition;

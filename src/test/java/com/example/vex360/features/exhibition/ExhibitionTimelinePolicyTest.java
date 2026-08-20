@@ -56,13 +56,17 @@ class ExhibitionTimelinePolicyTest {
     }
 
     @Test
-    @DisplayName("Should validate minimum lead time of 7 days")
+    @DisplayName("Should validate minimum lead time")
     void testHasMinimumLeadTime() {
-        // Today is Jan 10 -> min start date is Jan 17
-        assertTrue(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 17)));
-        assertTrue(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 20)));
-        assertFalse(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 16)));
+        // Today is Jan 10 -> min start date with default 31 days is Feb 10
+        assertTrue(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.FEBRUARY, 10)));
+        assertTrue(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.FEBRUARY, 20)));
+        assertFalse(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.FEBRUARY, 9)));
         assertFalse(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 10)));
+
+        // Custom 7 days
+        assertTrue(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 17), 7));
+        assertFalse(policy.hasMinimumLeadTime(LocalDate.of(2026, Month.JANUARY, 16), 7));
     }
 
     @Test
@@ -103,21 +107,21 @@ class ExhibitionTimelinePolicyTest {
         assertEquals(ExhibitionStatus.ACTIVE,
                 policy.resolveTargetStatus(exActive, LocalDate.of(2026, Month.JANUARY, 10)));
 
-        // 3. status == REGISTRATION and today >= startDate - 7 days -> PUBLISHED
+        // 3. status == REGISTRATION and today >= startDate - 31 days -> PUBLISHED
         Exhibition exPublished = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
-                .startDate(LocalDate.of(2026, Month.JANUARY, 17))
-                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
+                .startDate(LocalDate.of(2026, Month.FEBRUARY, 10))
+                .endDate(LocalDate.of(2026, Month.FEBRUARY, 25))
                 .build();
         assertEquals(ExhibitionStatus.PUBLISHED,
                 policy.resolveTargetStatus(exPublished, LocalDate.of(2026, Month.JANUARY, 10)));
 
         // 4. Otherwise -> null (no transition)
-        // REGISTRATION before T-7
+        // REGISTRATION before T-31
         Exhibition exRegEarly = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
-                .startDate(LocalDate.of(2026, Month.JANUARY, 20))
-                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
+                .startDate(LocalDate.of(2026, Month.MARCH, 1))
+                .endDate(LocalDate.of(2026, Month.MARCH, 25))
                 .build();
         assertNull(policy.resolveTargetStatus(exRegEarly, LocalDate.of(2026, Month.JANUARY, 10)));
 
