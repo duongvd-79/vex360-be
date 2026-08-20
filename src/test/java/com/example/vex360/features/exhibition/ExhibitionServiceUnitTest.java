@@ -185,6 +185,15 @@ class ExhibitionServiceUnitTest {
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(15))
                 .build();
+        PackageTemplate defaultTemplate = PackageTemplate.builder()
+                .id(UUID.randomUUID())
+                .name("System Default")
+                .price(BigDecimal.valueOf(100000))
+                .status(PackageTemplateStatus.ACTIVE)
+                .isDefault(true)
+                .build();
+        lenient().when(packageTemplateService.getDefaultActivePackageTemplateEntity())
+                .thenReturn(defaultTemplate);
 
         ReflectionTestUtils.setField(exhibitionService, "timelinePolicy", timelinePolicy);
         org.mockito.Mockito.lenient().when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(true);
@@ -673,7 +682,6 @@ class ExhibitionServiceUnitTest {
                 .estimatedBooths(10)
                 .packages(List.of(pkgReq))
                 .build();
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("new-key-visual"));
@@ -943,15 +951,14 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void updateExhibitionPackage_packageInUse_throwsPackageInUse() {
+    void updateExhibitionPackage_requestTemplateIsIgnored() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitorRegistrationRepository.existsByExhibitionPackageId(10)).thenReturn(true);
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10,
                         new ConfigureExhibitionPackageRequest()));
-        assertEquals(ErrorCode.EXHIBITION_PACKAGE_IN_USE, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, ex.getErrorCode());
     }
 
     @ParameterizedTest
@@ -999,7 +1006,6 @@ class ExhibitionServiceUnitTest {
 
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(timelinePolicy.hasMinimumLeadTime(req.getStartDate())).thenReturn(true);
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
         when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
@@ -1032,7 +1038,7 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void createExhibition_inactiveTemplate_throwsPackageTemplateNotFound() {
+    void createExhibition_withoutDefaultPackage_throwsConfigurationError() {
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
                 .templateId(templateId)
@@ -1047,18 +1053,18 @@ class ExhibitionServiceUnitTest {
                 .packages(List.of(pkgReq))
                 .build();
 
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
-                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        when(packageTemplateService.getDefaultActivePackageTemplateEntity())
+                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_NOT_CONFIGURED));
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.createExhibition(organizer, req, imageFile(), null));
 
-        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        assertEquals(ErrorCode.PACKAGE_TEMPLATE_DEFAULT_NOT_CONFIGURED, ex.getErrorCode());
         verify(exhibitionRepository, never()).save(any());
     }
 
     @Test
-    void updateExhibitionForOrganizer_inactiveTemplate_throwsPackageTemplateNotFound() {
+    void updateExhibitionForOrganizer_ignoresLegacyPackageSelection() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
@@ -1076,19 +1082,20 @@ class ExhibitionServiceUnitTest {
 
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
         when(timelinePolicy.hasMinimumLeadTime(req.getStartDate())).thenReturn(true);
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
-                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
+        when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition))
+                .thenReturn(List.of(ExhibitionPackage.builder()
+                        .exhibition(registrationExhibition)
+                        .status(ExhibitionPackageStatus.ACTIVE)
+                        .build()));
 
-        AppException ex = assertThrows(AppException.class,
-                () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
-                        null));
-
-        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
-        verify(exhibitionRepository, never()).save(any());
+        assertNull(exhibitionService.updateExhibitionForOrganizer(
+                organizer, exhibitionUuid, req, null));
+        verify(packageTemplateService, never()).getActivePackageTemplateEntity(templateId);
     }
 
     @Test
-    void addExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
+    void addExhibitionPackage_isSystemManaged() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
@@ -1097,41 +1104,28 @@ class ExhibitionServiceUnitTest {
                 .build();
 
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
-                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, req));
 
-        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, ex.getErrorCode());
         verify(exhibitionPackageRepository, never()).save(any());
     }
 
     @Test
-    void updateExhibitionPackage_inactiveTemplate_throwsPackageTemplateNotFound() {
+    void updateExhibitionPackage_isSystemManaged() {
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest req = ConfigureExhibitionPackageRequest.builder()
                 .templateId(templateId)
                 .finalPrice(BigDecimal.TEN)
                 .build();
-        ExhibitionPackage existingPkg = ExhibitionPackage.builder()
-                .id(10)
-                .exhibition(registrationExhibition)
-                .template(PackageTemplate.builder().id(UUID.randomUUID()).build())
-                .build();
-
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitorRegistrationRepository.existsByExhibitionPackageId(10)).thenReturn(false);
-        when(exhibitionPackageRepository.findById(10)).thenReturn(Optional.of(existingPkg));
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
-                .thenThrow(new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.updateExhibitionPackage(organizer, exhibitionUuid, 10, req));
 
-        assertEquals(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND, ex.getErrorCode());
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, ex.getErrorCode());
         verify(exhibitionPackageRepository, never()).save(any());
     }
 
@@ -1271,49 +1265,6 @@ class ExhibitionServiceUnitTest {
                 () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile",
                         tooLarge));
         ReflectionTestUtils.invokeMethod(exhibitionService, "validateVideoFile", valid);
-    }
-
-    @Test
-    void packageRequestValidationCoversEveryInvalidShapeAndSuccess() {
-        UUID firstId = UUID.randomUUID();
-        UUID secondId = UUID.randomUUID();
-        PackageTemplate first = PackageTemplate.builder().id(firstId).price(BigDecimal.TEN)
-                .listingPriority(BoothListingPriority.NORMAL).build();
-        PackageTemplate duplicate = PackageTemplate.builder().id(secondId).price(BigDecimal.TEN)
-                .listingPriority(BoothListingPriority.NORMAL).build();
-        ConfigureExhibitionPackageRequest valid = ConfigureExhibitionPackageRequest.builder()
-                .templateId(firstId).finalPrice(BigDecimal.TEN).build();
-        ConfigureExhibitionPackageRequest missingTemplate = ConfigureExhibitionPackageRequest.builder()
-                .finalPrice(BigDecimal.TEN).build();
-        ConfigureExhibitionPackageRequest missingPrice = ConfigureExhibitionPackageRequest.builder()
-                .templateId(firstId).build();
-        ConfigureExhibitionPackageRequest belowFloor = ConfigureExhibitionPackageRequest.builder()
-                .templateId(firstId).finalPrice(BigDecimal.ONE).build();
-        ConfigureExhibitionPackageRequest duplicatePriority = ConfigureExhibitionPackageRequest.builder()
-                .templateId(secondId).finalPrice(BigDecimal.TEN).build();
-        when(packageTemplateService.getActivePackageTemplateEntity(firstId)).thenReturn(first);
-        when(packageTemplateService.getActivePackageTemplateEntity(secondId)).thenReturn(duplicate);
-
-        assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages",
-                        (Object) null));
-        assertThrows(AppException.class,
-                () -> ReflectionTestUtils.invokeMethod(exhibitionService, "validateAndResolvePackages",
-                        List.of()));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(valid, valid, valid, valid)));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", Collections.singletonList(null)));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(missingTemplate)));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(missingPrice)));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(belowFloor)));
-        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(valid, duplicatePriority)));
-        assertNotNull(ReflectionTestUtils.invokeMethod(exhibitionService,
-                "validateAndResolvePackages", List.of(valid)));
     }
 
     @Test
@@ -1565,127 +1516,39 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
-    void addPackageCoversLimitFloorPriorityAndSuccess() {
+    void addPackageIsRejectedAsSystemManaged() {
         registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
-        UUID templateId = UUID.randomUUID();
-        ConfigureExhibitionPackageRequest request = ConfigureExhibitionPackageRequest.builder()
-                .templateId(templateId).finalPrice(BigDecimal.TEN).build();
-        PackageTemplate expensive = PackageTemplate.builder().id(templateId).price(BigDecimal.valueOf(11))
-                .listingPriority(BoothListingPriority.NORMAL).build();
-        PackageTemplate normal = PackageTemplate.builder().id(templateId).price(BigDecimal.TEN)
-                .listingPriority(BoothListingPriority.NORMAL).build();
-        ExhibitionPackage normalPackage = ExhibitionPackage.builder()
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
-                        .build())
-                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
-                .build();
-        ExhibitionPackage priorityPackage = ExhibitionPackage.builder()
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.PRIORITY)
-                        .build())
-                .listingPrioritySnapshot(BoothListingPriority.PRIORITY)
-                .build();
-        List<ExhibitionPackage> threePackages = List.of(normalPackage, priorityPackage,
-                ExhibitionPackage.builder().build());
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionPackageRepository.findByExhibition(registrationExhibition))
-                .thenReturn(threePackages, List.of(), List.of(normalPackage), List.of(priorityPackage));
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId))
-                .thenReturn(expensive, normal, normal);
-        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(exhibitionMapper.toPackageResponse(any(ExhibitionPackage.class))).thenReturn(null);
 
-        assertThrows(AppException.class,
-                () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, request));
-        assertThrows(AppException.class,
-                () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, request));
-        assertThrows(AppException.class,
-                () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, request));
-        assertNull(exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, request));
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitionService.addExhibitionPackage(
+                        organizer, exhibitionUuid, new ConfigureExhibitionPackageRequest()));
+
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, exception.getErrorCode());
     }
 
     @Test
-    void updatePackageCoversMissingOwnershipPriorityFloorAndSuccess() {
+    void updatePackageIsRejectedAsSystemManaged() {
         registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
-        UUID oldId = UUID.randomUUID();
-        UUID normalId = UUID.randomUUID();
-        UUID priorityId = UUID.randomUUID();
-        UUID belowId = UUID.randomUUID();
-        UUID sameId = UUID.randomUUID();
-        Exhibition otherExhibition = Exhibition.builder().id(99).build();
-        ExhibitionPackage wrongOwner = ExhibitionPackage.builder().exhibition(otherExhibition).build();
-        ExhibitionPackage changedDuplicate = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition)
-                .template(PackageTemplate.builder().id(oldId).build()).build();
-        ExhibitionPackage changedOk = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition)
-                .template(PackageTemplate.builder().id(oldId).build()).build();
-        ExhibitionPackage below = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition)
-                .template(PackageTemplate.builder().id(belowId).build()).build();
-        ExhibitionPackage same = ExhibitionPackage.builder().id(10)
-                .exhibition(registrationExhibition)
-                .template(PackageTemplate.builder().id(sameId).build()).build();
-        PackageTemplate normal = PackageTemplate.builder().id(normalId).price(BigDecimal.TEN)
-                .listingPriority(BoothListingPriority.NORMAL).build();
-        PackageTemplate priority = PackageTemplate.builder().id(priorityId).price(BigDecimal.TEN)
-                .listingPriority(BoothListingPriority.PRIORITY).build();
-        PackageTemplate expensive = PackageTemplate.builder().id(belowId).price(BigDecimal.valueOf(11)).build();
-        PackageTemplate sameTemplate = PackageTemplate.builder().id(sameId).price(BigDecimal.TEN).build();
-        ExhibitionPackage otherNormal = ExhibitionPackage.builder().id(11)
-                .template(PackageTemplate.builder().listingPriority(BoothListingPriority.NORMAL)
-                        .build())
-                .listingPrioritySnapshot(BoothListingPriority.NORMAL)
-                .build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionPackageRepository.findById(10)).thenReturn(
-                Optional.empty(), Optional.of(wrongOwner), Optional.of(changedDuplicate),
-                Optional.of(changedOk), Optional.of(below), Optional.of(same));
-        when(packageTemplateService.getActivePackageTemplateEntity(any())).thenReturn(
-                normal, priority, expensive, sameTemplate);
-        when(exhibitionPackageRepository.findByExhibition(registrationExhibition))
-                .thenReturn(List.of(changedDuplicate, otherNormal), List.of(changedOk, otherNormal));
-        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(exhibitionMapper.toPackageResponse(any(ExhibitionPackage.class))).thenReturn(null);
 
-        assertThrows(AppException.class, () -> exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder().build()));
-        assertThrows(AppException.class, () -> exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder().build()));
-        assertThrows(AppException.class, () -> exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder()
-                        .templateId(normalId).finalPrice(BigDecimal.TEN).build()));
-        assertNull(exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder()
-                        .templateId(priorityId).finalPrice(BigDecimal.TEN).build()));
-        assertThrows(AppException.class, () -> exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder()
-                        .templateId(belowId).finalPrice(BigDecimal.TEN).build()));
-        assertNull(exhibitionService.updateExhibitionPackage(
-                organizer, exhibitionUuid, 10, ConfigureExhibitionPackageRequest.builder()
-                        .templateId(sameId).finalPrice(BigDecimal.TEN).build()));
+        AppException exception = assertThrows(AppException.class,
+                () -> exhibitionService.updateExhibitionPackage(
+                        organizer, exhibitionUuid, 10, new ConfigureExhibitionPackageRequest()));
+
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, exception.getErrorCode());
     }
 
     @Test
-    void deletePackageCoversMissingOwnershipAndSuccess() {
+    void deletePackageIsRejectedAsSystemManaged() {
         registrationExhibition.setStatus(ExhibitionStatus.REJECTED);
-        ExhibitionPackage wrongOwner = ExhibitionPackage.builder()
-                .exhibition(Exhibition.builder().id(99).build()).build();
-        ExhibitionPackage owned = ExhibitionPackage.builder().id(10).exhibition(registrationExhibition).build();
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(exhibitionPackageRepository.findById(10))
-                .thenReturn(Optional.empty(), Optional.of(wrongOwner), Optional.of(owned));
-        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
-        when(exhibitionMapper.toResponse(registrationExhibition, List.of()))
-                .thenReturn(ExhibitionResponseDTO.builder().build());
 
-        assertThrows(AppException.class,
+        AppException exception = assertThrows(AppException.class,
                 () -> exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 10));
-        assertThrows(AppException.class,
-                () -> exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 10));
-        assertNotNull(exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 10));
-        verify(exhibitionPackageRepository).delete(owned);
+
+        assertEquals(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED, exception.getErrorCode());
+        verify(exhibitionPackageRepository, never()).delete(any());
     }
 
     @Test
@@ -1735,7 +1598,6 @@ class ExhibitionServiceUnitTest {
                 .sponsors(List.of(SponsorRequestDTO.builder().name("Sponsor").build())).build();
         PackageTemplate template = PackageTemplate.builder().id(templateId).price(BigDecimal.ONE)
                 .listingPriority(BoothListingPriority.NORMAL).build();
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
@@ -1797,7 +1659,6 @@ class ExhibitionServiceUnitTest {
                 .listingPriority(BoothListingPriority.NORMAL).build();
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
-        when(packageTemplateService.getActivePackageTemplateEntity(templateId)).thenReturn(template);
         when(exhibitionRepository.save(any(Exhibition.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("updated-key"));
@@ -2000,7 +1861,6 @@ class ExhibitionServiceUnitTest {
         assertThrows(AppException.class,
                 () -> exhibitionService.addExhibitionPackage(organizer, exhibitionUuid, null));
         registrationExhibition.setStatus(ExhibitionStatus.PENDING);
-        when(exhibitorRegistrationRepository.existsByExhibitionPackageId(10)).thenReturn(true);
         assertThrows(AppException.class,
                 () -> exhibitionService.deleteExhibitionPackage(organizer, exhibitionUuid, 10));
     }

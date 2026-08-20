@@ -10,6 +10,10 @@ import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitorRegistrationResponseDTO;
 
 public interface ExhibitorRegistrationService {
+    ExhibitorRegistration initializeRegistration(UUID companyUserId, UUID exhibitionUuid,
+            Integer legacyExhibitionPackageId, String participationReason, String boothName,
+            String boothDescription);
+
     ExhibitorRegistration initializeRegistration(UUID companyUserId, Integer exhibitionPackageId,
             String participationReason, String boothName, String boothDescription);
 

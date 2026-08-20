@@ -130,7 +130,7 @@ public class BoothTemplateHotspotService {
         hotspotRepository.delete(hotspot);
         return response;
     }
-
+// Tìm template trong DB và khóa dòng dữ liệu (Pessimistic Lock)
     private Booth getEditableTemplate(UUID boothId) {
         Booth booth = boothRepository.findTemplateByIdForUpdate(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_TEMPLATE_NOT_FOUND));

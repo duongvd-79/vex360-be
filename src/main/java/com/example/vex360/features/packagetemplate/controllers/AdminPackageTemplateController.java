@@ -79,4 +79,10 @@ public class AdminPackageTemplateController extends BaseController {
         return ok(template);
     }
 
+    @PatchMapping("/{id}/default")
+    public ResponseEntity<ApiResponse<PackageTemplateResponseDTO>> setDefaultPackageTemplate(
+            @PathVariable UUID id) {
+        return ok(packageTemplateService.setDefaultPackageTemplate(id));
+    }
+
 }

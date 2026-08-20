@@ -88,6 +88,10 @@ public class PackageTemplate {
     @Builder.Default
     PackageTemplateStatus status = PackageTemplateStatus.ACTIVE;
 
+    @Column(name = "is_default", nullable = false)
+    @Builder.Default
+    boolean isDefault = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     Instant createdAt;

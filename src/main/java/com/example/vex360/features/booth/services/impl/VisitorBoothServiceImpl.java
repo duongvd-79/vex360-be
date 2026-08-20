@@ -101,7 +101,7 @@ public class VisitorBoothServiceImpl implements VisitorBoothService {
                 productIds,
                 ProductStatus.ACTIVE,
                 BoothStatus.PUBLISHED);
-
+// Gom nhóm các vị trí theo ProductId
         Map<UUID, LinkedHashMap<UUID, ProductPlacementDTO>> placementsByProduct = new LinkedHashMap<>();
         for (ProductPlacementProjection row : placementRows) {
             placementsByProduct

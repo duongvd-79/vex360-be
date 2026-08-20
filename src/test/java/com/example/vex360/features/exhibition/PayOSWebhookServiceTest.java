@@ -26,7 +26,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.context.ApplicationEventPublisher;
 import com.example.vex360.features.company.services.StoragePackageService;
-import com.example.vex360.features.exhibition.events.ExhibitorBoothRepairRequestedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitorRegistrationApprovedEvent;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
@@ -272,7 +271,6 @@ class PayOSWebhookServiceTest {
         assertNotNull(result);
         assertEquals(PaymentStatus.PAID, pendingPayment.getStatus());
         verify(eventPublisher, never()).publishEvent(any(ExhibitorRegistrationApprovedEvent.class));
-        verify(eventPublisher, never()).publishEvent(any(ExhibitorBoothRepairRequestedEvent.class));
         verify(registrationRepository, never()).save(any());
     }
 

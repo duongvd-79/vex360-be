@@ -25,6 +25,7 @@ public class PackageTemplateMapper {
                 template.getMaxHotspotsPerBooth(),
                 template.getListingPriority(),
                 template.getStatus(),
+                template.isDefault(),
                 template.getCreatedAt(),
                 template.getUpdatedAt());
     }

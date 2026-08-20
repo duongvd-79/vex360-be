@@ -61,7 +61,7 @@ public class DesignAssetReferenceService {
     private String toResourceType(MediaAssetType type) {
         return type == MediaAssetType.VIDEO ? "video" : "image";
     }
-
+// check xem imageKeyOld còn tồn tại ở đâu không?
     public boolean isReferenced(String publicId) {
         if (!hasText(publicId)) {
             return false;

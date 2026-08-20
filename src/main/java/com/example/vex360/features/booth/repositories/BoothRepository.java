@@ -293,7 +293,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
                   OR (reg.listingPrioritySnapshot IS NULL AND pkg.listingPrioritySnapshot = 'PRIORITY') THEN 2
                 ELSE 3
               END ASC,
-              b.updatedAt DESC,
+              b.updatedAt ASC,
               b.id ASC
             """)
     Page<Booth> findPublishedBoothsByExhibitionUuid(
