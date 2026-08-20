@@ -21,7 +21,6 @@ import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.wallet.entities.CommissionPolicy;
 import com.example.vex360.features.wallet.repositories.CommissionPolicyRepository;
 import com.example.vex360.features.wallet.services.CommissionPolicyService;
-import com.example.vex360.features.exhibition.services.CommissionCalculator.CommissionResult;
 import com.example.vex360.features.user.entities.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,7 +104,7 @@ class CommissionPolicyServiceTest {
         when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
                 .thenReturn(Optional.of(policy));
 
-        CommissionResult result = commissionPolicyService.calculateCommission(null, null);
+        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(null, null);
 
         assertEquals(new BigDecimal("0.00"), result.amount());
         assertEquals(new BigDecimal("0.00"), result.systemFee());

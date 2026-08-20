@@ -37,7 +37,6 @@ import com.example.vex360.features.booth.repositories.HotspotRepository;
 import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.repositories.ProductPlacementProjection;
 import com.example.vex360.features.booth.services.VisitorBoothService;
-import com.example.vex360.features.booth.services.impl.VisitorBoothServiceImpl;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
@@ -86,7 +85,7 @@ class VisitorBoothServiceUnitTest {
 
     @BeforeEach
     void setup() {
-        service = new VisitorBoothServiceImpl(
+        service = new VisitorBoothService(
                 exhibitionService,
                 boothRepository,
                 hotspotRepository,
