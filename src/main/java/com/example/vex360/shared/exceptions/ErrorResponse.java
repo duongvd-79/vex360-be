@@ -1,6 +1,6 @@
 package com.example.vex360.shared.exceptions;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,7 +22,7 @@ import lombok.Data;
 })
 @JsonInclude(JsonInclude.Include.NON_NULL) // Trường nào null thì không gửi về Client
 public class ErrorResponse {
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     private int status;          // Ví dụ: 404, 400
     private String error;        // HTTP Status Name (Ví dụ: NOT_FOUND)
     private String code;         // Business Code (Ví dụ: USER-001)

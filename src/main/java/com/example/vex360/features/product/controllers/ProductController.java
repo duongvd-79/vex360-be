@@ -1,0 +1,99 @@
+package com.example.vex360.features.product.controllers;
+
+import java.util.UUID;
+
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.vex360.features.auth.entities.CustomUserDetails;
+import com.example.vex360.shared.config.security.RequireActiveCompany;
+import com.example.vex360.features.product.dtos.request.CreateProductRequest;
+import com.example.vex360.features.product.dtos.request.UpdateProductRequest;
+import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
+import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.features.product.services.ProductService;
+import com.example.vex360.shared.controllers.BaseController;
+import com.example.vex360.shared.dtos.ApiResponse;
+import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.Role;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/v1/products")
+@RequiredArgsConstructor
+@PreAuthorize("hasAuthority('EXHIBITOR')")
+@RequireActiveCompany(roles = Role.EXHIBITOR)
+public class ProductController extends BaseController {
+    private final ProductService productService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponseDTO>>> getProducts(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) ProductStatus status,
+            @ParameterObject @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        PageResponse<ProductResponseDTO> products = productService.getProducts(
+                userDetails.getUser(),
+                keyword,
+                categoryId,
+                status,
+                pageable);
+        return ok(products);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponseDTO>> getProductById(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id) {
+        ProductResponseDTO product = productService.getProductById(userDetails.getUser(), id);
+        return ok(product);
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<ProductResponseDTO>> createProduct(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody CreateProductRequest request) {
+        ProductResponseDTO product = productService.createProduct(
+                userDetails.getUser(),
+                request);
+        return created(product);
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponseDTO>> updateProduct(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateProductRequest request) {
+        ProductResponseDTO product = productService.updateProduct(
+                userDetails.getUser(),
+                id,
+                request);
+        return ok(product);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponseDTO>> deleteProduct(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id) {
+        ProductResponseDTO product = productService.deleteProduct(userDetails.getUser(), id);
+        return ok(product);
+    }
+
+}

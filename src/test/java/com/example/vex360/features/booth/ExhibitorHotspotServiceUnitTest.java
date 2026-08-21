@@ -1,0 +1,423 @@
+package com.example.vex360.features.booth;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.example.vex360.features.booth.dtos.request.UpsertHotspotRequest;
+import com.example.vex360.features.booth.dtos.response.HotspotResponseDTO;
+import com.example.vex360.features.booth.entities.Booth;
+import com.example.vex360.features.booth.entities.Hotspot;
+import com.example.vex360.features.booth.entities.MediaAsset;
+import com.example.vex360.features.booth.entities.Panorama;
+import com.example.vex360.features.booth.enums.BoothStatus;
+import com.example.vex360.features.booth.enums.HotspotInfoContentType;
+import com.example.vex360.features.booth.enums.HotspotMediaClickAction;
+import com.example.vex360.features.booth.enums.HotspotType;
+import com.example.vex360.features.booth.enums.MediaAssetType;
+import com.example.vex360.features.booth.mapper.BoothMapper;
+import com.example.vex360.features.booth.repositories.BoothRepository;
+import com.example.vex360.features.booth.repositories.HotspotRepository;
+import com.example.vex360.features.booth.repositories.MediaAssetRepository;
+import com.example.vex360.features.booth.repositories.PanoramaRepository;
+import com.example.vex360.features.booth.services.BoothBenefitGuardService;
+import com.example.vex360.features.booth.services.BoothReviewPolicyService;
+import com.example.vex360.features.booth.services.ExhibitorHotspotService;
+import com.example.vex360.features.company.services.CompanyService;
+import com.example.vex360.features.product.enums.ProductStatus;
+import com.example.vex360.features.product.services.ProductService;
+import com.example.vex360.features.company.entities.Company;
+import com.example.vex360.features.product.entities.Product;
+import com.example.vex360.features.user.entities.User;
+import com.example.vex360.shared.exceptions.AppException;
+import com.example.vex360.shared.exceptions.ErrorCode;
+
+@ExtendWith(MockitoExtension.class)
+class ExhibitorHotspotServiceUnitTest {
+    @Mock
+    private BoothRepository boothRepository;
+
+    @Mock
+    private PanoramaRepository panoramaRepository;
+
+    @Mock
+    private HotspotRepository hotspotRepository;
+
+    @Mock
+    private ProductService productService;
+
+    @Mock
+    private MediaAssetRepository mediaAssetRepository;
+
+    @Mock
+    private CompanyService companyService;
+
+    @Mock
+    private BoothBenefitGuardService boothBenefitGuardService;
+
+    @Mock
+    private BoothReviewPolicyService boothReviewPolicyService;
+
+    private ExhibitorHotspotService exhibitorHotspotService;
+    private User exhibitorUser;
+    private Company company;
+    private Booth booth;
+    private Panorama panorama;
+
+    @BeforeEach
+    void setup() {
+        exhibitorHotspotService = new ExhibitorHotspotService(
+                boothRepository,
+                panoramaRepository,
+                hotspotRepository,
+                productService,
+                mediaAssetRepository,
+                companyService,
+                Mappers.getMapper(BoothMapper.class),
+                boothBenefitGuardService,
+                boothReviewPolicyService);
+        exhibitorUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("exhibitor@example.com")
+                .build();
+        company = Company.builder()
+                .id(UUID.randomUUID())
+                .ownerUser(exhibitorUser)
+                .name("VEX Company")
+                .build();
+        booth = Booth.builder()
+                .id(UUID.randomUUID())
+                .name("Runtime Booth")
+                .status(BoothStatus.DRAFT)
+                .isTemplate(false)
+                .company(company)
+                .createdBy(exhibitorUser)
+                .build();
+        panorama = Panorama.builder()
+                .id(UUID.randomUUID())
+                .booth(booth)
+                .name("Entrance")
+                .imageUrl("/uploads/panoramas/entrance.jpg")
+                .imageKey("entrance.jpg")
+                .orderIndex(0)
+                .isDefault(true)
+                .build();
+    }
+
+    @Test
+    void createProductHotspotSucceedsWithActiveProductAndReturnsThumbnail() {
+        Product product = product(ProductStatus.ACTIVE);
+        mockBoothAndPanorama();
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> {
+            Hotspot hotspot = invocation.getArgument(0);
+            hotspot.setId(UUID.randomUUID());
+            return hotspot;
+        });
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(product.getId()));
+
+        assertEquals(HotspotType.PRODUCT, response.getType());
+        assertEquals(product.getId(), response.getProduct().getId());
+        assertEquals("https://cdn.example/product.png", response.getProduct().getThumbnailUrl());
+        assertEquals(ProductStatus.ACTIVE, response.getProduct().getStatus());
+        verify(boothBenefitGuardService).assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
+    }
+
+    @Test
+    void createHotspot_WhenBoothIsDesigning_DoesNotSaveHotspot() {
+        booth.setStatus(BoothStatus.DESIGNING);
+        mockBoothAndPanorama();
+        doThrow(new AppException(ErrorCode.BOOTH_NOT_EDITABLE))
+                .when(boothReviewPolicyService).assertEditable(booth);
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(UUID.randomUUID())));
+
+        assertSame(ErrorCode.BOOTH_NOT_EDITABLE, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
+    }
+
+    @Test
+    void createProductHotspotRejectsInactiveProduct() {
+        Product product = product(ProductStatus.INACTIVE);
+        mockBoothAndPanorama();
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(product.getId())));
+
+                assertSame(ErrorCode.INVALID_PRODUCT_STATUS, exception.getErrorCode());
+        }
+
+    @Test
+    void createHotspot_QuotaExceeded_DoesNotSaveHotspot() {
+        Product product = product(ProductStatus.ACTIVE);
+        mockBoothAndPanorama();
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        doThrow(new AppException(ErrorCode.BOOTH_QUOTA_EXCEEDED))
+                .when(boothBenefitGuardService)
+                .assertCanCreateHotspot(any(Booth.class), any(Hotspot.class));
+
+        AppException exception = assertThrows(AppException.class, () -> exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                productHotspotRequest(product.getId())));
+
+        assertSame(ErrorCode.BOOTH_QUOTA_EXCEEDED, exception.getErrorCode());
+        verify(hotspotRepository, never()).save(any());
+    }
+
+    @Test
+    void createInfoHotspot_WithText_SavesInfoText() {
+        mockBoothAndPanorama();
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> {
+            Hotspot hotspot = invocation.getArgument(0);
+            hotspot.setId(UUID.randomUUID());
+            return hotspot;
+        });
+        UpsertHotspotRequest request = infoHotspotRequest(null, null, null);
+        request.setInfoText("  Welcome to our booth  ");
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser,
+                booth.getId(),
+                panorama.getId(),
+                request);
+
+        assertEquals(HotspotType.INFO, response.getType());
+        assertEquals(HotspotInfoContentType.TEXT, response.getInfoContentType());
+        assertEquals("Welcome to our booth", response.getInfoText());
+    }
+
+    @Test
+    void createNavigationHotspotResolvesTargetPanorama() {
+        mockBoothAndPanorama();
+        Panorama target = Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Gallery").build();
+        when(panoramaRepository.findByIdAndBoothId(target.getId(), booth.getId())).thenReturn(Optional.of(target));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UpsertHotspotRequest request = baseRequest(HotspotType.NAV);
+        request.setTargetPanoramaId(target.getId());
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), request);
+
+        assertEquals(HotspotType.NAV, response.getType());
+        assertEquals(target.getId(), response.getTargetPanorama().getId());
+        assertEquals("Gallery", response.getName());
+    }
+
+    @Test
+    void createMediaHotspotResolvesCompanyMedia() {
+        mockBoothAndPanorama();
+        MediaAsset media = mediaAsset();
+        when(mediaAssetRepository.findByIdAndCompanyId(media.getId(), company.getId()))
+                .thenReturn(Optional.of(media));
+        when(hotspotRepository.save(any(Hotspot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
+        request.setMediaAssetId(media.getId());
+
+        HotspotResponseDTO response = exhibitorHotspotService.createHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), request);
+
+        assertEquals(HotspotType.MEDIA, response.getType());
+        assertEquals(media.getId(), response.getMediaAsset().getId());
+        assertEquals(HotspotMediaClickAction.DEFAULT, response.getMediaClickAction());
+    }
+
+    @Test
+    void updateToNavigationClearsProductMediaAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        Panorama target = Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Gallery").build();
+        when(panoramaRepository.findByIdAndBoothId(target.getId(), booth.getId())).thenReturn(Optional.of(target));
+        UpsertHotspotRequest request = baseRequest(HotspotType.NAV);
+        request.setTargetPanoramaId(target.getId());
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(target, hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
+    @Test
+    void updateToProductClearsNavigationMediaAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        Product product = product(ProductStatus.ACTIVE);
+        when(productService.getProductForCompany(product.getId(), company)).thenReturn(product);
+        UpsertHotspotRequest request = productHotspotRequest(product.getId());
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(product, hotspot.getProduct());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
+    @Test
+    void updateToInfoClearsNavigationProductAndMediaFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        UpsertHotspotRequest request = infoHotspotRequest("Information", " Updated info ", HotspotInfoContentType.TEXT);
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertEquals("Updated info", hotspot.getInfoText());
+        assertEquals(HotspotInfoContentType.TEXT, hotspot.getInfoContentType());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getMediaAsset());
+        assertNull(hotspot.getMediaClickAction());
+    }
+
+    @Test
+    void updateToMediaClearsNavigationProductAndInfoFields() {
+        Hotspot hotspot = existingHotspot();
+        mockExistingHotspot(hotspot);
+        MediaAsset media = mediaAsset();
+        when(mediaAssetRepository.findByIdAndCompanyId(media.getId(), company.getId()))
+                .thenReturn(Optional.of(media));
+        UpsertHotspotRequest request = baseRequest(HotspotType.MEDIA);
+        request.setMediaAssetId(media.getId());
+        request.setMediaClickAction(HotspotMediaClickAction.NONE);
+
+        exhibitorHotspotService.updateHotspot(
+                exhibitorUser, booth.getId(), panorama.getId(), hotspot.getId(), request);
+
+        assertSame(media, hotspot.getMediaAsset());
+        assertEquals(HotspotMediaClickAction.NONE, hotspot.getMediaClickAction());
+        assertNull(hotspot.getTargetPanorama());
+        assertNull(hotspot.getProduct());
+        assertNull(hotspot.getInfoText());
+        assertNull(hotspot.getInfoContentType());
+    }
+
+    private void mockBoothAndPanorama() {
+        when(companyService.getCompanyEntityForCurrentUser(exhibitorUser)).thenReturn(company);
+        when(boothRepository.findCompanyBoothById(booth.getId(), company.getId()))
+                .thenReturn(Optional.of(booth));
+        when(panoramaRepository.findByIdAndBoothId(panorama.getId(), booth.getId()))
+                .thenReturn(Optional.of(panorama));
+    }
+
+    private void mockExistingHotspot(Hotspot hotspot) {
+        mockBoothAndPanorama();
+        when(hotspotRepository.findByIdAndSourcePanoramaId(hotspot.getId(), panorama.getId()))
+                .thenReturn(Optional.of(hotspot));
+        when(hotspotRepository.save(hotspot)).thenReturn(hotspot);
+    }
+
+    private Hotspot existingHotspot() {
+        return Hotspot.builder()
+                .id(UUID.randomUUID())
+                .sourcePanorama(panorama)
+                .targetPanorama(Panorama.builder().id(UUID.randomUUID()).booth(booth).name("Old target").build())
+                .product(product(ProductStatus.ACTIVE))
+                .mediaAsset(mediaAsset())
+                .infoText("Old info")
+                .infoContentType(HotspotInfoContentType.TEXT)
+                .mediaClickAction(HotspotMediaClickAction.DEFAULT)
+                .type(HotspotType.INFO)
+                .name("Old hotspot")
+                .xPosition(1.0)
+                .yPosition(2.0)
+                .zPosition(3.0)
+                .build();
+    }
+
+    private MediaAsset mediaAsset() {
+        return MediaAsset.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .name("Media")
+                .type(MediaAssetType.IMAGE)
+                .url("https://cdn.example/media.jpg")
+                .publicId("media_public_id")
+                .mimeType("image/jpeg")
+                .fileSize(1024L)
+                .build();
+    }
+
+        private Product product(ProductStatus status) {
+                return Product.builder()
+                                .id(UUID.randomUUID())
+                                .company(company)
+                                .name("Active Product")
+                                .sku("SKU-001")
+                                .description("Description")
+                                .price(BigDecimal.valueOf(100000))
+                                .currency("VND")
+                                .thumbnailUrl("https://cdn.example/product.png")
+                                .thumbnailPublicId("product_public_id")
+                                .status(status)
+                                .build();
+        }
+
+        private UpsertHotspotRequest productHotspotRequest(UUID productId) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.PRODUCT);
+                request.setName("Featured product");
+                request.setProductId(productId);
+                request.setIconStyle("default");
+                return request;
+        }
+
+        private UpsertHotspotRequest infoHotspotRequest(
+                        String name,
+                        String infoText,
+                        HotspotInfoContentType infoContentType) {
+                UpsertHotspotRequest request = baseRequest(HotspotType.INFO);
+                request.setName(name == null ? "Information" : name);
+                request.setInfoText(infoText);
+                request.setInfoContentType(infoContentType);
+                request.setIconStyle("default");
+                return request;
+        }
+
+        private UpsertHotspotRequest baseRequest(HotspotType type) {
+                UpsertHotspotRequest request = new UpsertHotspotRequest();
+                request.setType(type);
+                request.setXPosition(0.12);
+                request.setYPosition(1.4);
+                request.setZPosition(-2.1);
+                request.setScale(1.0);
+                request.setZIndex(1);
+                return request;
+        }
+}

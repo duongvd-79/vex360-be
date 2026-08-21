@@ -1,0 +1,48 @@
+package com.example.vex360.features.designrequest.dtos.response;
+
+import java.time.LocalDate;
+import java.time.Instant;
+import java.util.UUID;
+
+import com.example.vex360.shared.enums.DesignRequestStatus;
+import com.example.vex360.features.designrequest.enums.DesignRequestCancellationStatus;
+import com.example.vex360.features.designrequest.enums.DesignRequestMode;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class DesignRequestResponseDTO {
+    private UUID id;
+    private UUID boothId;
+    private String boothName;
+    private UUID companyId;
+    private String companyName;
+    private UUID exhibitionId;
+    private String exhibitionName;
+    private LocalDate exhibitionStartDate;
+    private DesignRequestStatus status;
+    private DesignRequestMode mode;
+    private UUID assignedDesignerId;
+    private String assignedDesignerName;
+    private String note;
+    private String contactEmail;
+    private String contactPhone;
+    private String reviewNote;
+    private Integer reviewCount;
+    private Integer requiredProductCount;
+    private Integer optionalProductCount;
+    private Integer requiredMediaAssetCount;
+    private Integer optionalMediaAssetCount;
+    private Integer remainingDesignActions;
+    private DesignRequestCancellationStatus cancellationStatus;
+    private String cancellationReason;
+    private DesignDraftResponseDTO latestDraft;
+    private Instant createdAt;
+    private Instant assignedAt;
+    private Instant approvedAt;
+    private Instant canceledAt;
+}

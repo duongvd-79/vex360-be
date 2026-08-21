@@ -1,0 +1,22 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# IDE settings
+.idea/
+.vscode/
+*.iml
+
+# Local Maven target directory
+target/
+
+# Local configuration files and secrets
+.env
+*.properties
+
+# Maven wrapper files (only Maven wrapper directory wrapper/maven-wrapper.jar is excluded,
+# but we keep mvnw and .mvn/ wrapper files in target stage)
+.mvn/wrapper/maven-wrapper.jar
+mvnw.cmd
+HELP.md

@@ -1,246 +1,149 @@
 package com.example.vex360.features.auth;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
 
+import static org.mockito.Mockito.doThrow;
+
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
-import com.example.vex360.features.auth.dtos.request.ForgotPasswordRequest;
 import com.example.vex360.features.auth.dtos.request.LoginRequest;
-import com.example.vex360.features.auth.dtos.request.RegisterRequest;
-import com.example.vex360.features.auth.dtos.request.ResetPasswordRequest;
 import com.example.vex360.features.auth.dtos.response.TokenResponse;
 import com.example.vex360.features.auth.entities.CustomUserDetails;
-import com.example.vex360.features.auth.entities.PasswordResetToken;
-import com.example.vex360.features.auth.entities.RefreshToken;
-import com.example.vex360.features.auth.mapper.AuthMapper;
-import com.example.vex360.features.auth.repositories.PasswordResetTokenRepository;
-import com.example.vex360.features.auth.repositories.RefreshTokenRepository;
-import com.example.vex360.features.auth.services.impl.AuthServiceImpl;
-import com.example.vex360.features.mail.MailService;
+import com.example.vex360.features.auth.services.AuthService;
+import com.example.vex360.features.auth.services.AuthSessionService;
+import com.example.vex360.features.auth.services.GoogleOAuthClient;
+import com.example.vex360.features.auth.services.GoogleOAuthClient.GoogleProfile;
+import com.example.vex360.features.user.entities.User;
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.user.dtos.request.ChangePasswordRequest;
-import com.example.vex360.features.user.dtos.request.UserRequestDTO;
-import com.example.vex360.shared.config.jwt.JwtService;
-import com.example.vex360.shared.entities.User;
 import com.example.vex360.shared.enums.Role;
+import com.example.vex360.shared.enums.UserStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
-public class AuthServiceImplUnitTest {
+class AuthServiceImplUnitTest {
 
     @Mock
     private UserService userService;
-
     @Mock
-    private AuthMapper authMapper;
-
+    private AuthenticationManager authenticationManager;
     @Mock
-    private PasswordEncoder passwordEncoder;
-
+    private AuthSessionService authSessionService;
     @Mock
-    private JwtService jwtProvider;
-
+    private GoogleOAuthClient googleOAuthClient;
     @Mock
-    private RefreshTokenRepository refreshTokenRepository;
+    private Authentication authentication;
 
-    @Mock
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-
-    @Mock
-    private MailService mailService;
-
-    @InjectMocks
-    private AuthServiceImpl authService;
-
-    private User sampleUser;
+    private Clock clock;
+    private AuthService authService;
+    private User user;
 
     @BeforeEach
-    public void setup() {
-        ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
-        sampleUser = User.builder()
+    void setUp() {
+        clock = Clock.fixed(Instant.parse("2026-08-01T10:00:00Z"), ZoneId.of("UTC"));
+        authService = new AuthService(userService, authenticationManager, authSessionService, googleOAuthClient, clock);
+
+        user = User.builder()
                 .id(UUID.randomUUID())
-                .email("test@example.com")
-                .password("encodedPassword")
-                .fullName("John Doe")
+                .email("user@example.com")
+                .password("encoded_pass")
                 .role(Role.VISITOR)
+                .status(UserStatus.ACTIVE)
+                .failedLoginAttempts(1)
                 .build();
     }
 
     @Test
-    public void testRegister_Success() {
-        RegisterRequest request = new RegisterRequest(
-                "test@example.com", "Password123!", "John Doe", "123456");
-        UserRequestDTO mappedDto = new UserRequestDTO();
-        mappedDto.setEmail(request.getEmail());
+    void loginWithGoogle_Success() {
+        GoogleProfile profile = new GoogleProfile("google@example.com", "Google User", "http://avatar");
+        when(googleOAuthClient.exchangeCode("code123")).thenReturn(profile);
+        when(userService.findOrCreateGoogleUser("google@example.com", "Google User", "http://avatar")).thenReturn(user);
 
-        when(authMapper.toUserRequestDTO(request)).thenReturn(mappedDto);
+        TokenResponse expected = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
+        when(authSessionService.issue(user, true)).thenReturn(expected);
 
-        authService.register(request);
+        TokenResponse response = authService.loginWithGoogle("code123");
 
-        verify(userService, times(1)).createUser(mappedDto);
+        assertNotNull(response);
+        assertEquals("access", response.getAccessToken());
+        verify(authSessionService).issue(user, true);
     }
 
     @Test
-    public void testLogin_Success() {
-        LoginRequest request = new LoginRequest("test@example.com", "Password123!");
+    void login_AccountLocked_ThrowsAppException() {
+        user.setLockoutEnd(Instant.parse("2026-08-01T11:00:00Z")); // Locked until 11:00 (now is 10:00)
+        when(userService.findUserByEmail("user@example.com")).thenReturn(Optional.of(user));
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(true);
-        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
-                .thenReturn("mockedAccessToken");
+        LoginRequest request = new LoginRequest("user@example.com", "pass", false);
 
+        AppException ex = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.ACCOUNT_LOCKED, ex.getErrorCode());
+    }
+
+    @Test
+    void login_Success_ResetsFailedAttempts() {
+        when(userService.findUserByEmail("user@example.com")).thenReturn(Optional.of(user));
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
+
+        TokenResponse expected = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
+        when(authSessionService.issue(user, true)).thenReturn(expected);
+
+        LoginRequest request = new LoginRequest("user@example.com", "pass", true);
         TokenResponse response = authService.login(request);
 
         assertNotNull(response);
-        assertEquals("mockedAccessToken", response.getAccessToken());
-        assertNotNull(response.getRefreshToken());
-        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
-        verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
+        verify(userService).resetFailedAttempts(user);
+        verify(authSessionService).issue(user, true);
     }
 
     @Test
-    public void testLogin_InvalidPassword_ThrowsUnauthenticated() {
-        LoginRequest request = new LoginRequest("test@example.com", "WrongPassword");
+    void login_AuthenticationException_IncrementsFailedAttemptsAndThrowsAppException() {
+        when(userService.findUserByEmail("user@example.com")).thenReturn(Optional.of(user));
+        doThrow(new BadCredentialsException("Bad creds"))
+                .when(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
 
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-        when(passwordEncoder.matches(request.getPassword(), sampleUser.getPassword())).thenReturn(false);
+        LoginRequest request = new LoginRequest("user@example.com", "wrongpass", false);
 
-        AppException exception = assertThrows(AppException.class, () -> authService.login(request));
-        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
+        AppException ex = assertThrows(AppException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.BAD_CREDENTIALS, ex.getErrorCode());
+        verify(userService).incrementFailedAttempts("user@example.com");
     }
 
     @Test
-    public void testRefreshToken_Success() {
-        String tokenStr = "valid-token";
-        RefreshToken existingToken = RefreshToken.builder()
-                .token(tokenStr)
-                .expiryDate(Instant.now().plusSeconds(3600))
-                .user(sampleUser)
-                .build();
+    void refreshToken_Success() {
+        TokenResponse expected = TokenResponse.builder().accessToken("new_access").refreshToken("new_refresh").build();
+        when(authSessionService.rotate("ref_token")).thenReturn(expected);
 
-        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(existingToken));
-        when(jwtProvider.generateToken(any(CustomUserDetails.class)))
-                .thenReturn("newAccessToken");
+        TokenResponse response = authService.refreshToken("ref_token");
 
-        TokenResponse response = authService.refreshToken(tokenStr);
-
-        assertNotNull(response);
-        assertEquals("newAccessToken", response.getAccessToken());
-        assertNotEquals(tokenStr, response.getRefreshToken());
-        verify(refreshTokenRepository, times(1)).save(existingToken);
+        assertEquals(expected, response);
     }
 
     @Test
-    public void testRefreshToken_Expired_ThrowsUnauthenticated() {
-        String tokenStr = "expired-token";
-        RefreshToken existingToken = RefreshToken.builder()
-                .token(tokenStr)
-                .expiryDate(Instant.now().minusSeconds(10))
-                .user(sampleUser)
-                .build();
-
-        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(existingToken));
-
-        AppException exception = assertThrows(AppException.class, () -> authService.refreshToken(tokenStr));
-        assertEquals(ErrorCode.UNAUTHENTICATED, exception.getErrorCode());
-        verify(refreshTokenRepository, times(1)).delete(existingToken);
-    }
-
-    @Test
-    public void testLogout_Success() {
-        String tokenStr = "some-token";
-        RefreshToken existingToken = new RefreshToken();
-        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.of(existingToken));
-
-        authService.logout(tokenStr);
-
-        verify(refreshTokenRepository, times(1)).delete(existingToken);
-    }
-
-    @Test
-    public void testForgotPassword_UserExists() {
-        ForgotPasswordRequest request = new ForgotPasswordRequest("test@example.com");
-
-        when(userService.getUserByEmail(request.getEmail())).thenReturn(sampleUser);
-
-        authService.forgotPassword(request);
-
-        verify(passwordResetTokenRepository, times(1)).deleteByUser(sampleUser);
-        verify(passwordResetTokenRepository, times(1)).save(any(PasswordResetToken.class));
-        verify(mailService, times(1)).sendForgotPasswordEmail(eq("test@example.com"), any(String.class));
-    }
-
-    @Test
-    public void testForgotPassword_UserDoesNotExist_FailsSilently() {
-        ForgotPasswordRequest request = new ForgotPasswordRequest("missing@example.com");
-
-        when(userService.getUserByEmail(request.getEmail())).thenThrow(new AppException(ErrorCode.USER_NOT_FOUND));
-
-        assertDoesNotThrow(() -> authService.forgotPassword(request));
-        verify(passwordResetTokenRepository, never()).save(any(PasswordResetToken.class));
-        verify(mailService, never()).sendForgotPasswordEmail(any(), any());
-    }
-
-    @Test
-    public void testResetPassword_Success() {
-        ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "NewPassword123!");
-        PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token("reset-token")
-                .expiryDate(Instant.now().plusSeconds(3600))
-                .user(sampleUser)
-                .build();
-
-        when(passwordResetTokenRepository.findByToken(request.getToken())).thenReturn(Optional.of(resetToken));
-
-        authService.resetPassword(request);
-
-        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
-        verify(passwordResetTokenRepository, times(1)).delete(resetToken);
-        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
-    }
-
-    @Test
-    public void testChangePassword_Success() {
-        ChangePasswordRequest request = new ChangePasswordRequest("encodedPassword", "NewPassword123!");
-
-        when(passwordEncoder.matches(request.getOldPassword(), sampleUser.getPassword())).thenReturn(true);
-
-        authService.changePassword(sampleUser, request);
-
-        verify(passwordResetTokenRepository, times(1)).deleteByUser(sampleUser);
-        verify(passwordResetTokenRepository, times(1)).save(any(PasswordResetToken.class));
-        verify(mailService, times(1)).sendPasswordChangeVerificationEmail(eq("test@example.com"), any(String.class));
-    }
-
-    @Test
-    public void testConfirmPasswordChange_Success() {
-        PasswordResetToken token = PasswordResetToken.builder()
-                .token("change-token")
-                .expiryDate(Instant.now().plusSeconds(1800))
-                .user(sampleUser)
-                .build();
-
-        when(passwordResetTokenRepository.findByToken("change-token")).thenReturn(Optional.of(token));
-
-        authService.confirmPasswordChange("change-token", "NewPassword123!");
-
-        verify(userService, times(1)).updatePassword(sampleUser, "NewPassword123!");
-        verify(passwordResetTokenRepository, times(1)).delete(token);
-        verify(refreshTokenRepository, times(1)).deleteByUser(sampleUser);
+    void logout_Success() {
+        authService.logout("ref_token", "acc_token");
+        verify(authSessionService).logout("ref_token", "acc_token");
     }
 }

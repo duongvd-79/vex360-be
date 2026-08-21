@@ -1,0 +1,29 @@
+package com.example.vex360.features.booth.dtos.response;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import com.example.vex360.features.booth.enums.BoothStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class BoothTemplateResponseDTO {
+    private UUID id;
+    private String name;
+    private String description;
+    private BoothStatus status;
+    private Boolean isTemplate;
+    private String thumbnailUrl;
+    private UUID createdById;
+    private String createdByEmail;
+    private Instant createdAt;
+    private Instant updatedAt;
+    private List<PanoramaResponseDTO> panoramas;
+}
+

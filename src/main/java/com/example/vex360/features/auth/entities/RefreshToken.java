@@ -2,7 +2,7 @@ package com.example.vex360.features.auth.entities;
 
 import java.time.Instant;
 
-import com.example.vex360.shared.entities.User;
+import com.example.vex360.features.user.entities.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,12 +14,14 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "refresh_tokens")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -33,6 +35,14 @@ public class RefreshToken {
 
     @Column(nullable = false, name = "expiry_date")
     private Instant expiryDate;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean used = false;
+
+    @Column(nullable = false, name = "remember_me")
+    @Builder.Default
+    private boolean rememberMe = false;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
