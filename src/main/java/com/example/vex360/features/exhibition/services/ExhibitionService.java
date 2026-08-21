@@ -76,6 +76,7 @@ import com.example.vex360.features.mail.MailService;
 public class ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
+
     private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
