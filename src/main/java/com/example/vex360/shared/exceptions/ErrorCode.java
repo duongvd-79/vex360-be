@@ -67,6 +67,22 @@ public enum ErrorCode {
 			"FILE-011",
 			"Độ phân giải ảnh panorama vượt quá giới hạn cho phép 8192 × 4096 pixel.",
 			HttpStatus.UNPROCESSABLE_CONTENT),
+	FILE_NAME_NOT_ALLOWED(
+			"FILE-012",
+			"Tên tệp không hợp lệ. Tên tệp không được chứa dấu gạch chéo hoặc dấu chấm kép.",
+			HttpStatus.BAD_REQUEST),
+	FILE_NAME_DUPLICATED(
+			"FILE-013",
+			"Các tệp trong cùng một lượt tải lên không được trùng tên.",
+			HttpStatus.BAD_REQUEST),
+	STORAGE_OBJECT_NOT_FOUND(
+			"FILE-014",
+			"Tệp chưa được tải lên hoặc đã bị xoá khỏi kho lưu trữ.",
+			HttpStatus.BAD_REQUEST),
+	STORAGE_OBJECT_FORBIDDEN(
+			"FILE-015",
+			"Tệp không thuộc quyền quản lý của doanh nghiệp.",
+			HttpStatus.FORBIDDEN),
 	STORAGE_PACKAGE_NOT_FOUND("STORAGE-001", "Không tìm thấy gói lưu trữ.", HttpStatus.NOT_FOUND),
 	STORAGE_PACKAGE_ORDER_NOT_FOUND("STORAGE-002", "Không tìm thấy đơn hàng gói lưu trữ.", HttpStatus.NOT_FOUND),
 	STORAGE_PACKAGE_NAME_DUPLICATED("STORAGE-003", "Tên gói lưu trữ đã tồn tại trong hệ thống.", HttpStatus.CONFLICT),

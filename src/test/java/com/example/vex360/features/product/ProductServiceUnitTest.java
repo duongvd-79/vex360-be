@@ -51,6 +51,7 @@ import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.services.R2StorageService;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceUnitTest {
@@ -68,6 +69,8 @@ class ProductServiceUnitTest {
     ProductMapper productMapper;
     @Mock
     ApplicationEventPublisher eventPublisher;
+    @Mock
+    R2StorageService r2StorageService;
 
     private ProductService service;
     private User user;
@@ -78,7 +81,7 @@ class ProductServiceUnitTest {
     void setup() {
         service = new ProductService(companyService, companyStorageService,
                 categoryRepository, productRepository,
-                cloudService, productMapper, eventPublisher);
+                cloudService, productMapper, eventPublisher, r2StorageService);
         user = User.builder().id(UUID.randomUUID()).build();
         company = Company.builder().id(UUID.randomUUID()).build();
         ProductContent content = ProductContent.builder().id(UUID.randomUUID()).publicId("content-id").fileSize(0L)
