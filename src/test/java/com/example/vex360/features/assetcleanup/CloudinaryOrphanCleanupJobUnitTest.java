@@ -82,6 +82,7 @@ class CloudinaryOrphanCleanupJobUnitTest {
         job.cleanupOrphans();
 
         verify(inventoryService).list("design-draft-thumbnail/", "image", null, 100);
+        verify(inventoryService).list("hall-background-music/", "video", null, 100);
         verify(inventoryService).list("design-draft-background-music/", "video", null, 100);
         verify(inventoryService).list("design-draft-media-attachment/", "image", null, 100);
         verify(inventoryService).list("design-draft-media-attachment/", "video", null, 100);

@@ -44,6 +44,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.entities.User;
@@ -90,6 +91,7 @@ class BoothModerationServiceUnitTest {
                 boothReviewPolicyService,
                 contentAssembler,
                 exhibitionService,
+                new ExhibitionParticipationPolicy(),
                 mailService,
                 boothMapper,
                 afterCommitExecutor,
@@ -104,6 +106,7 @@ class BoothModerationServiceUnitTest {
         // Start date Aug 20 (T-10 days away on Aug 10)
         exhibition = Exhibition.builder()
                 .id(1)
+                .experienceMode(com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS)
                 .uuid(UUID.randomUUID())
                 .name("Exhibition 2026")
                 .startDate(LocalDate.of(2026, Month.AUGUST, 20))

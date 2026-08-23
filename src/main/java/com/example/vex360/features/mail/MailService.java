@@ -645,6 +645,60 @@ public class MailService {
         }
     }
 
+    public void sendHallReviewResultEmail(
+            String toEmail,
+            String fullName,
+            String hallName,
+            String exhibitionName,
+            Integer versionNumber,
+            String resultStatus,
+            String rejectedReason,
+            Instant reviewedAt) {
+        if (isEmailInvalid(toEmail))
+            return;
+        boolean approved = "APPROVED".equalsIgnoreCase(resultStatus);
+        boolean rejected = "REJECTED".equalsIgnoreCase(resultStatus);
+        if (!approved && !rejected) {
+            log.warn("Invalid HallReviewStatus for email sending: {}", resultStatus);
+            return;
+        }
+
+        String resultText = approved ? "Đã duyệt và xuất bản" : "Cần chỉnh sửa";
+        String reasonBlock = approved ? "" : """
+                <div class="reason-box">
+                    <p class="reason-title">Lý do từ chối:</p>
+                    <p class="reason-text">%s</p>
+                </div>
+                """.formatted(HtmlUtils.htmlEscape(safeOptionalText(rejectedReason)));
+        String htmlContent = buildHtmlTemplate(
+                "Kết quả xét duyệt sảnh triển lãm",
+                """
+                        <h2>%s</h2>
+                        <p>Xin chào %s,</p>
+                        <p>Yêu cầu xét duyệt sảnh <strong>%s</strong> thuộc triển lãm <strong>%s</strong> đã được xử lý.</p>
+                        <div class="info-box">
+                            <div class="label">Phiên bản</div>
+                            <div class="value">v%s</div>
+                            <div class="label">Kết quả</div>
+                            <div class="value">%s</div>
+                            <div class="label">Thời gian xét duyệt</div>
+                            <div class="value" style="margin-bottom: 0;">%s</div>
+                        </div>
+                        %s
+                        <div class="btn-container"><a href="%s" class="btn">Đăng nhập VEX360</a></div>
+                        """.formatted(
+                                HtmlUtils.htmlEscape(resultText),
+                                HtmlUtils.htmlEscape(safeDisplayName(fullName)),
+                                HtmlUtils.htmlEscape(hallName),
+                                HtmlUtils.htmlEscape(exhibitionName),
+                                HtmlUtils.htmlEscape(versionNumber == null ? "1" : versionNumber.toString()),
+                                HtmlUtils.htmlEscape(resultText),
+                                HtmlUtils.htmlEscape(formatInstant(reviewedAt)),
+                                reasonBlock,
+                                HtmlUtils.htmlEscape(loginUrl)));
+        sendHtmlMail(toEmail, "Kết quả duyệt sảnh " + hallName + ": " + resultText, htmlContent);
+    }
+
     public void sendDesignDraftReviewResultEmail(
             String toEmail,
             String fullName,

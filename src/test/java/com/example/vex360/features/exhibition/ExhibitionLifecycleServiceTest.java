@@ -77,7 +77,8 @@ class ExhibitionLifecycleServiceTest {
                 .build();
 
         LocalDate today = LocalDate.of(2026, Month.JANUARY, 10);
-        when(exhibitionRepository.findDueForLifecycleTransition(eq(today), any())).thenReturn(List.of(1));
+        when(exhibitionRepository.findDueForLifecycleTransition(eq(today), eq(today.plusDays(7))))
+                .thenReturn(List.of(1));
         when(exhibitionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(exhibition));
 
         int updated = lifecycleService.processLifecycleTransitions();

@@ -58,6 +58,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
@@ -114,6 +115,8 @@ class ExhibitorRegistrationServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ExhibitionParticipationPolicy participationPolicy;
 
     @Mock
     private MailService mailService;

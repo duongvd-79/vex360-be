@@ -10,6 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +44,8 @@ import com.example.vex360.features.booth.services.VisitorBoothService;
 import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.product.dtos.response.ProductContentResponseDTO;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
@@ -78,6 +84,7 @@ class VisitorBoothServiceUnitTest {
     private ProductPlacementProjection secondPlacement;
 
     private VisitorBoothService service;
+    private ExhibitionTimelinePolicy timelinePolicy;
 
     private UUID exhibitionUuid;
     private ExhibitionResponseDTO exhibition;
@@ -85,6 +92,8 @@ class VisitorBoothServiceUnitTest {
 
     @BeforeEach
     void setup() {
+        timelinePolicy = new ExhibitionTimelinePolicy(
+                Clock.fixed(Instant.parse("2026-01-10T10:00:00Z"), ZoneOffset.UTC));
         service = new VisitorBoothService(
                 exhibitionService,
                 boothRepository,
@@ -92,11 +101,16 @@ class VisitorBoothServiceUnitTest {
                 panoramaRepository,
                 productService,
                 boothMapper,
-                productMapper);
+                productMapper,
+                timelinePolicy,
+                new ExhibitionParticipationPolicy());
         exhibitionUuid = UUID.randomUUID();
         exhibition = ExhibitionResponseDTO.builder()
                 .uuid(exhibitionUuid)
+                .startDate(LocalDate.of(2026, 1, 1))
+                .endDate(LocalDate.of(2026, 1, 31))
                 .status(ExhibitionStatus.ACTIVE.name())
+                .experienceMode(com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS)
                 .build();
         pageable = PageRequest.of(0, 10);
     }
@@ -131,24 +145,32 @@ class VisitorBoothServiceUnitTest {
     }
 
     @Test
-    void getPublishedBooths_WhenExhibitionIsPublished_ReturnsBooths() {
+    void getPublishedBooths_WhenExhibitionIsPublished_BlocksInteractiveAccess() {
         exhibition.setStatus(ExhibitionStatus.PUBLISHED.name());
-        Booth booth = Booth.builder().id(UUID.randomUUID()).name("Published Booth").build();
-        Page<Booth> boothPage = new PageImpl<>(List.of(booth));
-        BoothResponseDTO responseDTO = new BoothResponseDTO();
-        responseDTO.setName("Published Booth");
-
         when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
-        when(boothRepository.findPublishedBoothsByExhibitionUuid(
-                exhibitionUuid, BoothStatus.PUBLISHED, null, null, pageable))
-                .thenReturn(boothPage);
-        when(boothMapper.toBoothResponseDTO(booth)).thenReturn(responseDTO);
 
-        PageResponse<BoothResponseDTO> result = service.getPublishedBooths(
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getPublishedBooths(exhibitionUuid, null, null, pageable));
+
+        assertEquals(ErrorCode.EXHIBITION_INVALID_STATUS, exception.getErrorCode());
+        verify(boothRepository, never()).findPublishedBoothsByExhibitionUuid(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void standaloneReturnsEmptyBoothListAndRejectsBoothDetail() {
+        exhibition.setExperienceMode(com.example.vex360.shared.enums.ExhibitionExperienceMode.STANDALONE);
+        when(exhibitionService.getExhibitionByUuid(exhibitionUuid)).thenReturn(exhibition);
+
+        PageResponse<BoothResponseDTO> page = service.getPublishedBooths(
                 exhibitionUuid, null, null, pageable);
+        AppException exception = assertThrows(AppException.class,
+                () -> service.getBoothTourDetail(exhibitionUuid, UUID.randomUUID()));
 
-        assertNotNull(result);
-        assertEquals(1, result.getContent().size());
+        assertTrue(page.getContent().isEmpty());
+        assertEquals(ErrorCode.EXHIBITION_PARTICIPATION_NOT_SUPPORTED, exception.getErrorCode());
+        verify(boothRepository, never()).findPublishedBoothsByExhibitionUuid(
+                any(), any(), any(), any(), any());
     }
 
     @Test

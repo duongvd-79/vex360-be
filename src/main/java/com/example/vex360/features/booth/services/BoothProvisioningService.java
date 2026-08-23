@@ -13,6 +13,7 @@ import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -28,6 +29,7 @@ public class BoothProvisioningService {
     private final BoothRepository boothRepository;
     private final ExhibitorRegistrationService exhibitorRegistrationService;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
 
     // Hàm tạo Booth sau khi đơn ExhibitorRegistration = "Approved".
     @Transactional
@@ -65,7 +67,11 @@ public class BoothProvisioningService {
         if (registration.getExhibitionPackage() == null) {
             throw new AppException(ErrorCode.REGISTRATION_PACKAGE_MISSING);
         }
-        if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
+        if (!participationPolicy.supportsParticipation(registration.getExhibitionPackage().getExhibition())) {
+            return Optional.empty();
+        }
+        if (!timelinePolicy.isRegistrationProcessingOpen(
+                registration.getExhibitionPackage().getExhibition())) {
             return Optional.empty();
         }
 

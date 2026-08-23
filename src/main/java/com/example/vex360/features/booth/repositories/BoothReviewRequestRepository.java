@@ -34,6 +34,7 @@ public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewR
             LEFT JOIN b.company company
             WHERE exhibition.uuid = :exhibitionUuid
               AND exhibition.organizer.id = :organizerId
+              AND exhibition.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND (:status IS NULL OR r.status = :status)
               AND (:keyword IS NULL
                 OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -55,6 +56,7 @@ public interface BoothReviewRequestRepository extends JpaRepository<BoothReviewR
             WHERE r.id = :requestId
               AND exhibition.uuid = :exhibitionUuid
               AND exhibition.organizer.id = :organizerId
+              AND exhibition.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
             """)
     Optional<BoothReviewRequest> findForOrganizer(
             @Param("organizerId") UUID organizerId,

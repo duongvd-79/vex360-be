@@ -18,6 +18,7 @@ import org.hibernate.annotations.ParamDef;
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -77,6 +78,11 @@ public class Exhibition {
 
     @Column(name = "estimated_booths", nullable = false)
     Integer estimatedBooths;
+
+    @Column(name = "experience_mode", nullable = false, columnDefinition = "VARCHAR(50)")
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    ExhibitionExperienceMode experienceMode = ExhibitionExperienceMode.WITH_BOOTHS;
 
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     @Enumerated(EnumType.STRING)

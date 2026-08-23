@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.example.vex360.features.exhibition.entities.Exhibition;
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 
 import jakarta.persistence.LockModeType;
@@ -74,6 +75,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (e.status IN :statuses)
+              AND (:experienceMode IS NULL OR e.experienceMode = :experienceMode)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
               AND (:startDate IS NULL OR e.startDate >= :startDate)
               AND (:endDate IS NULL OR e.endDate <= :endDate)
@@ -85,6 +87,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
                 OR LOWER(e.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (e.status IN :statuses)
+              AND (:experienceMode IS NULL OR e.experienceMode = :experienceMode)
               AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
               AND (:startDate IS NULL OR e.startDate >= :startDate)
               AND (:endDate IS NULL OR e.endDate <= :endDate)
@@ -92,6 +95,7 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
     Page<AdminExhibitionProjection> searchAdminExhibitions(
             @Param("keyword") String keyword,
             @Param("statuses") List<ExhibitionStatus> statuses,
+            @Param("experienceMode") ExhibitionExperienceMode experienceMode,
             @Param("category") String category,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
@@ -153,10 +157,10 @@ public interface ExhibitionRepository extends JpaRepository<Exhibition, Integer>
 
     @Query("""
             SELECT e.id FROM Exhibition e
-            WHERE (e.status = com.example.vex360.shared.enums.ExhibitionStatus.REGISTRATION AND e.startDate <= :todayPlus7)
+            WHERE (e.status = com.example.vex360.shared.enums.ExhibitionStatus.REGISTRATION AND e.startDate <= :registrationDeadline)
                OR (e.status = com.example.vex360.shared.enums.ExhibitionStatus.PUBLISHED AND e.startDate <= :today)
                OR (e.status = com.example.vex360.shared.enums.ExhibitionStatus.ACTIVE AND e.endDate < :today)
             """)
     List<Integer> findDueForLifecycleTransition(@Param("today") LocalDate today,
-            @Param("todayPlus7") LocalDate todayPlus7);
+            @Param("registrationDeadline") LocalDate registrationDeadline);
 }

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
@@ -71,9 +72,11 @@ import com.example.vex360.features.exhibition.repositories.ExhibitorRegistration
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
@@ -128,6 +131,9 @@ class ExhibitionServiceUnitTest {
     private ExhibitionTimelinePolicy timelinePolicy;
 
     @Mock
+    private ExhibitionParticipationPolicy participationPolicy;
+
+    @Mock
     private UserService userService;
 
     @Mock
@@ -151,6 +157,13 @@ class ExhibitionServiceUnitTest {
                 .thenAnswer(invocation -> exhibitionRepository.findByUuid(invocation.getArgument(0)));
         lenient().when(timelinePolicy.today()).thenReturn(LocalDate.now());
         lenient().when(timelinePolicy.hasMinimumLeadTime(any())).thenReturn(true);
+        lenient().when(participationPolicy.supportsParticipation(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.<Exhibition>getArgument(0).getExperienceMode()
+                        != ExhibitionExperienceMode.STANDALONE);
+        lenient().when(participationPolicy.supportsParticipation(
+                org.mockito.ArgumentMatchers.<ExhibitionExperienceMode>any()))
+                .thenAnswer(invocation -> invocation.<ExhibitionExperienceMode>getArgument(0)
+                        != ExhibitionExperienceMode.STANDALONE);
 
         exhibitionService = new ExhibitionService(
                 exhibitionRepository,
@@ -163,6 +176,7 @@ class ExhibitionServiceUnitTest {
                 exhibitionMapper,
                 cloudService,
                 timelinePolicy,
+                participationPolicy,
                 userService,
                 reviewHistoryService,
                 mailService,
@@ -211,6 +225,7 @@ class ExhibitionServiceUnitTest {
 
     @Test
     void getExhibitionDetailForAdminEnrichesOrganizerCompanyContact() {
+        registrationExhibition.setExperienceMode(ExhibitionExperienceMode.STANDALONE);
         Company company = Company.builder()
                 .ownerUser(organizer)
                 .name("VEX Organizer Company")
@@ -221,6 +236,7 @@ class ExhibitionServiceUnitTest {
                 .uuid(exhibitionUuid)
                 .name(registrationExhibition.getName())
                 .organizerName(organizer.getFullName())
+                .experienceMode(registrationExhibition.getExperienceMode())
                 .build();
 
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
@@ -238,6 +254,7 @@ class ExhibitionServiceUnitTest {
         assertEquals(company.getName(), result.getOrganizationName());
         assertEquals(company.getEmail(), result.getEmail());
         assertEquals(company.getPhone(), result.getPhone());
+        assertEquals(ExhibitionExperienceMode.STANDALONE, result.getExperienceMode());
         verify(companyService).findByOwnerUserId(organizer.getId());
     }
 
@@ -343,7 +360,7 @@ class ExhibitionServiceUnitTest {
         when(row.getCompanyName()).thenReturn(companyName);
         Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), mappedPageable, 11);
         when(exhibitionRepository.searchAdminExhibitions(
-                "Expo", approvedStatuses, "Tech", null, null, mappedPageable))
+                "Expo", approvedStatuses, null, "Tech", null, null, mappedPageable))
                 .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition))
                 .thenReturn(ExhibitionResponseDTO.builder()
@@ -362,14 +379,14 @@ class ExhibitionServiceUnitTest {
         assertEquals(companyName, result.getContent().get(0).getCompanyName());
         assertEquals(organizer.getFullName(), result.getContent().get(0).getOrganizerName());
         verify(exhibitionRepository).searchAdminExhibitions(
-                "Expo", approvedStatuses, "Tech", null, null, mappedPageable);
+                "Expo", approvedStatuses, null, "Tech", null, null, mappedPageable);
     }
 
     @Test
     void searchExhibitionsForAdminFiltersExactStatus() {
         Pageable pageable = PageRequest.of(0, 10);
         when(exhibitionRepository.searchAdminExhibitions(
-                null, List.of(ExhibitionStatus.PENDING), null, null, null, pageable))
+                null, List.of(ExhibitionStatus.PENDING), null, null, null, null, pageable))
                 .thenReturn(Page.empty(pageable));
 
         PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForAdmin(
@@ -377,7 +394,7 @@ class ExhibitionServiceUnitTest {
 
         assertTrue(result.getContent().isEmpty());
         verify(exhibitionRepository).searchAdminExhibitions(
-                null, List.of(ExhibitionStatus.PENDING), null, null, null, pageable);
+                null, List.of(ExhibitionStatus.PENDING), null, null, null, null, pageable);
     }
 
     @Test
@@ -389,7 +406,7 @@ class ExhibitionServiceUnitTest {
         when(row.getCompanyName()).thenReturn(organizer.getFullName());
         Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), pageable, 1);
         when(exhibitionRepository.searchAdminExhibitions(
-                null, allStatuses, null, null, null, pageable))
+                null, allStatuses, null, null, null, null, pageable))
                 .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition))
                 .thenReturn(ExhibitionResponseDTO.builder()
@@ -401,7 +418,7 @@ class ExhibitionServiceUnitTest {
 
         assertEquals(organizer.getFullName(), result.getContent().get(0).getCompanyName());
         verify(exhibitionRepository).searchAdminExhibitions(
-                null, allStatuses, null, null, null, pageable);
+                null, allStatuses, null, null, null, null, pageable);
     }
 
     @Test
@@ -423,7 +440,7 @@ class ExhibitionServiceUnitTest {
                 ExhibitionStatus.COMPLETED);
 
         when(exhibitionRepository.searchAdminExhibitions(
-                eq("Expo"), eq(expectedStatuses), eq("Tech"), any(), any(), eq(pageable)))
+                eq("Expo"), eq(expectedStatuses), isNull(), eq("Tech"), any(), any(), eq(pageable)))
                 .thenReturn(page);
 
         ExhibitionResponseDTO publicResponse = ExhibitionResponseDTO.builder()
@@ -445,7 +462,7 @@ class ExhibitionServiceUnitTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(), pageable, 0);
         when(exhibitionRepository.searchAdminExhibitions(
-                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, pageable))
+                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, null, pageable))
                 .thenReturn(page);
 
         PageResponse<ExhibitionResponseDTO> result = exhibitionService.searchExhibitionsForVisitor(
@@ -453,7 +470,7 @@ class ExhibitionServiceUnitTest {
 
         assertTrue(result.getContent().isEmpty());
         verify(exhibitionRepository).searchAdminExhibitions(
-                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, pageable);
+                null, List.of(ExhibitionStatus.ACTIVE), null, null, null, null, pageable);
     }
 
     @Test
@@ -467,7 +484,7 @@ class ExhibitionServiceUnitTest {
         assertEquals(2, result.getPage());
         assertEquals(10, result.getSize());
         verify(exhibitionRepository, never()).searchAdminExhibitions(
-                any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -484,7 +501,8 @@ class ExhibitionServiceUnitTest {
                 ExhibitionStatus.ACTIVE);
 
         when(exhibitionRepository.searchAdminExhibitions(
-                eq("Expo"), eq(expectedStatuses), eq("Tech"), any(), any(), eq(pageable)))
+                eq("Expo"), eq(expectedStatuses), eq(ExhibitionExperienceMode.WITH_BOOTHS),
+                eq("Tech"), any(), any(), eq(pageable)))
                 .thenReturn(page);
 
         ExhibitionResponseDTO mockResponse = ExhibitionResponseDTO.builder()
@@ -645,6 +663,55 @@ class ExhibitionServiceUnitTest {
         assertEquals(ErrorCode.EXHIBITION_NAME_DUPLICATED, ex.getErrorCode());
     }
 
+    @ParameterizedTest
+    @EnumSource(ExhibitionExperienceMode.class)
+    void createExhibition_persistsExperienceMode(ExhibitionExperienceMode experienceMode) {
+        MultipartFile keyVisual = imageFile();
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("Mode Expo " + experienceMode)
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(experienceMode == ExhibitionExperienceMode.STANDALONE ? 0 : 10)
+                .experienceMode(experienceMode)
+                .build();
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("mode-key-visual"));
+        lenient().when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
+                .thenReturn(ExhibitionResponseDTO.builder().build());
+
+        exhibitionService.createExhibition(organizer, request, keyVisual, null);
+
+        verify(exhibitionRepository).save(org.mockito.ArgumentMatchers.argThat(
+                exhibition -> exhibition.getExperienceMode() == experienceMode));
+    }
+
+    @Test
+    void createStandaloneExhibitionDoesNotCreatePackage() {
+        MultipartFile keyVisual = imageFile();
+        CreateExhibitionRequest request = CreateExhibitionRequest.builder()
+                .name("Standalone Expo")
+                .category("Technology")
+                .startDate(LocalDate.now().plusDays(10))
+                .endDate(LocalDate.now().plusDays(15))
+                .estimatedBooths(0)
+                .experienceMode(ExhibitionExperienceMode.STANDALONE)
+                .build();
+        when(exhibitionRepository.save(any(Exhibition.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(cloudService.upload(keyVisual)).thenReturn(cloudResponse("standalone-key-visual"));
+        when(exhibitionMapper.toResponse(any(Exhibition.class), eq(List.of())))
+                .thenReturn(ExhibitionResponseDTO.builder().build());
+
+        exhibitionService.createExhibition(organizer, request, keyVisual, null);
+
+        verify(packageTemplateService, never()).getDefaultActivePackageTemplateEntity();
+        verify(exhibitionPackageRepository, never()).save(any());
+    }
+
     @Test
     void uploadSponsorLogo_transactionRollback_deletesNewCloudAsset() {
         MultipartFile file = imageFile();
@@ -680,6 +747,7 @@ class ExhibitionServiceUnitTest {
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
+                .experienceMode(ExhibitionExperienceMode.WITH_BOOTHS)
                 .packages(List.of(pkgReq))
                 .build();
         when(exhibitionRepository.save(any(Exhibition.class)))
@@ -787,18 +855,21 @@ class ExhibitionServiceUnitTest {
     @Test
     void updateExhibitionForOrganizer_nonDraftStatus_throwsDetailsChangesNotAllowed() {
         registrationExhibition.setStatus(ExhibitionStatus.PUBLISHED);
+        registrationExhibition.setExperienceMode(ExhibitionExperienceMode.WITH_BOOTHS);
         when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
 
         CreateExhibitionRequest req = CreateExhibitionRequest.builder()
                 .name("New Name")
                 .startDate(LocalDate.now().plusDays(20))
                 .endDate(LocalDate.now().plusDays(25))
+                .experienceMode(ExhibitionExperienceMode.STANDALONE)
                 .build();
 
         AppException ex = assertThrows(AppException.class,
                 () -> exhibitionService.updateExhibitionForOrganizer(organizer, exhibitionUuid, req,
                         null));
         assertEquals(ErrorCode.EXHIBITION_DETAILS_CHANGES_NOT_ALLOWED, ex.getErrorCode());
+        assertEquals(ExhibitionExperienceMode.WITH_BOOTHS, registrationExhibition.getExperienceMode());
         assertEquals("Chỉ có thể chỉnh sửa hồ sơ khi đang chờ duyệt hoặc đã bị từ chối.",
                 ex.getErrorCode().getMessage());
     }
@@ -1001,6 +1072,7 @@ class ExhibitionServiceUnitTest {
                 .startDate(LocalDate.now().plusDays(20))
                 .endDate(LocalDate.now().plusDays(25))
                 .estimatedBooths(50)
+                .experienceMode(ExhibitionExperienceMode.STANDALONE)
                 .packages(List.of(pkgReq))
                 .build();
 
@@ -1008,7 +1080,7 @@ class ExhibitionServiceUnitTest {
         when(timelinePolicy.hasMinimumLeadTime(req.getStartDate())).thenReturn(true);
         when(exhibitionRepository.save(any(Exhibition.class))).thenAnswer(inv -> inv.getArgument(0));
         when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
-        when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
+        lenient().when(exhibitionPackageRepository.save(any(ExhibitionPackage.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(exhibitionMapper.toResponse(any(Exhibition.class), anyList()))
                 .thenReturn(ExhibitionResponseDTO.builder().build());
@@ -1020,6 +1092,7 @@ class ExhibitionServiceUnitTest {
         assertNull(registrationExhibition.getReviewedBy());
         assertNull(registrationExhibition.getReviewedAt());
         assertEquals(1, registrationExhibition.getRejectionCount());
+        assertEquals(ExhibitionExperienceMode.STANDALONE, registrationExhibition.getExperienceMode());
     }
 
     @Test
@@ -1038,6 +1111,23 @@ class ExhibitionServiceUnitTest {
     }
 
     @Test
+    void approveStandaloneExhibitionSkipsPackageValidation() {
+        User admin = User.builder().id(UUID.randomUUID()).role(Role.ADMIN).build();
+        registrationExhibition.setStatus(ExhibitionStatus.PENDING);
+        registrationExhibition.setExperienceMode(ExhibitionExperienceMode.STANDALONE);
+        when(exhibitionRepository.findByUuid(exhibitionUuid)).thenReturn(Optional.of(registrationExhibition));
+        when(exhibitionPackageRepository.findByExhibition(registrationExhibition)).thenReturn(List.of());
+        when(exhibitionRepository.save(registrationExhibition)).thenReturn(registrationExhibition);
+        ExhibitionResponseDTO response = ExhibitionResponseDTO.builder().build();
+        when(exhibitionMapper.toResponse(registrationExhibition, List.of())).thenReturn(response);
+
+        ExhibitionResponseDTO result = exhibitionService.approveExhibition(admin, exhibitionUuid);
+
+        assertEquals(response, result);
+        assertEquals(ExhibitionStatus.REGISTRATION, registrationExhibition.getStatus());
+    }
+
+    @Test
     void createExhibition_withoutDefaultPackage_throwsConfigurationError() {
         UUID templateId = UUID.randomUUID();
         ConfigureExhibitionPackageRequest pkgReq = ConfigureExhibitionPackageRequest.builder()
@@ -1050,6 +1140,7 @@ class ExhibitionServiceUnitTest {
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(15))
                 .estimatedBooths(10)
+                .experienceMode(ExhibitionExperienceMode.WITH_BOOTHS)
                 .packages(List.of(pkgReq))
                 .build();
 
@@ -1469,9 +1560,11 @@ class ExhibitionServiceUnitTest {
         when(row.getExhibition()).thenReturn(registrationExhibition);
         Page<AdminExhibitionProjection> page = new PageImpl<>(List.of(row), pageable, 1);
         ExhibitionResponseDTO dto = ExhibitionResponseDTO.builder().build();
-        when(exhibitionRepository.searchAdminExhibitions(null, statuses, null, null, null, pageable))
+        when(exhibitionRepository.searchAdminExhibitions(
+                null, statuses, ExhibitionExperienceMode.WITH_BOOTHS, null, null, null, pageable))
                 .thenReturn(page);
-        when(exhibitionRepository.searchAdminExhibitions("Expo", statuses, "Tech", null, null, pageable))
+        when(exhibitionRepository.searchAdminExhibitions(
+                "Expo", statuses, ExhibitionExperienceMode.WITH_BOOTHS, "Tech", null, null, pageable))
                 .thenReturn(page);
         when(exhibitionMapper.toResponse(registrationExhibition)).thenReturn(dto);
 
