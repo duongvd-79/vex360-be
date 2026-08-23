@@ -44,7 +44,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             SELECT p FROM Payment p
             LEFT JOIN p.exhibitorRegistration r
             WHERE (p.paymentType = com.example.vex360.shared.enums.PaymentType.EXHIBITION_REGISTRATION
-                    AND r.company.id = :companyId)
+                    AND r.company.id = :companyId
+                    AND r.exhibitionPackage.exhibition.experienceMode =
+                        com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS)
                OR (p.paymentType = com.example.vex360.shared.enums.PaymentType.STORAGE_PACKAGE
                     AND p.storagePackageOrderId IN (
                         SELECT o.id FROM StoragePackageOrder o WHERE o.company.id = :companyId

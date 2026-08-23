@@ -13,7 +13,8 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class ExhibitionTimelinePolicy {
-    public static final int DEFAULT_MINIMUM_LEAD_DAYS = 31;
+    public static final int ORGANIZER_MINIMUM_LEAD_DAYS = 31;
+    public static final int REGISTRATION_DEADLINE_DAYS_BEFORE_START = 7;
     public static final int BOOTH_DEADLINE_DAYS_BEFORE_START = 3;
 
     private final Clock clock;
@@ -40,7 +41,8 @@ public class ExhibitionTimelinePolicy {
             return ExhibitionStatus.ACTIVE;
         }
         if (exhibition.getStatus() == ExhibitionStatus.REGISTRATION
-                && !today.isBefore(exhibition.getStartDate().minusDays(DEFAULT_MINIMUM_LEAD_DAYS))) {
+                && !today.isBefore(
+                        exhibition.getStartDate().minusDays(REGISTRATION_DEADLINE_DAYS_BEFORE_START))) {
             return ExhibitionStatus.PUBLISHED;
         }
         return null;
@@ -62,11 +64,35 @@ public class ExhibitionTimelinePolicy {
         if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
             return false;
         }
+        LocalDate startDate = exhibition.getStartDate();
+        return startDate != null
+                && today().isBefore(startDate.minusDays(REGISTRATION_DEADLINE_DAYS_BEFORE_START));
+    }
+
+    public boolean isRegistrationProcessingOpen(Exhibition exhibition) {
+        if (exhibition == null) {
+            return false;
+        }
+        ExhibitionStatus status = exhibition.getStatus();
+        if (status != ExhibitionStatus.REGISTRATION && status != ExhibitionStatus.PUBLISHED) {
+            return false;
+        }
         return isBoothPreparationOpen(exhibition);
     }
 
+    public boolean isExperienceActive(
+            ExhibitionStatus status,
+            LocalDate startDate,
+            LocalDate endDate) {
+        if (status != ExhibitionStatus.ACTIVE || startDate == null || endDate == null) {
+            return false;
+        }
+        LocalDate today = today();
+        return !today.isBefore(startDate) && !today.isAfter(endDate);
+    }
+
     public boolean hasMinimumLeadTime(LocalDate startDate) {
-        return hasMinimumLeadTime(startDate, DEFAULT_MINIMUM_LEAD_DAYS);
+        return hasMinimumLeadTime(startDate, ORGANIZER_MINIMUM_LEAD_DAYS);
     }
 
     public boolean hasMinimumLeadTime(LocalDate startDate, int minDays) {

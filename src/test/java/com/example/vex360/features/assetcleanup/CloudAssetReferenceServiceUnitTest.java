@@ -17,6 +17,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.hall.services.ExhibitionHallService;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.wallet.services.WithdrawalRequestService;
@@ -30,6 +31,8 @@ class CloudAssetReferenceServiceUnitTest {
     private DesignDraftAssetService designDraftAssetService;
     @Mock
     private ExhibitionService exhibitionService;
+    @Mock
+    private ExhibitionHallService exhibitionHallService;
     @Mock
     private ProductService productService;
     @Mock
@@ -47,6 +50,7 @@ class CloudAssetReferenceServiceUnitTest {
                 designReferenceService,
                 designDraftAssetService,
                 exhibitionService,
+                exhibitionHallService,
                 productService,
                 userService,
                 companyService,
@@ -65,6 +69,14 @@ class CloudAssetReferenceServiceUnitTest {
         when(userService.isAvatarAssetReferenced("avatar/user-1")).thenReturn(true);
 
         assertTrue(referenceService.isReferenced("avatar/user-1"));
+    }
+
+    @Test
+    void keepsHallBackgroundMusic() {
+        when(exhibitionHallService.isBackgroundMusicReferenced("hall-background-music/ambient"))
+                .thenReturn(true);
+
+        assertTrue(referenceService.isReferenced("hall-background-music/ambient"));
     }
 
     @Test

@@ -216,16 +216,25 @@ public class BoothLeadService {
 
     @Transactional(readOnly = true)
     public List<Object[]> aggregateDailyForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return List.of();
+        }
         return boothLeadRepository.aggregateDailyForExhibitions(exhibitionIds, start, end);
     }
 
     @Transactional(readOnly = true)
     public List<Object[]> aggregatePerformanceForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return List.of();
+        }
         return boothLeadRepository.aggregatePerformanceForExhibitions(exhibitionIds, start, end);
     }
 
     @Transactional(readOnly = true)
     public long countUniqueLeadVisitorsForExhibitions(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return 0;
+        }
         return boothLeadRepository.countUniqueLeadVisitorsForExhibitions(exhibitionIds, start, end);
     }
 

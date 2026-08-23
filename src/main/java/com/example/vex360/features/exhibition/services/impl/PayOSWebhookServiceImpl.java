@@ -29,6 +29,7 @@ import vn.payos.model.webhooks.WebhookData;
 
 import com.example.vex360.features.exhibition.events.ExhibitionPaymentCompletedEvent;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 
 @Service
@@ -42,6 +43,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
     private final StoragePackageService storagePackageService;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final PayOS payOS;
 
     @Override
@@ -79,6 +81,10 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                             log.error("Exhibitor registration not found for ID: {}", route.getRegistrationId());
                             return new AppException(ErrorCode.REGISTRATION_NOT_FOUND);
                         });
+                participationPolicy.assertSupportsParticipation(
+                        registration.getExhibitionPackage() == null
+                                ? null
+                                : registration.getExhibitionPackage().getExhibition());
             }
 
             Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode)
@@ -128,7 +134,7 @@ public class PayOSWebhookServiceImpl implements PayOSWebhookService {
                     fulfillmentService.updateReceiptSucceeded(orderCode, null, null);
                 } else {
                     boolean registrationOpen = registration.getExhibitionPackage() != null
-                            && timelinePolicy.isRegistrationOpen(
+                            && timelinePolicy.isRegistrationProcessingOpen(
                                     registration.getExhibitionPackage().getExhibition());
                     if (!registrationOpen
                             || registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT

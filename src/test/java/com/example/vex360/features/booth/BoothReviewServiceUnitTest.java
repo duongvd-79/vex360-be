@@ -61,6 +61,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.product.entities.Product;
 import com.example.vex360.features.product.entities.ProductContent;
 import com.example.vex360.features.product.enums.ProductContentType;
@@ -87,6 +88,8 @@ class BoothReviewServiceUnitTest {
     BoothReviewContentAssembler contentAssembler;
     @Mock
     ExhibitionService exhibitionService;
+    @Mock
+    ExhibitionParticipationPolicy participationPolicy;
     @Mock
     MailService mailService;
 
@@ -116,6 +119,7 @@ class BoothReviewServiceUnitTest {
                 diffService,
                 contentAssembler,
                 exhibitionService,
+                participationPolicy,
                 mailService,
                 new com.example.vex360.features.mail.AfterCommitExecutor(),
                 clock);
@@ -125,6 +129,8 @@ class BoothReviewServiceUnitTest {
                 .email("contact@vex.com").phone("0901234567").build();
         exhibitionUuid = UUID.randomUUID();
         booth = booth(BoothStatus.DRAFT);
+        org.mockito.Mockito.lenient()
+                .when(participationPolicy.supportsParticipation(any(Exhibition.class))).thenReturn(true);
     }
 
     @Test

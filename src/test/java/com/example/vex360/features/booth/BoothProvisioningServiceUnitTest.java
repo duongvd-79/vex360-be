@@ -29,6 +29,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.exceptions.AppException;
@@ -53,7 +54,8 @@ class BoothProvisioningServiceUnitTest {
     @BeforeEach
     void setup() {
         boothProvisioningService = new BoothProvisioningService(
-                boothRepository, exhibitorRegistrationService, timelinePolicy);
+                boothRepository, exhibitorRegistrationService, timelinePolicy,
+                new ExhibitionParticipationPolicy());
         exhibitorUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("exhibitor@example.com")
@@ -66,10 +68,12 @@ class BoothProvisioningServiceUnitTest {
                 .build();
         exhibitionPackage = ExhibitionPackage.builder()
                 .id(10)
-                .exhibition(Exhibition.builder().id(20).build())
+                .exhibition(Exhibition.builder().id(20)
+                        .experienceMode(com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS)
+                        .build())
                 .build();
         org.mockito.Mockito.lenient()
-                .when(timelinePolicy.isRegistrationOpen(exhibitionPackage.getExhibition()))
+                .when(timelinePolicy.isRegistrationProcessingOpen(exhibitionPackage.getExhibition()))
                 .thenReturn(true);
     }
 
@@ -132,7 +136,22 @@ class BoothProvisioningServiceUnitTest {
         ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
         when(exhibitorRegistrationService.findRegistrationWithRelationsById(registration.getId()))
                 .thenReturn(Optional.of(registration));
-        when(timelinePolicy.isRegistrationOpen(exhibitionPackage.getExhibition())).thenReturn(false);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibitionPackage.getExhibition())).thenReturn(false);
+
+        Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
+
+        assertTrue(result.isEmpty());
+        verify(boothRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void standaloneRegistrationNeverProvisionsBooth() {
+        exhibitionPackage.getExhibition().setExperienceMode(
+                com.example.vex360.shared.enums.ExhibitionExperienceMode.STANDALONE);
+        ExhibitorRegistration registration = registration(ExhibitorRegistrationStatus.APPROVED);
+        when(exhibitorRegistrationService.findRegistrationWithRelationsById(registration.getId()))
+                .thenReturn(Optional.of(registration));
+        when(boothRepository.findByExhibitorRegistrationId(registration.getId())).thenReturn(Optional.empty());
 
         Optional<Booth> result = boothProvisioningService.ensureBoothForApprovedRegistration(registration);
 

@@ -96,9 +96,15 @@ public class ExhibitorMediaAssetService {
                 .fileSize(fileSize)
                 .build();
 
-        MediaAssetResponseDTO result = boothMapper.toMediaAssetResponseDTO(mediaAssetRepository.save(mediaAsset));
-        companyStorageService.addUsage(company, fileSize); // ← thêm dòng này SAU khi lưu
-        return result;
+        try {
+            MediaAssetResponseDTO result = boothMapper.toMediaAssetResponseDTO(
+                    mediaAssetRepository.saveAndFlush(mediaAsset));
+            companyStorageService.addUsage(company, fileSize);
+            return result;
+        } catch (RuntimeException exception) {
+            cleanupNewUpload(upload.getPublicId(), mediaAsset.getType(), exception);
+            throw exception;
+        }
 
     }
 
@@ -109,6 +115,13 @@ public class ExhibitorMediaAssetService {
                 .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
         mediaAsset.setName(request.getName().trim());
         return boothMapper.toMediaAssetResponseDTO(mediaAssetRepository.save(mediaAsset));
+    }
+
+    @Transactional(readOnly = true)
+    public MediaAsset getMediaAssetForCurrentUser(User currentUser, UUID assetId) {
+        Company company = getCompanyForCurrentUser(currentUser);
+        return mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.MEDIA_ASSET_NOT_FOUND));
     }
 
     @Transactional
@@ -145,6 +158,17 @@ public class ExhibitorMediaAssetService {
 
     private String normalizeMimeType(MultipartFile file) {
         return file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+    }
+
+    private void cleanupNewUpload(
+            String publicId,
+            MediaAssetType type,
+            RuntimeException originalException) {
+        try {
+            cloudService.delete(publicId, type == MediaAssetType.VIDEO ? "video" : "image");
+        } catch (RuntimeException cleanupException) {
+            originalException.addSuppressed(cleanupException);
+        }
     }
 
     @Transactional(readOnly = true)

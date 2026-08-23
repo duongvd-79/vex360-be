@@ -40,7 +40,7 @@ public class ExhibitionLifecycleService {
     public int processLifecycleTransitions() {
         LocalDate today = timelinePolicy.today();
         List<Integer> dueIds = exhibitionRepository.findDueForLifecycleTransition(today,
-                today.plusDays(ExhibitionTimelinePolicy.DEFAULT_MINIMUM_LEAD_DAYS));
+                today.plusDays(ExhibitionTimelinePolicy.REGISTRATION_DEADLINE_DAYS_BEFORE_START));
         int updatedCount = 0;
 
         for (Integer exhibitionId : dueIds) {

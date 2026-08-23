@@ -22,6 +22,7 @@ import com.example.vex360.features.booth.mapper.BoothMapper;
 import com.example.vex360.features.booth.repositories.BoothRepository;
 import com.example.vex360.features.booth.repositories.BoothReviewRequestRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.mail.AfterCommitExecutor;
 import com.example.vex360.features.mail.MailService;
 import com.example.vex360.features.user.entities.User;
@@ -40,6 +41,7 @@ public class AdminBoothModerationService {
     private final BoothReviewPolicyService boothReviewPolicyService;
     private final BoothReviewContentAssembler contentAssembler;
     private final ExhibitionService exhibitionService;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final MailService mailService;
     private final BoothMapper boothMapper;
     private final AfterCommitExecutor afterCommitExecutor;
@@ -129,6 +131,8 @@ public class AdminBoothModerationService {
         exhibitionService.findExhibitionForUpdate(exhibitionUuid);
         Booth booth = boothRepository.findDetailForAdmin(boothId, exhibitionUuid)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        participationPolicy.assertSupportsParticipation(
+                booth.getExhibitorRegistration().getExhibitionPackage().getExhibition());
 
         boothReviewPolicyService.assertCanWarnBooth(booth);
 
@@ -168,6 +172,8 @@ public class AdminBoothModerationService {
         exhibitionService.findExhibitionForUpdate(exhibitionUuid);
         Booth booth = boothRepository.findDetailForAdmin(boothId, exhibitionUuid)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        participationPolicy.assertSupportsParticipation(
+                booth.getExhibitorRegistration().getExhibitionPackage().getExhibition());
 
         boothReviewPolicyService.assertCanBanBooth(booth);
 

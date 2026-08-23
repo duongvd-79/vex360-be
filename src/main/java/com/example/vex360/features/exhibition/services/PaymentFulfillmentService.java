@@ -38,6 +38,7 @@ public class PaymentFulfillmentService {
     private final ExhibitorRegistrationRepository registrationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final PayOSIntegrationService payOSIntegrationService;
 
     @Transactional
@@ -160,6 +161,14 @@ public class PaymentFulfillmentService {
             updateReceiptFailed(orderCode, new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
             return receiptRepository.findByOrderCode(orderCode);
         }
+        if (!participationPolicy.supportsParticipation(
+                registration.getExhibitionPackage() == null
+                        ? null
+                        : registration.getExhibitionPackage().getExhibition())) {
+            updateReceiptFailed(orderCode,
+                    new AppException(ErrorCode.EXHIBITION_PARTICIPATION_NOT_SUPPORTED));
+            return receiptRepository.findByOrderCode(orderCode);
+        }
 
         Payment payment = paymentRepository.findByOrderCodeForUpdate(orderCode).orElse(null);
         if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
@@ -169,7 +178,8 @@ public class PaymentFulfillmentService {
         }
 
         boolean registrationOpen = registration.getExhibitionPackage() != null
-                && timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition());
+                && timelinePolicy.isRegistrationProcessingOpen(
+                        registration.getExhibitionPackage().getExhibition());
         if (!registrationOpen
                 || registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT
                         && registration.getStatus() != ExhibitorRegistrationStatus.APPROVED) {
@@ -240,7 +250,8 @@ public class PaymentFulfillmentService {
         if (t instanceof AppException appEx) {
             return appEx.getErrorCode() == ErrorCode.REGISTRATION_DEPENDENCY_INVALID
                     || appEx.getErrorCode() == ErrorCode.REGISTRATION_NOT_FOUND
-                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_CLOSED;
+                    || appEx.getErrorCode() == ErrorCode.REGISTRATION_CLOSED
+                    || appEx.getErrorCode() == ErrorCode.EXHIBITION_PARTICIPATION_NOT_SUPPORTED;
         }
         return false;
     }

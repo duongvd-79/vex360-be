@@ -31,6 +31,7 @@ import com.example.vex360.features.exhibition.repositories.PaymentReceiptReposit
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.PaymentFulfillmentService;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
@@ -62,6 +63,8 @@ class PaymentFulfillmentServiceImplTest {
 
     @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
+    @Mock
+    private ExhibitionParticipationPolicy participationPolicy;
 
     @Mock
     private PayOSIntegrationService payOSIntegrationService;
@@ -74,6 +77,8 @@ class PaymentFulfillmentServiceImplTest {
     @BeforeEach
     void setup() {
         orderCode = 999111L;
+        org.mockito.Mockito.lenient()
+                .when(participationPolicy.supportsParticipation(any(Exhibition.class))).thenReturn(true);
     }
 
     @Test
@@ -247,7 +252,7 @@ class PaymentFulfillmentServiceImplTest {
         when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(reg));
         when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
 
         Optional<PaymentReceipt> res = fulfillmentService.processFulfillmentForOrderCode(orderCode);
 
@@ -279,7 +284,7 @@ class PaymentFulfillmentServiceImplTest {
         when(registrationRepository.findByIdForUpdate(reg.getId())).thenReturn(Optional.of(reg));
         when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
 
         fulfillmentService.processFulfillmentForOrderCode(orderCode);
 
@@ -305,7 +310,7 @@ class PaymentFulfillmentServiceImplTest {
         when(paymentRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(payment));
         when(receiptRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(receipt));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(false);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(false);
 
         fulfillmentService.processFulfillmentForOrderCode(orderCode);
 
@@ -342,7 +347,7 @@ class PaymentFulfillmentServiceImplTest {
 
         ExhibitorRegistration registration = ExhibitorRegistration.builder().id(5).build();
         when(registrationRepository.findByIdForUpdate(5)).thenReturn(Optional.of(registration));
-        when(paymentRepository.findByOrderCodeForUpdate(orderCode))
+        org.mockito.Mockito.lenient().when(paymentRepository.findByOrderCodeForUpdate(orderCode))
                 .thenReturn(Optional.empty(), Optional.of(Payment.builder().status(PaymentStatus.PENDING).build()));
 
         assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
@@ -369,7 +374,7 @@ class PaymentFulfillmentServiceImplTest {
                 .thenReturn(Optional.of(first), Optional.of(second));
         when(receiptRepository.findByOrderCode(orderCode))
                 .thenReturn(Optional.of(first), Optional.of(second));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
 
         fulfillmentService.processFulfillmentForOrderCode(orderCode);
         fulfillmentService.processFulfillmentForOrderCode(orderCode);
@@ -397,7 +402,7 @@ class PaymentFulfillmentServiceImplTest {
                 .thenThrow(new RuntimeException("write failed"))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(receiptRepository.findByOrderCode(orderCode)).thenReturn(Optional.of(receipt));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
 
         assertTrue(fulfillmentService.processFulfillmentForOrderCode(orderCode).isPresent());
         assertEquals(PaymentReceiptStatus.RETRYABLE_FAILED, receipt.getStatus());

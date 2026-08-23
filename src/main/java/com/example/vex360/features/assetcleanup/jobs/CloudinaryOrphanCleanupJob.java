@@ -31,6 +31,7 @@ public class CloudinaryOrphanCleanupJob {
             new Scope("video/", "video"),
             new Scope("audio/", "video"),
             new Scope("booth-background-music/", "video"),
+            new Scope("hall-background-music/", "video"),
             new Scope("design-draft-thumbnail/", "image"),
             new Scope("design-draft-background-music/", "video"),
             new Scope("design-draft-media-attachment/", "image"),

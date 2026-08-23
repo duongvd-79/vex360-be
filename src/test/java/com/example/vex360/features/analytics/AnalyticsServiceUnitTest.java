@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -31,6 +33,7 @@ import com.example.vex360.features.company.entities.Company;
 import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.booth.services.BoothReviewService;
 import com.example.vex360.shared.enums.LeadStatus;
 import com.example.vex360.features.lead.services.BoothLeadService;
@@ -60,6 +63,8 @@ class AnalyticsServiceUnitTest {
         BoothLeadService boothLeadService;
         @Mock
         ProductService productService;
+        @Mock
+        ExhibitionParticipationPolicy participationPolicy;
 
         @InjectMocks
         AnalyticsService analyticsService;
@@ -69,6 +74,9 @@ class AnalyticsServiceUnitTest {
 
         @BeforeEach
         void setUp() {
+                org.mockito.Mockito.lenient()
+                                .when(participationPolicy.supportsParticipation(any(Exhibition.class)))
+                                .thenReturn(true);
                 organizer = User.builder().id(UUID.randomUUID()).build();
                 exhibition = Exhibition.builder()
                                 .id(1).uuid(UUID.randomUUID()).name("Demo")
@@ -92,6 +100,22 @@ class AnalyticsServiceUnitTest {
                                                 null));
 
                 assertEquals(ErrorCode.UNAUTHORIZED, ex.getErrorCode());
+        }
+
+        @Test
+        void standaloneAnalyticsKeepsExhibitionContractAndZerosParticipationMetrics() {
+                when(exhibitionService.findExhibitionEntityByUuid(exhibition.getUuid())).thenReturn(exhibition);
+                when(participationPolicy.supportsParticipation(exhibition)).thenReturn(false);
+
+                var result = analyticsService.getExhibitionAnalytics(
+                                organizer, exhibition.getUuid(), null, null);
+
+                assertEquals(0, result.getExhibition().getBoothCount());
+                assertEquals(0, result.getExhibition().getEstimatedBooths());
+                assertTrue(result.getPackages().isEmpty());
+                assertEquals(0, result.getLeadAnalytics().getTotalLeads());
+                verify(boothReviewService, never()).countBoothsByExhibitionId(any());
+                verify(exhibitionService, never()).aggregateDailyRevenueForExhibition(any(), any(), any());
         }
 
         @Test
