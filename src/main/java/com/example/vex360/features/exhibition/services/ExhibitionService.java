@@ -45,6 +45,7 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.enums.BoothListingPriority;
 import com.example.vex360.shared.enums.ExhibitionAssetType;
 import com.example.vex360.shared.enums.ExhibitionPackageStatus;
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.Role;
@@ -76,6 +77,7 @@ import com.example.vex360.features.mail.MailService;
 public class ExhibitionService {
 
     private static final int MAX_SPONSORS = 15;
+
     private static final int MAX_EXHIBITION_DURATION_DAYS = 90;
 
     private static final Map<String, String> ADMIN_SORT_ALIASES = Map.of(
@@ -97,6 +99,7 @@ public class ExhibitionService {
     private final ExhibitionMapper exhibitionMapper;
     private final CloudService cloudService;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final UserService userService;
     private final ExhibitionReviewHistoryService reviewHistoryService;
     private final MailService mailService;
@@ -167,7 +170,9 @@ public class ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NAME_DUPLICATED);
         }
 
-        PackageTemplate defaultTemplate = packageTemplateService.getDefaultActivePackageTemplateEntity();
+        PackageTemplate defaultTemplate = participationPolicy.supportsParticipation(request.getExperienceMode())
+                ? packageTemplateService.getDefaultActivePackageTemplateEntity()
+                : null;
 
         // Save exhibition entity after all validations pass
         Exhibition exhibition = Exhibition.builder()
@@ -179,6 +184,7 @@ public class ExhibitionService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .estimatedBooths(request.getEstimatedBooths())
+                .experienceMode(request.getExperienceMode())
                 .status(ExhibitionStatus.PENDING)
                 .build();
 
@@ -198,14 +204,16 @@ public class ExhibitionService {
         exhibitionAssetRepository.save(keyVisualAsset);
         exhibition.getAssets().add(keyVisualAsset);
 
-        ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
-                .exhibition(exhibition)
-                .finalPrice(defaultTemplate.getPrice())
-                .status(ExhibitionPackageStatus.ACTIVE)
-                .build();
-        exhibitionPackage.snapshotTemplateTerms(defaultTemplate);
         List<ExhibitionPackage> savedPackages = new ArrayList<>();
-        savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
+        if (participationPolicy.supportsParticipation(exhibition)) {
+            ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
+                    .exhibition(exhibition)
+                    .finalPrice(defaultTemplate.getPrice())
+                    .status(ExhibitionPackageStatus.ACTIVE)
+                    .build();
+            exhibitionPackage.snapshotTemplateTerms(defaultTemplate);
+            savedPackages.add(exhibitionPackageRepository.save(exhibitionPackage));
+        }
 
         // Upload sponsor logos and save as ExhibitionAsset
         if (sponsorLogos != null && !sponsorLogos.isEmpty()) {
@@ -277,7 +285,7 @@ public class ExhibitionService {
 
         Pageable mappedPageable = PageableUtils.remapSort(pageable, ADMIN_SORT_ALIASES);
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
-                normalizedKeyword, statuses, normalizedCategory, startDate, endDate, mappedPageable)
+                normalizedKeyword, statuses, null, normalizedCategory, startDate, endDate, mappedPageable)
                 .map(row -> exhibitionMapper.toResponse(row.getExhibition()).toBuilder()
                         .companyName(row.getCompanyName())
                         .build());
@@ -299,7 +307,7 @@ public class ExhibitionService {
                 });
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
         return companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
                 .map(company -> response.toBuilder()
                         .organizationName(company.getName())
@@ -356,7 +364,7 @@ public class ExhibitionService {
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     @Transactional
@@ -430,6 +438,7 @@ public class ExhibitionService {
         List<ExhibitionPackage> savedPackages = new ArrayList<>(
                 exhibitionPackageRepository.findByExhibition(exhibition));
         PackageTemplate fallbackTemplate = savedPackages.isEmpty()
+                && participationPolicy.supportsParticipation(request.getExperienceMode())
                 ? packageTemplateService.getDefaultActivePackageTemplateEntity()
                 : null;
 
@@ -440,6 +449,7 @@ public class ExhibitionService {
         exhibition.setStartDate(request.getStartDate());
         exhibition.setEndDate(request.getEndDate());
         exhibition.setEstimatedBooths(request.getEstimatedBooths());
+        exhibition.setExperienceMode(request.getExperienceMode());
 
         // Reset rejection status back to PENDING if it was REJECTED
         if (exhibition.getStatus() == ExhibitionStatus.REJECTED) {
@@ -457,7 +467,7 @@ public class ExhibitionService {
             uploadOrReplaceAsset(exhibition, keyVisual, ExhibitionAssetType.KEY_VISUAL, "image");
         }
 
-        if (savedPackages.isEmpty()) {
+        if (savedPackages.isEmpty() && participationPolicy.supportsParticipation(exhibition)) {
             ExhibitionPackage exhibitionPackage = ExhibitionPackage.builder()
                     .exhibition(exhibition)
                     .finalPrice(fallbackTemplate.getPrice())
@@ -469,7 +479,7 @@ public class ExhibitionService {
 
         reviewHistoryService.recordResubmissionOrUpdate(exhibition, organizer, null);
 
-        return exhibitionMapper.toResponse(exhibition, savedPackages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, savedPackages));
     }
 
     @Transactional
@@ -520,7 +530,7 @@ public class ExhibitionService {
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     @Transactional
@@ -547,7 +557,9 @@ public class ExhibitionService {
         }
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        validatePackagesForApproval(packages);
+        if (participationPolicy.supportsParticipation(exhibition)) {
+            validatePackagesForApproval(packages);
+        }
 
         exhibition.setStatus(ExhibitionStatus.REGISTRATION);
         ExhibitionStatus resolvedStatus = timelinePolicy.resolveTargetStatus(exhibition, timelinePolicy.today());
@@ -567,7 +579,7 @@ public class ExhibitionService {
             eventPublisher.publishEvent(new ExhibitionCompletedEvent(this, exhibition));
         }
 
-        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
         sendExhibitionReviewMailSafely(exhibition, exhibition.getName(), ExhibitionReviewStatus.APPROVED, null);
         return response;
     }
@@ -617,7 +629,8 @@ public class ExhibitionService {
                 request.getRejectedReason());
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition,
+                packagesForResponse(exhibition, packages));
         sendExhibitionReviewMailSafely(exhibition, originalExhibitionName, ExhibitionReviewStatus.REJECTED,
                 request.getRejectedReason());
         return response;
@@ -790,7 +803,7 @@ public class ExhibitionService {
         exhibition.getAssets().add(sponsorLogoAsset);
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     @Transactional
@@ -844,7 +857,7 @@ public class ExhibitionService {
         exhibitionAssetRepository.save(asset);
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     @Transactional
@@ -885,7 +898,7 @@ public class ExhibitionService {
         deleteCloudAssetAfterCommit(publicId, "image");
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     private void deleteCloudAssetOnRollback(String publicId, String resourceType) {
@@ -947,6 +960,9 @@ public class ExhibitionService {
     @Transactional(readOnly = true)
     public ExhibitionPackageEditContextResponseDTO getExhibitionPackageEditContext(User organizer, UUID uuid) {
         Exhibition exhibition = getEditableExhibition(organizer, uuid, false);
+        if (!participationPolicy.supportsParticipation(exhibition)) {
+            return toPackageEditContext(List.of(), false);
+        }
         return toPackageEditContext(exhibitionPackageRepository.findByExhibition(exhibition));
     }
 
@@ -954,6 +970,7 @@ public class ExhibitionService {
     public ExhibitionPackageEditContextResponseDTO reconcileExhibitionPackages(User organizer, UUID uuid,
             ReconcileExhibitionPackagesRequest request) {
         Exhibition exhibition = getEditableExhibition(organizer, uuid, true);
+        participationPolicy.assertSupportsParticipation(exhibition);
         return toPackageEditContext(exhibitionPackageRepository.findByExhibition(exhibition));
     }
 
@@ -976,14 +993,20 @@ public class ExhibitionService {
     }
 
     private AppException packageMutationRejected(User organizer, UUID uuid) {
-        getEditableExhibition(organizer, uuid, true);
+        Exhibition exhibition = getEditableExhibition(organizer, uuid, true);
+        participationPolicy.assertSupportsParticipation(exhibition);
         return new AppException(ErrorCode.EXHIBITION_PACKAGE_CHANGES_NOT_ALLOWED);
     }
 
     private ExhibitionPackageEditContextResponseDTO toPackageEditContext(List<ExhibitionPackage> packages) {
+        return toPackageEditContext(packages, true);
+    }
+
+    private ExhibitionPackageEditContextResponseDTO toPackageEditContext(List<ExhibitionPackage> packages,
+            boolean includeTemplates) {
         return ExhibitionPackageEditContextResponseDTO.builder()
                 .currentPackages(packages.stream().map(exhibitionMapper::toPackageResponse).toList())
-                .activeTemplates(packageTemplateService.getActivePackageTemplates())
+                .activeTemplates(includeTemplates ? packageTemplateService.getActivePackageTemplates() : List.of())
                 .build();
     }
 
@@ -1004,7 +1027,7 @@ public class ExhibitionService {
         List<ExhibitionStatus> visitorStatuses = status == null ? publicStatuses : List.of(status);
 
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
-                normalizedKeyword, visitorStatuses, normalizedCategory, startDate, endDate, pageable)
+                normalizedKeyword, visitorStatuses, null, normalizedCategory, startDate, endDate, pageable)
                 .map(row -> exhibitionMapper.toPublicResponse(row.getExhibition(), null).toBuilder()
                         .companyName(row.getCompanyName())
                         .build());
@@ -1024,7 +1047,8 @@ public class ExhibitionService {
                 ExhibitionStatus.ACTIVE);
 
         Page<ExhibitionResponseDTO> exhibitions = exhibitionRepository.searchAdminExhibitions(
-                normalizedKeyword, exhibitorStatuses, normalizedCategory, startDate, endDate, pageable)
+                normalizedKeyword, exhibitorStatuses, ExhibitionExperienceMode.WITH_BOOTHS,
+                normalizedCategory, startDate, endDate, pageable)
                 .map(row -> exhibitionMapper.toResponse(row.getExhibition()).toBuilder()
                         .companyName(row.getCompanyName())
                         .build());
@@ -1047,13 +1071,20 @@ public class ExhibitionService {
             throw new AppException(ErrorCode.EXHIBITION_NOT_FOUND);
         }
 
+        participationPolicy.assertSupportsParticipation(exhibition);
+
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition, packages);
+        ExhibitionResponseDTO response = exhibitionMapper.toResponse(exhibition,
+                packagesForResponse(exhibition, packages));
         if (exhibition.getOrganizer() != null && exhibition.getOrganizer().getId() != null) {
             companyService.findByOwnerUserId(exhibition.getOrganizer().getId())
                     .ifPresent(c -> response.setCompanyName(c.getName()));
         }
         return response;
+    }
+
+    private List<ExhibitionPackage> packagesForResponse(Exhibition exhibition, List<ExhibitionPackage> packages) {
+        return participationPolicy.supportsParticipation(exhibition) ? packages : List.of();
     }
 
     @Transactional
@@ -1089,7 +1120,7 @@ public class ExhibitionService {
         exhibition = exhibitionRepository.save(exhibition);
 
         List<ExhibitionPackage> packages = exhibitionPackageRepository.findByExhibition(exhibition);
-        return exhibitionMapper.toResponse(exhibition, packages);
+        return exhibitionMapper.toResponse(exhibition, packagesForResponse(exhibition, packages));
     }
 
     @Transactional(readOnly = true)
@@ -1129,6 +1160,9 @@ public class ExhibitionService {
 
     @Transactional(readOnly = true)
     public Map<Integer, Long> aggregateRevenueByExhibition(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
+        }
         Map<Integer, Long> result = new HashMap<>();
         paymentRepository.aggregateRevenueByExhibition(exhibitionIds, start, end)
                 .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
@@ -1146,6 +1180,9 @@ public class ExhibitionService {
 
     @Transactional(readOnly = true)
     public Map<Integer, Long> aggregateProfitByExhibition(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
+        }
         Map<Integer, Long> result = new HashMap<>();
         paymentRepository.aggregateProfitByExhibition(exhibitionIds, start, end)
                 .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
@@ -1161,6 +1198,9 @@ public class ExhibitionService {
     @Transactional(readOnly = true)
     public Map<Integer, Long> countRegistrationsByStatusGroupedByExhibition(List<Integer> exhibitionIds,
             ExhibitorRegistrationStatus status) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return Map.of();
+        }
         Map<Integer, Long> result = new HashMap<>();
         exhibitorRegistrationRepository.countByStatusGroupedByExhibition(exhibitionIds, status)
                 .forEach(row -> result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue()));
@@ -1170,6 +1210,9 @@ public class ExhibitionService {
     @Transactional(readOnly = true)
     public List<Object[]> aggregateDailyRegistrationSubmissions(List<Integer> exhibitionIds, Instant start,
             Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return List.of();
+        }
         return exhibitorRegistrationRepository.aggregateDailySubmissions(exhibitionIds, start, end);
     }
 
@@ -1181,11 +1224,17 @@ public class ExhibitionService {
 
     @Transactional(readOnly = true)
     public List<Object[]> aggregateOrganizerDailyRevenue(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return List.of();
+        }
         return paymentRepository.aggregateOrganizerDailyRevenue(exhibitionIds, start, end);
     }
 
     @Transactional(readOnly = true)
     public List<Object[]> aggregateOrganizerPackageRevenue(List<Integer> exhibitionIds, Instant start, Instant end) {
+        if (exhibitionIds == null || exhibitionIds.isEmpty()) {
+            return List.of();
+        }
         return paymentRepository.aggregateOrganizerPackageRevenue(exhibitionIds, start, end);
     }
 

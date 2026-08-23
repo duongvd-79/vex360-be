@@ -7,6 +7,7 @@ import com.example.vex360.features.company.services.CompanyService;
 import com.example.vex360.features.designrequest.services.DesignAssetReferenceService;
 import com.example.vex360.features.designrequest.services.DesignDraftAssetService;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.hall.services.ExhibitionHallService;
 import com.example.vex360.features.product.services.ProductService;
 import com.example.vex360.features.user.services.UserService;
 import com.example.vex360.features.wallet.services.WithdrawalRequestService;
@@ -20,6 +21,7 @@ public class CloudAssetReferenceService {
     private final DesignAssetReferenceService designAssetReferenceService;
     private final DesignDraftAssetService designDraftAssetService;
     private final ExhibitionService exhibitionService;
+    private final ExhibitionHallService exhibitionHallService;
     private final ProductService productService;
     private final UserService userService;
     private final CompanyService companyService;
@@ -33,6 +35,7 @@ public class CloudAssetReferenceService {
         return designAssetReferenceService.isReferenced(publicId)
                 || designDraftAssetService.isAssetReferenced(publicId)
                 || exhibitionService.isAssetReferenced(publicId)
+                || exhibitionHallService.isBackgroundMusicReferenced(publicId)
                 || productService.isAssetReferenced(publicId)
                 || userService.isAvatarAssetReferenced(publicId)
                 || companyService.isLogoAssetReferenced(publicId)

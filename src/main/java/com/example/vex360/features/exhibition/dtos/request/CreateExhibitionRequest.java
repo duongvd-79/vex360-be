@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.validation.Valid;
@@ -43,9 +44,13 @@ public class CreateExhibitionRequest {
     private LocalDate endDate;
 
     @NotNull(message = "Số gian hàng dự kiến không được để trống")
-    @Min(value = 1, message = "Số gian hàng dự kiến phải lớn hơn 0")
+    @Min(value = 0, message = "Số gian hàng dự kiến không được nhỏ hơn 0")
     @Max(value = 2000, message = "Số gian hàng dự kiến không được vượt quá 2000")
     private Integer estimatedBooths;
+
+    @NotNull(message = "Chế độ trải nghiệm triển lãm không được để trống")
+    @Builder.Default
+    private ExhibitionExperienceMode experienceMode = ExhibitionExperienceMode.WITH_BOOTHS;
 
     @Deprecated
     private List<@NotNull(message = "Gói dịch vụ không được để trống") @Valid ConfigureExhibitionPackageRequest> packages;
@@ -63,5 +68,13 @@ public class CreateExhibitionRequest {
     public boolean isDurationValid() {
         return startDate == null || endDate == null
                 || ChronoUnit.DAYS.between(startDate, endDate) <= 90;
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "Số gian hàng dự kiến phải lớn hơn 0 với chế độ WITH_BOOTHS")
+    public boolean isEstimatedBoothsValidForExperienceMode() {
+        return estimatedBooths == null || experienceMode == null
+                || experienceMode == ExhibitionExperienceMode.STANDALONE
+                || estimatedBooths > 0;
     }
 }

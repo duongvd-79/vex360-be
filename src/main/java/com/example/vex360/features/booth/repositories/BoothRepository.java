@@ -63,6 +63,8 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             SELECT b FROM Booth b
             WHERE b.isTemplate = false
               AND b.company.id = :companyId
+              AND b.exhibitorRegistration.exhibitionPackage.exhibition.experienceMode =
+                  com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
             """)
     Page<Booth> findCompanyBooths(
             @Param("companyId") UUID companyId,
@@ -73,6 +75,8 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             WHERE b.id = :id
               AND b.isTemplate = false
               AND b.company.id = :companyId
+              AND b.exhibitorRegistration.exhibitionPackage.exhibition.experienceMode =
+                  com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
             """)
     Optional<Booth> findCompanyBoothById(
             @Param("id") UUID id,
@@ -84,6 +88,8 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             WHERE b.id = :id
               AND b.isTemplate = false
               AND b.company.id = :companyId
+              AND b.exhibitorRegistration.exhibitionPackage.exhibition.experienceMode =
+                  com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
             """)
     Optional<Booth> findCompanyBoothByIdForUpdate(
             @Param("id") UUID id,
@@ -132,6 +138,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             LEFT JOIN company.ownerUser ownerUser
             WHERE exhibition.uuid = :exhibitionUuid
               AND exhibition.organizer.id = :organizerId
+              AND exhibition.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND (:keyword IS NULL
                 OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(company.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -216,6 +223,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             JOIN reg.exhibitionPackage pkg
             JOIN pkg.exhibition exh
             WHERE exh.uuid = :exhibitionUuid
+              AND exh.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.status = :boothStatus
               AND b.isTemplate = false
               AND (:keyword IS NULL OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
@@ -229,6 +237,8 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
     @Query("""
             SELECT COUNT(b) FROM Booth b
             WHERE b.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
+              AND b.exhibitorRegistration.exhibitionPackage.exhibition.experienceMode =
+                  com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.isTemplate = false
             """)
     long countBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
@@ -236,6 +246,8 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
     @Query("""
             SELECT b FROM Booth b
             WHERE b.exhibitorRegistration.exhibitionPackage.exhibition.id = :exhibitionId
+              AND b.exhibitorRegistration.exhibitionPackage.exhibition.experienceMode =
+                  com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.isTemplate = false
             """)
     List<Booth> findBoothsByExhibitionId(@Param("exhibitionId") Integer exhibitionId);
@@ -246,7 +258,9 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             JOIN b.exhibitorRegistration r
             JOIN r.exhibitionPackage p
             JOIN p.exhibition e
-            WHERE b.isTemplate = false AND e.id IN :ids
+            WHERE b.isTemplate = false
+              AND e.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
+              AND e.id IN :ids
             GROUP BY e.id
             """)
     List<Object[]> countBoothsGroupedByExhibition(@Param("ids") List<Integer> ids);
@@ -266,6 +280,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             JOIN r.exhibitionPackage p
             JOIN p.exhibition e
             WHERE b.isTemplate = false
+              AND e.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.status = :status
               AND e.id IN :exhibitionIds
             GROUP BY e.id
@@ -280,6 +295,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             JOIN reg.exhibitionPackage pkg
             JOIN pkg.exhibition exh
             WHERE exh.uuid = :exhibitionUuid
+              AND exh.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.status = :boothStatus
               AND b.isTemplate = false
               AND (:keyword IS NULL OR LOWER(b.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
@@ -303,6 +319,27 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             @Param("listingPriority") BoothListingPriority listingPriority,
             Pageable pageable);
 
+    @Query(value = """
+            SELECT b.*
+            FROM booths b
+            JOIN exhibitor_registrations reg ON reg.id = b.exhibitor_registration_id
+            JOIN exhibition_packages pkg ON pkg.id = reg.exhibition_package_id
+            JOIN exhibitions exh ON exh.id = pkg.exhibition_id
+            JOIN (
+                SELECT booth_id, MIN(reviewed_at) AS first_approved_at
+                FROM booth_review_requests
+                WHERE status = 'APPROVED' AND reviewed_at IS NOT NULL
+                GROUP BY booth_id
+            ) approval ON approval.booth_id = b.id
+            WHERE exh.uuid = :exhibitionUuid
+              AND exh.experience_mode = 'WITH_BOOTHS'
+              AND b.status = 'PUBLISHED'
+              AND b.is_template = false
+            ORDER BY approval.first_approved_at ASC, b.id ASC
+            """, nativeQuery = true)
+    List<Booth> findPublishedBoothsByFirstApproval(
+            @Param("exhibitionUuid") UUID exhibitionUuid);
+
     @Query("""
             SELECT b FROM Booth b
             JOIN FETCH b.exhibitorRegistration reg
@@ -311,6 +348,7 @@ public interface BoothRepository extends JpaRepository<Booth, UUID> {
             LEFT JOIN FETCH pkg.template
             LEFT JOIN FETCH b.company
             WHERE exh.uuid = :exhibitionUuid
+              AND exh.experienceMode = com.example.vex360.shared.enums.ExhibitionExperienceMode.WITH_BOOTHS
               AND b.id = :boothId
               AND b.status = :boothStatus
               AND b.isTemplate = false

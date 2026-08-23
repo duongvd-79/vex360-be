@@ -70,11 +70,11 @@ class ExhibitionTimelinePolicyTest {
     }
 
     @Test
-    @DisplayName("Should validate registration is open when status is REGISTRATION or PUBLISHED and before T-3 deadline")
+    @DisplayName("Should close new registrations at T-7 but process existing registrations through T-3")
     void testIsRegistrationOpen() {
         Exhibition exhibition = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
-                .startDate(LocalDate.of(2026, Month.JANUARY, 15))
+                .startDate(LocalDate.of(2026, Month.JANUARY, 18))
                 .build();
 
         assertTrue(policy.isRegistrationOpen(exhibition));
@@ -82,8 +82,37 @@ class ExhibitionTimelinePolicyTest {
         exhibition.setStatus(ExhibitionStatus.PUBLISHED);
         assertTrue(policy.isRegistrationOpen(exhibition));
 
+        exhibition.setStartDate(LocalDate.of(2026, Month.JANUARY, 17));
+        assertFalse(policy.isRegistrationOpen(exhibition));
+        assertTrue(policy.isRegistrationProcessingOpen(exhibition));
+
+        exhibition.setStartDate(LocalDate.of(2026, Month.JANUARY, 13));
+        assertTrue(policy.isRegistrationProcessingOpen(exhibition));
+
+        exhibition.setStartDate(LocalDate.of(2026, Month.JANUARY, 12));
+        assertFalse(policy.isRegistrationProcessingOpen(exhibition));
+
         exhibition.setStatus(ExhibitionStatus.PENDING);
         assertFalse(policy.isRegistrationOpen(exhibition));
+        assertFalse(policy.isRegistrationProcessingOpen(exhibition));
+    }
+
+    @Test
+    void experienceIsActiveOnlyForActiveStatusWithinInclusiveDates() {
+        LocalDate startDate = LocalDate.of(2026, Month.JANUARY, 10);
+        LocalDate endDate = LocalDate.of(2026, Month.JANUARY, 12);
+
+        assertTrue(policy.isExperienceActive(ExhibitionStatus.ACTIVE, startDate, endDate));
+        assertFalse(policy.isExperienceActive(ExhibitionStatus.PUBLISHED, startDate, endDate));
+        assertFalse(policy.isExperienceActive(
+                ExhibitionStatus.ACTIVE,
+                LocalDate.of(2026, Month.JANUARY, 11),
+                endDate));
+        assertFalse(policy.isExperienceActive(
+                ExhibitionStatus.ACTIVE,
+                LocalDate.of(2026, Month.JANUARY, 1),
+                LocalDate.of(2026, Month.JANUARY, 9)));
+        assertFalse(policy.isExperienceActive(ExhibitionStatus.ACTIVE, null, endDate));
     }
 
     @Test
@@ -107,17 +136,17 @@ class ExhibitionTimelinePolicyTest {
         assertEquals(ExhibitionStatus.ACTIVE,
                 policy.resolveTargetStatus(exActive, LocalDate.of(2026, Month.JANUARY, 10)));
 
-        // 3. status == REGISTRATION and today >= startDate - 31 days -> PUBLISHED
+        // 3. status == REGISTRATION and today >= startDate - 7 days -> PUBLISHED
         Exhibition exPublished = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
-                .startDate(LocalDate.of(2026, Month.FEBRUARY, 10))
-                .endDate(LocalDate.of(2026, Month.FEBRUARY, 25))
+                .startDate(LocalDate.of(2026, Month.JANUARY, 17))
+                .endDate(LocalDate.of(2026, Month.JANUARY, 25))
                 .build();
         assertEquals(ExhibitionStatus.PUBLISHED,
                 policy.resolveTargetStatus(exPublished, LocalDate.of(2026, Month.JANUARY, 10)));
 
         // 4. Otherwise -> null (no transition)
-        // REGISTRATION before T-31
+        // REGISTRATION before T-7
         Exhibition exRegEarly = Exhibition.builder()
                 .status(ExhibitionStatus.REGISTRATION)
                 .startDate(LocalDate.of(2026, Month.MARCH, 1))
@@ -140,6 +169,7 @@ class ExhibitionTimelinePolicyTest {
         assertNull(policy.getBoothReviewDeadline(Exhibition.builder().build()));
         assertFalse(policy.isBoothPreparationOpen(null));
         assertFalse(policy.isRegistrationOpen(null));
+        assertFalse(policy.isRegistrationProcessingOpen(null));
         assertFalse(policy.hasMinimumLeadTime(null, 1));
 
         LocalDate today = LocalDate.of(2026, Month.JANUARY, 10);

@@ -38,6 +38,7 @@ import com.example.vex360.features.exhibition.repositories.ExhibitionRepository;
 import com.example.vex360.features.exhibition.repositories.ExhibitorRegistrationRepository;
 import com.example.vex360.features.exhibition.repositories.PaymentRepository;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.exhibition.services.ExhibitorRegistrationService;
 import com.example.vex360.features.exhibition.services.PayOSIntegrationService;
 import com.example.vex360.features.mail.AfterCommitExecutor;
@@ -66,6 +67,8 @@ class RegistrationReservationTest {
     private PayOSIntegrationService payOSIntegrationService;
     @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
+    @Mock
+    private ExhibitionParticipationPolicy participationPolicy;
     @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
@@ -113,7 +116,7 @@ class RegistrationReservationTest {
     void approveRegistration_whenPackageFull_throwsExhibitionPackageFull() {
         UUID regUuid = registration.getUuid();
         when(registrationRepository.findByUuidForUpdate(regUuid)).thenReturn(Optional.of(registration));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
         when(registrationRepository.countActiveAndReservedByPackageId(eq(100), any(Instant.class))).thenReturn(2L);
 
         AppException exception = assertThrows(AppException.class,
@@ -126,7 +129,7 @@ class RegistrationReservationTest {
     void approveRegistration_whenPaidPackage_setsPendingPaymentAnd24hReservedUntil() {
         UUID regUuid = registration.getUuid();
         when(registrationRepository.findByUuidForUpdate(regUuid)).thenReturn(Optional.of(registration));
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
         when(registrationRepository.countActiveAndReservedByPackageId(eq(100), any(Instant.class))).thenReturn(1L);
         when(registrationRepository.save(any(ExhibitorRegistration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

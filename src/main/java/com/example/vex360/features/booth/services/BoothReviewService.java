@@ -30,6 +30,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.ExhibitorRegistration;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.dtos.PageResponse;
 import com.example.vex360.shared.exceptions.AppException;
@@ -55,6 +56,7 @@ public class BoothReviewService {
     private final BoothReviewDiffService diffService;
     private final BoothReviewContentAssembler contentAssembler;
     private final ExhibitionService exhibitionService;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final MailService mailService;
     private final AfterCommitExecutor afterCommitExecutor;
     private final Clock clock;
@@ -64,6 +66,7 @@ public class BoothReviewService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = getBoothForCompany(boothId, company);
         Exhibition exhibition = getExhibition(booth);
+        participationPolicy.assertSupportsParticipation(exhibition);
         exhibitionService.findExhibitionForUpdate(exhibition.getId());
         boothReviewPolicyService.assertCanStartEdit(booth);
         booth.setStatus(BoothStatus.DRAFT);
@@ -75,6 +78,7 @@ public class BoothReviewService {
         Company company = getCompanyForCurrentUser(currentUser);
         Booth booth = boothRepository.findCompanyBoothByIdForUpdate(boothId, company.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        participationPolicy.assertSupportsParticipation(getExhibition(booth));
         boothReviewPolicyService.assertCanSubmitReview(booth);
         assertProductsActive(booth);
         booth.setLateEditAllowedUntil(null);
@@ -137,7 +141,8 @@ public class BoothReviewService {
 
     @Transactional
     public BoothReviewRequestSummaryDTO approve(User organizer, UUID exhibitionUuid, UUID requestId) {
-        exhibitionService.findExhibitionForUpdate(exhibitionUuid);
+        Exhibition exhibition = exhibitionService.findExhibitionForUpdate(exhibitionUuid);
+        participationPolicy.assertSupportsParticipation(exhibition);
         BoothReviewRequest request = boothReviewPolicyService
                 .getOrganizerReviewRequest(organizer, exhibitionUuid, requestId);
         boothReviewPolicyService.assertCanReviewBooth(request.getBooth());
@@ -161,7 +166,8 @@ public class BoothReviewService {
             UUID exhibitionUuid,
             UUID requestId,
             RejectBoothReviewRequest rejectRequest) {
-        exhibitionService.findExhibitionForUpdate(exhibitionUuid);
+        Exhibition exhibition = exhibitionService.findExhibitionForUpdate(exhibitionUuid);
+        participationPolicy.assertSupportsParticipation(exhibition);
         BoothReviewRequest request = boothReviewPolicyService
                 .getOrganizerReviewRequest(organizer, exhibitionUuid, requestId);
         boothReviewPolicyService.assertCanReviewBooth(request.getBooth());
@@ -297,8 +303,10 @@ public class BoothReviewService {
 
     @Transactional(readOnly = true)
     public Booth findBoothEntityById(UUID boothId) {
-        return boothRepository.findById(boothId)
+        Booth booth = boothRepository.findById(boothId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        participationPolicy.assertSupportsParticipation(getExhibition(booth));
+        return booth;
     }
 
     @Transactional(readOnly = true)
@@ -314,8 +322,10 @@ public class BoothReviewService {
 
     private Booth getOrganizerBooth(User organizer, UUID exhibitionUuid, UUID boothId) {
         assertAuthenticated(organizer);
-        return boothRepository.findDetailForOrganizer(boothId, exhibitionUuid, organizer.getId())
+        Booth booth = boothRepository.findDetailForOrganizer(boothId, exhibitionUuid, organizer.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOTH_NOT_FOUND));
+        participationPolicy.assertSupportsParticipation(getExhibition(booth));
+        return booth;
     }
 
     private void assertReviewVisibleStatus(Booth booth) {

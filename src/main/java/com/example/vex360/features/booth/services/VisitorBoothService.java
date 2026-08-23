@@ -26,6 +26,8 @@ import com.example.vex360.features.booth.repositories.PanoramaRepository;
 import com.example.vex360.features.booth.repositories.ProductPlacementProjection;
 import com.example.vex360.features.exhibition.dtos.response.ExhibitionResponseDTO;
 import com.example.vex360.features.exhibition.services.ExhibitionService;
+import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.features.product.dtos.response.ProductPlacementDTO;
 import com.example.vex360.features.product.dtos.response.ProductResponseDTO;
 import com.example.vex360.features.product.dtos.response.VisitorProductSearchResponseDTO;
@@ -52,6 +54,8 @@ public class VisitorBoothService {
     private final ProductService productService;
     private final BoothMapper boothMapper;
     private final ProductMapper productMapper;
+    private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
 
     @Transactional(readOnly = true)
     public PageResponse<BoothResponseDTO> getPublishedBooths(
@@ -60,6 +64,9 @@ public class VisitorBoothService {
             BoothListingPriority listingPriority,
             Pageable pageable) {
         ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
+        if (!participationPolicy.supportsParticipation(exhibition.getExperienceMode())) {
+            return PageResponse.from(Page.empty(pageable));
+        }
 
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
         Page<BoothResponseDTO> booths = boothRepository.findPublishedBoothsByExhibitionUuid(
@@ -78,6 +85,9 @@ public class VisitorBoothService {
             String keyword,
             Pageable pageable) {
         ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
+        if (!participationPolicy.supportsParticipation(exhibition.getExperienceMode())) {
+            return PageResponse.from(Page.empty(pageable));
+        }
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
 
         Page<Product> productPage = hotspotRepository.searchDisplayedProductsForVisitor(
@@ -120,6 +130,7 @@ public class VisitorBoothService {
     @Transactional(readOnly = true)
     public ProductResponseDTO getDisplayedProductDetail(UUID exhibitionUuid, UUID productId) {
         ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
+        participationPolicy.assertSupportsParticipation(exhibition.getExperienceMode());
         Product product = hotspotRepository.findDisplayedProductDetailForVisitor(
                 exhibition.getUuid(),
                 productId,
@@ -132,6 +143,7 @@ public class VisitorBoothService {
     @Transactional(readOnly = true)
     public BoothResponseDTO getBoothTourDetail(UUID exhibitionUuid, UUID boothId) {
         ExhibitionResponseDTO exhibition = getActiveExhibition(exhibitionUuid);
+        participationPolicy.assertSupportsParticipation(exhibition.getExperienceMode());
 
         Booth booth = boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(
                 exhibition.getUuid(),
@@ -196,8 +208,10 @@ public class VisitorBoothService {
     private ExhibitionResponseDTO getActiveExhibition(UUID exhibitionUuid) {
         ExhibitionResponseDTO exhibition = exhibitionService.getExhibitionByUuid(exhibitionUuid);
 
-        if (!ExhibitionStatus.ACTIVE.name().equals(exhibition.getStatus())
-                && !ExhibitionStatus.PUBLISHED.name().equals(exhibition.getStatus())) {
+        if (!timelinePolicy.isExperienceActive(
+                ExhibitionStatus.valueOf(exhibition.getStatus()),
+                exhibition.getStartDate(),
+                exhibition.getEndDate())) {
             throw new AppException(ErrorCode.EXHIBITION_INVALID_STATUS);
         }
         return exhibition;
@@ -248,5 +262,12 @@ public class VisitorBoothService {
         }
         return boothRepository.findPublishedBoothByExhibitionUuidAndBoothId(exhibitionUuid, boothId,
                 BoothStatus.PUBLISHED);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Booth> findPublishedBoothsByFirstApproval(UUID exhibitionUuid) {
+        return exhibitionUuid == null
+                ? List.of()
+                : boothRepository.findPublishedBoothsByFirstApproval(exhibitionUuid);
     }
 }

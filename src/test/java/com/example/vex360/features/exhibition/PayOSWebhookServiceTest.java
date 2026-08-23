@@ -38,6 +38,7 @@ import com.example.vex360.features.exhibition.entities.Exhibition;
 import com.example.vex360.features.exhibition.entities.ExhibitionPackage;
 import com.example.vex360.features.exhibition.entities.Payment;
 import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
+import com.example.vex360.features.exhibition.services.ExhibitionParticipationPolicy;
 import com.example.vex360.shared.enums.ExhibitionStatus;
 import com.example.vex360.shared.enums.ExhibitorRegistrationStatus;
 import com.example.vex360.shared.enums.PaymentStatus;
@@ -68,6 +69,8 @@ class PayOSWebhookServiceTest {
 
     @Mock
     private ExhibitionTimelinePolicy timelinePolicy;
+    @Mock
+    private ExhibitionParticipationPolicy participationPolicy;
 
     @Mock
     private PayOS payOS;
@@ -99,7 +102,7 @@ class PayOSWebhookServiceTest {
                 .company(Company.builder().id(UUID.randomUUID())
                         .name("Test Co").build())
                 .build();
-        org.mockito.Mockito.lenient().when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(true);
+        org.mockito.Mockito.lenient().when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(true);
 
         pendingPayment = Payment.builder()
                 .id(100)
@@ -278,7 +281,7 @@ class PayOSWebhookServiceTest {
     void lateSuccessWebhook_recordsPaidButDoesNotApprove() {
         Object mockBody = new Object();
         Exhibition exhibition = pendingRegistration.getExhibitionPackage().getExhibition();
-        when(timelinePolicy.isRegistrationOpen(exhibition)).thenReturn(false);
+        when(timelinePolicy.isRegistrationProcessingOpen(exhibition)).thenReturn(false);
         when(payOS.webhooks()).thenReturn(webhookService);
         when(webhookService.verify(mockBody)).thenReturn(successWebhookData);
         stubLockedPayment(pendingPayment);

@@ -69,6 +69,7 @@ public class ExhibitorRegistrationService {
     private final PaymentFulfillmentService paymentFulfillmentService;
     private final ApplicationEventPublisher eventPublisher;
     private final ExhibitionTimelinePolicy timelinePolicy;
+    private final ExhibitionParticipationPolicy participationPolicy;
     private final MailService mailService;
     private final AfterCommitExecutor afterCommitExecutor;
     @Value("${app.payos.return-url:http://localhost:5175/payment/success}")
@@ -94,6 +95,7 @@ public class ExhibitorRegistrationService {
         Company company = companyService.getCompanyEntityForCurrentUserForUpdate(exhibitorUser);
 
         Exhibition exhibition = resolveRegistrationExhibition(exhibitionUuid, legacyExhibitionPackageId);
+        participationPolicy.assertSupportsParticipation(exhibition);
         if (!timelinePolicy.isRegistrationOpen(exhibition)) {
             log.error("Registration is closed for exhibition {}", exhibition.getId());
             throw new AppException(ErrorCode.REGISTRATION_CLOSED);
@@ -202,6 +204,7 @@ public class ExhibitorRegistrationService {
         }
 
         validateRegistrationDependencies(registration);
+        participationPolicy.assertSupportsParticipation(registration.getExhibitionPackage().getExhibition());
 
         Payment payment = ensureValidPaymentForRegistration(registration);
         return mapToResponse(registration, payment);
@@ -260,7 +263,8 @@ public class ExhibitorRegistrationService {
                 && (payment == null || payment.getStatus() == PaymentStatus.FAILED)) {
             validateRegistrationDependencies(registration);
 
-            if (!timelinePolicy.isRegistrationOpen(registration.getExhibitionPackage().getExhibition())) {
+            if (!timelinePolicy.isRegistrationProcessingOpen(
+                    registration.getExhibitionPackage().getExhibition())) {
                 log.warn(
                         "Registration closed for exhibition, refusing to generate new payment link for registration {}",
                         registration.getId());
@@ -394,12 +398,14 @@ public class ExhibitorRegistrationService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
+        participationPolicy.assertSupportsParticipation(exp);
+
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING) {
             log.error("Cannot approve registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.REGISTRATION_INVALID_STATUS);
         }
 
-        if (!timelinePolicy.isRegistrationOpen(exp)) {
+        if (!timelinePolicy.isRegistrationProcessingOpen(exp)) {
             throw new AppException(ErrorCode.REGISTRATION_CLOSED);
         }
 
@@ -480,6 +486,8 @@ public class ExhibitorRegistrationService {
             log.error("Organizer {} is not authorized to reject registration {}", organizer.getId(), registrationUuid);
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
+
+        participationPolicy.assertSupportsParticipation(registration.getExhibitionPackage().getExhibition());
 
         if (registration.getStatus() != ExhibitorRegistrationStatus.PENDING
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
@@ -597,6 +605,9 @@ public class ExhibitorRegistrationService {
                 && registration.getStatus() != ExhibitorRegistrationStatus.PENDING_PAYMENT) {
             log.error("Cannot cancel registration {} with status {}", registrationUuid, registration.getStatus());
             throw new AppException(ErrorCode.EXHIBITION_CANNOT_CANCEL);
+        }
+        if (registration.getExhibitionPackage() != null) {
+            participationPolicy.assertSupportsParticipation(registration.getExhibitionPackage().getExhibition());
         }
 
         List<Payment> payments = paymentRepository

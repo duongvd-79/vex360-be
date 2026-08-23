@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.example.vex360.features.product.enums.ProductContentType;
+import com.example.vex360.shared.enums.StorageProvider;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -65,6 +66,14 @@ public class ProductContent {
     @Column(name = "file_size", nullable = false)
     Long fileSize;
 
+    /**
+     * Dòng tạo trước khi có cột này mang giá trị null, nên mọi nơi đọc phải đi qua
+     * {@link #resolveStorageProvider()} chứ đừng dùng getter thẳng.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storage_provider", length = 30)
+    StorageProvider storageProvider;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     Instant createdAt;
@@ -72,4 +81,9 @@ public class ProductContent {
     @UpdateTimestamp
     @Column(name = "updated_at")
     Instant updatedAt;
+
+    /** Coi null là CLOUDINARY: cột được thêm sau nên dữ liệu cũ không có giá trị. */
+    public StorageProvider resolveStorageProvider() {
+        return storageProvider == null ? StorageProvider.CLOUDINARY : storageProvider;
+    }
 }

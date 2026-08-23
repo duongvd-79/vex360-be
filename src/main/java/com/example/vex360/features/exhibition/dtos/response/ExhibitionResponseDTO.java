@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.example.vex360.shared.enums.ExhibitionExperienceMode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.AllArgsConstructor;
@@ -26,6 +27,7 @@ public class ExhibitionResponseDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer estimatedBooths;
+    private ExhibitionExperienceMode experienceMode;
     private String status;
     private String organizerName;
     private String companyName;

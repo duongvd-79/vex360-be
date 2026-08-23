@@ -3,6 +3,7 @@ package com.example.vex360.features.product.services;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,12 +42,15 @@ import com.example.vex360.features.user.entities.User;
 import com.example.vex360.shared.exceptions.AppException;
 import com.example.vex360.shared.exceptions.ErrorCode;
 import com.example.vex360.shared.services.CloudService;
+import com.example.vex360.shared.enums.StorageProvider;
+import com.example.vex360.shared.services.R2StorageService;
 import com.example.vex360.shared.utils.PageableUtils;
 
 @Service
 public class ProductService {
     private static final int MAX_IMAGE_CONTENT_COUNT = 5;
     private static final int MAX_VIDEO_CONTENT_COUNT = 1;
+    private static final int MAX_MODEL_CONTENT_COUNT = 1;
     private static final List<String> BOOTH_STATUSES_LOCKING_PRODUCT_EDITS = List.of("PENDING", "PUBLISHED");
     private static final Map<String, String> PRODUCT_SORT_ALIASES = Map.of(
             "categoryName", "category.name");
@@ -58,6 +62,7 @@ public class ProductService {
     private final CloudService cloudService;
     private final ProductMapper productMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final R2StorageService r2StorageService;
 
     public ProductService(
             CompanyService companyService,
@@ -66,7 +71,8 @@ public class ProductService {
             ProductRepository productRepository,
             CloudService cloudService,
             ProductMapper productMapper,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            R2StorageService r2StorageService) {
         this.companyService = companyService;
         this.companyStorageService = companyStorageService;
         this.productCategoryRepository = productCategoryRepository;
@@ -74,6 +80,7 @@ public class ProductService {
         this.cloudService = cloudService;
         this.productMapper = productMapper;
         this.eventPublisher = eventPublisher;
+        this.r2StorageService = r2StorageService;
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +129,8 @@ public class ProductService {
         List<CreateProductContentPreUploadedRequest> contentRequests = request.getContents() == null ? List.of()
                 : request.getContents();
         validateContentTypeCounts(contentRequests);
+        Map<String, Long> verifiedSizes = measureR2Contents(company, contentRequests);
+        chargeR2Usage(company, verifiedSizes);
         ProductStatus status = resolveMutableStatus(request.getStatus());
 
         Product product = Product.builder()
@@ -137,7 +146,7 @@ public class ProductService {
                 .thumbnailFileSize(request.getThumbnailFileSize())
                 .status(status)
                 .build();
-        product.setContents(createContentsFromUploaded(product, contentRequests));
+        product.setContents(createContentsFromUploaded(product, contentRequests, verifiedSizes));
 
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -184,7 +193,10 @@ public class ProductService {
                 .filter(content -> !keptIds.contains(content.getId()))
                 .forEach(content -> companyStorageService.deductUsage(company, content.getFileSize()));
 
-        synchronizeContents(product, existingContentIds, createContentsFromUploaded(product, newContentRequests));
+        Map<String, Long> verifiedSizes = measureR2Contents(company, newContentRequests);
+        chargeR2Usage(company, verifiedSizes);
+        synchronizeContents(product, existingContentIds,
+                createContentsFromUploaded(product, newContentRequests, verifiedSizes));
 
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -198,19 +210,57 @@ public class ProductService {
         deleteCloudFile(product.getThumbnailPublicId(), "image");
         product.getContents().forEach(content -> {
             companyStorageService.deductUsage(company, content.getFileSize());
-            deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
+            deleteContentFile(content);
         });
         eventPublisher.publishEvent(new ProductDeletedEvent(this, product));
         product.setStatus(ProductStatus.INACTIVE);
         return productMapper.toResponse(productRepository.save(product));
     }
 
+    /**
+     * Hỏi thẳng R2 xem từng tệp cửa vào có thật không và thư mục chứa nó nặng bao nhiêu.
+     * Trả về bảng tra khoá đến dung lượng thật, dùng thay cho con số do client khai.
+     */
+    private Map<String, Long> measureR2Contents(
+            Company company,
+            List<CreateProductContentPreUploadedRequest> requests) {
+        Map<String, Long> verifiedSizes = new HashMap<>();
+        Set<String> measuredFolders = new HashSet<>();
+        for (CreateProductContentPreUploadedRequest req : requests) {
+            if (req.getStorageProvider() != StorageProvider.R2) {
+                continue;
+            }
+            // Các tệp của một lô presign nằm chung thư mục; chỉ đo và tính phí thư mục một
+            // lần, những tệp cùng thư mục mang dung lượng 0 để tổng không bị nhân lên.
+            String folder = req.getPublicId().substring(0, req.getPublicId().lastIndexOf('/') + 1);
+            long size = measuredFolders.add(folder)
+                    ? r2StorageService.verifyAndMeasureFolder(company.getId(), req.getPublicId())
+                    : 0L;
+            verifiedSizes.put(req.getPublicId(), size);
+        }
+        return verifiedSizes;
+    }
+
+    /**
+     * Trừ kho lưu trữ cho phần nằm trên R2. Tệp Cloudinary không tính lại ở đây vì đã bị trừ
+     * ngay lúc tải lên, còn tệp R2 đi thẳng từ trình duyệt nên tới bước này mới chốt được.
+     */
+    private void chargeR2Usage(Company company, Map<String, Long> verifiedSizes) {
+        long totalBytes = verifiedSizes.values().stream().mapToLong(Long::longValue).sum();
+        if (totalBytes <= 0) {
+            return;
+        }
+        companyStorageService.checkQuota(company, totalBytes);
+        companyStorageService.addUsage(company, totalBytes);
+    }
+
     private List<ProductContent> createContentsFromUploaded(
             Product product,
-            List<CreateProductContentPreUploadedRequest> requests) {
+            List<CreateProductContentPreUploadedRequest> requests,
+            Map<String, Long> verifiedSizes) {
         List<ProductContent> contents = requests.stream()
                 .sorted(Comparator.comparing(CreateProductContentPreUploadedRequest::getOrderIndex))
-                .map(req -> createContentFromUploaded(product, req))
+                .map(req -> createContentFromUploaded(product, req, verifiedSizes))
                 .collect(Collectors.toCollection(ArrayList::new));
         for (int i = 0; i < contents.size(); i++) {
             contents.get(i).setOrderIndex(i);
@@ -218,15 +268,24 @@ public class ProductService {
         return contents;
     }
 
-    private ProductContent createContentFromUploaded(Product product, CreateProductContentPreUploadedRequest req) {
+    private ProductContent createContentFromUploaded(
+            Product product,
+            CreateProductContentPreUploadedRequest req,
+            Map<String, Long> verifiedSizes) {
+        StorageProvider provider = req.getStorageProvider() == null
+                ? StorageProvider.CLOUDINARY
+                : req.getStorageProvider();
         return ProductContent.builder()
                 .product(product)
                 .contentUrl(req.getContentUrl())
                 .publicId(req.getPublicId())
+                .storageProvider(provider)
                 .type(resolveContentType(req.getMimeType()))
                 .orderIndex(req.getOrderIndex())
                 .mimeType(req.getMimeType())
-                .fileSize(req.getFileSize())
+                // Dung lượng đo được trên R2 thắng con số client khai; tệp Cloudinary thì
+                // không có gì để đối chiếu nên giữ nguyên.
+                .fileSize(verifiedSizes.getOrDefault(req.getPublicId(), req.getFileSize()))
                 .build();
     }
 
@@ -248,7 +307,7 @@ public class ProductService {
 
         product.getContents().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
-                .forEach(content -> deleteCloudFile(content.getPublicId(), toResourceType(content.getType())));
+                .forEach(content -> deleteContentFile(content));
 
         nextContents.addAll(newContents);
         for (int i = 0; i < nextContents.size(); i++) {
@@ -262,13 +321,10 @@ public class ProductService {
     }
 
     private void validateContentTypeCounts(List<CreateProductContentPreUploadedRequest> requests) {
-        long imageCount = requests.stream()
-                .map(r -> resolveContentType(r.getMimeType()))
-                .filter(ProductContentType.IMAGE::equals).count();
-        long videoCount = requests.stream()
-                .map(r -> resolveContentType(r.getMimeType()))
-                .filter(ProductContentType.VIDEO::equals).count();
-        validateContentTypeCounts(imageCount, videoCount);
+        validateContentTypeCounts(
+                countOf(requests, ProductContentType.IMAGE),
+                countOf(requests, ProductContentType.VIDEO),
+                countOf(requests, ProductContentType.MODEL_3D));
     }
 
     private void validateContentTypeCountsForUpdate(
@@ -276,25 +332,34 @@ public class ProductService {
             List<UUID> existingContentIds,
             List<CreateProductContentPreUploadedRequest> newRequests) {
         Set<UUID> keptIds = new HashSet<>(existingContentIds);
-        long imageCount = product.getContents().stream()
-                .filter(c -> keptIds.contains(c.getId()))
-                .map(ProductContent::getType)
-                .filter(ProductContentType.IMAGE::equals).count();
-        long videoCount = product.getContents().stream()
-                .filter(c -> keptIds.contains(c.getId()))
-                .map(ProductContent::getType)
-                .filter(ProductContentType.VIDEO::equals).count();
-        imageCount += newRequests.stream()
-                .map(r -> resolveContentType(r.getMimeType()))
-                .filter(ProductContentType.IMAGE::equals).count();
-        videoCount += newRequests.stream()
-                .map(r -> resolveContentType(r.getMimeType()))
-                .filter(ProductContentType.VIDEO::equals).count();
-        validateContentTypeCounts(imageCount, videoCount);
+        validateContentTypeCounts(
+                countOf(product, keptIds, ProductContentType.IMAGE)
+                        + countOf(newRequests, ProductContentType.IMAGE),
+                countOf(product, keptIds, ProductContentType.VIDEO)
+                        + countOf(newRequests, ProductContentType.VIDEO),
+                countOf(product, keptIds, ProductContentType.MODEL_3D)
+                        + countOf(newRequests, ProductContentType.MODEL_3D));
     }
 
-    private void validateContentTypeCounts(long imageCount, long videoCount) {
-        if (imageCount > MAX_IMAGE_CONTENT_COUNT || videoCount > MAX_VIDEO_CONTENT_COUNT) {
+    /** Đếm nội dung sắp thêm, phân loại theo kiểu suy ra từ MIME type. */
+    private long countOf(List<CreateProductContentPreUploadedRequest> requests, ProductContentType type) {
+        return requests.stream()
+                .map(r -> resolveContentType(r.getMimeType()))
+                .filter(type::equals).count();
+    }
+
+    /** Đếm nội dung cũ được giữ lại sau khi cập nhật. */
+    private long countOf(Product product, Set<UUID> keptIds, ProductContentType type) {
+        return product.getContents().stream()
+                .filter(c -> keptIds.contains(c.getId()))
+                .map(ProductContent::getType)
+                .filter(type::equals).count();
+    }
+
+    private void validateContentTypeCounts(long imageCount, long videoCount, long modelCount) {
+        if (imageCount > MAX_IMAGE_CONTENT_COUNT
+                || videoCount > MAX_VIDEO_CONTENT_COUNT
+                || modelCount > MAX_MODEL_CONTENT_COUNT) {
             throw new AppException(ErrorCode.PRODUCT_MEDIA_LIMIT_EXCEEDED);
         }
     }
@@ -308,6 +373,19 @@ public class ProductService {
                 throw new AppException(ErrorCode.PRODUCT_MEDIA_REFERENCE_INVALID);
             }
         }
+    }
+
+    /**
+     * Xoá tệp của một nội dung ở đúng kho đang giữ nó. Đưa khoá R2 cho Cloudinary thì
+     * Cloudinary không tìm thấy, không báo lỗi, và tệp nằm lại vĩnh viễn kèm dung lượng
+     * không bao giờ được trả về cho doanh nghiệp.
+     */
+    private void deleteContentFile(ProductContent content) {
+        if (content.resolveStorageProvider() == StorageProvider.R2) {
+            r2StorageService.deleteFolderOf(content.getPublicId());
+            return;
+        }
+        deleteCloudFile(content.getPublicId(), toResourceType(content.getType()));
     }
 
     private void deleteCloudFile(String publicId, String resourceType) {
@@ -326,8 +404,14 @@ public class ProductService {
     }
 
     private ProductContentType resolveContentType(String mimeType) {
-        if (mimeType != null && mimeType.toLowerCase(Locale.ROOT).startsWith("video/")) {
+        String normalized = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("video/")) {
             return ProductContentType.VIDEO;
+        }
+        // Mô hình 3D luôn được ký với model/obj, model/mtl hoặc model/gltf-binary nên một
+        // tiền tố là đủ, không phải liệt kê từng phần mở rộng.
+        if (normalized.startsWith("model/")) {
+            return ProductContentType.MODEL_3D;
         }
         return ProductContentType.IMAGE;
     }

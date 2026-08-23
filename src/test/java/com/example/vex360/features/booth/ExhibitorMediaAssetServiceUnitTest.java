@@ -252,7 +252,7 @@ class ExhibitorMediaAssetServiceUnitTest {
                 .build();
         when(cloudService.upload(file)).thenReturn(uploadResponse);
 
-        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MediaAssetResponseDTO result = mediaAssetService.createMediaAsset(currentUser, request, file);
 
@@ -262,7 +262,7 @@ class ExhibitorMediaAssetServiceUnitTest {
         assertEquals("image/jpeg", result.getMimeType());
         assertEquals(100L, result.getFileSize());
         assertEquals(MediaAssetType.IMAGE, result.getType());
-        verify(mediaAssetRepository).save(any(MediaAsset.class));
+        verify(mediaAssetRepository).saveAndFlush(any(MediaAsset.class));
     }
 
     @Test
@@ -280,7 +280,7 @@ class ExhibitorMediaAssetServiceUnitTest {
                 .build();
         when(cloudService.upload(file)).thenReturn(uploadResponse);
 
-        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MediaAssetResponseDTO result = mediaAssetService.createMediaAsset(currentUser, request, file);
 
@@ -292,6 +292,31 @@ class ExhibitorMediaAssetServiceUnitTest {
     }
 
     @Test
+    void testCreateMediaAsset_DatabaseFailure_CleansNewUpload() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        CreateMediaAssetRequest request = new CreateMediaAssetRequest();
+        request.setName("Image");
+        MultipartFile file = new MockMultipartFile(
+                "file", "image.jpg", "image/jpeg", "data".getBytes());
+        CloudinaryResponse uploadResponse = CloudinaryResponse.builder()
+                .url("http://cloud/image.jpg")
+                .publicId("new-public-id")
+                .fileType("image/jpeg")
+                .fileSize(100L)
+                .build();
+        when(cloudService.upload(file)).thenReturn(uploadResponse);
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class)))
+                .thenThrow(new RuntimeException("database failed"));
+
+        assertThrows(
+                RuntimeException.class,
+                () -> mediaAssetService.createMediaAsset(currentUser, request, file));
+
+        verify(cloudService).delete("new-public-id", "image");
+        verify(companyStorageService, never()).addUsage(any(), any(Long.class));
+    }
+
+    @Test
     void testDeleteMediaAsset_NotFound_ThrowsException() {
         when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
         UUID assetId = UUID.randomUUID();
@@ -300,6 +325,20 @@ class ExhibitorMediaAssetServiceUnitTest {
         AppException exception = assertThrows(AppException.class, () -> {
             mediaAssetService.deleteMediaAsset(currentUser, assetId);
         });
+        assertEquals(ErrorCode.MEDIA_ASSET_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void testGetMediaAssetForCurrentUser_RejectsForeignCompanyAsset() {
+        when(companyService.getCompanyEntityForCurrentUser(currentUser)).thenReturn(company);
+        UUID assetId = UUID.randomUUID();
+        when(mediaAssetRepository.findByIdAndCompanyId(assetId, company.getId()))
+                .thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> mediaAssetService.getMediaAssetForCurrentUser(currentUser, assetId));
+
         assertEquals(ErrorCode.MEDIA_ASSET_NOT_FOUND, exception.getErrorCode());
     }
 
