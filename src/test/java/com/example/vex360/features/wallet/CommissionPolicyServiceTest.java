@@ -1,9 +1,7 @@
 package com.example.vex360.features.wallet;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -17,7 +15,6 @@ import org.mockito.Mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.wallet.entities.CommissionPolicy;
 import com.example.vex360.features.wallet.repositories.CommissionPolicyRepository;
 import com.example.vex360.features.wallet.services.CommissionPolicyService;
@@ -43,86 +40,6 @@ class CommissionPolicyServiceTest {
         when(commissionPolicyRepository.findAll()).thenReturn(policies);
 
         assertEquals(policies, commissionPolicyService.getPolicies());
-    }
-
-    @Test
-    void calculateFee_DefaultZeroPercent_Success() {
-        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
-                .thenReturn(Optional.empty());
-
-        BigDecimal amount = new BigDecimal("1000000");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
-
-        assertNotNull(result);
-        assertEquals(new BigDecimal("1000000.00"), result.amount());
-        assertEquals(new BigDecimal("0.00"), result.systemFee());
-        assertEquals(new BigDecimal("1000000.00"), result.organizerPayout());
-        assertEquals(0, result.rateBasisPoints());
-    }
-
-    @Test
-    void calculateFee_TenPercentPolicy_Success() {
-        CommissionPolicy policy = CommissionPolicy.builder()
-                .rateBasisPoints(1000) // 10.00%
-                .effectiveAt(Instant.now().minusSeconds(3600))
-                .build();
-        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
-                .thenReturn(Optional.of(policy));
-
-        BigDecimal amount = new BigDecimal("1500000");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
-
-        assertNotNull(result);
-        assertEquals(new BigDecimal("1500000.00"), result.amount());
-        assertEquals(new BigDecimal("150000.00"), result.systemFee());
-        assertEquals(new BigDecimal("1350000.00"), result.organizerPayout());
-        assertEquals(1000, result.rateBasisPoints());
-    }
-
-    @Test
-    void calculateFee_RoundingHalfUp_Success() {
-        CommissionPolicy policy = CommissionPolicy.builder()
-                .rateBasisPoints(1050) // 10.50%
-                .effectiveAt(Instant.now().minusSeconds(3600))
-                .build();
-        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
-                .thenReturn(Optional.of(policy));
-
-        BigDecimal amount = new BigDecimal("99999");
-        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(amount, Instant.now());
-
-        // 99999 * 1050 / 10000 = 10499.895 -> 10499.90
-        assertEquals(new BigDecimal("99999.00"), result.amount());
-        assertEquals(new BigDecimal("10499.90"), result.systemFee());
-        assertEquals(new BigDecimal("89499.10"), result.organizerPayout());
-        assertEquals(result.amount(), result.systemFee().add(result.organizerPayout()));
-    }
-
-    @Test
-    void calculateCommissionHandlesNullInputsAndNullRate() {
-        CommissionPolicy policy = CommissionPolicy.builder().rateBasisPoints(null).build();
-        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
-                .thenReturn(Optional.of(policy));
-
-        CommissionCalculationResult result = commissionPolicyService.calculateCommissionResult(null, null);
-
-        assertEquals(new BigDecimal("0.00"), result.amount());
-        assertEquals(new BigDecimal("0.00"), result.systemFee());
-        assertEquals(new BigDecimal("0.00"), result.organizerPayout());
-        assertEquals(0, result.rateBasisPoints());
-    }
-
-    @Test
-    void calculateCommissionTreatsNonPositiveRateAsZero() {
-        CommissionPolicy policy = CommissionPolicy.builder().rateBasisPoints(-1).build();
-        when(commissionPolicyRepository.findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(any()))
-                .thenReturn(Optional.of(policy));
-
-        CommissionCalculationResult result = commissionPolicyService
-                .calculateCommissionResult(new BigDecimal("1.235"), null);
-
-        assertEquals(new BigDecimal("1.24"), result.amount());
-        assertEquals(new BigDecimal("0.00"), result.systemFee());
     }
 
     @Test

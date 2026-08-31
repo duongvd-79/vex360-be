@@ -1,7 +1,5 @@
 package com.example.vex360.features.wallet.services;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 
@@ -9,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.vex360.features.user.entities.User;
-import com.example.vex360.features.wallet.dtos.CommissionCalculationResult;
 import com.example.vex360.features.wallet.entities.CommissionPolicy;
 import com.example.vex360.features.wallet.repositories.CommissionPolicyRepository;
 
@@ -27,32 +24,6 @@ public class CommissionPolicyService {
     @Transactional(readOnly = true)
     public List<CommissionPolicy> getPolicies() {
         return commissionPolicyRepository.findAll();
-    }
-
-    @Transactional(readOnly = true)
-    public CommissionCalculationResult calculateCommissionResult(BigDecimal amount, Instant time) {
-        if (amount == null) {
-            amount = BigDecimal.ZERO;
-        }
-        amount = amount.setScale(2, RoundingMode.HALF_UP);
-
-        Instant targetTime = time != null ? time : Instant.now();
-        Integer bps = commissionPolicyRepository
-                .findFirstByEffectiveAtLessThanEqualOrderByEffectiveAtDesc(targetTime)
-                .map(CommissionPolicy::getRateBasisPoints)
-                .orElse(0);
-
-        BigDecimal fee;
-        if (bps == null || bps <= 0) {
-            fee = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        } else {
-            fee = amount.multiply(BigDecimal.valueOf(bps))
-                    .divide(BigDecimal.valueOf(10000), 2, RoundingMode.HALF_UP);
-        }
-
-        BigDecimal payout = amount.subtract(fee).setScale(2, RoundingMode.HALF_UP);
-
-        return new CommissionCalculationResult(amount, fee, payout, bps);
     }
 
     @Transactional

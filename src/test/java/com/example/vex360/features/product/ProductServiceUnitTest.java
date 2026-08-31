@@ -167,25 +167,6 @@ class ProductServiceUnitTest {
         assertSame(dto, result.getContent().get(0));
     }
 
-    // ================= getActiveProductsForCompany =================
-
-    @Test
-    void getActiveProductsForCompany_Success_ReturnsPagedResults() {
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<Product> page = new PageImpl<>(List.of(product));
-        ProductResponseDTO dto = new ProductResponseDTO();
-        when(productRepository.searchProducts(company.getId(), null, null, ProductStatus.ACTIVE, pageable))
-                .thenReturn(page);
-        when(productMapper.toResponse(product)).thenReturn(dto);
-
-        PageResponse<ProductResponseDTO> result = service.getActiveProductsForCompany(company.getId(), null, null,
-                pageable);
-
-        assertEquals(1, result.getContent().size());
-        assertSame(dto, result.getContent().get(0));
-        verify(companyService, never()).getCompanyEntityForCurrentUser(any());
-    }
-
     // ================= getProductById =================
 
     @Test

@@ -2,15 +2,12 @@ package com.example.vex360.features.wallet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -29,16 +26,16 @@ import com.example.vex360.features.wallet.enums.WalletTransactionType;
 import com.example.vex360.features.wallet.repositories.OrganizerWalletRepository;
 import com.example.vex360.features.wallet.repositories.OrganizerWalletTransactionRepository;
 import com.example.vex360.features.wallet.services.OrganizerWalletReconciliationService;
-import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class OrganizerWalletReconciliationServiceUnitTest {
 
     @Mock
     private OrganizerWalletRepository walletRepository;
+
     @Mock
     private OrganizerWalletTransactionRepository transactionRepository;
+
     @InjectMocks
     private OrganizerWalletReconciliationService service;
 
@@ -52,8 +49,9 @@ class OrganizerWalletReconciliationServiceUnitTest {
     }
 
     @Test
-    void reconcileWalletForCompanyCoversEveryLedgerTypeAndNullAmount() {
-        when(walletRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(wallet));
+    void reconcileAllWalletsCoversEveryLedgerTypeAndNullAmount() {
+        when(walletRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(wallet), org.springframework.data.domain.PageRequest.of(0, 50), 1));
         when(transactionRepository.findByWalletId(wallet.getId())).thenReturn(List.of(
                 tx(WalletTransactionType.PAYMENT_CREDIT, "100.00"),
                 tx(WalletTransactionType.EXHIBITION_RELEASE, "60.00"),
@@ -66,8 +64,10 @@ class OrganizerWalletReconciliationServiceUnitTest {
                         .amount(null)
                         .build()));
 
-        ReconciliationReportDTO report = service.reconcileWalletForCompany(company.getId());
+        List<ReconciliationReportDTO> reports = service.reconcileAllWallets();
 
+        assertEquals(1, reports.size());
+        ReconciliationReportDTO report = reports.get(0);
         assertTrue(report.isMatch());
         assertEquals(new BigDecimal("30.00"), report.getPendingLedger());
         assertEquals(new BigDecimal("30.00"), report.getAvailableLedger());
@@ -76,23 +76,12 @@ class OrganizerWalletReconciliationServiceUnitTest {
     }
 
     @Test
-    void reconcileWalletForCompanyReportsEachPossibleSnapshotMismatch() {
+    void reconcileAllWalletsReportsEachPossibleSnapshotMismatch() {
         assertFalse(reconcile(wallet("1.00", "0.00", "0.00", "0.00")).isMatch());
         assertFalse(reconcile(wallet("0.00", "1.00", "0.00", "0.00")).isMatch());
         assertFalse(reconcile(wallet("0.00", "0.00", "1.00", "0.00")).isMatch());
         assertFalse(reconcile(wallet("0.00", "0.00", "0.00", "1.00")).isMatch());
         assertTrue(reconcile(wallet("0.00", "0.00", "0.00", "0.00")).isMatch());
-    }
-
-    @Test
-    void reconcileWalletForCompanyThrowsWhenWalletIsMissing() {
-        when(walletRepository.findByCompanyId(company.getId())).thenReturn(Optional.empty());
-
-        AppException exception = assertThrows(
-                AppException.class,
-                () -> service.reconcileWalletForCompany(company.getId()));
-
-        assertSame(ErrorCode.WALLET_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
@@ -110,16 +99,22 @@ class OrganizerWalletReconciliationServiceUnitTest {
         List<ReconciliationReportDTO> reports = service.reconcileAllWallets();
 
         assertEquals(2, reports.size());
-        assertTrue(reports.stream().allMatch(ReconciliationReportDTO::isMatch));
+        assertEquals(first.getCompany().getId(), reports.get(0).getCompanyId());
+        assertEquals(second.getCompany().getId(), reports.get(1).getCompanyId());
     }
 
     private ReconciliationReportDTO reconcile(OrganizerWallet candidate) {
-        when(walletRepository.findByCompanyId(company.getId())).thenReturn(Optional.of(candidate));
-        when(transactionRepository.findByWalletId(candidate.getId())).thenReturn(List.of());
-        return service.reconcileWalletForCompany(company.getId());
+        when(walletRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(candidate), org.springframework.data.domain.PageRequest.of(0, 50), 1));
+        when(transactionRepository.findByWalletId(any())).thenReturn(List.of());
+        return service.reconcileAllWallets().get(0);
     }
 
-    private OrganizerWallet wallet(String pending, String available, String reserved, String withdrawn) {
+    private OrganizerWallet wallet(
+            String pending,
+            String available,
+            String reserved,
+            String withdrawn) {
         return OrganizerWallet.builder()
                 .id(UUID.randomUUID())
                 .company(company)

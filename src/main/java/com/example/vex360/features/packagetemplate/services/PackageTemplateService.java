@@ -139,11 +139,6 @@ public class PackageTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public PackageTemplate getPackageTemplateEntity(UUID id) {
-        return getPackageTemplate(id);
-    }
-
-    @Transactional(readOnly = true)
     public PackageTemplate getActivePackageTemplateEntity(UUID id) {
         return packageTemplateRepository.findByIdAndStatus(id, PackageTemplateStatus.ACTIVE)
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_TEMPLATE_NOT_FOUND));

@@ -312,17 +312,6 @@ class PackageTemplateServiceUnitTest {
     }
 
     @Test
-    void getPackageTemplateEntity_Exists_ReturnsEntity() {
-        UUID id = UUID.randomUUID();
-        PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);
-        when(packageTemplateRepository.findById(id)).thenReturn(Optional.of(template));
-
-        PackageTemplate entity = packageTemplateService.getPackageTemplateEntity(id);
-
-        assertEquals("Pro", entity.getName());
-    }
-
-    @Test
     void getActivePackageTemplateEntity_Active_ReturnsEntity() {
         UUID id = UUID.randomUUID();
         PackageTemplate template = sampleTemplate("Pro", PackageTemplateStatus.ACTIVE);

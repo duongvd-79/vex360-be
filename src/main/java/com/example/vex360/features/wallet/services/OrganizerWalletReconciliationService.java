@@ -35,13 +35,6 @@ public class OrganizerWalletReconciliationService {
     OrganizerWalletRepository walletRepository;
     OrganizerWalletTransactionRepository transactionRepository;
 
-    @Transactional(readOnly = true)
-    public ReconciliationReportDTO reconcileWalletForCompany(UUID companyId) {
-        OrganizerWallet wallet = walletRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
-        return reconcileWallet(wallet);
-    }
-
     private ReconciliationReportDTO reconcileWallet(OrganizerWallet wallet) {
         Company company = wallet.getCompany();
         UUID companyId = company.getId();
