@@ -1,0 +1,71 @@
+name: Deploy to OCI
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp clean verify
+
+      - name: Configure SSH
+        env:
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          OCI_KNOWN_HOSTS: ${{ secrets.OCI_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$OCI_SSH_KEY" > ~/.ssh/oci
+          printf '%s\n' "$OCI_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/oci ~/.ssh/known_hosts
+
+      - name: Upload JAR
+        run: scp -i ~/.ssh/oci target/vex360-*.jar ubuntu@161.118.230.27:/tmp/vex360-deploy.jar
+
+      - name: Deploy, verify, and roll back on failure
+        run: |
+          ssh -i ~/.ssh/oci ubuntu@161.118.230.27 'bash -s' <<'EOF'
+          set -euo pipefail
+          incoming=/tmp/vex360-deploy.jar
+          current=/opt/vex360/vex360.jar
+          backup=/opt/vex360/vex360.jar.previous
+
+          cleanup() { rm -f "$incoming"; }
+          trap cleanup EXIT
+
+          sudo cp "$current" "$backup"
+          sudo install -o vex360 -g vex360 -m 640 "$incoming" "$current"
+          sudo systemctl restart vex360
+
+          for _ in {1..12}; do
+            if curl --fail --silent --show-error http://127.0.0.1:10000/actuator/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          sudo install -o vex360 -g vex360 -m 640 "$backup" "$current"
+          sudo systemctl restart vex360
+          sudo journalctl -u vex360 -n 100 --no-pager
+          exit 1
+          EOF
