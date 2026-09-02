@@ -27,7 +27,7 @@ jobs:
           cache: maven
 
       - name: Build and test
-        run: ./mvnw -B -ntp clean verify
+        run: bash mvnw -B -ntp clean verify
 
       - name: Configure SSH
         env:
