@@ -56,8 +56,6 @@ import com.example.vex360.shared.dtos.CloudinaryResponse;
 import com.example.vex360.shared.utils.PageableUtils;
 
 import com.example.vex360.features.user.services.UserService;
-import com.example.vex360.features.exhibition.services.ExhibitionTimelinePolicy;
-import com.example.vex360.features.exhibition.services.ExhibitionReviewHistoryService;
 import com.example.vex360.features.exhibition.enums.ExhibitionReviewStatus;
 import com.example.vex360.features.exhibition.events.ExhibitionActivatedEvent;
 import com.example.vex360.features.exhibition.events.ExhibitionCompletedEvent;

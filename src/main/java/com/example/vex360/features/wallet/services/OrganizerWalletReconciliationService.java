@@ -18,9 +18,6 @@ import com.example.vex360.features.wallet.entities.OrganizerWallet;
 import com.example.vex360.features.wallet.entities.OrganizerWalletTransaction;
 import com.example.vex360.features.wallet.repositories.OrganizerWalletRepository;
 import com.example.vex360.features.wallet.repositories.OrganizerWalletTransactionRepository;
-import com.example.vex360.shared.exceptions.AppException;
-import com.example.vex360.shared.exceptions.ErrorCode;
-
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
